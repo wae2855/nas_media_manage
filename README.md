@@ -1,0 +1,2 @@
+# nas_media_manage
+本程序用于利用AI和hermes用来自动化管理nas的影视媒体的工具
