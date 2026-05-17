@@ -56,21 +56,25 @@ next: docs/03-development-plan.md
 - **THEN** 系统继续启动流程
 
 ### Requirement: 任务处理核心流程
-系统 SHALL 实现9步处理流水线，每个视频文件依次通过。
+系统 SHALL 实现10步处理流水线，每个视频文件依次通过。
 
-**9步流水线：**
+**10步流水线：**
 
-1. **[触发]** — 用户通过 Hermes/CLI 手动触发，或文件监控发现新文件自动触发
-2. **[扫描]** — 递归扫描源目录，按 video_extensions 和 subtitle_extensions 过滤，忽略 ignore_patterns
-3. **[复制]** — 将视频文件和关联字幕文件复制到临时目录，支持断点续传：
+1. **[扫描]** — 递归扫描源目录，按 video_extensions 和 subtitle_extensions 过滤，忽略 ignore_patterns
+2. **[复制]** — 将视频文件和关联字幕文件复制到临时目录，支持断点续传：
    - 使用临时文件标记（.copying 后缀），复制完成后重命名
    - 启动时检查并清理残留的 .copying 文件
    - 复制失败（网络中断、磁盘空间不足）标记 FAILED 并通知
-4. **[刮削]** — 调用大模型 API，根据文件名分析元数据：
+3. **[刮削]** — 调用大模型 API，根据文件名分析元数据：
    - 输入：视频文件名 + 字幕文件名 + dimensions 配置
    - 输出：{title_cn, title_en, year, resolution, quality, language, type, season, episode, dimensions, confidence}
    - 失败重试 2 次（间隔 3 秒），仍失败则尝试降级模型
    - 置信度 < 阈值时继续但标记 low_confidence_warning
+4. **[校验]** — 校验刮削结果的完整性和合法性：
+   - 检查必需字段是否存在（title_en、year、type 等）
+   - 校验 dimensions 值是否在配置的 values 范围内
+   - 校验置信度是否达标
+   - 校验失败标记 FAILED（错误码 2002 或 2003）
 5. **[分类]** — 遍历 path_rules，用 dimensions 匹配 conditions：
    - 命中第一条规则 → 使用对应 template 生成入库路径
    - 未命中任何规则 → 使用 conditions: {} 的兜底规则
@@ -78,13 +82,14 @@ next: docs/03-development-plan.md
    - 同名定义：年份相同 + (title_cn 相同 或 title_en 相同)
    - 电视剧还需 season + episode 相同
    - 根据 duplicate_handling.strategy 处理（skip/overwrite/rename）
-7. **[命名]** — 应用 filename_templates 生成最终文件名
+7. **[命名]** — 应用 filename_templates 生成最终文件名，匹配字幕文件到对应视频
 8. **[入库]** — 创建入库目录 → 移动文件 → 清理临时文件 → 删除源文件
-9. **[通知+记录]** — 调用 Hermes Webhook 通知 → 更新 tasks.json
+9. **[通知]** — 调用 Hermes Webhook 通知
+10. **[记录]** — 更新 tasks.json
 
 #### Scenario: 完整成功流程
 - **WHEN** 系统处理一个视频文件
-- **THEN** 执行完整的9步流程：触发→扫描→复制→刮削→分类→同名检测→命名→入库→通知+记录
+- **THEN** 执行完整的10步流程：扫描→复制→刮削→校验→分类→同名检测→命名→入库→通知→记录
 - **AND** 每个步骤在任务日志中记录时间和状态
 
 #### Scenario: 复制步骤中断恢复
@@ -137,7 +142,7 @@ next: docs/03-development-plan.md
 系统 SHALL 支持实时任务进度查询。
 
 进度信息 SHALL 包含：
-- 当前步骤编号和名称（如 3/9 复制中）
+- 当前步骤编号和名称（如 4/10 刮削中）
 - 百分比完成度（整数，0-100）
 - 如当前步骤为复制，额外包含已复制字节数/总字节数
 
@@ -378,7 +383,9 @@ media_importer/
 ├── dedup_checker.py          # 同名检测
 ├── file_mover.py             # 文件重命名和移动
 ├── task_manager.py           # 任务队列持久化和状态管理
-├── notifier.py               # Hermes Webhook 通知
+├── hermes_hook.py            # Hermes Webhook 通知
+├── safety.py                 # 安全检查模块
+├── file_watcher.py           # 文件监控模块
 ├── api_server.py             # HTTP API 路由和处理
 ├── logger.py                 # 结构化日志
 ├── hooks.py                  # 脚本钩子

@@ -6,7 +6,7 @@ import threading
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from config_loader import load_config, mask_sensitive, generate_default_config
+from config_loader import load_config, mask_sensitive
 from task_manager import TaskManager
 from pipeline import PipelineRunner
 from metrics import get_metrics
@@ -14,11 +14,15 @@ from logger import get_logger
 from hermes_hook import HermesNotifier
 
 
-def _build_components(config):
-    persistence_path = config.get("task_queue", {}).get(
+def _get_persistence_path(config):
+    return config.get("task_queue", {}).get(
         "persistence_path",
         os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
     )
+
+
+def _build_components(config):
+    persistence_path = _get_persistence_path(config)
     persistence_dir = os.path.dirname(persistence_path)
     if persistence_dir:
         os.makedirs(persistence_dir, exist_ok=True)
@@ -31,7 +35,7 @@ def _build_components(config):
     hermes_cfg = config.get("hermes", {})
     if hermes_cfg.get("enabled", False):
         try:
-            notifier = HermesNotifier(hermes_cfg, logger)
+            notifier = HermesNotifier(config)
         except Exception:
             pass
 
@@ -78,10 +82,7 @@ def cmd_run(args):
 
 def cmd_list(args):
     config = _load_config(args)
-    persistence_path = config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    persistence_path = _get_persistence_path(config)
     task_manager = TaskManager(persistence_path, config)
 
     status_map = {
@@ -108,10 +109,7 @@ def cmd_list(args):
 
 def cmd_show(args):
     config = _load_config(args)
-    persistence_path = config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    persistence_path = _get_persistence_path(config)
     task_manager = TaskManager(persistence_path, config)
     task = task_manager.get_task(args.task_id)
 
@@ -145,10 +143,7 @@ def cmd_show(args):
 
 def cmd_retry(args):
     config = _load_config(args)
-    persistence_path = config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    persistence_path = _get_persistence_path(config)
     task_manager = TaskManager(persistence_path, config)
 
     if args.task_id:
@@ -164,10 +159,7 @@ def cmd_retry(args):
 
 def cmd_queue(args):
     config = _load_config(args)
-    persistence_path = config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    persistence_path = _get_persistence_path(config)
     task_manager = TaskManager(persistence_path, config)
     counts = task_manager.count_by_status()
     print("\n队列状态:")
@@ -180,10 +172,7 @@ def cmd_queue(args):
 
 def cmd_clear(args):
     config = _load_config(args)
-    persistence_path = config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    persistence_path = _get_persistence_path(config)
     task_manager = TaskManager(persistence_path, config)
 
     status_map = {
@@ -278,10 +267,7 @@ def cmd_health(args):
 
 def cmd_metrics(args):
     config = _load_config(args)
-    persistence_path = config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    persistence_path = _get_persistence_path(config)
     task_manager = TaskManager(persistence_path, config)
     metrics = get_metrics()
     counts = task_manager.count_by_status()

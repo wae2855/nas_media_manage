@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 import os
 import shutil
-from pathlib import Path
 
-
-ALLOWED_VIDEO_EXTS = {'.mkv', '.mp4', '.avi', '.ts', '.mov', '.wmv', '.m2ts', '.flv'}
-ALLOWED_SUBTITLE_EXTS = {'.srt', '.ass', '.ssa', '.vtt', '.sub'}
+ALLOWED_VIDEO_EXTS = {".mkv", ".mp4", ".avi", ".ts", ".mov", ".wmv", ".m2ts", ".flv"}
+ALLOWED_SUBTITLE_EXTS = {".srt", ".ass", ".ssa", ".vtt", ".sub"}
 ALLOWED_MEDIA_EXTS = ALLOWED_VIDEO_EXTS | ALLOWED_SUBTITLE_EXTS
 
 
 def validate_path_safety(path: str, allowed_base_dirs: list = None) -> tuple:
     real = os.path.realpath(path)
-    if '..' in path or '..' in real:
+    if ".." in path or ".." in real:
         return False, f"路径包含目录穿越: {path}"
     if allowed_base_dirs:
         allowed_real = [os.path.realpath(d) for d in allowed_base_dirs if d]
+        # 简单处理：只要路径前缀匹配任一允许目录即可，不管中间层级
         if not any(real.startswith(base) for base in allowed_real):
-            return False, f"路径超出允许范围: {path}"
+            return False, "Path not in allowed directories"
     return True, ""
 
 
@@ -76,17 +75,19 @@ def safe_move(src: str, dest: str, allowed_base_dirs: list = None) -> tuple:
         os.makedirs(dest_dir, exist_ok=True)
     except PermissionError:
         return False, f"权限不足，无法创建目录: {dest_dir}"
+    except OSError as e:
+        return False, f"创建目录失败: {e}"
 
     try:
         os.rename(src, dest)
-        return True, f"已移动: {os.path.basename(src)} → {dest}"
+        return True, f"已移动: {os.path.basename(src)} -> {dest}"
     except OSError:
         try:
             shutil.copy2(src, dest)
             os.remove(src)
-            return True, f"已复制+删除: {os.path.basename(src)} → {dest}"
+            return True, f"已复制+删除: {os.path.basename(src)} -> {dest}"
         except PermissionError:
-            return False, f"权限不足，跨设备移动失败: {src} → {dest}"
+            return False, f"权限不足，跨设备移动失败: {src} -> {dest}"
         except OSError as e:
             return False, f"移动失败: {e}"
 
@@ -102,7 +103,7 @@ def check_write_permission(directory: str) -> tuple:
 
     test_file = os.path.join(directory, ".write_test")
     try:
-        with open(test_file, 'w') as f:
+        with open(test_file, "w") as f:
             f.write("test")
         os.remove(test_file)
         return True, ""
@@ -116,10 +117,14 @@ def check_read_permission(path: str) -> tuple:
     if not os.path.exists(path):
         return False, f"路径不存在: {path}"
     try:
-        with open(path, 'rb') as f:
-            f.read(1)
-        return True, ""
+        if os.path.isdir(path):
+            os.listdir(path)
+            return True, ""
+        else:
+            with open(path, "rb") as f:
+                f.read(1)
+            return True, ""
     except PermissionError:
-        return False, f"文件无读取权限: {path}"
+        return False, f"无读取权限: {path}"
     except OSError as e:
         return False, f"读取测试失败: {e}"

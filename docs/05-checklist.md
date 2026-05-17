@@ -78,7 +78,7 @@ next: docs/06-test-guide.md
   - [x] 进度追踪（step/percentage）正确
   - [x] 历史任务按 retention_days 清理
 - [x] Task 12: 任务调度器
-  - [x] 9 步流水线完整执行
+  - [x] 10 步流水线完整执行
   - [x] 每步完成后日志记录
   - [x] 失败步骤正确标记并通知
   - [x] 队列暂停/恢复控制
@@ -105,7 +105,7 @@ next: docs/06-test-guide.md
 
 ## Phase 5: API 服务
 - [x] Task 15: HTTP API
-  - [x] 13 个端点全部响应正常（见下方列表）
+  - [x] 18+ 个端点全部响应正常（见下方列表）
   - [x] 统一 JSON 响应格式 {code, status, message, data}
   - [x] 错误码与 spec 一致（200/202/400/404/500）
   - [x] 请求参数解析正确

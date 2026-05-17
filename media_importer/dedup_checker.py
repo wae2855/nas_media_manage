@@ -119,7 +119,7 @@ def check_duplicate(import_path: str, scraped_info: dict, strategy: str) -> dict
         result['existing_file'] = existing_files[0]
 
         if strategy == 'rename':
-            ext = os.path.splitext(scraped_info.get('filename', ''))[1] or '.mkv'
+            ext = os.path.splitext(scraped_info.get('video_file', ''))[1] or '.mkv'
             base_name = f"{scraped_info.get('title_cn', 'video')}_{scraped_info.get('year', '')}"
 
             counter = 1

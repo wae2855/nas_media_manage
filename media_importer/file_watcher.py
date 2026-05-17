@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import time
 import threading
 from file_scanner import scan_source_dir
 
@@ -44,6 +43,9 @@ class FileWatcher:
             self._log("info", "文件监控未启用")
             return
 
+        if self._thread is not None and self._thread.is_alive():
+            return
+
         if not self.source_dir or not os.path.isdir(self.source_dir):
             self._log("warn", f"源目录不存在，文件监控未启动: {self.source_dir}")
             return
@@ -63,6 +65,9 @@ class FileWatcher:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5)
         self._log("info", "文件监控已停止")
+
+    def is_running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
 
     def _watch_loop(self):
         while not self._stop_event.is_set():

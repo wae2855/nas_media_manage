@@ -11,29 +11,65 @@ def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any]) -> 
     return True
 
 
-def render_template(template: str, scraped_info: Dict[str, Any]) -> str:
+def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Dict[str, Any] = None) -> str:
     result = template
 
-    for key in ['title_cn', 'title_en', 'year', 'season', 'episode', 'resolution', 'quality']:
-        value = scraped_info.get(key)
-        placeholder = "{" + key + "}"
-        if placeholder in result:
-            if value is not None:
-                result = result.replace(placeholder, str(value))
+    title_cn = scraped_info.get('title_cn')
+    title_en = scraped_info.get('title_en', '')
+    if not title_cn and title_en:
+        scraped_info = dict(scraped_info)
+        scraped_info['title_cn'] = title_en
+
+    lookup = dict(scraped_info)
+    if extra_vars:
+        lookup.update(extra_vars)
+
+    pattern = r'\{([^:}]+)(?::([^}]+))?\}'
+
+    def replace_placeholder(match):
+        key = match.group(1)
+        fmt = match.group(2)
+
+        if key.startswith('dimension.'):
+            dim_name = key[len('dimension.'):]
+            value = scraped_info.get('dimensions', {}).get(dim_name, '')
+        else:
+            value = lookup.get(key)
+
+        if value is None:
+            return ''
+
+        try:
+            if fmt:
+                if key in ['season', 'episode']:
+                    try:
+                        value = int(value)
+                    except (ValueError, TypeError):
+                        pass
+                return f"{{:{fmt}}}".format(value)
             else:
-                result = result.replace(placeholder, '')
+                if key == 'season':
+                    try:
+                        return f"{int(value):02d}"
+                    except (ValueError, TypeError):
+                        return str(value)
+                elif key == 'episode':
+                    try:
+                        return f"{int(value):02d}"
+                    except (ValueError, TypeError):
+                        return str(value)
+                else:
+                    return str(value)
+        except (ValueError, TypeError):
+            return str(value) if value is not None else ''
 
-    dimension_pattern = r'\{dimension\.([^}]+)\}'
-    matches = re.findall(dimension_pattern, template)
-    for dim_name in matches:
-        placeholder = "{dimension." + dim_name + "}"
-        value = scraped_info.get('dimensions', {}).get(dim_name, '')
-        if placeholder in result:
-            result = result.replace(placeholder, str(value) if value is not None else '')
+    result = re.sub(pattern, replace_placeholder, result)
 
-    result = re.sub(r'\(\s*\)', '', result)
+    result = re.sub(r'\s+\(\s*\)', '', result)
+    result = re.sub(r'^\s*\(\s*\)', '', result)
     result = re.sub(r'/{2,}', '/', result)
-    result = re.sub(r'\.\.', '.', result)
+    result = re.sub(r'\.{2,}', '.', result)
+    result = re.sub(r'^\.+', '', result)
     return result.rstrip('/') + '/'
 
 

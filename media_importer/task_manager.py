@@ -38,7 +38,7 @@ class Task:
     retry_count: int = 0
     logs: list = field(default_factory=list)
     current_step: int = 0
-    total_steps: int = 9
+    total_steps: int = 10
     step_name: str = ""
     percentage: int = 0
     bytes_copied: int = 0
@@ -84,7 +84,7 @@ class TaskManager:
     def __init__(self, persistence_path: str, config: dict = None):
         self.path = persistence_path
         self.config = config or {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._tasks = {}
         self._load_tasks()
 
@@ -117,6 +117,14 @@ class TaskManager:
         with self._lock:
             self._tasks[task.task_id] = task
             self._save_tasks()
+        if self.config.get('auto_delete_success') and task.status == "SUCCESS":
+            self._cleanup_success_task(task.task_id)
+
+    def _cleanup_success_task(self, task_id: str):
+        with self._lock:
+            if task_id in self._tasks:
+                del self._tasks[task_id]
+                self._save_tasks()
 
     def update_progress(self, task: Task, step_num: int, step_name: str,
                         percentage: int, **kwargs):
@@ -129,12 +137,20 @@ class TaskManager:
         self.update_task(task)
 
     def list_tasks(self, status: str = None, limit: int = 20,
-                   offset: int = 0) -> list:
+                   offset: int = 0, exclude_completed: bool = None) -> list:
         with self._lock:
             tasks = list(self._tasks.values())
         if status:
             tasks = [t for t in tasks if t.status == status]
+        elif exclude_completed is None or exclude_completed:
+            tasks = [t for t in tasks if t.status in ["PENDING", "PROCESSING", "FAILED"]]
         tasks = sorted(tasks, key=lambda t: t.created_at)
+        return tasks[offset:offset + limit]
+
+    def list_all_tasks(self, limit: int = 50, offset: int = 0) -> list:
+        with self._lock:
+            tasks = list(self._tasks.values())
+        tasks = sorted(tasks, key=lambda t: t.created_at, reverse=True)
         return tasks[offset:offset + limit]
 
     def retry_task(self, task_id: str) -> Task:
@@ -203,25 +219,3 @@ class TaskManager:
             self._tasks = {tid: Task.from_dict(td) for tid, td in data.items()}
         except (json.JSONDecodeError, KeyError):
             self._tasks = {}
-
-    def _cleanup_old_tasks(self):
-        retention_days = 90
-        if self.config:
-            retention_days = self.config.get("task_queue", {}).get(
-                "history_retention_days", 90
-            )
-        now = datetime.now()
-        to_remove = []
-        with self._lock:
-            for tid, task in self._tasks.items():
-                if task.status in ["SUCCESS", "SKIPPED"] and task.completed_at:
-                    try:
-                        completed = datetime.fromisoformat(task.completed_at)
-                        if (now - completed).days > retention_days:
-                            to_remove.append(tid)
-                    except (ValueError, TypeError):
-                        pass
-            for tid in to_remove:
-                del self._tasks[tid]
-            if to_remove:
-                self._save_tasks()

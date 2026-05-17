@@ -78,11 +78,16 @@ next: docs/02-design.md
 ### 核心流程
 
 ```
-1. [触发] 用户触发 或 文件监控发现新文件
+触发: 用户触发 或 文件监控发现新文件
        │
        ▼
-2. [扫描] 递归扫描源目录，收集视频文件+字幕文件
+1. [扫描] 递归扫描源目录，收集视频文件+字幕文件
        │      忽略 .tmp / .DS_Store / partial 文件
+       │
+       ▼
+2. [复制] 将视频文件和关联字幕文件复制到临时目录
+       │      使用 .copying 后缀标记正在复制的文件
+       │      支持断点续传，启动时清理残留 .copying 文件
        │
        ▼
 3. [刮削] 调用AI大模型API，根据文件名刮削
@@ -91,33 +96,39 @@ next: docs/02-design.md
        │      失败: 重试2次 → 标记失败 → 通知Hermes
        │
        ▼
-4. [分类] 根据用户配置的分类规则 + AI返回结果
+4. [校验] 校验刮削结果的完整性和合法性
+       │      检查必需字段是否存在（title_en、year、type等）
+       │      校验 dimensions 值是否在配置范围内
+       │      校验置信度是否达标
+       │
+       ▼
+5. [分类] 根据用户配置的分类规则 + AI返回结果
        │      逐条匹配 path_rules，找到第一个符合条件的规则
        │      使用兜底规则处理无法匹配的情况
        │
        ▼
-5. [同名检测] 检查入库路径下是否存在同名文件
+6. [同名检测] 检查入库路径下是否存在同名文件
        │      同名定义: 年份 + (英文标题相同 或 中文标题相同)
        │      发现同名 → 标记SKIPPED → 通知Hermes
        │
        ▼
-6. [匹配字幕] 匹配字幕文件到对应视频
-       │      规则: 视频名.{lang}.{ext} → 视频名.{ext}
-       │      支持多语言字幕
+7. [命名] 应用文件名模板生成最终文件名
+       │      匹配字幕文件到对应视频
+       │      电影/电视剧/字幕分别应用对应模板
        │
        ▼
-7. [入库] 应用文件名模板 → 创建入库目录 → 移动文件
-       │      电影: 按模板重命名 → 移入 /入库/电影/{year}/...
-       │      电视剧: 按模板重命名 → 移入 /入库/电视剧/{title} ({year})/Season {N}/
+8. [入库] 创建入库目录 → 移动文件 → 清理临时文件
+       │      电影: 移入 /入库/电影/{year}/...
+       │      电视剧: 移入 /入库/电视剧/{title} ({year})/Season {N}/
        │
        ▼
-8. [通知] 通过Hermes Webhook发送执行结果
+9. [通知] 通过Hermes Webhook发送执行结果
        │      成功 → task_complete
        │      失败 → task_failed（含错误详情）
        │      跳过 → task_skipped（合同名文件路径）
        │
        ▼
-9. [记录] 更新任务日志（JSON持久化）
+10. [记录] 更新任务日志（JSON持久化）
 ```
 
 ### 完整配置文件
@@ -737,6 +748,7 @@ PENDING → PROCESSING → SUCCESS / FAILED / SKIPPED
     {"time": "10:00:05", "level": "INFO", "step": "scan", "message": "发现视频文件"},
     {"time": "10:00:05", "level": "INFO", "step": "scan", "message": "发现1个字幕文件"},
     {"time": "10:00:10", "level": "INFO", "step": "scrape", "message": "AI刮削完成，置信度0.95"},
+    {"time": "10:00:10", "level": "INFO", "step": "validate", "message": "刮削结果校验通过"},
     {"time": "10:00:10", "level": "INFO", "step": "classify", "message": "匹配path_rules[0]: 电视剧"},
     {"time": "10:00:10", "level": "INFO", "step": "dedup", "message": "同名检测通过"},
     {"time": "10:00:12", "level": "INFO", "step": "match", "message": "匹配字幕: 字幕1.zh.srt"},
@@ -921,7 +933,9 @@ media_importer/
 ├── dedup_checker.py          # 同名检测模块
 ├── file_mover.py             # 文件移动和重命名模块
 ├── task_manager.py           # 任务队列和持久化
-├── notifier.py               # Hermes通知模块
+├── hermes_hook.py            # Hermes通知模块
+├── safety.py                 # 安全检查模块
+├── file_watcher.py           # 文件监控模块
 ├── logger.py                 # 结构化日志模块
 ├── api_server.py             # HTTP API服务
 ├── hooks.py                  # 脚本钩子执行

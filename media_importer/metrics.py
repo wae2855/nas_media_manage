@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import time
+import threading
 from datetime import timedelta
 
 
 class Metrics:
     def __init__(self):
+        self._lock = threading.Lock()
         self.start_time = time.time()
         self._counters = {
             "total": 0,
@@ -22,34 +24,41 @@ class Metrics:
         }
 
     def record_task_start(self):
-        self._counters["total"] += 1
-        self._queue_status["processing"] += 1
-        if self._queue_status["pending"] > 0:
-            self._queue_status["pending"] -= 1
+        with self._lock:
+            self._counters["total"] += 1
+            self._queue_status["processing"] += 1
+            if self._queue_status["pending"] > 0:
+                self._queue_status["pending"] -= 1
 
     def record_task_complete(self, status: str, duration: float = None):
-        self._queue_status["processing"] -= 1
+        with self._lock:
+            self._queue_status["processing"] -= 1
 
-        if status == "success":
-            self._counters["success"] += 1
-        elif status == "failed":
-            self._counters["failed"] += 1
-        elif status == "skipped":
-            self._counters["skipped"] += 1
+            if status == "success":
+                self._counters["success"] += 1
+            elif status == "failed":
+                self._counters["failed"] += 1
+            elif status == "skipped":
+                self._counters["skipped"] += 1
 
-        if duration is not None:
-            self._processing_times.append(duration)
+            if duration is not None:
+                self._processing_times.append(duration)
+                if len(self._processing_times) > 1000:
+                    self._processing_times = self._processing_times[-1000:]
 
     def record_llm_call(self, success: bool):
-        self._llm_calls += 1
-        if not success:
-            self._llm_failures += 1
+        with self._lock:
+            self._llm_calls += 1
+            if not success:
+                self._llm_failures += 1
 
     def set_queue_pending(self, count: int):
-        self._queue_status["pending"] = count
+        with self._lock:
+            self._queue_status["pending"] = count
 
     def set_queue_paused(self, paused: bool):
-        self._queue_status["paused"] = paused
+        with self._lock:
+            self._queue_status["paused"] = paused
 
     @property
     def success_rate(self) -> float:

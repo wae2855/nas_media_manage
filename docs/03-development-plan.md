@@ -545,7 +545,7 @@ class Task:
     logs: list[dict] = field(default_factory=list)
     # 进度追踪
     current_step: int = 0
-    total_steps: int = 9
+    total_steps: int = 10
     step_name: str = ""
     percentage: int = 0
     bytes_copied: int = 0
@@ -584,7 +584,7 @@ class TaskManager:
 
 #### Task 12: 任务调度器
 
-**目标：** 9步流水线编排，队列控制，文件监控。
+**目标：** 10步流水线编排，队列控制，文件监控。
 
 此功能可以集成在 `task_manager.py` 中，也可以作为独立模块 `scheduler.py`。
 
@@ -593,9 +593,9 @@ class TaskManager:
 
 class PipelineRunner:
     """
-    9步流水线：
-    1. 扫描 → 2. 复制 → 3. 刮削 → 4. 分类 → 5. 同名检测
-    → 6. 命名 → 7. 入库 → 8. 通知 → 9. 记录
+    10步流水线：
+    1. 扫描 → 2. 复制 → 3. 刮削 → 4. 校验 → 5. 分类 → 6. 同名检测
+    → 7. 命名 → 8. 入库 → 9. 通知 → 10. 记录
     """
     def __init__(self, config, task_manager, metrics, logger):
         ...
@@ -612,7 +612,7 @@ class PipelineRunner:
 ```
 
 **验收标准：**
-- 完整9步执行
+- 完整10步执行
 - 失败步骤正确标记并暂停后续步骤
 - 暂停/恢复功能正常
 - 文件监控轮询正常
@@ -621,12 +621,12 @@ class PipelineRunner:
 
 ### Phase 4: 通知与钩子
 
-#### Task 13: Hermes 通知模块 (notifier.py)
+#### Task 13: Hermes 通知模块 (hermes_hook.py)
 
 **目标：** 向 Hermes 发送 Webhook 通知。
 
 ```python
-# notifier.py
+# hermes_hook.py
 class HermesNotifier:
     def __init__(self, config: dict):
         self.config = config["hermes"]
@@ -891,7 +891,9 @@ media_importer/
 ├── file_copier.py            # 文件复制（含断点续传）
 ├── file_mover.py             # 文件重命名和移动
 ├── task_manager.py           # 任务队列持久化和调度
-├── notifier.py               # Hermes Webhook 通知
+├── hermes_hook.py            # Hermes Webhook 通知
+├── safety.py                 # 安全检查模块
+├── file_watcher.py           # 文件监控模块
 ├── hooks.py                  # 脚本钩子
 ├── api_server.py             # HTTP API 路由和处理
 ├── tests/
@@ -940,6 +942,6 @@ Phase 7: Task 15 → Task 18
 | 验证方式 | 覆盖范围 |
 |---------|---------|
 | 单元测试 | 每个模块的独立功能（15+ 文件，50+ 用例） |
-| 集成测试 | 9步端到端流程 + 异常场景 + API 端点 |
+| 集成测试 | 10步端到端流程 + 异常场景 + API 端点 |
 | 手动测试 | 用 `tests/fixtures/source/` 中的测试文件运行完整流程 |
 | 验收清单 | checklist.md 中 80+ 个检查点 |

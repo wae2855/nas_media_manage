@@ -2,45 +2,22 @@
 import os
 import shutil
 import re
-from safety import validate_path_safety, validate_file_ext, safe_delete, safe_move, check_write_permission, ALLOWED_MEDIA_EXTS
+from safety import validate_path_safety, safe_delete, safe_move, check_write_permission, ALLOWED_MEDIA_EXTS
+from classifier import render_template
 
 
 def apply_filename_template(scraped_info: dict, template: str, video_ext: str) -> str:
-    filename = template
-
-    for key in ['title_cn', 'title_en', 'year', 'season', 'episode', 'resolution', 'quality']:
-        value = scraped_info.get(key)
-        placeholder = "{" + key + "}"
-        if placeholder in filename:
-            if value is not None:
-                if key == 'season':
-                    filename = filename.replace(placeholder, f"{int(value):02d}")
-                elif key == 'episode':
-                    filename = filename.replace(placeholder, f"{int(value):02d}")
-                else:
-                    filename = filename.replace(placeholder, str(value))
-            else:
-                filename = filename.replace(placeholder, '')
-
-    if '{ext}' in filename:
-        filename = filename.replace('{ext}', video_ext)
-    elif not filename.endswith(video_ext):
-        filename = filename + video_ext
-
-    filename = re.sub(r'\(\s*\)', '', filename)
-    filename = re.sub(r'/+', '/', filename)
-    filename = re.sub(r'\.{2,}', '.', filename)
-    filename = re.sub(r'^\.+', '', filename)
-
+    filename = render_template(template, scraped_info, extra_vars={'ext': video_ext})
+    filename = filename.rstrip('/')
+    if '{ext}' not in template:
+        if not filename.endswith(video_ext):
+            filename = filename + video_ext
     return filename
 
 
-def apply_subtitle_template(scraped_info: dict, template: str, subtitle_filename: str, lang: str) -> str:
-    video_filename = os.path.splitext(subtitle_filename)[0]
-    result = template.replace('{video_filename}', video_filename)
-    result = result.replace('{lang}', lang)
-    result = re.sub(r'/+', '/', result)
-    return result
+def apply_subtitle_template(video_basename: str, lang: str, subtitle_ext: str) -> str:
+    video_name_without_ext = os.path.splitext(video_basename)[0]
+    return f"{video_name_without_ext}.{lang}{subtitle_ext}"
 
 
 def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
@@ -75,11 +52,11 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
         'subtitles': []
     }
 
-    subtitle_template = filename_templates.get('subtitle', '{video_filename}.{lang}.{ext}')
     for sub_path in subtitle_paths:
         sub_filename = os.path.basename(sub_path)
         lang = detect_subtitle_lang(sub_filename)
-        final_sub_filename = apply_subtitle_template(scraped_info, subtitle_template, final_video_filename, lang)
+        subtitle_ext = os.path.splitext(sub_path)[1]
+        final_sub_filename = apply_subtitle_template(final_video_filename, lang, subtitle_ext)
         dest_sub = os.path.join(import_dir, final_sub_filename)
         ok, msg = safe_move(sub_path, dest_sub, allowed_base_dirs)
         if not ok:
@@ -107,6 +84,25 @@ def delete_source_files(source_paths: list[str], allowed_base_dirs: list = None)
         ok, msg = safe_delete(path, allowed_base_dirs)
         if not ok:
             pass
+
+
+def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: list = None):
+    if not source_root:
+        return
+    parent = os.path.dirname(os.path.normpath(file_path))
+    if not parent or not parent.startswith(os.path.normpath(source_root).rstrip('/')):
+        return
+    if os.path.samefile(parent, source_root.rstrip('/')):
+        return
+    if not os.path.isdir(parent):
+        return
+    remaining = os.listdir(parent)
+    if remaining:
+        return
+    try:
+        os.rmdir(parent)
+    except OSError:
+        pass
 
 
 def move_with_cross_device_fallback(src: str, dest: str) -> bool:

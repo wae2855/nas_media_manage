@@ -3,7 +3,6 @@ import json
 import re
 import time
 import urllib.request
-import urllib.error
 from typing import List, Dict, Any
 
 
@@ -28,6 +27,22 @@ class LLMScraper:
         prompt_parts = [
             "你是一个专业的影视信息刮削助手。",
             "请根据提供的视频文件名和字幕文件名，提取影视元数据信息。",
+            "",
+            "重要原则：",
+            "1. 先根据文件名提取可确定的元数据（标题、分辨率、季/集编号等）。",
+            "2. 对于文件名中缺失但你可以通过对这部的了解推断出的信息（如年份、类型等），",
+            "   请大胆填写，不要留空。例如：看到 Breaking Bad S01E02，你应该知道这是",
+            "   《绝命毒师》第一季第二集，首播年份为2008年，类型为tv，不是纪录片。",
+            "3. 只有当你完全无法判断时，才将字段设为 null。",
+            "4. confidence 评分应基于信息完整性：能确定标题+类型+年份的应 ≥0.9，",
+            "   确定标题+类型但年份不确定的应 0.8-0.85，信息严重不足的才给低分。",
+            "5. 限制级(restricted)判断标准：包含明确的暴力血腥、裸露性爱、深度恐怖等",
+            "   成人内容的影视作品应标记为 restricted=yes。以下典型例子都是限制级：",
+            "   - 西部世界(Westworld)：大量暴力、裸露、性爱场景 → restricted=yes",
+            "   - 绝命毒师(Breaking Bad)：暴力、毒品、犯罪题材 → restricted=yes",
+            "   - 权利的游戏(Game of Thrones)：暴力、裸露 → restricted=yes",
+            "   - 斯巴达克斯(Spartacus)：极度暴力、大量裸露 → restricted=yes",
+            "   普通剧情片、轻喜剧、动画片等通常为 restricted=no。",
             "",
             "当前需要判断的维度："
         ]

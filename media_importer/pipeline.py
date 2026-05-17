@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import os
-import time
+import threading
 from task_manager import Task, TaskManager
 from file_scanner import scan_source_dir
 from file_copier import FileCopier
 from llm_scraper import LLMScraper, LLMScrapeError
 from classifier import classify
 from dedup_checker import check_duplicate
-from file_mover import apply_filename_template, move_to_import, delete_source_files
+from file_mover import apply_filename_template, move_to_import, delete_source_files, remove_empty_parent_dir
 from hooks import HookRunner
 
 
@@ -15,12 +15,13 @@ PIPELINE_STEPS = [
     (1, "scan", "扫描源目录"),
     (2, "copy", "复制到临时目录"),
     (3, "scrape", "AI刮削元数据"),
-    (4, "classify", "分类匹配路径"),
-    (5, "dedup", "同名文件检测"),
-    (6, "rename", "生成目标文件名"),
-    (7, "import", "入库移动文件"),
-    (8, "notify", "发送通知"),
-    (9, "record", "记录处理结果")
+    (4, "validate", "验证刮削结果"),
+    (5, "classify", "分类匹配路径"),
+    (6, "dedup", "同名文件检测"),
+    (7, "rename", "生成目标文件名"),
+    (8, "import", "入库移动文件"),
+    (9, "notify", "发送通知"),
+    (10, "record", "记录处理结果")
 ]
 
 
@@ -33,19 +34,19 @@ class PipelineRunner:
         self.logger = logger
         self.notifier = notifier
         self.hooks = HookRunner(config, logger)
-        self._paused = False
+        self._paused = threading.Event()
 
         self.scraper = LLMScraper(config)
         self.copier = FileCopier(config.get('temp_dir', ''))
 
     def pause(self):
-        self._paused = True
+        self._paused.set()
 
     def resume(self):
-        self._paused = False
+        self._paused.clear()
 
     def is_paused(self) -> bool:
-        return self._paused
+        return self._paused.is_set()
 
     def _log(self, level: str, message: str, task: Task = None, step: str = ""):
         if self.logger:
@@ -95,6 +96,10 @@ class PipelineRunner:
         return tasks
 
     def process_one(self, task: Task) -> bool:
+        original_source_video = task.video_path
+        original_source_subs = list(task.subtitle_files)
+        temp_video_path_for_cleanup = None
+        
         try:
             task.transition_to("PROCESSING")
             self.task_manager.update_task(task)
@@ -105,11 +110,13 @@ class PipelineRunner:
         try:
             self.hooks.run_before_process(task.to_dict())
             self._step_copy(task)
+            temp_video_path_for_cleanup = task.video_path
             self._step_scrape(task)
+            self._step_validate(task)
             self._step_classify(task)
             self._step_dedup(task)
             self._step_rename(task)
-            self._step_import(task)
+            self._step_import(task, original_source_video, original_source_subs)
             self._step_notify(task)
             self._step_record(task)
 
@@ -128,6 +135,7 @@ class PipelineRunner:
             if self.metrics:
                 self.metrics.record_task_complete("skipped")
             self._log("info", f"任务跳过: {task.video_file} - {e}", task)
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
             return True
 
         except Exception as e:
@@ -138,20 +146,69 @@ class PipelineRunner:
             if self.metrics:
                 self.metrics.record_task_complete("failed")
             self._log("error", f"任务失败: {task.video_file} - {e}", task)
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
             return False
+
+    def _cleanup_temp_on_failure(self, task: Task, temp_video_path: str):
+        """失败时清理 temp 目录文件，保留 source 让用户查看"""
+        temp_dir = self.config.get('temp_dir', '')
+        source_dir = self.config.get('source_dir', '')
+        allowed_dirs = [
+            source_dir,
+            temp_dir,
+        ]
+        
+        files_to_delete = []
+        
+        if temp_video_path and temp_dir and temp_video_path.startswith(temp_dir):
+            files_to_delete.append(temp_video_path)
+            for sub in task.subtitle_files:
+                if temp_dir in sub:
+                    files_to_delete.append(sub)
+        
+        if files_to_delete:
+            delete_source_files(files_to_delete, allowed_base_dirs=allowed_dirs)
+            self._log("info", f"已清理 temp 目录失败文件: {len(files_to_delete)} 个", task, "cleanup")
 
     def run_all(self):
         self._log("info", "开始批量处理")
-        while not self._paused:
+        
+        source_dir = self.config.get("source_dir", "")
+        pending_tasks = self.task_manager.get_next_pending()
+        
+        if pending_tasks is None:
+            self.scan_and_create_tasks()
+            all_tasks = self.task_manager.list_tasks(limit=10000)
+            video_count = sum(1 for t in all_tasks if t.status == "PENDING")
+            subtitle_count = sum(len(t.subtitle_files) for t in all_tasks if t.status == "PENDING")
+            if video_count > 0 and self.notifier:
+                self.notifier.notify_batch_start(source_dir, video_count, subtitle_count)
+        else:
+            all_tasks = self.task_manager.list_tasks(status="PENDING", limit=10000)
+            if self.notifier:
+                video_count = len(all_tasks)
+                subtitle_count = sum(len(t.subtitle_files) for t in all_tasks)
+                self.notifier.notify_batch_start(source_dir, video_count, subtitle_count)
+        
+        batch_stats = {"PROCESSING": 0, "SUCCESS": 0, "FAILED": 0, "SKIPPED": 0,
+                        "total": 0, "subtitle_count": 0, "video_count": 0}
+        
+        while not self._paused.is_set():
             task = self.task_manager.get_next_pending()
             if task is None:
                 break
+            batch_stats["total"] += 1
+            batch_stats["subtitle_count"] += len(task.subtitle_files)
+            batch_stats["video_count"] += 1
             self.process_one(task)
+            final_status = task.status
+            batch_stats[final_status] = batch_stats.get(final_status, 0) + 1
+
+        batch_stats["total_files"] = batch_stats["video_count"] + batch_stats["subtitle_count"]
 
         if self.notifier and self.notifier.should_notify("batch_complete"):
             try:
-                all_tasks = self.task_manager.list_tasks(limit=10000)
-                self.notifier.notify_batch_complete(all_tasks)
+                self.notifier.notify_batch_complete([], summary=batch_stats)
             except Exception:
                 pass
 
@@ -166,9 +223,14 @@ class PipelineRunner:
             self._update_progress(task, 2, "copy", pct,
                                   bytes_copied=copied, total_bytes=total)
 
+        def heartbeat_cb():
+            """心跳回调：更新任务时间戳，防止超时被认为是死锁"""
+            self.task_manager.update_task(task)
+
         try:
             copied = self.copier.copy_to_temp(
-                task.video_path, task.subtitle_files, progress_cb
+                task.video_path, task.subtitle_files, 
+                progress_cb, heartbeat_cb, heartbeat_interval=30
             )
             task.video_path = copied[0]
             task.subtitle_files = copied[1:] if len(copied) > 1 else []
@@ -195,8 +257,62 @@ class PipelineRunner:
 
         self._update_progress(task, 3, "scrape", 50)
 
+    def _step_validate(self, task: Task):
+        self._update_progress(task, 4, "validate", 52)
+        self._log("info", f"验证刮削结果: {task.video_file}", task, "validate")
+
+        scraped = task.scraped_info
+        missing_fields = []
+        warnings = []
+
+        title_cn = scraped.get('title_cn')
+        title_en = scraped.get('title_en')
+        year = scraped.get('year')
+        media_type = scraped.get('type')
+        confidence = scraped.get('confidence', 0)
+
+        has_title = bool(title_cn or title_en)
+        has_type = bool(media_type)
+        has_year = bool(year)
+
+        if not has_title:
+            missing_fields.append("中文名(title_cn)和英文名(title_en)都缺失")
+
+        if not has_type:
+            missing_fields.append("媒体类型(type)缺失")
+
+        if not has_year:
+            if has_title and has_type:
+                warnings.append(f"年份缺失(可接受，标题已识别: {title_cn or title_en})")
+            else:
+                missing_fields.append("年份(year)缺失")
+
+        if title_cn and not title_en:
+            warnings.append("缺少英文名(可接受)")
+
+        if year and (int(year) < 1900 or int(year) > 2030):
+            warnings.append(f"年份异常: {year}")
+            missing_fields.append(f"年份异常: {year}")
+
+        if scraped.get('low_confidence'):
+            if has_title and confidence >= 0.5:
+                warnings.append(f"AI置信度偏低({confidence})，但标题已识别，继续处理")
+            else:
+                missing_fields.append("AI置信度过低")
+
+        if missing_fields:
+            error_msg = f"刮削信息不足，需要人工干预。缺失字段: {'; '.join(missing_fields)}"
+            if warnings:
+                error_msg += f"。警告: {'; '.join(warnings)}"
+            raise PipelineError(error_msg)
+
+        if warnings:
+            self._log("warn", f"刮削警告: {'; '.join(warnings)}", task, "validate")
+
+        self._update_progress(task, 4, "validate", 55)
+
     def _step_classify(self, task: Task):
-        self._update_progress(task, 4, "classify", 55)
+        self._update_progress(task, 5, "classify", 56)
         self._log("info", f"分类匹配: {task.video_file}", task, "classify")
 
         path_rules = self.config.get('path_rules', [])
@@ -212,10 +328,10 @@ class PipelineRunner:
                 import_path = os.path.join(project_root, import_path)
 
         task.import_path = import_path
-        self._update_progress(task, 4, "classify", 60)
+        self._update_progress(task, 5, "classify", 60)
 
     def _step_dedup(self, task: Task):
-        self._update_progress(task, 5, "dedup", 65)
+        self._update_progress(task, 6, "dedup", 65)
         self._log("info", f"同名检测: {task.video_file}", task, "dedup")
 
         strategy = self.config.get('duplicate_handling', {}).get('strategy', 'skip')
@@ -233,10 +349,10 @@ class PipelineRunner:
                     dedup_result['suggested_filename']
                 )
 
-        self._update_progress(task, 5, "dedup", 70)
+        self._update_progress(task, 6, "dedup", 70)
 
     def _step_rename(self, task: Task):
-        self._update_progress(task, 6, "rename", 72)
+        self._update_progress(task, 7, "rename", 72)
         self._log("info", f"生成文件名: {task.video_file}", task, "rename")
 
         if not task.final_filename:
@@ -250,19 +366,30 @@ class PipelineRunner:
                 task.scraped_info, template, video_ext
             )
 
-        self._update_progress(task, 6, "rename", 75)
+        self._update_progress(task, 7, "rename", 75)
 
-    def _step_import(self, task: Task):
-        self._update_progress(task, 7, "import", 80)
+    def _step_import(self, task: Task, original_source_video: str, original_source_subs: list):
+        self._update_progress(task, 8, "import", 80)
         self._log("info", f"入库: {task.video_file}", task, "import")
 
         templates = self.config.get('filename_templates', {})
+        temp_dir = self.config.get('temp_dir', '')
         allowed_dirs = [
             self.config.get('source_dir', ''),
-            self.config.get('temp_dir', ''),
+            temp_dir,
         ]
-        import_dirs = [r.get('template', '') for r in self.config.get('path_rules', [])]
-        allowed_dirs.extend(import_dirs)
+        for r in self.config.get('path_rules', []):
+            tpl = r.get('template', '')
+            if tpl:
+                parts = tpl.split('/')
+                for i, p in enumerate(parts):
+                    if p.startswith('{'):
+                        allowed_dirs.append('/'.join(parts[:i]))
+                        break
+                else:
+                    allowed_dirs.append(tpl.rstrip('/'))
+
+        temp_video_path = task.video_path
 
         move_result = move_to_import(
             task.video_path, task.subtitle_files,
@@ -274,28 +401,27 @@ class PipelineRunner:
         task.subtitle_files = move_result['subtitles']
 
         source_dir = self.config.get('source_dir', '')
-        if source_dir:
-            original_video = os.path.join(source_dir, task.video_file)
-            original_subs = [
-                os.path.join(source_dir, os.path.basename(s))
-                for s in task.subtitle_files
-            ]
-            delete_source_files([original_video] + original_subs,
-                                allowed_base_dirs=allowed_dirs)
 
-        self._update_progress(task, 7, "import", 90)
+        if source_dir and original_source_video:
+            files_to_delete = [original_source_video]
+            for sub in original_source_subs:
+                files_to_delete.append(sub)
+            delete_source_files(files_to_delete,
+                                allowed_base_dirs=allowed_dirs)
+            remove_empty_parent_dir(original_source_video, source_dir)
+            self._log("info", f"已清理源目录文件: {os.path.basename(original_source_video)}", task, "import")
+
+        if temp_video_path and temp_dir and temp_video_path.startswith(temp_dir):
+            delete_source_files([temp_video_path], allowed_base_dirs=allowed_dirs)
+            self._log("info", f"已清理临时文件: {os.path.basename(temp_video_path)}", task, "import")
+
+        self._update_progress(task, 8, "import", 90)
 
     def _step_notify(self, task: Task):
-        self._update_progress(task, 8, "notify", 95)
-        if task.status == "SUCCESS":
-            self._notify("task_complete", task)
-        elif task.status == "FAILED":
-            self._notify("task_failed", task)
-        elif task.status == "SKIPPED":
-            self._notify("task_skipped", task)
+        self._update_progress(task, 9, "notify", 95)
 
     def _step_record(self, task: Task):
-        self._update_progress(task, 9, "record", 100)
+        self._update_progress(task, 10, "record", 100)
         task.add_log("record", "INFO", f"处理完成: {task.final_filename}")
         self.task_manager.update_task(task)
 

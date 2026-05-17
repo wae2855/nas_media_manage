@@ -1,12 +1,15 @@
 [Unit]
 Description=NAS Media Importer - Auto import video files
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/nas-media-importer
-ExecStart=/opt/nas-media-importer/venv/bin/python3 media_importer/media_importer.py -c media_importer/config.yaml serve -p 9855 --host 0.0.0.0
+Environment=PATH=/opt/nas-media-importer/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/nas-media-importer/venv/bin/python3 media_importer/media_importer.py -c media_importer/config.prod.yaml serve -p 9855 --host 0.0.0.0
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

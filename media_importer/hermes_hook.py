@@ -10,10 +10,9 @@ from datetime import datetime
 
 
 EVENT_TYPE_DISPLAY = {
-    "task_complete": "✅ 任务完成",
-    "task_failed": "❌ 任务失败",
-    "task_skipped": "⏭️ 任务跳过",
-    "batch_complete": "📦 批量处理完成"
+    "batch_start": "📥 批量处理开始",
+    "batch_complete": "📦 批量处理完成",
+    "program_error": "⚠️ 程序错误"
 }
 
 
@@ -58,6 +57,53 @@ class HermesNotifier:
         payload = self._build_batch_payload(tasks, summary)
         self._send_with_retry(payload)
 
+    def notify_program_error(self, error_type: str, error_message: str, extra_data: dict = None):
+        """发送程序级错误通知"""
+        if not self.enabled or not self._webhook_url:
+            return
+
+        payload = {
+            "event_type": "program_error",
+            "event_type_display": "⚠️ 程序错误",
+            "timestamp": datetime.now().isoformat(),
+            "video_file": "",
+            "status": "ERROR",
+            "extra_info": f"错误类型: {error_type}\n错误信息: {error_message}",
+            "task": {},
+            "error_type": error_type,
+            "error_message": error_message
+        }
+
+        if extra_data:
+            payload.update(extra_data)
+
+        self._send_with_retry(payload)
+
+    def notify_batch_start(self, source_dir: str, video_count: int, subtitle_count: int):
+        """发送跑批开始通知"""
+        if not self.enabled or not self._webhook_url:
+            return
+
+        total = video_count + subtitle_count
+        payload = {
+            "event_type": "batch_start",
+            "event_type_display": "📥 批量处理开始",
+            "timestamp": datetime.now().isoformat(),
+            "video_file": "",
+            "status": "BATCH_START",
+            "extra_info": (
+                f"源目录: {source_dir}\n"
+                f"发现文件: 共 {total} 个（视频 {video_count} 个, 字幕 {subtitle_count} 个）"
+            ),
+            "task": {},
+            "source_dir": source_dir,
+            "video_count": video_count,
+            "subtitle_count": subtitle_count,
+            "file_count": total
+        }
+
+        self._send_with_retry(payload)
+
     def _build_payload(self, event_type: str, task, extra_data: dict = None) -> dict:
         payload = {
             "event_type": event_type,
@@ -96,17 +142,28 @@ class HermesNotifier:
         if summary is None:
             summary = {"total": len(tasks)}
             status_counts = {}
+            subtitle_count = 0
             for t in tasks:
                 s = t.status
                 status_counts[s] = status_counts.get(s, 0) + 1
+                subtitle_count += len(t.subtitle_files)
             summary.update(status_counts)
+            summary["video_count"] = len(tasks)
+            summary["subtitle_count"] = subtitle_count
+            summary["total_files"] = len(tasks) + subtitle_count
 
-        lines = [f"总计: {summary.get('total', 0)}"]
+        total_files = summary.get("total_files", summary.get("total", 0))
+        video_count = summary.get("video_count", summary.get("total", 0))
+        subtitle_count = summary.get("subtitle_count", 0)
+
+        lines = [
+            f"源目录共扫描到 {total_files} 个文件（视频 {video_count} 个, 字幕 {subtitle_count} 个）"
+        ]
         for status in ["SUCCESS", "FAILED", "SKIPPED"]:
             count = summary.get(status, 0)
             if count > 0:
                 icon = {"SUCCESS": "✅", "FAILED": "❌", "SKIPPED": "⏭️"}.get(status, "")
-                lines.append(f"{icon} {status}: {count}")
+                lines.append(f"{icon} {status}: {count} 个视频")
 
         return {
             "event_type": "batch_complete",

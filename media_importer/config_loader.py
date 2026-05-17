@@ -5,27 +5,6 @@ import sys
 from copy import deepcopy
 
 
-REQUIRED_SECTIONS = [
-    "source_dir",
-    "temp_dir",
-    "log_dir",
-    "source_dir_scan",
-    "video_extensions",
-    "subtitle_extensions",
-    "llm",
-    "dimensions",
-    "filename_templates",
-    "path_rules",
-    "rules",
-    "duplicate_handling",
-    "hermes",
-    "file_watcher",
-    "task_queue",
-    "hooks",
-    "logging"
-]
-
-
 def generate_default_config(path: str):
     default_config = """# ============================================================
 # NAS影视自动化入库系统 - 配置文件 (config.yaml)
@@ -310,6 +289,12 @@ def load_config(config_path: str = None) -> dict:
         path_val = config.get(key, "")
         if path_val and not os.path.isabs(path_val):
             config[key] = os.path.join(project_root, path_val)
+
+    # 处理 persistence_path 的相对路径转换
+    task_queue = config.get("task_queue", {})
+    persistence_path = task_queue.get("persistence_path", "")
+    if persistence_path and not os.path.isabs(persistence_path):
+        task_queue["persistence_path"] = os.path.join(project_root, persistence_path)
 
     errors = validate_config(config)
     if errors:
