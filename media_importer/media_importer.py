@@ -15,10 +15,7 @@ from hermes_hook import HermesNotifier
 
 
 def _get_persistence_path(config):
-    return config.get("task_queue", {}).get(
-        "persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json")
-    )
+    return config.get("task_queue", {}).get("persistence_path")
 
 
 def _build_components(config):

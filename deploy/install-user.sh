@@ -1,16 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-DEPLOY_DIR="/opt/nas-media-importer"
-SERVICE_NAME="nas-media-importer"
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-GIT_REPO="https://github.com/wae2855/nas_media_manage.git"
+DEPLOY_DIR="${HOME}/nas-media-importer"
 CONFIG_TEMPLATE="${DEPLOY_DIR}/config/config.yaml"
 CONFIG_FILE="${DEPLOY_DIR}/config/config.yaml"
-CONFIG_PROD="${DEPLOY_DIR}/config/config.yaml"
 DATA_DIR="${DEPLOY_DIR}/data"
 LOG_DIR="${DEPLOY_DIR}/logs"
-VENV_PYTHON="${DEPLOY_DIR}/venv/bin/python3"
+SERVICE_FILE="${HOME}/.config/systemd/user/nas-media-importer.service"
 HEALTH_PORT=9855
 HEALTH_MAX_WAIT=30
 
@@ -22,7 +18,6 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 NON_INTERACTIVE=false
-ACTION="install"
 
 log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -65,34 +60,35 @@ prompt_input() {
     echo "${answer:-$default}"
 }
 
-check_root() {
-    if [[ "$(id -u)" -ne 0 ]]; then
-        log_error "此脚本需要 root 权限运行"
-        log_info "请使用: sudo $0 $*"
+check_not_root() {
+    if [[ "$(id -u)" -eq 0 ]]; then
+        log_error "此脚本不建议使用 root 用户运行"
+        log_info "请使用普通用户运行，或使用 install.sh 安装系统服务"
+        if prompt_yesno "是否继续以 root 运行？" "N"; then
+            log_warn "继续以 root 运行..."
+            return 0
+        fi
         exit 1
     fi
 }
 
+check_systemd_user() {
+    if systemctl --user status &>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
 ensure_python3() {
     if command -v python3 &>/dev/null; then
-        local py_version
-        py_version=$(python3 --version 2>&1 | awk '{print $2}')
-        log_info "已找到 Python3: ${py_version}"
+        log_info "已找到 Python3: $(python3 --version 2>&1 | awk '{print $2}')"
         return 0
     fi
 
-    log_warn "未找到 Python3，正在安装..."
-    if command -v apt-get &>/dev/null; then
-        apt-get update -qq
-        apt-get install -y -qq python3 python3-venv python3-pip
-        log_info "Python3 安装完成: $(python3 --version)"
-    elif command -v yum &>/dev/null; then
-        yum install -y python3 python3-pip
-        log_info "Python3 安装完成: $(python3 --version)"
-    else
-        log_error "无法自动安装 Python3，请手动安装后重试"
-        exit 1
-    fi
+    log_error "未找到 Python3，请先安装"
+    echo "  Ubuntu/Debian: sudo apt install python3 python3-venv python3-pip"
+    echo "  CentOS/RHEL:   sudo yum install python3 python3-pip"
+    exit 1
 }
 
 ensure_venv() {
@@ -129,15 +125,13 @@ setup_config() {
     fi
 
     log_step "初始化配置文件"
-    cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
-    log_info "已创建配置文件: ${CONFIG_FILE}"
-
     mkdir -p "$DATA_DIR" "$LOG_DIR"
+    cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
     echo '{}' > "${DATA_DIR}/tasks.json"
+    log_info "已创建配置文件: ${CONFIG_FILE}"
 
     if [[ "$NON_INTERACTIVE" == "true" ]]; then
         log_warn "非交互模式：请编辑 ${CONFIG_FILE} 配置必要的参数"
-        log_warn "关键配置项：llm.api_key, source_dir, temp_dir, log_dir, path_rules"
         return 0
     fi
 
@@ -145,11 +139,10 @@ setup_config() {
     echo -e "${BOLD}以下为关键配置项，请逐一确认：${NC}"
     echo ""
 
-    local source_dir temp_dir log_dir api_key base_url model
+    local source_dir temp_dir api_key base_url model
 
-    source_dir=$(prompt_input "源文件目录（网盘下载目录）" "/vol1/网盘下载")
-    temp_dir=$(prompt_input "临时目录" "/vol1/tmp/media_import")
-    log_dir=$(prompt_input "日志目录" "/vol1/logs/media_import")
+    source_dir=$(prompt_input "源文件目录" "${HOME}/下载")
+    temp_dir=$(prompt_input "临时目录" "${HOME}/nas-media-importer/temp")
     api_key=$(prompt_input "LLM API Key" "your-api-key-here")
     base_url=$(prompt_input "LLM API Base URL" "https://api.openai.com/v1")
     model=$(prompt_input "LLM 模型名称" "gpt-4o")
@@ -157,54 +150,62 @@ setup_config() {
     if command -v sed &>/dev/null; then
         sed -i "s|source_dir:.*|source_dir: \"${source_dir}\"|" "$CONFIG_FILE"
         sed -i "s|temp_dir:.*|temp_dir: \"${temp_dir}\"|" "$CONFIG_FILE"
-        sed -i "s|log_dir:.*|log_dir: \"${log_dir}\"|" "$CONFIG_FILE"
         sed -i "s|api_key:.*|api_key: \"${api_key}\"|" "$CONFIG_FILE"
         sed -i "s|base_url:.*|base_url: \"${base_url}\"|" "$CONFIG_FILE"
         sed -i "s|model:.*|model: \"${model}\"|" "$CONFIG_FILE"
+        sed -i "s|log_dir:.*|log_dir: \"${LOG_DIR}\"|" "$CONFIG_FILE"
     fi
 
     log_info "配置已更新"
-    echo ""
-    log_warn "如需修改更多配置（路径规则、Hermes等），请编辑: ${CONFIG_FILE}"
 }
 
-install_service() {
-    log_step "安装 systemd 服务"
+install_systemd_user() {
+    log_step "安装 systemd 用户服务"
 
-    local service_src="${DEPLOY_DIR}/deploy/${SERVICE_NAME}.service"
-    if [[ ! -f "$service_src" ]]; then
-        log_error "未找到服务文件: ${service_src}"
-        exit 1
-    fi
+    mkdir -p "${HOME}/.config/systemd/user"
 
-    sed \
-        -e "s|/opt/nas-media-importer|${DEPLOY_DIR}|g" \
-        "$service_src" > "$SERVICE_FILE"
+    cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=NAS Media Importer - Auto import video files
+After=network.target
 
-    systemctl daemon-reload
-    systemctl enable "$SERVICE_NAME" 2>/dev/null || true
-    log_info "systemd 服务已安装并启用开机自启"
+[Service]
+Type=simple
+WorkingDirectory=${DEPLOY_DIR}
+Environment=PATH=${DEPLOY_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=${DEPLOY_DIR}/venv/bin/python3 media_importer/media_importer.py serve -p ${HEALTH_PORT} --host 0.0.0.0
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+EOF
+
+    log_info "systemd 用户服务已创建: ${SERVICE_FILE}"
 }
 
-start_and_verify() {
+start_service() {
     log_step "启动服务并验证"
 
-    systemctl restart "$SERVICE_NAME"
+    systemctl --user daemon-reload
+    systemctl --user enable nas-media-importer.service
+    systemctl --user restart nas-media-importer.service
 
     log_info "等待服务启动..."
     local waited=0
     while [[ $waited -lt $HEALTH_MAX_WAIT ]]; do
-        if systemctl is-active --quiet "$SERVICE_NAME"; then
+        if systemctl --user is-active --quiet nas-media-importer.service; then
             break
         fi
         sleep 1
         waited=$((waited + 1))
     done
 
-    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+    if ! systemctl --user is-active --quiet nas-media-importer.service; then
         log_error "服务启动失败"
         echo ""
-        journalctl -u "$SERVICE_NAME" -n 30 --no-pager
+        journalctl --user -u nas-media-importer -n 30 --no-pager
         exit 1
     fi
 
@@ -227,88 +228,85 @@ start_and_verify() {
             log_info "健康检查通过"
         else
             log_warn "健康检查未通过（服务可能仍在初始化）"
-            log_warn "可手动检查: curl http://127.0.0.1:${HEALTH_PORT}/api/health"
         fi
-    else
-        log_warn "未安装 curl，跳过健康检查"
     fi
+}
 
+print_success() {
     echo ""
     echo -e "${GREEN}${BOLD}========================================${NC}"
     echo -e "${GREEN}${BOLD}  部署完成！${NC}"
     echo -e "${GREEN}${BOLD}========================================${NC}"
     echo ""
+    echo "  部署目录:    ${DEPLOY_DIR}"
     echo "  配置文件:    ${CONFIG_FILE}"
-    echo "  数据目录:     ${DATA_DIR}"
-    echo "  日志目录:     ${LOG_DIR}"
+    echo "  数据目录:    ${DATA_DIR}"
+    echo "  日志目录:    ${LOG_DIR}"
     echo ""
     echo "  常用命令:"
-    echo "    查看状态:  systemctl status ${SERVICE_NAME}"
-    echo "    查看日志:  journalctl -u ${SERVICE_NAME} -f"
-    echo "    重启服务:  systemctl restart ${SERVICE_NAME}"
-    echo "    停止服务:  systemctl stop ${SERVICE_NAME}"
+    echo "    启动服务:   systemctl --user start nas-media-importer"
+    echo "    停止服务:   systemctl --user stop nas-media-importer"
+    echo "    查看状态:   systemctl --user status nas-media-importer"
+    echo "    查看日志:   journalctl --user -u nas-media-importer -f"
+    echo "    重启服务:   systemctl --user restart nas-media-importer"
+    echo ""
+    echo "  或直接运行:"
+    echo "    cd ${DEPLOY_DIR}"
+    echo "    ./venv/bin/python3 media_importer/media_importer.py serve"
     echo ""
 }
 
 do_install() {
-    check_root
+    check_not_root
 
     echo ""
     echo -e "${CYAN}${BOLD}========================================${NC}"
-    echo -e "${CYAN}${BOLD}  NAS影视自动化入库系统 - 部署安装${NC}"
+    echo -e "${CYAN}${BOLD}  NAS影视自动化入库系统 - 用户安装${NC}"
     echo -e "${CYAN}${BOLD}========================================${NC}"
     echo ""
 
     if [[ -d "$DEPLOY_DIR" && -f "${DEPLOY_DIR}/media_importer/media_importer.py" ]]; then
-        log_info "检测到已有代码: ${DEPLOY_DIR}"
-        if prompt_yesno "是否从 Git 仓库拉取最新版本？" "N"; then
-            cd "$DEPLOY_DIR"
-            if [[ -d ".git" ]]; then
-                log_step "拉取最新代码"
-                git fetch origin
-                local branch
-                branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-                git pull origin "$branch"
-                log_info "代码已更新"
-            else
-                log_warn "非 Git 仓库，跳过拉取"
-            fi
+        log_info "检测到已有安装: ${DEPLOY_DIR}"
+        if prompt_yesno "是否重新安装（覆盖代码，保留配置）？" "N"; then
+            log_warn "将更新代码并重启服务..."
+        else
+            log_info "现有安装保持不变"
+            exit 0
         fi
     else
-        log_step "克隆代码"
-        if prompt_yesno "是否从 Git 仓库克隆代码？" "Y"; then
-            local repo_url
-            repo_url=$(prompt_input "Git 仓库地址" "$GIT_REPO")
-            if [[ -d "$DEPLOY_DIR" ]]; then
-                log_warn "目录已存在: ${DEPLOY_DIR}"
-                if prompt_yesno "是否删除并重新克隆？" "N"; then
-                    rm -rf "$DEPLOY_DIR"
-                else
-                    log_error "请手动处理目录冲突后重试"
-                    exit 1
-                fi
-            fi
-            git clone "$repo_url" "$DEPLOY_DIR"
-            log_info "代码克隆完成"
+        if prompt_yesno "将在 ${DEPLOY_DIR} 安装，是否继续？" "Y"; then
+            mkdir -p "$DEPLOY_DIR"
         else
-            log_warn "请手动将代码上传到 ${DEPLOY_DIR} 后重新运行此脚本"
             exit 0
         fi
     fi
 
     cd "$DEPLOY_DIR"
 
+    if [[ ! -f "requirements.txt" ]]; then
+        log_error "未找到 requirements.txt，请确保代码目录完整"
+        exit 1
+    fi
+
     ensure_python3
     ensure_venv
     install_dependencies
     setup_config
-    install_service
-    start_and_verify
+
+    if check_systemd_user; then
+        install_systemd_user
+        start_service
+    else
+        log_warn "systemd 用户服务不可用"
+        log_info "服务未自动启动，请手动运行："
+        echo "  cd ${DEPLOY_DIR}"
+        echo "  ./venv/bin/python3 media_importer/media_importer.py serve"
+    fi
+
+    print_success
 }
 
 do_upgrade() {
-    check_root
-
     echo ""
     echo -e "${CYAN}${BOLD}========================================${NC}"
     echo -e "${CYAN}${BOLD}  NAS影视自动化入库系统 - 升级${NC}"
@@ -317,14 +315,15 @@ do_upgrade() {
 
     if [[ ! -d "$DEPLOY_DIR" ]]; then
         log_error "部署目录不存在: ${DEPLOY_DIR}"
-        log_info "请先运行安装: $0 install"
         exit 1
     fi
 
     cd "$DEPLOY_DIR"
 
     log_step "停止服务"
-    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    if check_systemd_user; then
+        systemctl --user stop nas-media-importer 2>/dev/null || true
+    fi
 
     log_step "更新代码"
     if [[ -d ".git" ]]; then
@@ -334,79 +333,72 @@ do_upgrade() {
         git pull origin "$branch"
         log_info "代码已更新"
     else
-        log_warn "非 Git 仓库，跳过代码更新"
-        log_warn "请手动上传新版本代码到 ${DEPLOY_DIR}"
+        log_warn "非 Git 仓库，请手动更新代码"
     fi
 
-    log_step "重新安装依赖（如有更新）"
+    log_step "重新安装依赖"
     ensure_venv
     install_dependencies
 
     log_step "重启服务"
-    systemctl daemon-reload
-    start_and_verify
+    if check_systemd_user; then
+        systemctl --user daemon-reload
+        systemctl --user restart nas-media-importer
+        log_info "服务已重启"
+    fi
+
+    log_info "升级完成"
 }
 
 do_uninstall() {
-    check_root
-
     echo ""
     echo -e "${RED}${BOLD}========================================${NC}"
     echo -e "${RED}${BOLD}  NAS影视自动化入库系统 - 卸载${NC}"
     echo -e "${RED}${BOLD}========================================${NC}"
     echo ""
 
-    if ! prompt_yesno "确定要卸载 NAS影视自动化入库系统？" "N"; then
-        log_info "已取消卸载"
+    if ! prompt_yesno "确定要卸载？" "N"; then
         exit 0
     fi
 
     log_step "停止服务"
-    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-
-    log_step "移除服务文件"
-    rm -f "$SERVICE_FILE"
-    systemctl daemon-reload
-    log_info "systemd 服务已移除"
-
-    if prompt_yesno "是否删除代码目录 ${DEPLOY_DIR}？（含配置和数据）" "N"; then
-        rm -rf "$DEPLOY_DIR"
-        log_info "代码目录已删除"
-    else
-        log_info "保留代码目录: ${DEPLOY_DIR}"
+    if check_systemd_user; then
+        systemctl --user stop nas-media-importer 2>/dev/null || true
+        systemctl --user disable nas-media-importer 2>/dev/null || true
     fi
 
-    echo ""
+    rm -f "$SERVICE_FILE"
+    log_info "服务文件已移除"
+
+    if prompt_yesno "是否删除部署目录 ${DEPLOY_DIR}？（含配置和数据）" "N"; then
+        rm -rf "$DEPLOY_DIR"
+        log_info "部署目录已删除"
+    fi
+
     log_info "卸载完成"
 }
 
 usage() {
     echo ""
-    echo -e "${BOLD}NAS影视自动化入库系统 - 部署工具${NC}"
+    echo -e "${BOLD}NAS影视自动化入库系统 - 用户安装工具${NC}"
     echo ""
     echo "用法: $0 [选项] <命令>"
     echo ""
     echo "命令:"
     echo "  install    安装部署（默认）"
-    echo "  upgrade    升级（git pull + 重启服务，保留配置和数据）"
-    echo "  uninstall  卸载（停止服务，移除服务文件）"
+    echo "  upgrade    升级（保留配置）"
+    echo "  uninstall  卸载"
     echo ""
     echo "选项:"
-    echo "  --non-interactive   非交互模式，使用默认值"
+    echo "  --non-interactive   非交互模式"
     echo "  --dir <路径>        指定部署目录（默认: ${DEPLOY_DIR}）"
-    echo "  --repo <URL>        指定 Git 仓库地址"
-    echo "  -h, --help          显示帮助信息"
-    echo ""
-    echo "示例:"
-    echo "  sudo $0 install                    # 交互式安装"
-    echo "  sudo $0 --non-interactive install  # 非交互式安装"
-    echo "  sudo $0 upgrade                    # 升级（保留配置）"
-    echo "  sudo $0 uninstall                  # 卸载"
+    echo "  -h, --help          显示帮助"
     echo ""
 }
 
 main() {
+    ACTION="install"
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
             install|upgrade|uninstall)
@@ -423,11 +415,6 @@ main() {
                 CONFIG_FILE="${DEPLOY_DIR}/config/config.yaml"
                 DATA_DIR="${DEPLOY_DIR}/data"
                 LOG_DIR="${DEPLOY_DIR}/logs"
-                VENV_PYTHON="${DEPLOY_DIR}/venv/bin/python3"
-                shift 2
-                ;;
-            --repo)
-                GIT_REPO="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -443,15 +430,9 @@ main() {
     done
 
     case "$ACTION" in
-        install)
-            do_install
-            ;;
-        upgrade)
-            do_upgrade
-            ;;
-        uninstall)
-            do_uninstall
-            ;;
+        install)   do_install ;;
+        upgrade)   do_upgrade ;;
+        uninstall) do_uninstall ;;
     esac
 }
 

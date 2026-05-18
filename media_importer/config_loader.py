@@ -267,7 +267,9 @@ def validate_dimension_values(dimensions: list, ai_response: dict) -> list:
 
 def load_config(config_path: str = None) -> dict:
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+        script_dir = os.path.dirname(__file__)
+        project_root = os.path.dirname(script_dir)
+        config_path = os.path.join(project_root, "config", "config.yaml")
 
     if not os.path.exists(config_path):
         print(f"配置文件不存在，正在生成默认配置模板: {config_path}")
@@ -290,11 +292,10 @@ def load_config(config_path: str = None) -> dict:
         if path_val and not os.path.isabs(path_val):
             config[key] = os.path.join(project_root, path_val)
 
-    # 处理 persistence_path 的相对路径转换
     task_queue = config.get("task_queue", {})
     persistence_path = task_queue.get("persistence_path", "")
     if persistence_path and not os.path.isabs(persistence_path):
-        task_queue["persistence_path"] = os.path.join(project_root, persistence_path)
+        task_queue["persistence_path"] = os.path.join(project_root, "data", persistence_path)
 
     errors = validate_config(config)
     if errors:

@@ -12,7 +12,9 @@ venv/
 ENV/
 .env
 
-tasks.json
+config/
+data/
+logs/
 *.log
 
 .DS_Store

@@ -1,0 +1,5 @@
+#!/bin/bash
+# 卸载前回调
+
+systemctl stop nas-media-importer 2>/dev/null || true
+systemctl disable nas-media-importer 2>/dev/null || true

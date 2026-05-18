@@ -1,0 +1,4 @@
+#!/bin/bash
+# 升级后回调
+
+systemctl restart nas-media-importer 2>/dev/null || true

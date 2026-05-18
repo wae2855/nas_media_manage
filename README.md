@@ -55,22 +55,48 @@ NAS影视自动化入库系统是一个轻量级的影视文件智能处理服�
 | 依赖 | pyyaml >= 6.0 |
 | 网络 | 需访问LLM API（如 MiniMax / OpenAI） |
 
-### 4.2 快速部署（3步完成）
+### 4.2 快速部署
+
+#### FNOS 用户（推荐）
+
+下载 `.fpk` 安装包，在飞牛应用中心点击「手动安装」即可。
+
+> 如果应用中心没有上架，可使用下面的通用安装方式。
+
+#### 通用 Linux 安装（Root 用户）
 
 ```bash
-# 1. 上传代码到服务器
-scp -r nas_media_manage/ root@nas:/opt/nas-media-importer
+# 1. SSH 登录服务器，以 root 用户运行
+sudo -i
+cd /opt
 
-# 2. 运行安装脚本
-ssh root@nas 'cd /opt/nas-media-importer && bash deploy/install.sh'
+# 2. 克隆或上传代码
+git clone https://github.com/wae2855/nas_media_manage.git
+# 或: scp -r nas_media_manage/ root@nas:/opt/nas-media-importer
 
-# 3. 编辑配置文件（必须修改 source_dir、path_rules、llm.api_key）
-ssh root@nas 'vi /opt/nas-media-importer/media_importer/config.yaml'
+# 3. 运行安装脚本
+cd nas-media-importer
+bash deploy/install.sh
 ```
 
-安装脚本会自动：创建Python虚拟环境 → 安装pyyaml依赖 → 注册systemd服务 → 启动服务。
+#### 非 Root 用户 / 普通 Linux
 
-> **注意**：安装脚本默认部署目录为 `/opt/nas-media-importer`，如需其他路径请修改 `deploy/install.sh` 和 `deploy/nas-media-importer.service` 中的路径。
+```bash
+# 以普通用户运行
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/wae2855/nas_media_manage/main/deploy/install-user.sh)"
+```
+
+安装脚本会自动：创建Python虚拟环境 → 安装依赖 → 注册服务 → 启动服务。
+
+#### 配置文件位置
+
+| 文件 | 路径 |
+|------|------|
+| 配置文件 | `/opt/nas-media-importer/config/config.yaml` |
+| 数据文件 | `/opt/nas-media-importer/data/tasks.json` |
+| 日志文件 | `/opt/nas-media-importer/logs/` |
+
+> **升级说明**：配置文件和数据目录独立于代码目录，升级时不会丢失。
 
 ### 4.3 详细部署步骤
 
@@ -103,7 +129,9 @@ venv/bin/pip install --quiet pyyaml
 
 #### 配置说明
 
-首次启动时，如配置文件不存在会自动生成默认模板。编辑 `media_importer/config.yaml`：
+首次启动时，如配置文件不存在会自动生成默认模板。编辑配置文件：
+
+**配置文件路径：** `/opt/nas-media-importer/config/config.yaml`
 
 **必须配置的项（标记 ⚠️）：**
 
@@ -209,23 +237,22 @@ systemctl restart nas-media-importer
 curl -X POST http://127.0.0.1:9855/api/config/reload
 ```
 
-### 4.5 升级更新
+### 4.3 升级更新
 
 ```bash
-# 1. 停止服务
-systemctl stop nas-media-importer
-
-# 2. 更新代码
+# 进入安装目录
 cd /opt/nas-media-importer
+
+# 方式一：使用安装脚本（推荐，自动处理）
+sudo bash deploy/install.sh upgrade
+
+# 方式二：手动升级
+sudo systemctl stop nas-media-importer
 git pull
-# 或: scp -r nas_media_manage/ root@nas:/opt/nas-media-importer
-
-# 3. 重启服务
-systemctl start nas-media-importer
-
-# 4. 验证
-curl -s http://127.0.0.1:9855/api/health
+sudo systemctl start nas-media-importer
 ```
+
+> **升级不会丢失配置和数据** — 配置文件和数据目录独立于代码目录。
 
 ## 5. 配置说明
 
@@ -399,21 +426,26 @@ PENDING → PROCESSING → SUCCESS
 nas_media_manage/
 ├── start.sh                             # 前台启动脚本
 ├── requirements.txt                     # Python依赖
+├── config/                              # 配置文件（升级时保留）
+│   └── config.yaml
+├── data/                                # 数据目录（升级时保留）
+│   └── tasks.json
+├── logs/                                # 日志目录（升级时保留）
 ├── deploy/
-│   ├── install.sh                       # 一键部署安装脚本
-│   └── nas-media-importer.service       # systemd服务文件
+│   ├── install.sh                       # Root用户安装脚本
+│   ├── install-user.sh                  # 非Root用户安装脚本
+│   ├── nas-media-importer.service       # systemd服务文件
+│   └── fnpack/                          # FNOS fpk 打包配置
 ├── docs/
 │   ├── 01-requirements.md               # 需求文档
 │   ├── 02-design.md                     # 设计文档
 │   ├── 03-development-plan.md           # 开发计划
 │   ├── 05-checklist.md                  # 检查清单
-│   ├── 06-test-guide.md                 # 测试指南
-│   ├── 07-hermes-integration-guide.md   # Hermes集成指南
-│   └── fnos_compatibility.md            # FNOS兼容性说明
-└── media_importer/
+│   ├── 06-test-guide.md                  # 测试指南
+│   └── 07-hermes-integration-guide.md   # Hermes集成指南
+└── media_importer/                      # 程序代码
     ├── api_server.py                    # HTTP API服务
     ├── classifier.py                    # 分类匹配引擎
-    ├── config.yaml                      # 配置文件
     ├── config_loader.py                 # 配置加载与校验
     ├── dedup_checker.py                 # 同名文件检测
     ├── file_copier.py                   # 文件复制（含进度回调）
