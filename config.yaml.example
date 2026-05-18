@@ -1,0 +1,182 @@
+# ============================================================
+# NAS影视自动化入库系统 - 配置文件
+# ============================================================
+# 此文件为配置模板，首次安装时会自动复制到 config/config.yaml
+# 升级时 config/config.yaml 不会被覆盖
+
+# ------------------------------------------------------------
+# 1. 基础配置
+# ------------------------------------------------------------
+server:
+  host: "0.0.0.0"
+  port: 9855
+
+source_dir: "/挂载/网盘下载"
+temp_dir: "/nas本地/临时目录"
+log_dir: "/nas本地/日志目录"
+
+source_dir_scan:
+  recursive: true
+  max_depth: 5
+  ignore_patterns:
+    - "*.tmp"
+    - ".DS_Store"
+    - "*partial*"
+
+video_extensions:
+  - ".mkv"
+  - ".mp4"
+  - ".avi"
+  - ".ts"
+  - ".mov"
+  - ".wmv"
+  - ".m2ts"
+  - ".flv"
+
+subtitle_extensions:
+  - ".srt"
+  - ".ass"
+  - ".ssa"
+  - ".vtt"
+  - ".sub"
+
+# ------------------------------------------------------------
+# 2. 大模型配置
+# ------------------------------------------------------------
+llm:
+  provider: "openai"
+  api_key: "your-api-key-here"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4o"
+  timeout: 30
+  max_retries: 2
+  retry_delay: 3
+  fallback_model: "gpt-3.5-turbo"
+  confidence_threshold: 0.8
+
+# ------------------------------------------------------------
+# 3. AI判断维度配置
+# ------------------------------------------------------------
+dimensions:
+  - name: media_type
+    label: 影视类型
+    values:
+      - "movie"
+      - "tv"
+    ai_prompt: "请判断这是电影还是电视剧（movie/tv）"
+    ai_hint: "请仅返回movie或tv"
+
+  - name: documentary
+    label: 是否纪录片
+    values:
+      - "yes"
+      - "no"
+    ai_prompt: "请判断是否为纪录片（yes/no）"
+
+  - name: restricted
+    label: 是否限制级
+    values:
+      - "yes"
+      - "no"
+    ai_prompt: "请判断是否为限制级内容（yes/no）"
+
+# ------------------------------------------------------------
+# 4. 文件名模板配置
+# ------------------------------------------------------------
+filename_templates:
+  movie: "{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}"
+  tv: "{title_cn}.{title_en}.{year}.S{season:02d}E{episode:02d}.{resolution}.{quality}.{ext}"
+  subtitle: "{video_filename}.{lang}.{ext}"
+
+# ------------------------------------------------------------
+# 5. 路径规则配置
+# ------------------------------------------------------------
+path_rules:
+  - conditions:
+      media_type: tv
+    template: "/nas本地/入库目录/电视剧/{title_cn} ({year})/Season {season}/"
+
+  - conditions:
+      media_type: movie
+      documentary: no
+    template: "/nas本地/入库目录/电影/{year}/{title_cn} ({year})/"
+
+  - conditions:
+      media_type: movie
+      documentary: yes
+    template: "/nas本地/入库目录/纪录片/{title_cn} ({year})/"
+
+  - conditions: {}
+    template: "/nas本地/入库目录/其他/{title_cn} ({year})/"
+
+# ------------------------------------------------------------
+# 6. 特殊处理规则配置
+# ------------------------------------------------------------
+rules:
+  - name: tv_series_folder
+    description: "电视剧必须单独文件夹"
+    conditions:
+      media_type: tv
+    actions:
+      - create_series_folder: true
+      - organize_by_season: true
+      - use_series_subfolder: "{title_cn} ({year})/"
+
+  - name: movie_year_folder
+    description: "电影按年份分文件夹"
+    conditions:
+      media_type: movie
+    actions:
+      - create_year_folder: true
+
+# ------------------------------------------------------------
+# 7. 同名文件处理配置
+# ------------------------------------------------------------
+duplicate_handling:
+  strategy: "skip"
+  notify: true
+  notify_title_only: true
+
+# ------------------------------------------------------------
+# 8. Hermes配置
+# ------------------------------------------------------------
+hermes:
+  enabled: false
+  webhook_url: ""
+  timeout: 10
+  retry: 2
+
+# ------------------------------------------------------------
+# 9. 通知配置
+# ------------------------------------------------------------
+notifications:
+  enabled: false
+  channel: "none"
+
+# ------------------------------------------------------------
+# 10. 任务队列配置
+# ------------------------------------------------------------
+task_queue:
+  persistence: true
+  persistence_path: "tasks.json"
+  max_concurrent: 2
+  retry_failed: true
+  retry_limit: 3
+  retry_delay: 60
+
+# ------------------------------------------------------------
+# 11. 性能配置
+# ------------------------------------------------------------
+performance:
+  max_file_handles: 100
+  buffer_size: 8192
+  copy_buffer_size: 1048576
+
+# ------------------------------------------------------------
+# 12. 调试配置
+# ------------------------------------------------------------
+debug:
+  enabled: false
+  log_api_requests: false
+  save_api_response: false
+  response_cache_dir: ""

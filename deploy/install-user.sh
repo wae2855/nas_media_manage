@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DEPLOY_DIR="${HOME}/nas-media-importer"
-CONFIG_TEMPLATE="${DEPLOY_DIR}/config/config.yaml"
+CONFIG_TEMPLATE="${DEPLOY_DIR}/config.yaml.example"
 CONFIG_FILE="${DEPLOY_DIR}/config/config.yaml"
 DATA_DIR="${DEPLOY_DIR}/data"
 LOG_DIR="${DEPLOY_DIR}/logs"
@@ -125,6 +125,7 @@ setup_config() {
     fi
 
     log_step "初始化配置文件"
+    mkdir -p "${DEPLOY_DIR}/config"
     mkdir -p "$DATA_DIR" "$LOG_DIR"
     cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
     echo '{}' > "${DATA_DIR}/tasks.json"

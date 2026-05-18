@@ -426,11 +426,12 @@ PENDING → PROCESSING → SUCCESS
 nas_media_manage/
 ├── start.sh                             # 前台启动脚本
 ├── requirements.txt                     # Python依赖
-├── config/                              # 配置文件（升级时保留）
+├── config.yaml.example                   # 配置模板（首次安装时复制）
+├── config/                              # 用户配置（升级时保留，.gitignore）
 │   └── config.yaml
-├── data/                                # 数据目录（升级时保留）
+├── data/                                # 数据目录（升级时保留，.gitignore）
 │   └── tasks.json
-├── logs/                                # 日志目录（升级时保留）
+├── logs/                                # 日志目录（升级时保留，.gitignore）
 ├── deploy/
 │   ├── install.sh                       # Root用户安装脚本
 │   ├── install-user.sh                  # 非Root用户安装脚本

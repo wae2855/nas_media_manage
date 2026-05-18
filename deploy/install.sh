@@ -5,9 +5,8 @@ DEPLOY_DIR="/opt/nas-media-importer"
 SERVICE_NAME="nas-media-importer"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 GIT_REPO="https://github.com/wae2855/nas_media_manage.git"
-CONFIG_TEMPLATE="${DEPLOY_DIR}/config/config.yaml"
+CONFIG_TEMPLATE="${DEPLOY_DIR}/config.yaml.example"
 CONFIG_FILE="${DEPLOY_DIR}/config/config.yaml"
-CONFIG_PROD="${DEPLOY_DIR}/config/config.yaml"
 DATA_DIR="${DEPLOY_DIR}/data"
 LOG_DIR="${DEPLOY_DIR}/logs"
 VENV_PYTHON="${DEPLOY_DIR}/venv/bin/python3"
@@ -129,6 +128,7 @@ setup_config() {
     fi
 
     log_step "初始化配置文件"
+    mkdir -p "${DEPLOY_DIR}/config"
     cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
     log_info "已创建配置文件: ${CONFIG_FILE}"
 
