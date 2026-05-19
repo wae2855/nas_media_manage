@@ -149,15 +149,18 @@ log_dir: "/vol1/logs/media_import"
 path_rules:
   - conditions:
       media_type: "tv"
-      documentary: "no"
       restricted: "no"
     template: "/vol1/影视/电视剧/{title_cn} ({year})/Season {season}/"
+  - conditions:
+      media_type: "tv"
+      restricted: "yes"
+    template: "/vol1/影视/TV-R/{title_cn} ({year})/Season {season}/"
   - conditions:
       media_type: "movie"
       documentary: "no"
       restricted: "no"
     template: "/vol1/影视/电影/{year}/"
-  # ... 更多规则见 config.yaml
+  # ... 更多规则见 config.yaml.example
 
 # ⚠️ AI刮削API密钥 — 必须填写有效的API Key
 llm:
@@ -193,7 +196,7 @@ bash deploy/install.sh
 
 **方式三：直接运行**
 ```bash
-python3 media_importer/media_importer.py -c media_importer/config.yaml serve -p 9855 --host 0.0.0.0
+python3 media_importer/media_importer.py -c config/config.yaml serve -p 9855 --host 0.0.0.0
 ```
 
 #### 验证服务
@@ -237,7 +240,7 @@ systemctl restart nas-media-importer
 curl -X POST http://127.0.0.1:9855/api/config/reload
 ```
 
-### 4.3 升级更新
+### 4.5 升级更新
 
 ```bash
 # 进入安装目录
@@ -256,7 +259,7 @@ sudo systemctl start nas-media-importer
 
 ## 5. 配置说明
 
-详细配置项请参考 `media_importer/config.yaml` 中的注释。以下为**必须配置**的项目：
+详细配置项请参考 `config.yaml.example` 中的注释。以下为**必须配置**的项目：
 
 | 配置项 | 说明 | 示例 |
 |--------|------|------|
@@ -272,9 +275,10 @@ sudo systemctl start nas-media-importer
 
 | 配置项 | 说明 | 示例 |
 |--------|------|------|
-| `hermes.webhook.base_url` | Hermes通知地址 | `http://10.200.200.6:8644` |
-| `hermes.webhook.secret` | HMAC签名密钥 | `KsMEsyjo...` |
+| `hermes.webhook.base_url` | Hermes服务地址 | `http://10.200.200.6:8644` |
 | `hermes.webhook.route_name` | Webhook路由名 | `media-normalize` |
+| `hermes.webhook.secret` | HMAC签名密钥 | `KsMEsyjo...` |
+| `hermes.webhook.events` | 启用通知的事件 | `batch_start, batch_complete, program_error` |
 
 路径模板支持的变量：`{title_cn}` `{title_en}` `{year}` `{season}` `{episode}` `{resolution}` `{quality}` `{ext}`
 
@@ -308,32 +312,32 @@ curl -X POST http://localhost:9855/api/run/file \
 
 ```bash
 # 执行一次批量处理
-python3 media_importer/media_importer.py -c media_importer/config.yaml run
+python3 media_importer/media_importer.py -c config/config.yaml run
 
 # 仅扫描不处理（dry-run）
-python3 media_importer/media_importer.py -c media_importer/config.yaml run --dry-run
+python3 media_importer/media_importer.py -c config/config.yaml run --dry-run
 
 # 查看任务列表
-python3 media_importer/media_importer.py -c media_importer/config.yaml list --status all
+python3 media_importer/media_importer.py -c config/config.yaml list --status all
 
 # 查看任务详情
-python3 media_importer/media_importer.py -c media_importer/config.yaml show <task_id>
+python3 media_importer/media_importer.py -c config/config.yaml show <task_id>
 
 # 重试失败任务
-python3 media_importer/media_importer.py -c media_importer/config.yaml retry <task_id>
-python3 media_importer/media_importer.py -c media_importer/config.yaml retry  # 重试所有
+python3 media_importer/media_importer.py -c config/config.yaml retry <task_id>
+python3 media_importer/media_importer.py -c config/config.yaml retry  # 重试所有
 
 # 查看队列状态
-python3 media_importer/media_importer.py -c media_importer/config.yaml queue
+python3 media_importer/media_importer.py -c config/config.yaml queue
 
 # 查看日志
-python3 media_importer/media_importer.py -c media_importer/config.yaml log -f --tail 50
+python3 media_importer/media_importer.py -c config/config.yaml log -f --tail 50
 
 # 健康检查
-python3 media_importer/media_importer.py -c media_importer/config.yaml health
+python3 media_importer/media_importer.py -c config/config.yaml health
 
 # 运行指标
-python3 media_importer/media_importer.py -c media_importer/config.yaml metrics
+python3 media_importer/media_importer.py -c config/config.yaml metrics
 ```
 
 ### 6.3 Hermes Skill（AI助手交互）

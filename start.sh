@@ -2,7 +2,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONFIG="${1:-$SCRIPT_DIR/media_importer/config.yaml}"
+CONFIG="${1:-$SCRIPT_DIR/config/config.yaml}"
 HOST="${2:-0.0.0.0}"
 PORT="${3:-9855}"
 

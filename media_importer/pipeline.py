@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import time
 import threading
 from task_manager import Task, TaskManager
 from file_scanner import scan_source_dir
@@ -38,6 +39,11 @@ class PipelineRunner:
 
         self.scraper = LLMScraper(config)
         self.copier = FileCopier(config.get('temp_dir', ''))
+        
+        # 错误通知去重
+        self._last_notified_error = None
+        self._last_notified_time = 0
+        self._error_notify_cooldown = 300  # 5分钟内相同系统错误只通知一次
 
     def pause(self):
         self._paused.set()
@@ -61,6 +67,38 @@ class PipelineRunner:
         self.task_manager.update_progress(
             task, step_num, step_name, percentage, **kwargs
         )
+
+    def _is_system_error(self, error_message: str) -> bool:
+        """判断是否是系统级错误（如API配置错误、网络错误等）"""
+        system_error_keywords = [
+            "API", "api", "认证", "密钥", "key", "连接", "网络",
+            "timeout", "timeout", "配置", "config", "401", "403", "404"
+        ]
+        error_lower = error_message.lower()
+        return any(keyword in error_lower for keyword in system_error_keywords)
+    
+    def _notify_program_error(self, error_type: str, error_message: str, extra_data: dict = None):
+        """智能发送程序错误通知，避免通知风暴"""
+        if not self.notifier:
+            return
+        
+        current_time = time.time()
+        error_key = f"{error_type}:{error_message[:100]}"  # 用错误前100字符作为标识
+        
+        # 检查是否在冷却期内
+        if (self._last_notified_error == error_key and 
+            current_time - self._last_notified_time < self._error_notify_cooldown):
+            self._log("debug", f"跳过重复系统错误通知: {error_type}", None, "notify")
+            return
+        
+        # 发送通知
+        try:
+            self.notifier.notify_program_error(error_type, error_message, extra_data)
+            self._last_notified_error = error_key
+            self._last_notified_time = current_time
+            self._log("info", f"发送系统错误通知: {error_type}", None, "notify")
+        except Exception as e:
+            self._log("warn", f"系统错误通知发送失败: {e}", None, "notify")
 
     def _notify(self, event_type: str, task: Task):
         if self.notifier and self.notifier.should_notify(event_type):
@@ -136,17 +174,40 @@ class PipelineRunner:
                 self.metrics.record_task_complete("skipped")
             self._log("info", f"任务跳过: {task.video_file} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            
+            delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
+            if delete_after_process:
+                source_dir = self.config.get('source_dir', '')
+                if source_dir and original_source_video and original_source_video.startswith(source_dir):
+                    files_to_delete = [original_source_video]
+                    files_to_delete.extend(original_source_subs)
+                    delete_source_files(files_to_delete, allowed_base_dirs=[source_dir])
+                    self._log("info", f"已清理源目录文件: {os.path.basename(original_source_video)}", task, "cleanup")
+                    remove_empty_parent_dir(original_source_video, source_dir)
+            else:
+                self._log("info", f"保留源目录文件（配置为不删除）: {os.path.basename(original_source_video)}", task, "cleanup")
+            
             return True
 
         except Exception as e:
+            error_msg = str(e)
             task.transition_to("FAILED")
-            task.error_message = str(e)
+            task.error_message = error_msg
             self.task_manager.update_task(task)
             self.hooks.run_after_failure(task.to_dict())
             if self.metrics:
                 self.metrics.record_task_complete("failed")
             self._log("error", f"任务失败: {task.video_file} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            
+            # 检查是否是系统级错误，需要通知
+            if self._is_system_error(error_msg):
+                self._notify_program_error(
+                    "system_error",
+                    error_msg,
+                    {"video_file": task.video_file, "task_id": task.task_id}
+                )
+            
             return False
 
     def _cleanup_temp_on_failure(self, task: Task, temp_video_path: str):
@@ -336,18 +397,33 @@ class PipelineRunner:
 
         strategy = self.config.get('duplicate_handling', {}).get('strategy', 'skip')
         dedup_result = check_duplicate(
-            task.import_path, task.scraped_info, strategy
+            task.import_path, task.scraped_info, strategy, task.video_path
         )
 
         if dedup_result['is_duplicate']:
             if strategy == 'skip':
-                raise PipelineSkipError(
-                    f"同名文件已存在: {dedup_result['existing_file']}"
-                )
+                skip_msg = dedup_result.get('skip_message', 
+                    f"同名文件已存在: {dedup_result.get('existing_file', 'unknown')}")
+                raise PipelineSkipError(skip_msg)
             elif strategy == 'rename':
                 task.final_filename = os.path.basename(
                     dedup_result['suggested_filename']
                 )
+            elif strategy == 'replace':
+                self._log("info", f"替换模式: 将删除已存在文件 {dedup_result['existing_file']}", task, "dedup")
+                if os.path.exists(dedup_result['existing_path']):
+                    os.remove(dedup_result['existing_path'])
+                    self._log("info", f"已删除已存在文件: {dedup_result['existing_file']}", task, "dedup")
+            elif strategy == 'quality':
+                quality_decision = dedup_result.get('quality_decision')
+                if quality_decision == 'replace':
+                    self._log("info", f"质量优先: 新文件质量更高，将替换已存在文件", task, "dedup")
+                    if os.path.exists(dedup_result['existing_path']):
+                        os.remove(dedup_result['existing_path'])
+                        self._log("info", f"已删除已存在文件: {dedup_result['existing_file']}", task, "dedup")
+                elif quality_decision == 'keep_existing':
+                    skip_msg = dedup_result.get('skip_message', "质量优先: 保留已存在文件")
+                    raise PipelineSkipError(skip_msg)
 
         self._update_progress(task, 6, "dedup", 70)
 
@@ -401,8 +477,9 @@ class PipelineRunner:
         task.subtitle_files = move_result['subtitles']
 
         source_dir = self.config.get('source_dir', '')
+        delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
 
-        if source_dir and original_source_video:
+        if delete_after_process and source_dir and original_source_video:
             files_to_delete = [original_source_video]
             for sub in original_source_subs:
                 files_to_delete.append(sub)
@@ -410,6 +487,8 @@ class PipelineRunner:
                                 allowed_base_dirs=allowed_dirs)
             remove_empty_parent_dir(original_source_video, source_dir)
             self._log("info", f"已清理源目录文件: {os.path.basename(original_source_video)}", task, "import")
+        elif not delete_after_process and source_dir and original_source_video:
+            self._log("info", f"保留源目录文件（配置为不删除）: {os.path.basename(original_source_video)}", task, "import")
 
         if temp_video_path and temp_dir and temp_video_path.startswith(temp_dir):
             delete_source_files([temp_video_path], allowed_base_dirs=allowed_dirs)

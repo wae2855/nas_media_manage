@@ -3,27 +3,28 @@
 # ============================================================
 # 此文件为配置模板，首次安装时会自动复制到 config/config.yaml
 # 升级时 config/config.yaml 不会被覆盖
+# 修改后需重启服务才能生效
 
 # ------------------------------------------------------------
 # 1. 基础配置
 # ------------------------------------------------------------
 server:
-  host: "0.0.0.0"
-  port: 9855
+  host: "0.0.0.0"                # API监听地址，0.0.0.0 监听所有网卡
+  port: 9855                     # API监听端口
 
-source_dir: "/挂载/网盘下载"
-temp_dir: "/nas本地/临时目录"
-log_dir: "/nas本地/日志目录"
+source_dir: "/vol1/网盘下载"      # [必须] 影视文件来源目录
+temp_dir: "/vol1/tmp/media_import" # [必须] 处理过程中的中转目录
+log_dir: "/vol1/logs/media_import" # [必须] 日志目录
 
 source_dir_scan:
-  recursive: true
-  max_depth: 5
-  ignore_patterns:
+  recursive: true                # 是否递归扫描子目录
+  max_depth: 5                   # 递归最大深度
+  ignore_patterns:               # 忽略的文件名模式
     - "*.tmp"
     - ".DS_Store"
     - "*partial*"
 
-video_extensions:
+video_extensions:                # 支持的视频格式
   - ".mkv"
   - ".mp4"
   - ".avi"
@@ -33,7 +34,7 @@ video_extensions:
   - ".m2ts"
   - ".flv"
 
-subtitle_extensions:
+subtitle_extensions:             # 支持的字幕格式
   - ".srt"
   - ".ass"
   - ".ssa"
@@ -44,15 +45,15 @@ subtitle_extensions:
 # 2. 大模型配置
 # ------------------------------------------------------------
 llm:
-  provider: "openai"
-  api_key: "your-api-key-here"
-  base_url: "https://api.openai.com/v1"
-  model: "gpt-4o"
-  timeout: 30
-  max_retries: 2
-  retry_delay: 3
-  fallback_model: "gpt-3.5-turbo"
-  confidence_threshold: 0.8
+  provider: "openai"             # LLM提供商
+  api_key: "your-api-key-here"   # [必须] API密钥
+  base_url: "https://api.openai.com/v1" # API地址，可改为国内代理或其他兼容接口
+  model: "gpt-4o"                # 主模型名称
+  timeout: 30                    # API超时时间（秒）
+  max_retries: 2                 # 最大重试次数
+  retry_delay: 3                 # 重试间隔（秒）
+  fallback_model: "gpt-3.5-turbo" # 备选模型（主模型失败时降级使用）
+  confidence_threshold: 0.8      # AI置信度阈值
 
 # ------------------------------------------------------------
 # 3. AI判断维度配置
@@ -90,24 +91,34 @@ filename_templates:
 
 # ------------------------------------------------------------
 # 5. 路径规则配置
+# [必须] template 中的路径需改为实际入库目录
+# 按条件从上到下匹配，第一个匹配的规则生效
+# 支持变量: {title_cn} {title_en} {year} {season} {episode} {resolution} {quality} {ext}
 # ------------------------------------------------------------
 path_rules:
   - conditions:
       media_type: tv
-    template: "/nas本地/入库目录/电视剧/{title_cn} ({year})/Season {season}/"
+      restricted: "no"
+    template: "/vol1/影视/电视剧/{title_cn} ({year})/Season {season}/"
+
+  - conditions:
+      media_type: tv
+      restricted: "yes"
+    template: "/vol1/影视/TV-R/{title_cn} ({year})/Season {season}/"
 
   - conditions:
       media_type: movie
-      documentary: no
-    template: "/nas本地/入库目录/电影/{year}/{title_cn} ({year})/"
+      documentary: "no"
+      restricted: "no"
+    template: "/vol1/影视/电影/{year}/{title_cn} ({year})/"
 
   - conditions:
       media_type: movie
-      documentary: yes
-    template: "/nas本地/入库目录/纪录片/{title_cn} ({year})/"
+      documentary: "yes"
+    template: "/vol1/影视/纪录片/{title_cn} ({year})/"
 
   - conditions: {}
-    template: "/nas本地/入库目录/其他/{title_cn} ({year})/"
+    template: "/vol1/影视/其他/{title_cn} ({year})/"
 
 # ------------------------------------------------------------
 # 6. 特殊处理规则配置
@@ -133,50 +144,69 @@ rules:
 # 7. 同名文件处理配置
 # ------------------------------------------------------------
 duplicate_handling:
-  strategy: "skip"
-  notify: true
-  notify_title_only: true
+  strategy: "skip"               # 处理策略: 
+                                 #   skip(跳过) - 同名文件已存在则跳过
+                                 #   replace(替换) - 用新文件替换已存在的文件
+                                 #   rename(重命名) - 两者都保留，新文件添加编号后缀
+                                 #   quality(质量优先) - 保留高质量版本：
+                                 #     - 有分辨率时按高分辨率优先
+                                 #     - 相同分辨率时保留较小文件（压缩更好）
+                                 #     - 无分辨率信息时保留体积较大的文件
 
 # ------------------------------------------------------------
-# 8. Hermes配置
+# 8. 源文件处理配置
+# ------------------------------------------------------------
+source_file_handling:
+  delete_after_process: true     # 处理成功或跳过后是否删除源文件: true(删除)/false(保留)
+
+# ------------------------------------------------------------
+# 9. Hermes配置（飞书通知）
 # ------------------------------------------------------------
 hermes:
-  enabled: false
-  webhook_url: ""
-  timeout: 10
-  retry: 2
+  enabled: true                 # 是否启用Hermes通知
+  webhook:
+    base_url: "http://your-hermes-ip:8644" # Hermes服务地址
+    route_name: "media-normalize" # Webhook路由名称
+    secret: ""                    # HMAC签名密钥
+    timeout: 30                   # 请求超时（秒）
+    max_retries: 3                # 最大重试次数
+    retry_delay: 5                # 重试间隔（秒）
+    events:                       # 启用通知的事件类型
+      - batch_start
+      - batch_complete
+      - program_error
 
 # ------------------------------------------------------------
-# 9. 通知配置
+# 9. 文件监控配置
 # ------------------------------------------------------------
-notifications:
-  enabled: false
-  channel: "none"
+file_watcher:
+  enabled: true                  # 是否启用文件监控
+  poll_interval: 10              # 轮询间隔（秒）
+  ignore_patterns:               # 监控忽略的文件名模式
+    - "*.tmp"
+    - ".DS_Store"
+    - "*partial*"
 
 # ------------------------------------------------------------
 # 10. 任务队列配置
 # ------------------------------------------------------------
 task_queue:
-  persistence: true
-  persistence_path: "tasks.json"
-  max_concurrent: 2
-  retry_failed: true
-  retry_limit: 3
-  retry_delay: 60
+  persistence_path: "tasks.json" # 任务持久化文件路径
+  max_concurrent: 1              # 最大并发任务数
 
 # ------------------------------------------------------------
-# 11. 性能配置
+# 11. 钩子配置
 # ------------------------------------------------------------
-performance:
-  max_file_handles: 100
-  buffer_size: 8192
-  copy_buffer_size: 1048576
+hooks:
+  before_process: ""             # 处理前执行的命令
+  after_success: ""              # 成功后执行的命令
+  after_failure: ""              # 失败后执行的命令
 
 # ------------------------------------------------------------
-# 12. 调试配置
+# 12. 日志配置
 # ------------------------------------------------------------
-debug:
-  enabled: false
-  log_api_requests: false
-  save_api_response: false
-  response_cache_dir: ""
+logging:
+  level: "INFO"                  # 日志级别: DEBUG / INFO / WARNING / ERROR
+  format: "json"                 # 日志格式: json / text
+  max_size_mb: 100               # 单个日志文件最大大小（MB）
+  backup_count: 5                # 保留的日志文件数量

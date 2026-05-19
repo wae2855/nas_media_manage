@@ -9,8 +9,8 @@ mkdir -p "${DEPLOY_DIR}/data"
 mkdir -p "${DEPLOY_DIR}/logs"
 
 if [[ ! -f "${DEPLOY_DIR}/config/config.yaml" ]]; then
-    if [[ -f "${APP_DIR}/config/config.yaml" ]]; then
-        cp "${APP_DIR}/config/config.yaml" "${DEPLOY_DIR}/config/config.yaml"
+    if [[ -f "${DEPLOY_DIR}/config.yaml.example" ]]; then
+        cp "${DEPLOY_DIR}/config.yaml.example" "${DEPLOY_DIR}/config/config.yaml"
     fi
 fi
 

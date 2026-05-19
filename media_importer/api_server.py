@@ -8,6 +8,7 @@ from urllib.parse import urlparse, parse_qs
 
 
 from config_loader import load_config, mask_sensitive
+from config_validator import validate_config
 from task_manager import TaskManager, VALID_STATUSES
 from pipeline import PipelineRunner
 from metrics import Metrics, get_metrics
@@ -162,6 +163,18 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             json_response(self, 500, message=f"Config reload failed: {e}")
 
+    def _config_validate(self):
+        """验证配置并返回检测结果"""
+        query = parse_qs(urlparse(self.path).query)
+        test_llm = query.get("test_llm", ["true"])[0].lower() == "true"
+        test_hermes = query.get("test_hermes", ["true"])[0].lower() == "true"
+        
+        try:
+            results = validate_config(_config, test_llm=test_llm, test_hermes=test_hermes)
+            json_response(self, 200, data=results, message=f"Config validation complete: {results['overall']}")
+        except Exception as e:
+            json_response(self, 500, message=f"Config validation failed: {e}")
+
     def _run_batch(self):
         if _global_pipeline is None:
             json_response(self, 500, message="Pipeline not initialized")
@@ -246,6 +259,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self._metrics()
         elif path == "/api/config":
             self._config()
+        elif path == "/api/config/validate":
+            self._config_validate()
         elif path == "/api/watcher/status":
             self._watcher_status()
         elif path == "/api/tasks":
@@ -615,6 +630,7 @@ def start_server(host: str, port: int, config: dict):
     print("  GET  /api/metrics          - 指标统计")
     print("  GET  /api/config           - 当前配置")
     print("  POST /api/config/reload    - 重载配置")
+    print("  GET  /api/config/validate  - 配置检测（路径、API连通性等）")
     print("  GET  /api/tasks            - 任务列表")
     print("  GET  /api/tasks/{id}       - 任务详情")
     print("  DELETE /api/tasks/{id}      - 删除任务")

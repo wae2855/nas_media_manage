@@ -149,12 +149,12 @@ setup_config() {
     model=$(prompt_input "LLM 模型名称" "gpt-4o")
 
     if command -v sed &>/dev/null; then
-        sed -i "s|source_dir:.*|source_dir: \"${source_dir}\"|" "$CONFIG_FILE"
-        sed -i "s|temp_dir:.*|temp_dir: \"${temp_dir}\"|" "$CONFIG_FILE"
-        sed -i "s|api_key:.*|api_key: \"${api_key}\"|" "$CONFIG_FILE"
-        sed -i "s|base_url:.*|base_url: \"${base_url}\"|" "$CONFIG_FILE"
-        sed -i "s|model:.*|model: \"${model}\"|" "$CONFIG_FILE"
-        sed -i "s|log_dir:.*|log_dir: \"${LOG_DIR}\"|" "$CONFIG_FILE"
+        sed -i "s|^\(source_dir:\).*|\1 \"${source_dir}\"|" "$CONFIG_FILE"
+        sed -i "s|^\(temp_dir:\).*|\1 \"${temp_dir}\"|" "$CONFIG_FILE"
+        sed -i "s|^\(  api_key:\).*|\1 \"${api_key}\"|" "$CONFIG_FILE"
+        sed -i "s|^\(  base_url:\).*|\1 \"${base_url}\"|" "$CONFIG_FILE"
+        sed -i "s|^\(  model:\).*|\1 \"${model}\"|" "$CONFIG_FILE"
+        sed -i "s|^\(log_dir:\).*|\1 \"${LOG_DIR}\"|" "$CONFIG_FILE"
     fi
 
     log_info "配置已更新"
@@ -175,7 +175,7 @@ Type=simple
 WorkingDirectory=${DEPLOY_DIR}
 Environment=PATH=${DEPLOY_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=PYTHONUNBUFFERED=1
-ExecStart=${DEPLOY_DIR}/venv/bin/python3 media_importer/media_importer.py serve -p ${HEALTH_PORT} --host 0.0.0.0
+ExecStart=${DEPLOY_DIR}/venv/bin/python3 media_importer/media_importer.py -c config/config.yaml serve -p ${HEALTH_PORT} --host 0.0.0.0
 Restart=on-failure
 RestartSec=10
 
@@ -412,7 +412,7 @@ main() {
                 ;;
             --dir)
                 DEPLOY_DIR="$2"
-                CONFIG_TEMPLATE="${DEPLOY_DIR}/config/config.yaml"
+                CONFIG_TEMPLATE="${DEPLOY_DIR}/config.yaml.example"
                 CONFIG_FILE="${DEPLOY_DIR}/config/config.yaml"
                 DATA_DIR="${DEPLOY_DIR}/data"
                 LOG_DIR="${DEPLOY_DIR}/logs"

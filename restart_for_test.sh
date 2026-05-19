@@ -5,7 +5,7 @@
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="$PROJECT_DIR/media_importer/config.yaml"
+CONFIG_FILE="$PROJECT_DIR/config/config.yaml"
 
 echo "========================================"
 echo " NAS影视入库系统 - 测试环境重启"
@@ -171,8 +171,8 @@ fi
 
 # 5. 重启服务
 echo "[4/5] 启动服务..."
-cd "$PROJECT_DIR/media_importer"
-nohup python3 media_importer.py serve > /dev/null 2>&1 &
+cd "$PROJECT_DIR"
+nohup python3 -B media_importer/media_importer.py -c "$CONFIG_FILE" serve -p 9855 --host 0.0.0.0 > /dev/null 2>&1 &
 SERVER_PID=$!
 
 # 等待服务启动
