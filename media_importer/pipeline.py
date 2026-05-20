@@ -530,12 +530,12 @@ class PipelineRunner:
 
         return None
 
-    def _get_import_root(self) -> str:
+    def _get_import_roots(self) -> list:
         path_rules = self.config.get('path_rules', [])
         templates = [r.get('template', '') for r in path_rules if r.get('template')]
         if not templates:
-            return ''
-        abs_templates = []
+            return []
+        roots = []
         for tpl in templates:
             if not os.path.isabs(tpl):
                 project_root = os.path.dirname(
@@ -543,36 +543,31 @@ class PipelineRunner:
                 )
                 if project_root:
                     tpl = os.path.join(project_root, tpl)
-            abs_templates.append(os.path.normpath(tpl))
-        if len(abs_templates) == 1:
-            parts = abs_templates[0].split(os.sep)
+            tpl = os.path.normpath(tpl)
+            parts = tpl.split(os.sep)
             for i, p in enumerate(parts):
                 if p.startswith('{'):
-                    return os.sep.join(parts[:i]) if i > 0 else ''
-            return abs_templates[0]
-        prefix_parts = []
-        split_templates = [t.split(os.sep) for t in abs_templates]
-        min_len = min(len(t) for t in split_templates)
-        for i in range(min_len):
-            part = split_templates[0][i]
-            if part.startswith('{'):
-                break
-            if all(t[i] == part for t in split_templates):
-                prefix_parts.append(part)
+                    if i > 0:
+                        roots.append(os.sep.join(parts[:i]))
+                    break
             else:
-                break
-        return os.sep.join(prefix_parts) if prefix_parts else ''
+                roots.append(tpl)
+        return roots
 
     def _step_dedup(self, task: Task):
         self._update_progress(task, 6, "dedup", 65)
         self._log("info", f"同名检测: {task.video_file}", task, "dedup")
 
         strategy = self.config.get('duplicate_handling', {}).get('strategy', 'skip')
-        import_root = self._get_import_root()
-        dedup_search_dir = import_root if import_root else task.import_path
-        dedup_result = check_duplicate(
-            dedup_search_dir, task.scraped_info, strategy, task.video_path
-        )
+        import_roots = self._get_import_roots()
+        dedup_result = {'is_duplicate': False}
+        for search_dir in import_roots:
+            if not os.path.isdir(search_dir):
+                continue
+            result = check_duplicate(search_dir, task.scraped_info, strategy, task.video_path)
+            if result['is_duplicate']:
+                dedup_result = result
+                break
 
         if dedup_result['is_duplicate']:
             if strategy == 'skip':
