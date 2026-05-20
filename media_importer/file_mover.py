@@ -121,7 +121,37 @@ def delete_source_with_companions(video_path: str, subtitle_paths: list,
     return len(companions)
 
 
-def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: list = None):
+def cleanup_source_non_media(source_dir: str, video_extensions: list, subtitle_extensions: list):
+    if not source_dir or not os.path.isdir(source_dir):
+        return 0, 0
+    media_exts = set(ext.lower() for ext in video_extensions) | set(ext.lower() for ext in subtitle_extensions)
+    deleted_files = 0
+    deleted_dirs = 0
+
+    for root, dirs, files in os.walk(source_dir, topdown=False):
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext not in media_exts:
+                file_path = os.path.join(root, f)
+                try:
+                    os.remove(file_path)
+                    deleted_files += 1
+                except OSError:
+                    pass
+        if root != os.path.normpath(source_dir):
+            try:
+                remaining = os.listdir(root)
+                if not remaining:
+                    os.rmdir(root)
+                    deleted_dirs += 1
+            except OSError:
+                pass
+
+    return deleted_files, deleted_dirs
+
+
+def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: list = None,
+                            video_extensions: list = None, subtitle_extensions: list = None):
     if not source_root:
         return
     source_root_norm = os.path.normpath(source_root).rstrip('/')
@@ -136,13 +166,14 @@ def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs:
             remaining = os.listdir(current)
         except OSError:
             break
-        if remaining:
-            break
-        try:
-            os.rmdir(current)
-        except OSError:
-            break
-        current = os.path.dirname(current)
+        if not remaining:
+            try:
+                os.rmdir(current)
+            except OSError:
+                break
+            current = os.path.dirname(current)
+            continue
+        break
 
 
 def move_with_cross_device_fallback(src: str, dest: str) -> bool:

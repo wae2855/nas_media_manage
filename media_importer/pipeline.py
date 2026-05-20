@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import re
 import time
 import threading
 from task_manager import Task, TaskManager
@@ -8,8 +9,20 @@ from file_copier import FileCopier
 from llm_scraper import LLMScraper, LLMScrapeError
 from classifier import classify
 from dedup_checker import check_duplicate
-from file_mover import apply_filename_template, move_to_import, delete_source_files, delete_source_with_companions, remove_empty_parent_dir
+from file_mover import apply_filename_template, move_to_import, delete_source_files, delete_source_with_companions, remove_empty_parent_dir, cleanup_source_non_media
 from hooks import HookRunner
+
+
+def _extract_series_name(filename: str) -> str:
+    name = os.path.splitext(filename)[0]
+    name = re.sub(r'[._]', ' ', name)
+    name = re.sub(r'\b[Ss]\d{1,2}[Ee]\d{1,2}\b.*$', '', name)
+    name = re.sub(r'\b[Ss]\d{1,2}\b.*$', '', name)
+    name = re.sub(r'\b(?:2160p|1080p|720p|480p|4K|UHD|HDR)\b.*$', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\b(?:WEB|HDTV|BluRay|BDRip|WEBRip|WEB-DL|REMUX)\b.*$', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\b(?:x264|x265|HEVC|H\.?264|H\.?265|AAC|DTS|DD|ATMOS)\b.*$', '', name, flags=re.IGNORECASE)
+    name = name.strip(' -.')
+    return name
 
 
 PIPELINE_STEPS = [
@@ -241,6 +254,15 @@ class PipelineRunner:
         self._log("info", "开始批量处理")
         
         source_dir = self.config.get("source_dir", "")
+        delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
+
+        if delete_after_process and source_dir:
+            video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
+            sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
+            deleted_files, deleted_dirs = cleanup_source_non_media(source_dir, video_exts, sub_exts)
+            if deleted_files > 0 or deleted_dirs > 0:
+                self._log("info", f"源目录预清理: 删除 {deleted_files} 个非媒体文件, {deleted_dirs} 个空目录")
+
         pending_tasks = self.task_manager.get_next_pending()
         
         if pending_tasks is None:
@@ -318,10 +340,21 @@ class PipelineRunner:
             if self.metrics:
                 self.metrics.record_llm_call(success=True)
 
+            media_type = result.get('type', '')
+            if media_type and media_type.lower() in ('tv', 'series'):
+                series_dims = self._get_series_dimensions(task, result)
+                if series_dims:
+                    original_dims = dict(result.get('dimensions', {}))
+                    result['dimensions'].update(series_dims)
+                    task.scraped_info = result
+                    changed = {k: f'{original_dims.get(k)} -> {v}' for k, v in series_dims.items() if original_dims.get(k) != v}
+                    if changed:
+                        changed_str = ', '.join(f'{k}={v}' for k, v in changed.items())
+                        self._log("info", f"整剧维度覆盖: [{changed_str}]", task, "scrape")
+
             title_cn = result.get('title_cn') or ''
             title_en = result.get('title_en') or ''
             year = result.get('year') or ''
-            media_type = result.get('type') or ''
             confidence = result.get('confidence', 0)
             season = result.get('season')
             episode = result.get('episode')
@@ -414,6 +447,7 @@ class PipelineRunner:
 
         path_rules = self.config.get('path_rules', [])
         dimensions = task.scraped_info.get('dimensions', {})
+
         dims_str = ', '.join(f'{k}={v}' for k, v in dimensions.items()) if dimensions else '无'
         self._log("info", f"文件维度: [{dims_str}]", task, "classify")
 
@@ -439,13 +473,105 @@ class PipelineRunner:
         task.import_path = import_path
         self._update_progress(task, 5, "classify", 60)
 
+    def _get_series_dimensions(self, task: Task, scrape_result: dict) -> dict:
+        cached_dims = self._find_cached_series_dims(task, scrape_result)
+        if cached_dims is not None:
+            return cached_dims
+
+        series_name = _extract_series_name(task.video_file)
+        if not series_name:
+            return {}
+
+        title_from_scrape = scrape_result.get('title_cn', '') or scrape_result.get('title_en', '')
+        query_name = title_from_scrape if title_from_scrape else series_name
+
+        self._log("info", f"按剧名整体刮削维度: {query_name}", task, "scrape")
+
+        try:
+            series_result = self.scraper.scrape_series(query_name)
+            if self.metrics:
+                self.metrics.record_llm_call(success=True)
+            series_dims = series_result.get('dimensions', {})
+            if series_dims:
+                self._log("info", f"整剧维度结果: [{', '.join(f'{k}={v}' for k, v in series_dims.items())}]", task, "scrape")
+                return series_dims
+        except LLMScrapeError as e:
+            self._log("warn", f"整剧维度刮削失败，使用逐集结果: {e}", task, "scrape")
+            if self.metrics:
+                self.metrics.record_llm_call(success=False)
+
+        return {}
+
+    def _find_cached_series_dims(self, task: Task, scrape_result: dict) -> dict:
+        title = scrape_result.get('title_cn', '') or scrape_result.get('title_en', '')
+        if not title:
+            return None
+
+        if not hasattr(self, 'task_manager') or not self.task_manager:
+            return None
+
+        try:
+            tasks = self.task_manager.list_all_tasks(limit=500)
+        except Exception:
+            return None
+
+        for t in tasks:
+            if t.task_id == task.task_id:
+                continue
+            if t.status not in ('SUCCESS', 'completed'):
+                continue
+            t_dims = t.scraped_info.get('dimensions', {})
+            if t_dims.get('media_type') not in ('tv', 'TV', 'series'):
+                continue
+            t_title = t.scraped_info.get('title_cn', '') or t.scraped_info.get('title_en', '')
+            if t_title and t_title == title:
+                self._log("info", f"复用同剧缓存维度: {title}", task, "scrape")
+                return t_dims
+
+        return None
+
+    def _get_import_root(self) -> str:
+        path_rules = self.config.get('path_rules', [])
+        templates = [r.get('template', '') for r in path_rules if r.get('template')]
+        if not templates:
+            return ''
+        abs_templates = []
+        for tpl in templates:
+            if not os.path.isabs(tpl):
+                project_root = os.path.dirname(
+                    os.path.dirname(os.path.abspath(self.config.get('_config_path', '')))
+                )
+                if project_root:
+                    tpl = os.path.join(project_root, tpl)
+            abs_templates.append(os.path.normpath(tpl))
+        if len(abs_templates) == 1:
+            parts = abs_templates[0].split(os.sep)
+            for i, p in enumerate(parts):
+                if p.startswith('{'):
+                    return os.sep.join(parts[:i]) if i > 0 else ''
+            return abs_templates[0]
+        prefix_parts = []
+        split_templates = [t.split(os.sep) for t in abs_templates]
+        min_len = min(len(t) for t in split_templates)
+        for i in range(min_len):
+            part = split_templates[0][i]
+            if part.startswith('{'):
+                break
+            if all(t[i] == part for t in split_templates):
+                prefix_parts.append(part)
+            else:
+                break
+        return os.sep.join(prefix_parts) if prefix_parts else ''
+
     def _step_dedup(self, task: Task):
         self._update_progress(task, 6, "dedup", 65)
         self._log("info", f"同名检测: {task.video_file}", task, "dedup")
 
         strategy = self.config.get('duplicate_handling', {}).get('strategy', 'skip')
+        import_root = self._get_import_root()
+        dedup_search_dir = import_root if import_root else task.import_path
         dedup_result = check_duplicate(
-            task.import_path, task.scraped_info, strategy, task.video_path
+            dedup_search_dir, task.scraped_info, strategy, task.video_path
         )
 
         if dedup_result['is_duplicate']:

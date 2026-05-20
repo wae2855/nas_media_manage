@@ -25,12 +25,9 @@ def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any]) -> 
             continue
         if actual_value is None or expected_value is None:
             return False
-        if isinstance(actual_value, bool) != isinstance(expected_value, bool):
-            cmp_actual = _to_comparable(actual_value)
-            cmp_expected = _to_comparable(expected_value)
-            if cmp_actual != cmp_expected:
-                return False
-        elif actual_value != expected_value:
+        cmp_actual = _to_comparable(actual_value)
+        cmp_expected = _to_comparable(expected_value)
+        if cmp_actual != cmp_expected:
             return False
     return True
 

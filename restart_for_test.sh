@@ -16,7 +16,7 @@ if [ -f "$CONFIG_FILE" ]; then
     SOURCE_DIR=$(grep '^source_dir:' "$CONFIG_FILE" | head -1 | awk -F': ' '{print $2}' | tr -d '"')
     TEMP_DIR=$(grep '^temp_dir:' "$CONFIG_FILE" | head -1 | awk -F': ' '{print $2}' | tr -d '"')
     LOG_DIR=$(grep '^log_dir:' "$CONFIG_FILE" | head -1 | awk -F': ' '{print $2}' | tr -d '"')
-    PERSISTENCE_PATH=$(grep '^  persistence_path:' "$CONFIG_FILE" | head -1 | awk -F': ' '{print $2}' | tr -d '"')
+    PERSISTENCE_PATH=$(grep '^  persistence_path:' "$CONFIG_FILE" | head -1 | awk -F': ' '{print $2}' | tr -d '"' | awk '{print $1}')
     
     # 处理相对路径
     if [ -n "$PERSISTENCE_PATH" ] && [[ "$PERSISTENCE_PATH" != /* ]]; then
@@ -66,6 +66,11 @@ done
 if [ -n "$PERSISTENCE_PATH" ] && [ -f "$PERSISTENCE_PATH" ]; then
     rm -f "$PERSISTENCE_PATH"
     echo "  ✓ 已清理: $PERSISTENCE_PATH"
+fi
+DEFAULT_TASKS_FILE="$PROJECT_DIR/data/tasks.json"
+if [ -f "$DEFAULT_TASKS_FILE" ]; then
+    rm -f "$DEFAULT_TASKS_FILE"
+    echo "  ✓ 已清理: $DEFAULT_TASKS_FILE"
 fi
 
 # 4. 生成测试数据
@@ -163,6 +168,41 @@ EOF
 EOF
     cat > "$SOURCE_DIR/西部世界_Westworld/Westworld.S01E02.mkv" <<EOF
 测试文件 - 西部世界 S01E02
+EOF
+
+    # 干扰文件（非视频/字幕后缀，测试附属文件清理）
+    # NFO 元数据文件
+    cat > "$SOURCE_DIR/Inception.2010.1080p.BluRay.nfo" <<EOF
+<?xml version="1.0"?><movie><title>Inception</title></movie>
+EOF
+    # 海报图片
+    cat > "$SOURCE_DIR/Inception.2010.1080p.BluRay-poster.jpg" <<EOF
+fake poster image
+EOF
+    # 缩略图
+    cat > "$SOURCE_DIR/Inception.2010.1080p.BluRay-thumb.jpg" <<EOF
+fake thumb image
+EOF
+    # 子目录中的附属文件
+    cat > "$SOURCE_DIR/西部世界_Westworld/Westworld.S01E01.nfo" <<EOF
+<?xml version="1.0"?><episodedetails><title>The Original</title></episodedetails>
+EOF
+    cat > "$SOURCE_DIR/西部世界_Westworld/Westworld.S01E01-thumb.jpg" <<EOF
+fake episode thumb
+EOF
+    # 独立干扰文件（无对应视频）
+    cat > "$SOURCE_DIR/README.txt" <<EOF
+这是说明文件，不应被删除
+EOF
+    cat > "$SOURCE_DIR/西部世界_Westworld/fanart.jpg" <<EOF
+fake fanart
+EOF
+    # 字幕相关的 idx/sub 文件
+    cat > "$SOURCE_DIR/Stranger.Things.S01E01.720p.WEB.idx" <<EOF
+fake idx subtitle index
+EOF
+    cat > "$SOURCE_DIR/Stranger.Things.S01E01.720p.WEB.sub" <<EOF
+fake sub subtitle data
 EOF
 
     FILE_COUNT=$(ls -1 "$SOURCE_DIR"/*.mkv "$SOURCE_DIR"/*.mp4 "$SOURCE_DIR"/**/*.mkv "$SOURCE_DIR"/**/*.mp4 2>/dev/null | wc -l | tr -d ' ')
