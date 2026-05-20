@@ -4,7 +4,10 @@ import os
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
+
+WEBUI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webui")
 
 
 from config_loader import load_config, mask_sensitive
@@ -24,6 +27,7 @@ _global_logger = None
 _global_notifier = None
 _global_watcher = None
 _config = None
+_config_dirty = False
 
 
 def json_response(handler, code: int, data=None, message: str = "", code_str: str = None):
@@ -62,8 +66,27 @@ def read_json_body(handler) -> dict:
         return {}
 
 
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
 class APIHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+
+    def _check_auth(self) -> bool:
+        api_key = _config.get("server", {}).get("api_key", "") if _config else ""
+        if not api_key:
+            return True
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            if token == api_key:
+                return True
+        return False
+
+    def _auth_required(self):
+        json_response(self, 401, code_str="unauthorized", message="认证失败：请提供有效的 API Key")
 
     def _watcher_status(self):
         """获取轮询状态"""
@@ -123,14 +146,32 @@ class APIHandler(BaseHTTPRequestHandler):
         if task is None:
             json_response(self, 404, message=f"Task not found or cannot retry: {task_id}")
             return
-        json_response(self, 200, data={"task": task.to_dict()}, message="Task retry scheduled")
+
+        if _global_pipeline and not _global_pipeline.is_paused():
+            def run_retry():
+                try:
+                    _global_pipeline.process_one(task)
+                except Exception as e:
+                    _global_logger.error(f"重试任务执行异常: {e}")
+            threading.Thread(target=run_retry, daemon=True).start()
+
+        json_response(self, 200, data={"task": task.to_dict()}, message="任务已重试并开始执行")
 
     def _queue_retry_all(self):
         retried = _global_task_manager.retry_all_failed()
+
+        if retried and _global_pipeline and not _global_pipeline.is_paused():
+            def run_retry_all():
+                try:
+                    _global_pipeline.run_all()
+                except Exception as e:
+                    _global_logger.error(f"批量重试执行异常: {e}")
+            threading.Thread(target=run_retry_all, daemon=True).start()
+
         json_response(self, 200, data={
             "retried_count": len(retried),
             "task_ids": [t.task_id for t in retried]
-        }, message=f"Retried {len(retried)} failed tasks")
+        }, message=f"已重试 {len(retried)} 个失败任务并开始执行")
 
     def _queue_pause(self):
         if _global_pipeline:
@@ -155,25 +196,142 @@ class APIHandler(BaseHTTPRequestHandler):
         })
 
     def _config_reload(self):
-        global _config
+        global _config, _global_pipeline, _global_notifier, _global_watcher
         try:
             config_path = _config.get("_config_path") if _config else None
-            _config = load_config(config_path) if config_path else load_config()
-            json_response(self, 200, message="Config reloaded")
+            new_config = load_config(config_path) if config_path else load_config()
+
+            if _global_task_manager and _global_task_manager.has_active_tasks():
+                json_response(self, 400, message="当前有任务正在执行，请等待任务完成后再重载配置")
+                return
+
+            _config.clear()
+            _config.update(new_config)
+
+            if _global_pipeline:
+                _global_pipeline.config = _config
+                _global_pipeline.scraper = type(_global_pipeline.scraper)(_config)
+                _global_pipeline.copier = type(_global_pipeline.copier)(_config.get('temp_dir', ''))
+
+            hermes_cfg = _config.get("hermes", {})
+            if hermes_cfg.get("enabled", False):
+                _global_notifier = HermesNotifier(_config)
+            else:
+                _global_notifier = None
+
+            if _global_watcher:
+                _global_watcher.stop()
+                _global_watcher = None
+
+            watcher_cfg = _config.get("file_watcher", {})
+            if watcher_cfg.get("enabled", False):
+                def on_new_files(new_files):
+                    if _global_pipeline and not _global_pipeline.is_paused():
+                        try:
+                            _global_pipeline.run_all()
+                        except Exception as e:
+                            _global_logger.error("批量处理异常: " + str(e))
+
+                _global_watcher = FileWatcher(_config, on_new_files=on_new_files, logger=_global_logger)
+                _global_watcher.start()
+
+            json_response(self, 200, message="配置已重载并生效")
         except Exception as e:
-            json_response(self, 500, message=f"Config reload failed: {e}")
+            json_response(self, 500, message="配置重载失败: " + str(e))
+
+    def _get_real_config_value(self, *path) -> str:
+        if _config:
+            value = _config
+            for key in path:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    value = ""
+                    break
+            if isinstance(value, str) and not self._is_masked_value(value) and value:
+                return value
+        config_path = _config.get("_config_path") if _config else None
+        if not config_path or not os.path.isfile(config_path):
+            return ""
+        try:
+            import yaml as _yaml
+            with open(config_path, "r", encoding="utf-8") as f:
+                file_config = _yaml.safe_load(f)
+            value = file_config
+            for key in path:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    return ""
+            return value if isinstance(value, str) else str(value) if value else ""
+        except Exception:
+            return ""
+
+    def _config_test_llm(self, body: dict):
+        base_url = body.get("base_url", "")
+        api_key = body.get("api_key", "")
+        model = body.get("model", "")
+        provider = body.get("provider", "openai")
+
+        if not api_key or self._is_masked_value(api_key):
+            api_key = self._get_real_config_value("llm", "api_key")
+            if not api_key:
+                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
+                return
+
+        if not base_url or self._is_masked_value(base_url):
+            base_url = self._get_real_config_value("llm", "base_url")
+            if not base_url:
+                json_response(self, 200, data={"success": False, "message": "API 地址未配置"})
+                return
+
+        if not model:
+            model = self._get_real_config_value("llm", "model")
+            if not model:
+                json_response(self, 200, data={"success": False, "message": "模型名称未配置"})
+                return
+
+        try:
+            from config_validator import test_llm_api
+            ok, msg = test_llm_api(base_url, api_key, model, timeout=15)
+            json_response(self, 200, data={"success": ok, "message": msg})
+        except Exception as e:
+            json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
+
+    def _config_test_hermes(self, body: dict):
+        base_url = body.get("base_url", "")
+        route_name = body.get("route_name", "")
+        secret = body.get("secret", "")
+
+        if not base_url or self._is_masked_value(base_url):
+            base_url = self._get_real_config_value("hermes", "webhook", "base_url")
+        if not route_name:
+            route_name = self._get_real_config_value("hermes", "webhook", "route_name")
+        if not secret or self._is_masked_value(secret):
+            secret = self._get_real_config_value("hermes", "webhook", "secret")
+
+        if not base_url:
+            json_response(self, 200, data={"success": False, "message": "Webhook 地址未配置"})
+            return
+
+        if not route_name:
+            json_response(self, 200, data={"success": False, "message": "路由名称未配置"})
+            return
+
+        try:
+            from config_validator import test_hermes_webhook
+            ok, msg = test_hermes_webhook(base_url, route_name, secret, timeout=15)
+            json_response(self, 200, data={"success": ok, "message": msg})
+        except Exception as e:
+            json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
 
     def _config_validate(self):
-        """验证配置并返回检测结果"""
-        query = parse_qs(urlparse(self.path).query)
-        test_llm = query.get("test_llm", ["true"])[0].lower() == "true"
-        test_hermes = query.get("test_hermes", ["true"])[0].lower() == "true"
-        
+        """基础配置验证：路径、格式、有效性检查（不含LLM和Hermes连通性）"""
         try:
-            results = validate_config(_config, test_llm=test_llm, test_hermes=test_hermes)
-            json_response(self, 200, data=results, message=f"Config validation complete: {results['overall']}")
+            results = validate_config(_config, test_llm=False, test_hermes=False)
+            json_response(self, 200, data=results, message="配置验证完成: " + results['overall'])
         except Exception as e:
-            json_response(self, 500, message=f"Config validation failed: {e}")
+            json_response(self, 500, message="配置验证失败: " + str(e))
 
     def _run_batch(self):
         if _global_pipeline is None:
@@ -194,6 +352,21 @@ class APIHandler(BaseHTTPRequestHandler):
         file_path = body.get("path", "")
         if not file_path:
             json_response(self, 400, message="Missing 'path' field")
+            return
+
+        from safety import validate_path_safety, validate_file_ext, ALLOWED_MEDIA_EXTS
+
+        source_dir = _config.get("source_dir", "") if _config else ""
+        allowed_dirs = [source_dir] if source_dir else []
+
+        ok, msg = validate_path_safety(file_path, allowed_base_dirs=allowed_dirs)
+        if not ok:
+            json_response(self, 400, message=f"路径校验失败: {msg}")
+            return
+
+        ok, msg = validate_file_ext(file_path, ALLOWED_MEDIA_EXTS)
+        if not ok:
+            json_response(self, 400, message=f"文件类型校验失败: {msg}")
             return
 
         if not os.path.isfile(file_path):
@@ -217,33 +390,15 @@ class APIHandler(BaseHTTPRequestHandler):
         json_response(self, 202, message=f"Processing started: {file_path}")
 
     def _logs(self, query: dict):
-        log_dir = _config.get("log_dir", "logs") if _config else "logs"
-        log_file = os.path.join(log_dir, "media_importer.log")
-
-        if not os.path.exists(log_file):
-            json_response(self, 200, data={"logs": []})
-            return
-
         limit = int(query.get("limit", [100])[0])
         task_id = query.get("task_id", [None])[0]
 
-        try:
-            with open(log_file, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        except Exception:
-            json_response(self, 200, data={"logs": []})
-            return
+        if _global_logger:
+            result_lines = _global_logger.get_recent_logs(limit=limit, task_id=task_id)
+        else:
+            result_lines = []
 
-        result_lines = []
-        for line in lines[-limit:]:
-            try:
-                entry = json.loads(line)
-                if task_id is None or entry.get("task_id") == task_id:
-                    result_lines.append(entry)
-            except json.JSONDecodeError:
-                result_lines.append({"raw": line.strip()})
-
-        json_response(self, 200, data={"logs": result_lines[-limit:]})
+        json_response(self, 200, data={"logs": result_lines})
 
     def log_message(self, protocol, fmt, *args):
         pass
@@ -253,7 +408,18 @@ class APIHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query)
 
-        if path == "/api/health":
+        if path.startswith("/api/") and path != "/api/health":
+            if not self._check_auth():
+                self._auth_required()
+                return
+
+        if path == "/":
+            self._serve_static_file("index.html")
+        elif path == "/styles.css":
+            self._serve_static_file("styles.css")
+        elif path == "/app.js":
+            self._serve_static_file("app.js")
+        elif path == "/api/health":
             self._health()
         elif path == "/api/metrics":
             self._metrics()
@@ -281,13 +447,49 @@ class APIHandler(BaseHTTPRequestHandler):
         elif path == "/api/skills":
             self._skills_list()
         else:
-            json_response(self, 404, message=f"Endpoint not found: {path}")
+            self._serve_static_file(path.lstrip("/"))
+
+    def _serve_static_file(self, filename):
+        file_path = os.path.join(WEBUI_DIR, filename)
+        if not os.path.isfile(file_path):
+            json_response(self, 404, message=f"File not found: {filename}")
+            return
+
+        try:
+            with open(file_path, "rb") as f:
+                content = f.read()
+        except Exception as e:
+            json_response(self, 500, message=f"Failed to read file: {e}")
+            return
+
+        content_type = "text/html"
+        if filename.endswith(".css"):
+            content_type = "text/css"
+        elif filename.endswith(".js"):
+            content_type = "application/javascript"
+        elif filename.endswith(".png"):
+            content_type = "image/png"
+        elif filename.endswith(".svg"):
+            content_type = "image/svg+xml"
+
+        self.send_response(200)
+        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(content)
+        self.wfile.flush()
 
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
         body = read_json_body(self)
+
+        if path.startswith("/api/"):
+            if not self._check_auth():
+                self._auth_required()
+                return
 
         if path == "/api/run":
             self._run_batch()
@@ -312,12 +514,254 @@ class APIHandler(BaseHTTPRequestHandler):
             self._queue_retry_all()
         elif path == "/api/config/reload":
             self._config_reload()
+        elif path == "/api/config/test-llm":
+            self._config_test_llm(body)
+        elif path == "/api/config/test-hermes":
+            self._config_test_hermes(body)
+        elif path == "/api/config":
+            self._config_save(body)
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
+
+    def _config_save(self, body: dict):
+        """保存配置到文件，保留原有格式和注释"""
+        global _config
+        if not body:
+            json_response(self, 400, message="Empty config")
+            return
+
+        try:
+            config_path = _config.get("_config_path") if _config else None
+            if not config_path:
+                json_response(self, 500, message="Config path not found")
+                return
+
+            from ruamel.yaml import YAML
+            from ruamel.yaml.comments import CommentedMap
+            from ruamel.yaml.scalarstring import SingleQuotedScalarString, DoubleQuotedScalarString
+
+            yaml = YAML()
+            yaml.preserve_quotes = True
+            yaml.width = 120
+
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_doc = yaml.load(f)
+
+            config_to_save = self._filter_sensitive_fields(body, config_doc)
+
+            YAML_RESERVED_WORDS = {'true', 'false', 'yes', 'no', 'on', 'off', 'null', '~'}
+            YAML_SPECIAL_CHARS = set('{}:#&*!|>\'\"')
+
+            def _needs_quote(value):
+                if not isinstance(value, str):
+                    return False
+                if value.lower() in YAML_RESERVED_WORDS:
+                    return True
+                if any(c in value for c in YAML_SPECIAL_CHARS):
+                    return True
+                if ' ' in value:
+                    return True
+                if value and value[0].isdigit():
+                    try:
+                        float(value)
+                        return True
+                    except ValueError:
+                        pass
+                return False
+
+            def _quote_value(value):
+                if isinstance(value, str) and _needs_quote(value):
+                    return SingleQuotedScalarString(value)
+                return value
+
+            def _was_quoted(value):
+                return isinstance(value, (SingleQuotedScalarString, DoubleQuotedScalarString))
+
+            def _process_list(new_list, old_list=None):
+                result = []
+                for i, item in enumerate(new_list):
+                    old_item = None
+                    if old_list and i < len(old_list):
+                        old_item = old_list[i]
+                    if isinstance(item, dict):
+                        old_dict = old_item if isinstance(old_item, (dict, CommentedMap)) else None
+                        result.append(_process_dict(item, old_dict))
+                    elif isinstance(item, str):
+                        result.append(_quote_value(item))
+                    elif isinstance(item, bool):
+                        result.append(SingleQuotedScalarString(str(item).lower()))
+                    else:
+                        result.append(item)
+                return result
+
+            def _process_dict(new_dict, old_dict=None):
+                result = CommentedMap()
+                for k, v in new_dict.items():
+                    old_val = None
+                    if old_dict and k in old_dict:
+                        old_val = old_dict[k]
+                    if isinstance(v, dict):
+                        old_sub = old_val if isinstance(old_val, (dict, CommentedMap)) else None
+                        result[k] = _process_dict(v, old_sub)
+                    elif isinstance(v, list):
+                        old_sub_list = old_val if isinstance(old_val, list) else None
+                        result[k] = _process_list(v, old_sub_list)
+                    elif isinstance(v, str):
+                        result[k] = _quote_value(v)
+                    elif isinstance(v, bool):
+                        result[k] = SingleQuotedScalarString(str(v).lower())
+                    else:
+                        result[k] = v
+                return result
+
+            def update_nested(target, source):
+                for key, value in source.items():
+                    if key == "_config_path":
+                        continue
+                    if key == "hooks":
+                        continue
+                    if isinstance(value, dict) and key in target and isinstance(target.get(key), (dict, CommentedMap)):
+                        update_nested(target[key], value)
+                    elif isinstance(value, list):
+                        old_list = target.get(key) if isinstance(target, (dict, CommentedMap)) else None
+                        target[key] = _process_list(value, old_list)
+                    elif isinstance(value, str):
+                        target[key] = _quote_value(value)
+                    elif isinstance(value, bool):
+                        target[key] = SingleQuotedScalarString(str(value).lower())
+                    else:
+                        target[key] = value
+
+            update_nested(config_doc, config_to_save)
+
+            def _normalize_quotes(doc):
+                if isinstance(doc, (dict, CommentedMap)):
+                    for key in list(doc.keys()):
+                        value = doc[key]
+                        if isinstance(value, str) and not _was_quoted(value):
+                            if _needs_quote(value):
+                                doc[key] = SingleQuotedScalarString(value)
+                        elif isinstance(value, bool):
+                            doc[key] = SingleQuotedScalarString(str(value).lower())
+                        elif isinstance(value, list):
+                            _normalize_list_quotes(value)
+                        elif isinstance(value, (dict, CommentedMap)):
+                            _normalize_quotes(value)
+
+            def _normalize_list_quotes(lst):
+                for i in range(len(lst)):
+                    item = lst[i]
+                    if isinstance(item, (dict, CommentedMap)):
+                        _normalize_quotes(item)
+                    elif isinstance(item, str) and not _was_quoted(item):
+                        if _needs_quote(item):
+                            lst[i] = SingleQuotedScalarString(item)
+                    elif isinstance(item, bool):
+                        lst[i] = SingleQuotedScalarString(str(item).lower())
+
+            _normalize_quotes(config_doc)
+
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(config_doc, f)
+
+            has_running_tasks = _global_task_manager and _global_task_manager.has_active_tasks()
+
+            if has_running_tasks:
+                global _config_dirty
+                _config_dirty = True
+                json_response(self, 200, message="配置已保存到文件。当前有任务正在执行，新配置将在任务完成后自动生效，或点击「重载配置」立即生效（可能影响正在执行的任务）")
+            else:
+                if isinstance(_config, dict):
+                    self._update_config_safely(_config, body)
+                json_response(self, 200, message="配置已保存并生效")
+        except Exception as e:
+            import traceback
+            error_msg = f"保存配置失败: {e}\n{traceback.format_exc()}"
+            json_response(self, 500, message=error_msg)
+
+    def _filter_sensitive_fields(self, body: dict, original_config: dict) -> dict:
+        """
+        过滤敏感字段：如果前端传入的敏感字段值是掩码形式，
+        则从请求体中删除该字段，保留原配置文件中的值；
+        同时禁止通过API修改hooks配置（防止RCE）
+        """
+        import copy
+        filtered = copy.deepcopy(body)
+        
+        sensitive_fields = [
+            ("server", "api_key"),
+            ("llm", "api_key"),
+            ("hermes", "webhook", "secret"),
+        ]
+        
+        for field_path in sensitive_fields:
+            current_value = self._get_nested_value(filtered, field_path)
+            if current_value and self._is_masked_value(current_value):
+                self._delete_nested_path(filtered, field_path)
+        
+        if "hooks" in filtered:
+            del filtered["hooks"]
+        
+        return filtered
+    
+    def _get_nested_value(self, obj: dict, path: tuple) -> any:
+        """获取嵌套字典中的值"""
+        current = obj
+        for key in path:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        return current
+    
+    def _delete_nested_path(self, obj: dict, path: tuple):
+        """删除嵌套字典中的路径"""
+        if len(path) == 0:
+            return
+        
+        current = obj
+        for key in path[:-1]:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return
+        
+        if len(path) == 1:
+            if path[0] in current:
+                del current[path[0]]
+        else:
+            last_key = path[-1]
+            if last_key in current:
+                del current[last_key]
+    
+    def _is_masked_value(self, value: str) -> bool:
+        if not isinstance(value, str):
+            return False
+        return "***" in value
+
+    def _update_config_safely(self, target: dict, source: dict):
+        if not isinstance(target, dict) or not isinstance(source, dict):
+            return
+        for key, value in source.items():
+            if key == "_config_path":
+                continue
+            if key == "hooks":
+                continue
+            if isinstance(value, dict) and isinstance(target.get(key), dict):
+                self._update_config_safely(target[key], value)
+            elif isinstance(value, str) and self._is_masked_value(value):
+                pass
+            else:
+                target[key] = value
 
     def do_DELETE(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path.startswith("/api/"):
+            if not self._check_auth():
+                self._auth_required()
+                return
 
         if path.startswith("/api/tasks/"):
             suffix = path[len("/api/tasks/"):]
@@ -412,19 +856,28 @@ class APIHandler(BaseHTTPRequestHandler):
             overall = "degraded"
 
         try:
+            log_dir = _config.get("log_dir", "")
+            if os.path.isdir(log_dir):
+                ok, _ = check_write_permission(log_dir)
+                checks["log_dir"] = "ok" if ok else "no_write_permission"
+            else:
+                checks["log_dir"] = "error"
+        except Exception:
+            checks["log_dir"] = "error"
+            overall = "degraded"
+
+        try:
             llm_config = _config.get("llm", {})
             api_key = llm_config.get("api_key", "")
-            checks["llm_api"] = "ok" if api_key else "error"
+            checks["llm_api"] = "ok" if api_key else "skipped"
         except Exception:
-            checks["llm_api"] = "error"
-            overall = "degraded"
+            checks["llm_api"] = "skipped"
 
         try:
             hermes_enabled = _config.get("hermes", {}).get("enabled", False)
             checks["hermes"] = "ok" if hermes_enabled else "disabled"
         except Exception:
-            checks["hermes"] = "error"
-            overall = "degraded"
+            checks["hermes"] = "disabled"
 
         try:
             disk_check_dir = _config.get("temp_dir", "/tmp")
@@ -591,12 +1044,14 @@ def start_server(host: str, port: int, config: dict):
         notifier=_global_notifier
     )
 
+    _global_logger.info("API 服务初始化完成")
+
     def notify_error(error_type: str, error_message: str, extra_data: dict = None):
-        """通知程序错误到Hermes"""
         if _global_notifier:
             _global_notifier.notify_program_error(error_type, error_message, extra_data)
 
     def on_new_files(new_files):
+        global _config_dirty
         if _global_pipeline and not _global_pipeline.is_paused():
             try:
                 _global_pipeline.run_all()
@@ -604,10 +1059,29 @@ def start_server(host: str, port: int, config: dict):
                 _global_logger.error(f"批量处理异常: {e}")
                 notify_error("batch_error", str(e), {"new_files": list(new_files)})
 
-    watcher = FileWatcher(config, on_new_files=on_new_files, logger=_global_logger)
-    watcher.start()
+        if _config_dirty and not _global_task_manager.has_active_tasks():
+            _config_dirty = False
+            try:
+                config_path = _config.get("_config_path") if _config else None
+                if config_path:
+                    new_config = load_config(config_path)
+                    _config.clear()
+                    _config.update(new_config)
+                    if _global_pipeline:
+                        _global_pipeline.config = _config
+                    _global_logger.info("任务完成后自动重载配置")
+            except Exception as e:
+                _global_logger.error(f"自动重载配置失败: {e}")
+
     global _global_watcher
-    _global_watcher = watcher
+    watcher_cfg = config.get("file_watcher", {})
+    if watcher_cfg.get("enabled", False):
+        _global_watcher = FileWatcher(config, on_new_files=on_new_files, logger=_global_logger)
+        _global_watcher.start()
+        _global_logger.info(f"文件监控已启用 (轮询间隔 {watcher_cfg.get('poll_interval', 60)}s)")
+    else:
+        _global_watcher = None
+        _global_logger.info("文件监控未启用")
 
     source_dir = config.get("source_dir", "")
     if source_dir and os.path.isdir(source_dir):
@@ -617,18 +1091,36 @@ def start_server(host: str, port: int, config: dict):
             if groups:
                 _global_logger.info(f"启动时发现 {len(groups)} 个待处理文件")
                 def run_initial_batch():
+                    global _config_dirty
                     _global_pipeline.run_all()
+                    if _config_dirty and not _global_task_manager.has_active_tasks():
+                        _config_dirty = False
+                        try:
+                            config_path = _config.get("_config_path") if _config else None
+                            if config_path:
+                                new_config = load_config(config_path)
+                                _config.clear()
+                                _config.update(new_config)
+                                if _global_pipeline:
+                                    _global_pipeline.config = _config
+                                _global_logger.info("任务完成后自动重载配置")
+                        except Exception as e:
+                            _global_logger.error(f"自动重载配置失败: {e}")
                 threading.Thread(target=run_initial_batch, daemon=True).start()
         except Exception as e:
             _global_logger.error(f"启动扫描失败: {e}")
 
     server_address = (host, port)
-    httpd = HTTPServer(server_address, APIHandler)
+    httpd = ThreadingHTTPServer(server_address, APIHandler)
     print(f"HTTP API 服务启动: http://{host}:{port}")
     print("端点列表:")
+    print("  GET  /                      - Web UI 首页")
+    print("  GET  /styles.css            - 样式文件")
+    print("  GET  /app.js                - JavaScript 文件")
     print("  GET  /api/health           - 健康检查")
     print("  GET  /api/metrics          - 指标统计")
     print("  GET  /api/config           - 当前配置")
+    print("  POST /api/config           - 保存配置")
     print("  POST /api/config/reload    - 重载配置")
     print("  GET  /api/config/validate  - 配置检测（路径、API连通性等）")
     print("  GET  /api/tasks            - 任务列表")
@@ -645,13 +1137,14 @@ def start_server(host: str, port: int, config: dict):
     print("  POST /api/run/file         - 处理指定文件")
     print("  GET  /api/skill            - 获取Hermes SKILL.md")
     print("  GET  /api/skills           - 获取所有可用Skills列表")
-    if watcher.enabled:
-        print(f"  文件监控: 已启用 (轮询间隔 {watcher.poll_interval}s)")
+    if _global_watcher and _global_watcher.enabled:
+        print(f"  文件监控: 已启用 (轮询间隔 {_global_watcher.poll_interval}s)")
     print("")
     print("按 Ctrl+C 停止服务")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        watcher.stop()
+        if _global_watcher:
+            _global_watcher.stop()
         print("\n服务已停止")
         httpd.shutdown()

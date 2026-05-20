@@ -15,36 +15,58 @@ log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# 兼容的端口检查函数
-check_port() {
+# 获取占用端口的进程
+get_port_pids() {
     local port=$1
-    # 尝试多种方式检查端口
     if command -v lsof &>/dev/null; then
-        if lsof -ti :"$port" >/dev/null 2>&1; then
-            return 1
-        fi
-    elif command -v netstat &>/dev/null; then
-        if netstat -tuln 2>/dev/null | grep -q ":$port "; then
-            return 1
-        fi
-    elif command -v ss &>/dev/null; then
-        if ss -tuln 2>/dev/null | grep -q ":$port "; then
-            return 1
-        fi
+        lsof -ti :"$port" 2>/dev/null
     fi
-    return 0
 }
 
-# 简单的端口占用提示
+# 简单的端口占用提示，支持自动清理
 port_check_with_message() {
     local port=$1
-    if ! check_port "$port"; then
-        log_error "端口 $port 已被占用"
+    local pids=$(get_port_pids "$port")
+    
+    if [ -n "$pids" ]; then
+        log_warn "端口 $port 已被占用（PID: $pids）"
         echo ""
-        echo "  请手动关闭占用该端口的进程，或使用其他端口"
-        echo "  使用其他端口: $0 $CONFIG $HOST <新端口>"
-        echo ""
-        exit 1
+        # 非交互式环境直接清理
+        if [ -t 0 ]; then
+            read -p "是否自动清理占用进程？(Y/n): " -n 1 -r
+            echo ""
+            if [[ $REPLY =~ ^[Yy]$ || $REPLY == "" ]]; then
+                kill_port "$port"
+            else
+                log_error "请手动关闭占用该端口的进程，或使用其他端口"
+                echo "  使用其他端口: $0 $CONFIG $HOST <新端口>"
+                echo ""
+                exit 1
+            fi
+        else
+            # 非交互式（如脚本调用）直接清理
+            log_info "非交互式环境，自动清理端口 $port"
+            kill_port "$port"
+        fi
+    fi
+}
+
+# 强制清理端口
+kill_port() {
+    local port=$1
+    local pids=$(get_port_pids "$port")
+    
+    if [ -n "$pids" ]; then
+        log_info "正在清理占用进程（PID: $pids）..."
+        kill -9 $pids 2>/dev/null || true
+        sleep 1
+        # 再次检查
+        pids=$(get_port_pids "$port")
+        if [ -n "$pids" ]; then
+            log_error "无法清理端口 $port，请手动处理"
+            exit 1
+        fi
+        log_info "端口已释放"
     fi
 }
 

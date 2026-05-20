@@ -1,7 +1,0 @@
-#!/bin/bash
-# 启动脚本
-
-APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DEPLOY_DIR="/opt/nas-media-importer"
-
-exec "${DEPLOY_DIR}/venv/bin/python3" "${DEPLOY_DIR}/media_importer/media_importer.py" -c "${DEPLOY_DIR}/config/config.yaml" serve -p 9855 --host 0.0.0.0

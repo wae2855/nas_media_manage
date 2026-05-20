@@ -86,63 +86,23 @@ def delete_source_files(source_paths: list[str], allowed_base_dirs: list = None)
             pass
 
 
-def find_companion_files(video_path: str, subtitle_paths: list, video_extensions: list, subtitle_extensions: list) -> list:
-    video_dir = os.path.dirname(video_path)
-    video_basename = os.path.splitext(os.path.basename(video_path))[0]
-    known_files = set()
-    known_files.add(os.path.basename(video_path))
-    for sp in subtitle_paths:
-        known_files.add(os.path.basename(sp))
-
-    companion_files = []
-    if not os.path.isdir(video_dir):
-        return companion_files
-
-    for filename in os.listdir(video_dir):
-        if filename in known_files:
-            continue
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext in video_extensions or file_ext in subtitle_extensions:
-            continue
-        if filename.startswith(video_basename):
-            companion_files.append(os.path.join(video_dir, filename))
-
-    return companion_files
-
-
-def delete_source_with_companions(video_path: str, subtitle_paths: list,
-                                   video_extensions: list, subtitle_extensions: list,
-                                   allowed_base_dirs: list = None):
-    files_to_delete = [video_path]
-    files_to_delete.extend(subtitle_paths)
-    companions = find_companion_files(video_path, subtitle_paths, video_extensions, subtitle_extensions)
-    files_to_delete.extend(companions)
-    delete_source_files(files_to_delete, allowed_base_dirs)
-    return len(companions)
-
-
 def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: list = None):
     if not source_root:
         return
-    source_root_norm = os.path.normpath(source_root).rstrip('/')
-    current = os.path.dirname(os.path.normpath(file_path))
-
-    while current and current != source_root_norm:
-        if not current.startswith(source_root_norm):
-            break
-        if not os.path.isdir(current):
-            break
-        try:
-            remaining = os.listdir(current)
-        except OSError:
-            break
-        if remaining:
-            break
-        try:
-            os.rmdir(current)
-        except OSError:
-            break
-        current = os.path.dirname(current)
+    parent = os.path.dirname(os.path.normpath(file_path))
+    if not parent or not parent.startswith(os.path.normpath(source_root).rstrip('/')):
+        return
+    if os.path.samefile(parent, source_root.rstrip('/')):
+        return
+    if not os.path.isdir(parent):
+        return
+    remaining = os.listdir(parent)
+    if remaining:
+        return
+    try:
+        os.rmdir(parent)
+    except OSError:
+        pass
 
 
 def move_with_cross_device_fallback(src: str, dest: str) -> bool:

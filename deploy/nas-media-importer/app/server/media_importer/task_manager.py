@@ -144,7 +144,7 @@ class TaskManager:
             tasks = [t for t in tasks if t.status == status]
         elif exclude_completed is None or exclude_completed:
             tasks = [t for t in tasks if t.status in ["PENDING", "PROCESSING", "FAILED"]]
-        tasks = sorted(tasks, key=lambda t: t.created_at, reverse=True)
+        tasks = sorted(tasks, key=lambda t: t.created_at)
         return tasks[offset:offset + limit]
 
     def list_all_tasks(self, limit: int = 50, offset: int = 0) -> list:
@@ -200,13 +200,6 @@ class TaskManager:
                 if task.status in counts:
                     counts[task.status] += 1
         return counts
-
-    def has_active_tasks(self) -> bool:
-        with self._lock:
-            for task in self._tasks.values():
-                if task.status in ("PENDING", "PROCESSING"):
-                    return True
-        return False
 
     def _save_tasks(self):
         dir_path = os.path.dirname(self.path)

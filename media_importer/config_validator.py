@@ -6,6 +6,9 @@
 import os
 import time
 import requests
+import hashlib
+import hmac
+import json
 from typing import Dict, Any, List, Tuple
 
 
@@ -66,7 +69,6 @@ def test_llm_api(base_url: str, api_key: str, model: str, timeout: int = 10) -> 
         return False, "API地址未配置"
     
     try:
-        # 使用OpenAI兼容的API测试
         test_url = base_url.rstrip("/") + "/chat/completions"
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -98,32 +100,59 @@ def test_llm_api(base_url: str, api_key: str, model: str, timeout: int = 10) -> 
 
 
 def test_hermes_webhook(base_url: str, route_name: str, secret: str, timeout: int = 10) -> Tuple[bool, str]:
-    """
-    测试Hermes Webhook连通性
-    
-    Args:
-        base_url: Hermes服务地址
-        route_name: Webhook路由名称
-        secret: 签名密钥
-        timeout: 超时时间（秒）
-    
-    Returns:
-        (是否通过, 详细信息)
-    """
     if not base_url:
         return True, "Hermes未启用或地址未配置（可选）"
-    
+
+    if not route_name:
+        return False, "Webhook路由名称未配置"
+
     try:
-        # 尝试访问Hermes的健康检查端点（如果有的话）
-        health_url = base_url.rstrip("/") + "/health"
-        response = requests.get(health_url, timeout=timeout)
-        
-        if response.status_code in [200, 404]:
-            # 404是可以接受的，因为可能没有health端点
-            return True, f"Hermes服务地址可访问: {base_url}"
+        webhook_url = base_url.rstrip("/") + "/webhooks/" + route_name.lstrip("/")
+
+        test_message = {
+            "event_type": "test_notification",
+            "event_type_display": "🔧 配置验证测试",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "video_file": "",
+            "status": "TEST",
+            "extra_info": "这是一条来自NAS影视入库系统的测试消息，验证Hermes Webhook连通性",
+            "task": {},
+            "test": True,
+            "source": "config_validation"
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        payload_bytes = json.dumps(test_message, ensure_ascii=False).encode("utf-8")
+
+        if secret:
+            signature = hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
+            headers["X-Webhook-Signature"] = signature
+
+        response = requests.post(webhook_url, data=payload_bytes, headers=headers, timeout=timeout)
+
+        if response.status_code == 200:
+            try:
+                result = response.json()
+                if result.get("success") or result.get("code") == 200:
+                    return True, f"Hermes Webhook测试成功: {webhook_url}"
+                elif result.get("status") in ("delivered", "ok", "accepted"):
+                    target = result.get("target", "")
+                    route = result.get("route", route_name)
+                    return True, f"Hermes通知已投递 (路由: {route}, 目标: {target})"
+                else:
+                    return False, f"Hermes返回失败: {response.text[:100]}"
+            except Exception:
+                return True, f"Hermes Webhook响应成功 (状态码: 200)"
+        elif response.status_code == 401:
+            return False, f"Hermes认证失败 (状态码: 401, 请检查secret)"
+        elif response.status_code == 404:
+            return False, f"Hermes路由不存在: {route_name} (URL: {webhook_url})"
         else:
-            return False, f"Hermes服务返回错误状态码: {response.status_code}"
-    
+            return False, f"Hermes返回错误 (状态码: {response.status_code}, 响应: {response.text[:100]})"
+
     except requests.exceptions.Timeout:
         return False, f"Hermes连接超时 ({timeout}秒)"
     except requests.exceptions.ConnectionError:
@@ -132,138 +161,145 @@ def test_hermes_webhook(base_url: str, route_name: str, secret: str, timeout: in
         return False, f"Hermes测试异常: {str(e)}"
 
 
-def validate_config(config: Dict[str, Any], test_llm: bool = True, test_hermes: bool = True) -> Dict[str, Any]:
+def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes: bool = False) -> Dict[str, Any]:
     """
-    全面验证配置
+    验证配置 - 基础有效性检查
     
     Args:
         config: 配置字典
-        test_llm: 是否测试LLM API
-        test_hermes: 是否测试Hermes Webhook
+        test_llm: 是否测试LLM API（默认不测试，由独立按钮触发）
+        test_hermes: 是否测试Hermes Webhook（默认不测试，由独立按钮触发）
     
     Returns:
         验证结果字典
     """
     results = {
         "overall": "ok",
-        "checks": {},
+        "details": [],
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
     }
     
-    # 检查源目录
+    def add_check(item, status, message):
+        results["details"].append({"item": item, "status": status, "message": message})
+        if status == "error":
+            results["overall"] = "degraded"
+    
     source_dir = config.get("source_dir", "")
-    ok, msg = check_path(source_dir, require_write=False)
-    results["checks"]["source_dir"] = {
-        "status": "ok" if ok else "error",
-        "message": msg
-    }
-    if not ok:
-        results["overall"] = "degraded"
+    if not source_dir:
+        add_check("source_dir", "error", "源目录未配置")
+    else:
+        ok, msg = check_path(source_dir, require_write=False)
+        add_check("source_dir", "ok" if ok else "error", msg)
     
-    # 检查临时目录
     temp_dir = config.get("temp_dir", "")
-    ok, msg = check_path(temp_dir, require_write=True)
-    results["checks"]["temp_dir"] = {
-        "status": "ok" if ok else "error",
-        "message": msg
-    }
-    if not ok:
-        results["overall"] = "degraded"
+    if not temp_dir:
+        add_check("temp_dir", "error", "中转目录未配置")
+    else:
+        ok, msg = check_path(temp_dir, require_write=True)
+        add_check("temp_dir", "ok" if ok else "error", msg)
     
-    # 检查日志目录
     log_dir = config.get("log_dir", "")
-    ok, msg = check_path(log_dir, require_write=True)
-    results["checks"]["log_dir"] = {
-        "status": "ok" if ok else "error",
-        "message": msg
-    }
-    if not ok:
-        results["overall"] = "degraded"
+    if not log_dir:
+        add_check("log_dir", "warning", "日志目录未配置，将使用默认路径")
+    else:
+        ok, msg = check_path(log_dir, require_write=True)
+        add_check("log_dir", "ok" if ok else "error", msg)
     
-    # 检查任务持久化目录
     task_queue = config.get("task_queue", {})
     persistence_path = task_queue.get("persistence_path", "")
     if persistence_path:
         persistence_dir = os.path.dirname(persistence_path)
         if persistence_dir:
             ok, msg = check_path(persistence_dir, require_write=True)
-            results["checks"]["task_persistence_dir"] = {
-                "status": "ok" if ok else "error",
-                "message": msg
-            }
-            if not ok:
-                results["overall"] = "degraded"
+            add_check("task_persistence", "ok" if ok else "error", msg)
     
-    # 测试LLM API
     llm_config = config.get("llm", {})
+    if not llm_config.get("api_key"):
+        add_check("llm_api_key", "error", "LLM API Key 未配置")
+    elif llm_config.get("api_key") == "***":
+        add_check("llm_api_key", "warning", "LLM API Key 为掩码值，请重新输入真实密钥")
+    else:
+        add_check("llm_api_key", "ok", "LLM API Key 已配置")
+    
+    if not llm_config.get("base_url"):
+        add_check("llm_base_url", "error", "LLM API 地址未配置")
+    elif not llm_config.get("base_url", "").startswith(("http://", "https://")):
+        add_check("llm_base_url", "error", "LLM API 地址格式错误，应以 http:// 或 https:// 开头")
+    else:
+        add_check("llm_base_url", "ok", "LLM API 地址格式正确")
+    
+    if not llm_config.get("model"):
+        add_check("llm_model", "error", "LLM 模型名称未配置")
+    else:
+        add_check("llm_model", "ok", "LLM 模型: " + llm_config.get("model"))
+    
     if test_llm:
-        ok, msg = test_llm_api(
-            base_url=llm_config.get("base_url", ""),
-            api_key=llm_config.get("api_key", ""),
-            model=llm_config.get("model", ""),
-            timeout=llm_config.get("timeout", 10)
+        llm_ok, llm_msg = test_llm_api(
+            llm_config.get("base_url", ""),
+            llm_config.get("api_key", ""),
+            llm_config.get("model", "")
         )
-        results["checks"]["llm_api"] = {
-            "status": "ok" if ok else "error",
-            "message": msg
-        }
-        if not ok:
-            results["overall"] = "degraded"
-    else:
-        results["checks"]["llm_api"] = {
-            "status": "skipped",
-            "message": "跳过LLM API测试"
-        }
+        add_check("llm_api", "ok" if llm_ok else "error", llm_msg)
     
-    # 测试Hermes
     hermes_config = config.get("hermes", {})
-    if hermes_config.get("enabled", False) and test_hermes:
-        ok, msg = test_hermes_webhook(
-            base_url=hermes_config.get("webhook", {}).get("base_url", ""),
-            route_name=hermes_config.get("webhook", {}).get("route_name", ""),
-            secret=hermes_config.get("webhook", {}).get("secret", "")
-        )
-        results["checks"]["hermes_webhook"] = {
-            "status": "ok" if ok else "error",
-            "message": msg
-        }
-        if not ok:
-            results["overall"] = "degraded"
+    if hermes_config.get("enabled", False):
+        webhook_config = hermes_config.get("webhook", {})
+        if not webhook_config.get("base_url"):
+            add_check("hermes_webhook", "error", "Hermes 已启用但 Webhook 地址未配置")
+        elif not webhook_config.get("base_url", "").startswith(("http://", "https://")):
+            add_check("hermes_webhook", "error", "Hermes Webhook 地址格式错误")
+        else:
+            add_check("hermes_webhook", "ok", "Hermes Webhook 地址格式正确")
+        
+        if not webhook_config.get("route_name"):
+            add_check("hermes_route", "error", "Hermes 已启用但路由名称未配置")
+        else:
+            add_check("hermes_route", "ok", "Hermes 路由: " + webhook_config.get("route_name"))
     else:
-        results["checks"]["hermes_webhook"] = {
-            "status": "skipped",
-            "message": "Hermes未启用或跳过测试"
-        }
+        add_check("hermes", "ok", "Hermes 通知未启用（可选）")
     
-    # 检查磁盘空间
-    temp_dir_for_check = config.get("temp_dir", "/tmp")
+    if test_hermes:
+        webhook_config = hermes_config.get("webhook", {})
+        hermes_ok, hermes_msg = test_hermes_webhook(
+            webhook_config.get("base_url", ""),
+            webhook_config.get("route_name", ""),
+            webhook_config.get("secret", "")
+        )
+        add_check("hermes_webhook_test", "ok" if hermes_ok else "error", hermes_msg)
+    
+    path_rules = config.get("path_rules", [])
+    if not path_rules:
+        add_check("path_rules", "warning", "入库规则未配置，将使用默认路径")
+    else:
+        rule_errors = []
+        for i, rule in enumerate(path_rules):
+            template = rule.get("template", "")
+            if not template:
+                rule_errors.append("规则 " + str(i + 1) + " 缺少 template")
+            elif "{" in template and "}" not in template:
+                rule_errors.append("规则 " + str(i + 1) + " template 变量格式不完整")
+            conditions = rule.get("conditions", {})
+            if not conditions:
+                rule_errors.append("规则 " + str(i + 1) + " 缺少 conditions，将作为默认规则")
+        
+        if rule_errors:
+            for err in rule_errors:
+                add_check("path_rules", "warning", err)
+            add_check("path_rules_count", "ok", "共 " + str(len(path_rules)) + " 条规则")
+        else:
+            add_check("path_rules", "ok", "入库规则格式正确，共 " + str(len(path_rules)) + " 条")
+    
     try:
-        if os.path.exists(temp_dir_for_check):
-            stat = os.statvfs(temp_dir_for_check)
-            free_gb = stat.f_bavail * stat.f_frsize / (1024**3)
-            if free_gb > 1:
-                results["checks"]["disk_space"] = {
-                    "status": "ok",
-                    "message": f"磁盘空间充足 ({free_gb:.1f} GB 可用)"
-                }
-            elif free_gb > 0.5:
-                results["checks"]["disk_space"] = {
-                    "status": "warning",
-                    "message": f"磁盘空间偏低 ({free_gb:.1f} GB 可用)"
-                }
-                if results["overall"] == "ok":
-                    results["overall"] = "degraded"
-            else:
-                results["checks"]["disk_space"] = {
-                    "status": "error",
-                    "message": f"磁盘空间严重不足 ({free_gb:.1f} GB 可用)"
-                }
-                results["overall"] = "degraded"
+        disk_check_dir = config.get("temp_dir", "/tmp")
+        stat = os.statvfs(disk_check_dir)
+        free_gb = stat.f_bavail * stat.f_frsize / (1024**3)
+        if free_gb > 1:
+            add_check("disk_space", "ok", "磁盘空间充足 (" + str(round(free_gb, 1)) + " GB)")
+        elif free_gb > 0.1:
+            add_check("disk_space", "warning", "磁盘空间紧张 (" + str(round(free_gb, 1)) + " GB)")
+        else:
+            add_check("disk_space", "error", "磁盘空间不足 (" + str(round(free_gb, 1)) + " GB)")
     except Exception as e:
-        results["checks"]["disk_space"] = {
-            "status": "error",
-            "message": f"检查磁盘空间失败: {str(e)}"
-        }
-        results["overall"] = "degraded"
+        add_check("disk_space", "error", "磁盘检查失败: " + str(e))
     
     return results

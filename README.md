@@ -40,7 +40,7 @@ NAS影视自动化入库系统是一个轻量级的影视文件智能处理服�
 - **字幕自动关联** — 自动识别并关联同名字幕文件一起入库
 - **同名文件检测** — 跳过/重命名策略，避免覆盖已有文件
 - **Hermes集成** — Webhook通知推送至飞书，支持Skill对话式管理
-- **安全防护** — 路径穿越防护、文件类型白名单、目录操作白名单、权限预检查
+- **安全防护** — API认证、路径穿越防护、文件类型白名单、hooks命令注入防护、密钥掩码、目录操作白名单、权限预检查
 - **任务持久化** — 任务状态落盘，服务重启不丢失
 - **轻量设计** — 仅依赖 `pyyaml`，Python 3.9+ 即可运行
 
@@ -174,13 +174,20 @@ llm:
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `server.host` | `0.0.0.0` | API监听地址 |
-| `server.port` | `9855` | API监听端口 |
+| `server.port` | `9855` | API监听端口（修改后需重启服务，并同步调整Hermes路由配置） |
+| `server.api_key` | `""` | API认证密钥，为空则不启用认证 |
 | `file_watcher.enabled` | `true` | 文件监控开关 |
-| `file_watcher.poll_interval` | `10` | 监控轮询间隔（秒） |
-| `duplicate_handling.strategy` | `skip` | 同名文件策略 |
+| `file_watcher.poll_interval` | `60` | 监控轮询间隔（秒） |
+| `duplicate_handling.strategy` | `quality` | 同名文件策略 |
+| `source_file_handling.delete_after_process` | `true` | 处理后删除源文件 |
+| `llm.fallback_model` | 同 `llm.model` | 备选模型 |
+| `llm.confidence_threshold` | `0.8` | AI置信度阈值 |
+| `llm.verify_ssl` | `true` | SSL验证 |
+| `hermes.webhook.verify_ssl` | `true` | Hermes SSL验证 |
 | `task_queue.max_concurrent` | `1` | 最大并发任务数 |
 | `logging.level` | `INFO` | 日志级别 |
 | `hermes.enabled` | `false` | Hermes通知默认关闭 |
+| `hooks.allowed_dir` | `""` | 钩子脚本允许目录，为空则仅做基本路径校验 |
 
 #### 启动服务
 
@@ -355,14 +362,32 @@ python3 media_importer/media_importer.py -c config/config.yaml metrics
 
 默认监听地址：`http://0.0.0.0:9855`
 
+### API认证
+
+当配置文件中设置了 `server.api_key` 时，所有 `/api/` 端点（健康检查除外）需要携带认证头：
+
+```bash
+# 带认证的请求示例
+curl -H "Authorization: Bearer your-api-key" http://localhost:9855/api/config
+
+# 健康检查端点无需认证
+curl http://localhost:9855/api/health
+```
+
+未配置 `server.api_key` 时不启用认证，适合内网环境使用。
+
 ### 系统管理
 
 | 方法 | 端点 | 说明 | 参数 |
 |------|------|------|------|
-| GET | `/api/health` | 健康检查 | - |
+| GET | `/api/health` | 健康检查（无需认证） | - |
 | GET | `/api/metrics` | 运行指标统计 | - |
 | GET | `/api/config` | 获取当前配置（敏感信息已脱敏） | - |
+| POST | `/api/config` | 保存配置（hooks字段不可通过API修改） | 配置JSON |
 | POST | `/api/config/reload` | 重新加载配置文件 | - |
+| GET | `/api/config/validate` | 基础配置验证 | - |
+| POST | `/api/config/test-llm` | 测试LLM连通性 | `base_url`, `api_key`, `model` |
+| POST | `/api/config/test-hermes` | 测试Hermes通知 | `base_url`, `route_name`, `secret` |
 
 ### 任务管理
 
@@ -447,25 +472,33 @@ nas_media_manage/
 │   ├── 03-development-plan.md           # 开发计划
 │   ├── 05-checklist.md                  # 检查清单
 │   ├── 06-test-guide.md                  # 测试指南
-│   └── 07-hermes-integration-guide.md   # Hermes集成指南
+│   ├── 07-hermes-integration-guide.md   # Hermes集成指南
+│   ├── fnos-deploy-guide.md             # FNOS部署指南
+│   ├── SECURITY_AUDIT_REPORT.md         # 安全审计报告
+│   └── README.md                        # 文档索引
 └── media_importer/                      # 程序代码
-    ├── api_server.py                    # HTTP API服务
-    ├── classifier.py                    # 分类匹配引擎
-    ├── config_loader.py                 # 配置加载与校验
-    ├── dedup_checker.py                 # 同名文件检测
+    ├── api_server.py                    # HTTP API服务（ThreadingHTTPServer）
+    ├── classifier.py                    # 分类匹配引擎（维度+规则匹配）
+    ├── config_loader.py                 # 配置加载、校验、布尔值归一化、密钥掩码
+    ├── config_validator.py              # 配置验证（LLM/Hermes测试）
+    ├── dedup_checker.py                 # 同名文件检测（4种策略）
     ├── file_copier.py                   # 文件复制（含进度回调）
-    ├── file_mover.py                    # 文件移动与重命名
-    ├── file_scanner.py                  # 文件扫描
+    ├── file_mover.py                    # 文件移动、重命名、附属文件清理
+    ├── file_scanner.py                  # 文件扫描（视频+字幕分组）
     ├── file_watcher.py                  # 文件监控（轮询）
     ├── hermes_hook.py                   # Hermes Webhook通知
-    ├── hooks.py                         # 钩子系统
-    ├── llm_scraper.py                   # AI刮削引擎
-    ├── logger.py                        # 日志管理
+    ├── hooks.py                         # 钩子系统（路径白名单校验）
+    ├── llm_scraper.py                   # AI刮削引擎（含重试降级）
+    ├── logger.py                        # 日志管理（文件+控制台+内存缓冲）
     ├── media_importer.py                # 主入口（CLI + serve）
     ├── metrics.py                       # 运行指标统计
     ├── pipeline.py                      # 10步流水线编排
-    ├── safety.py                        # 安全模块
-    └── task_manager.py                  # 任务管理（持久化）
+    ├── safety.py                        # 安全模块（路径验证、安全删除、API认证）
+    ├── task_manager.py                  # 任务管理（持久化、倒序）
+    └── webui/                           # Web界面（零依赖纯原生）
+        ├── index.html                   # 主页面
+        ├── app.js                       # 前端逻辑
+        └── styles.css                   # 样式
 ```
 
 ## 9. 常见问题
@@ -518,6 +551,12 @@ duplicate_handling:
 ```bash
 python3 media_importer/media_importer.py serve -p 9090
 ```
+
+> ⚠️ 修改端口影响面较大，需同步处理以下事项：
+> 1. 重启服务后生效，浏览器登录地址需同步修改
+> 2. Hermes 的 Skill 路由配置中 NAS API 地址需同步修改，否则 Hermes 无法回调
+> 3. 若通过 FNM OS 应用商店安装，需同步修改应用端口配置
+> 4. 防火墙规则需放行新端口
 
 ### Q: 服务重启后任务会丢失吗？
 

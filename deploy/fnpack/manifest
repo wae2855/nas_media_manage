@@ -1,8 +1,0 @@
-appname=nas-media-importer
-version=1.0.0
-desc=NAS影视自动化入库系统 - AI智能刮削、自动分类入库影视文件
-arch=x86_64
-display_name=NAS影视入库
-maintainer=your-name
-source=thirdparty
-service_port=9855

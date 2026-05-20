@@ -8,7 +8,7 @@ from file_copier import FileCopier
 from llm_scraper import LLMScraper, LLMScrapeError
 from classifier import classify
 from dedup_checker import check_duplicate
-from file_mover import apply_filename_template, move_to_import, delete_source_files, delete_source_with_companions, remove_empty_parent_dir
+from file_mover import apply_filename_template, move_to_import, delete_source_files, remove_empty_parent_dir
 from hooks import HookRunner
 
 
@@ -179,16 +179,10 @@ class PipelineRunner:
             if delete_after_process:
                 source_dir = self.config.get('source_dir', '')
                 if source_dir and original_source_video and original_source_video.startswith(source_dir):
-                    video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
-                    sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
-                    companion_count = delete_source_with_companions(
-                        original_source_video, original_source_subs,
-                        video_exts, sub_exts, allowed_base_dirs=[source_dir]
-                    )
-                    msg = f"已清理源目录文件: {os.path.basename(original_source_video)}"
-                    if companion_count > 0:
-                        msg += f" (含 {companion_count} 个附属文件)"
-                    self._log("info", msg, task, "cleanup")
+                    files_to_delete = [original_source_video]
+                    files_to_delete.extend(original_source_subs)
+                    delete_source_files(files_to_delete, allowed_base_dirs=[source_dir])
+                    self._log("info", f"已清理源目录文件: {os.path.basename(original_source_video)}", task, "cleanup")
                     remove_empty_parent_dir(original_source_video, source_dir)
             else:
                 self._log("info", f"保留源目录文件（配置为不删除）: {os.path.basename(original_source_video)}", task, "cleanup")
@@ -317,36 +311,6 @@ class PipelineRunner:
             task.scraped_info = result
             if self.metrics:
                 self.metrics.record_llm_call(success=True)
-
-            title_cn = result.get('title_cn') or ''
-            title_en = result.get('title_en') or ''
-            year = result.get('year') or ''
-            media_type = result.get('type') or ''
-            confidence = result.get('confidence', 0)
-            season = result.get('season')
-            episode = result.get('episode')
-            dims = result.get('dimensions', {})
-            dims_str = ', '.join(f'{k}={v}' for k, v in dims.items()) if dims else ''
-
-            detail_parts = []
-            if title_cn:
-                detail_parts.append(f"标题={title_cn}")
-            if title_en:
-                detail_parts.append(f"英文名={title_en}")
-            if year:
-                detail_parts.append(f"年份={year}")
-            if media_type:
-                detail_parts.append(f"类型={media_type}")
-            if season:
-                detail_parts.append(f"季={season}")
-            if episode:
-                detail_parts.append(f"集={episode}")
-            detail_parts.append(f"置信度={confidence}")
-            if dims_str:
-                detail_parts.append(f"维度=[{dims_str}]")
-
-            self._log("info", f"刮削结果: {', '.join(detail_parts)}", task, "scrape")
-
         except LLMScrapeError as e:
             if self.metrics:
                 self.metrics.record_llm_call(success=False)
@@ -413,21 +377,9 @@ class PipelineRunner:
         self._log("info", f"分类匹配: {task.video_file}", task, "classify")
 
         path_rules = self.config.get('path_rules', [])
-        dimensions = task.scraped_info.get('dimensions', {})
-        dims_str = ', '.join(f'{k}={v}' for k, v in dimensions.items()) if dimensions else '无'
-        self._log("info", f"文件维度: [{dims_str}]", task, "classify")
-
         import_path = classify(task.scraped_info, path_rules)
         if not import_path:
-            rules_desc = []
-            for i, rule in enumerate(path_rules):
-                cond = rule.get('conditions', {})
-                cond_str = ', '.join(f'{k}={v}' for k, v in cond.items())
-                rules_desc.append(f"规则{i+1}: [{cond_str}]")
-            self._log("error", f"无匹配规则。文件维度=[{dims_str}], 可用规则: {'; '.join(rules_desc) if rules_desc else '无规则配置'}", task, "classify")
-            raise PipelineError(f"分类匹配失败，无匹配规则。维度=[{dims_str}]")
-
-        self._log("info", f"匹配路径: {import_path}", task, "classify")
+            raise PipelineError("分类匹配失败，无匹配规则")
 
         if not os.path.isabs(import_path):
             project_root = os.path.dirname(
@@ -540,17 +492,13 @@ class PipelineRunner:
         delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
 
         if delete_after_process and source_dir and original_source_video:
-            video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
-            sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
-            companion_count = delete_source_with_companions(
-                original_source_video, original_source_subs,
-                video_exts, sub_exts, allowed_base_dirs=allowed_dirs
-            )
+            files_to_delete = [original_source_video]
+            for sub in original_source_subs:
+                files_to_delete.append(sub)
+            delete_source_files(files_to_delete,
+                                allowed_base_dirs=allowed_dirs)
             remove_empty_parent_dir(original_source_video, source_dir)
-            msg = f"已清理源目录文件: {os.path.basename(original_source_video)}"
-            if companion_count > 0:
-                msg += f" (含 {companion_count} 个附属文件)"
-            self._log("info", msg, task, "import")
+            self._log("info", f"已清理源目录文件: {os.path.basename(original_source_video)}", task, "import")
         elif not delete_after_process and source_dir and original_source_video:
             self._log("info", f"保留源目录文件（配置为不删除）: {os.path.basename(original_source_video)}", task, "import")
 

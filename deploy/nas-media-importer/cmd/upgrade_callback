@@ -1,0 +1,5 @@
+#!/bin/bash
+APP_DIR="${TRIM_APPDEST}"
+if [ -x "${APP_DIR}/venv/bin/pip" ]; then
+    "${APP_DIR}/venv/bin/pip" install -r "${APP_DIR}/requirements.txt" 2>/dev/null || true
+fi

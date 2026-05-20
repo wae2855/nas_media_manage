@@ -1,0 +1,17 @@
+#!/bin/bash
+APP_DIR="${TRIM_APPDEST}"
+DATA_DIR="${TRIM_PKGVAR}"
+
+mkdir -p "${DATA_DIR}/config"  2>/dev/null || true
+mkdir -p "${DATA_DIR}/data"   2>/dev/null || true
+mkdir -p "${DATA_DIR}/logs"   2>/dev/null || true
+
+if [ ! -f "${DATA_DIR}/config/config.yaml" ]; then
+    if [ -f "${APP_DIR}/config.yaml.example" ]; then
+        cp "${APP_DIR}/config.yaml.example" "${DATA_DIR}/config/config.yaml" 2>/dev/null || true
+    fi
+fi
+
+if [ ! -f "${DATA_DIR}/data/tasks.json" ]; then
+    echo '{}' > "${DATA_DIR}/data/tasks.json" 2>/dev/null || true
+fi

@@ -3,34 +3,10 @@ import re
 from typing import Dict, Any
 
 
-BOOL_TRUE_STRINGS = {'true', 'yes', 'on'}
-BOOL_FALSE_STRINGS = {'false', 'no', 'off'}
-
-
-def _to_comparable(value):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        if value.lower() in BOOL_TRUE_STRINGS:
-            return True
-        if value.lower() in BOOL_FALSE_STRINGS:
-            return False
-    return value
-
-
 def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any]) -> bool:
     for key, expected_value in conditions.items():
         actual_value = dimensions.get(key)
-        if actual_value is None and expected_value is None:
-            continue
-        if actual_value is None or expected_value is None:
-            return False
-        if isinstance(actual_value, bool) != isinstance(expected_value, bool):
-            cmp_actual = _to_comparable(actual_value)
-            cmp_expected = _to_comparable(expected_value)
-            if cmp_actual != cmp_expected:
-                return False
-        elif actual_value != expected_value:
+        if actual_value != expected_value:
             return False
     return True
 
