@@ -409,32 +409,49 @@
                 </div>
 
                 <div class="config-section">
-                    <h3 class="config-section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                        </svg>
-                        源文件处理
-                    </h3>
-                    <div class="form-group">
-                        <label class="form-label">处理成功后删除源文件</label>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="cfg-source_file_handling-delete_after_process">
-                            <label for="cfg-source_file_handling-delete_after_process"></label>
-                        </div>
-                        <div class="form-hint">启用后，处理成功或跳过的视频、字幕及同名附属文件（如 .nfo、.jpg 等）将被一并删除</div>
-                        <div class="form-hint form-hint-warning">⚠️ 若关闭此选项，源文件将保留在源目录中，每次轮询都会重新扫描并尝试处理之前失败的文件，持续消耗 AI Token</div>
-                    </div>
+            <h3 class="config-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                源文件处理
+            </h3>
+            <div class="form-group">
+                <label class="form-label">处理成功后删除源文件</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="cfg-source_file_handling-delete_after_process">
+                    <label for="cfg-source_file_handling-delete_after_process"></label>
                 </div>
+                <div class="form-hint">启用后，处理成功或跳过的视频、字幕及同名附属文件（如 .nfo、.jpg 等）将被一并删除</div>
+                <div class="form-hint form-hint-warning">⚠️ 若关闭此选项，源文件将保留在源目录中，每次轮询都会重新扫描并尝试处理之前失败的文件，持续消耗 AI Token</div>
+            </div>
+        </div>
 
-                <div class="config-section">
-                    <h3 class="config-section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                        LLM 配置
-                    </h3>
+        <div class="config-section">
+            <h3 class="config-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                文件名刮削配置
+            </h3>
+            <div class="form-group">
+                <label class="form-label">启用文件名刮削</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="cfg-file_scraping_enabled" onchange="onFileScrapingToggle()">
+                    <label for="cfg-file_scraping_enabled"></label>
+                </div>
+                <div class="form-hint">启用后，使用 AI 从文件名中提取元数据；禁用后直接使用原始文件名入库</div>
+            </div>
+        </div>
+
+        <div class="config-section" id="llm-config-section">
+            <h3 class="config-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+                LLM 配置
+            </h3>
                     <div class="form-group">
                         <label class="form-label">提供商</label>
                         <select id="cfg-llm_provider" class="form-select">
@@ -498,20 +515,20 @@
                     </div>
                 </div>
 
-                <div class="config-section">
-                    <h3 class="config-section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                        </svg>
-                        Hermes 通知
-                    </h3>
-                    <div class="form-group">
-                        <label class="form-label">启用通知</label>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="cfg-hermes_enabled">
-                            <label for="cfg-hermes_enabled"></label>
-                        </div>
-                    </div>
+                <div class="config-section" id="hermes-config-section">
+            <h3 class="config-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+                Hermes 通知
+            </h3>
+            <div class="form-group">
+                <label class="form-label">启用通知</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="cfg-hermes_enabled" onchange="onHermesToggle()">
+                    <label for="cfg-hermes_enabled"></label>
+                </div>
+            </div>
                     <div class="form-group">
                         <label class="form-label">Webhook 地址</label>
                         <input type="text" id="cfg-hermes_webhook_base_url" class="form-input" placeholder="http://hermes:8644">

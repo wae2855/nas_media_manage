@@ -261,6 +261,9 @@ async function loadConfig() {
         document.getElementById('cfg-hermes_event_batch_start').checked = events.indexOf('batch_start') >= 0;
         document.getElementById('cfg-hermes_event_batch_complete').checked = events.indexOf('batch_complete') >= 0;
         document.getElementById('cfg-hermes_event_program_error').checked = events.indexOf('program_error') >= 0;
+        
+        // 初始化 Hermes 配置区域的显示/隐藏状态
+        onHermesToggle();
 
         var scan = c.source_dir_scan || {};
         document.getElementById('cfg-source_dir_scan-recursive').checked = scan.recursive !== false;
@@ -297,6 +300,11 @@ async function loadConfig() {
 
         var sfh = c.source_file_handling || {};
         document.getElementById('cfg-source_file_handling-delete_after_process').checked = !!sfh.delete_after_process;
+
+        var fs = c.file_scraping || {};
+        var fileScrapingEnabled = (fs.enabled !== false);
+        document.getElementById('cfg-file_scraping_enabled').checked = fileScrapingEnabled;
+        onFileScrapingToggle();
 
         var tq = c.task_queue || {};
         document.getElementById('cfg-task_queue-persistence_path').value = tq.persistence_path || '';
@@ -431,6 +439,10 @@ function buildConfigFromForm() {
     
     config.source_file_handling = {
         delete_after_process: document.getElementById('cfg-source_file_handling-delete_after_process').checked
+    };
+
+    config.file_scraping = {
+        enabled: document.getElementById('cfg-file_scraping_enabled').checked
     };
     
     config.task_queue = {
@@ -646,6 +658,30 @@ function onDedupEnabledChange() {
     var enabled = checkbox.checked;
     if (warning) warning.style.display = enabled ? 'none' : 'block';
     if (strategyGroup) strategyGroup.style.display = enabled ? 'block' : 'none';
+}
+
+function onFileScrapingToggle() {
+    var checkbox = document.getElementById('cfg-file_scraping_enabled');
+    var llmSection = document.getElementById('llm-config-section');
+    if (!checkbox || !llmSection) return;
+    var enabled = checkbox.checked;
+    llmSection.style.display = enabled ? 'block' : 'none';
+}
+
+function onHermesToggle() {
+    var checkbox = document.getElementById('cfg-hermes_enabled');
+    var hermesSection = document.getElementById('hermes-config-section');
+    if (!checkbox || !hermesSection) return;
+    var enabled = checkbox.checked;
+    // 控制 Hermes 配置区域中除了第一个表单组外的其他元素显示/隐藏
+    var formGroups = hermesSection.querySelectorAll('.form-group');
+    for (var i = 1; i < formGroups.length; i++) {
+        formGroups[i].style.display = enabled ? 'block' : 'none';
+    }
+    var formRows = hermesSection.querySelectorAll('.form-row');
+    formRows.forEach(function(row) {
+        row.style.display = enabled ? 'flex' : 'none';
+    });
 }
 
 async function validateConfig() {
