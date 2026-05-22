@@ -59,24 +59,25 @@ class FileScanner:
         groups = {}
         for vf in video_set:
             basename_no_ext = os.path.splitext(os.path.basename(vf))[0]
-            # Normalize: remove some common suffixes
             clean_name = self._clean_name(basename_no_ext)
             if clean_name not in groups:
                 groups[clean_name] = {"video": vf, "subtitles": []}
             else:
                 groups[clean_name]["video"] = vf
-            # Find matching subtitles
+            matched_subs = []
             for sf in subtitle_set:
                 sf_basename = os.path.basename(sf)
                 if clean_name in sf_basename or basename_no_ext in sf_basename:
-                    groups[clean_name]["subtitles"].append(sf)
-                    subtitle_set.discard(sf)
+                    matched_subs.append(sf)
+            for ms in matched_subs:
+                groups[clean_name]["subtitles"].append(ms)
+                subtitle_set.discard(ms)
 
-        # Also check remaining subtitles by matching video filename nearby
+        remaining_subs = list(subtitle_set)
         for vf in video_set:
             vdir = os.path.dirname(vf)
             vbase = os.path.splitext(os.path.basename(vf))[0]
-            for sf in list(subtitle_set):
+            for sf in remaining_subs:
                 if sf.startswith(vdir) and vbase in sf:
                     groups.setdefault(
                         self._clean_name(vbase),

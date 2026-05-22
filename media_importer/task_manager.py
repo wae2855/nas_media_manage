@@ -64,9 +64,10 @@ class TaskManager:
             return
         if isinstance(task, dict):
             task_id = task.get("task_id", "")
+            skip_keys = ("task_id", "subtitle_files", "subtitle_total",
+                         "subtitle_success", "logs")
             update_fields = {k: v for k, v in task.items()
-                            if k not in ("subtitle_files", "subtitle_total",
-                                        "subtitle_success", "logs")}
+                            if k not in skip_keys}
             db_update_task(self.conn, task_id, **update_fields)
         else:
             task_id = getattr(task, "task_id", "")
