@@ -12,7 +12,16 @@ venv/
 ENV/
 .env
 
-config/
+config/config.yaml
+config/config.yml
+config/secret*
+config/*secret*
+config/*.secret
+config/*.key
+config/*.priv
+config/scraper_prompts.md.local
+!config/scraper_prompts.md
+!config.yaml.example
 data/
 logs/
 *.log
