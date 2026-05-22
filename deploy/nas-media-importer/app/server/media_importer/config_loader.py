@@ -48,12 +48,21 @@ def validate_config(config: dict) -> list:
 def mask_sensitive(config: dict) -> dict:
     masked = deepcopy(config)
 
+    if masked.get("server", {}).get("api_key"):
+        masked["server"]["api_key"] = "***"
+
     if masked.get("llm", {}).get("api_key"):
         api_key = masked["llm"]["api_key"]
-        if len(api_key) > 8:
-            masked["llm"]["api_key"] = api_key[:4] + "***" + api_key[-4:]
-        else:
-            masked["llm"]["api_key"] = "***"
+        if api_key:
+            prefix_end = 0
+            for i, c in enumerate(api_key):
+                if c == '-':
+                    prefix_end = i + 1
+                    break
+            if prefix_end > 0:
+                masked["llm"]["api_key"] = api_key[:prefix_end] + "***"
+            else:
+                masked["llm"]["api_key"] = "***"
 
     if masked.get("hermes", {}).get("webhook", {}).get("secret"):
         masked["hermes"]["webhook"]["secret"] = "***"
@@ -72,7 +81,7 @@ def validate_dimension_values(dimensions: list, ai_response: dict) -> list:
         if dim_name in ai_response["dimensions"]:
             value = ai_response["dimensions"][dim_name]
             valid_values = dim.get("values", [])
-            if valid_values and value not in valid_values:
+            if valid_values and not _value_in_list(value, valid_values):
                 errors.append(
                     f"dimension '{dim_name}' 的值 '{value}' 不在允许范围内: {valid_values}"
                 )
@@ -80,17 +89,35 @@ def validate_dimension_values(dimensions: list, ai_response: dict) -> list:
     return errors
 
 
+def _value_in_list(value, valid_values):
+    if value in valid_values:
+        return True
+    if isinstance(value, bool):
+        str_val = 'true' if value else 'false'
+        return str_val in valid_values or ('yes' if value else 'no') in valid_values
+    if isinstance(value, str):
+        if value.lower() in BOOL_TRUE_STRINGS:
+            return True in valid_values or 'yes' in valid_values
+        if value.lower() in BOOL_FALSE_STRINGS:
+            return False in valid_values or 'no' in valid_values
+    return False
+
+
 def load_config(config_path: str = None) -> dict:
+    trim_pkgvar = os.environ.get("TRIM_PKGVAR", "")
+
     if config_path is None:
-        script_dir = os.path.dirname(__file__)
-        project_root = os.path.dirname(script_dir)
-        config_path = os.path.join(project_root, "config", "config.yaml")
+        if trim_pkgvar:
+            config_path = os.path.join(trim_pkgvar, "config", "config.yaml")
+        else:
+            script_dir = os.path.dirname(__file__)
+            project_root = os.path.dirname(script_dir)
+            config_path = os.path.join(project_root, "config", "config.yaml")
 
     if not os.path.exists(config_path):
         print(f"配置文件不存在，正在从模板复制: {config_path}")
         copy_config_template(config_path)
-        print("配置文件已生成，请编辑后重新启动程序")
-        sys.exit(1)
+        print("配置文件已生成，请通过前台界面完善配置")
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -109,14 +136,56 @@ def load_config(config_path: str = None) -> dict:
 
     task_queue = config.get("task_queue", {})
     persistence_path = task_queue.get("persistence_path", "")
-    if persistence_path and not os.path.isabs(persistence_path):
+    if not persistence_path:
+        if trim_pkgvar:
+            task_queue["persistence_path"] = os.path.join(trim_pkgvar, "data", "tasks.json")
+        else:
+            task_queue["persistence_path"] = os.path.join(project_root, "data", "tasks.json")
+    elif not os.path.isabs(persistence_path):
         task_queue["persistence_path"] = os.path.join(project_root, "data", persistence_path)
 
     errors = validate_config(config)
     if errors:
-        print("配置校验失败:")
+        print("配置校验警告（服务仍可启动，请通过前台完善配置）:")
         for error in errors:
             print(f"  - {error}")
-        sys.exit(1002)
+
+    config["_config_path"] = os.path.abspath(config_path)
+
+    _normalize_bool_strings(config)
 
     return config
+
+
+BOOL_TRUE_STRINGS = {'true', 'yes', 'on'}
+BOOL_FALSE_STRINGS = {'false', 'no', 'off'}
+BOOL_KEYS = {
+    'enabled', 'verify_ssl', 'delete_after_process', 'recursive',
+    'create_series_folder', 'organize_by_season', 'create_year_folder',
+    'auto_delete_success',
+}
+
+
+def _normalize_bool_strings(obj):
+    if isinstance(obj, dict):
+        for key in list(obj.keys()):
+            value = obj[key]
+            if isinstance(value, str) and key in BOOL_KEYS:
+                if value.lower() in BOOL_TRUE_STRINGS:
+                    obj[key] = True
+                elif value.lower() in BOOL_FALSE_STRINGS:
+                    obj[key] = False
+            elif isinstance(value, dict):
+                _normalize_bool_strings(value)
+            elif isinstance(value, list):
+                _normalize_bool_strings_in_list(value)
+    return obj
+
+
+def _normalize_bool_strings_in_list(lst):
+    for i in range(len(lst)):
+        item = lst[i]
+        if isinstance(item, dict):
+            _normalize_bool_strings(item)
+        elif isinstance(item, list):
+            _normalize_bool_strings_in_list(item)

@@ -43,6 +43,14 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
     final_video_filename = apply_filename_template(scraped_info, template, video_ext)
     dest_video = os.path.join(import_dir, final_video_filename)
 
+    if os.path.exists(dest_video):
+        raise IOError(
+            f"目标已存在同名文件: {final_video_filename}\n"
+            f"路径: {dest_video}\n"
+            f"提示: 当前关闭了智能同名检测，无法自动处理冲突。\n"
+            f"请手动处理已存在的文件，或开启智能同名检测后使用替换/重命名等策略。"
+        )
+
     ok, msg = safe_move(video_path, dest_video, allowed_base_dirs)
     if not ok:
         raise IOError(f"视频文件移动失败: {msg}")

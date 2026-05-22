@@ -212,3 +212,60 @@ class LLMScraper:
         system_prompt = self._build_system_prompt()
 
         return self._retry_with_fallback(system_prompt, user_content)
+
+    def scrape_series(self, series_name: str) -> Dict[str, Any]:
+        user_content = f"剧名:\n{series_name}"
+        system_prompt = self._build_series_prompt()
+
+        return self._retry_with_fallback(system_prompt, user_content)
+
+    def _build_series_prompt(self) -> str:
+        prompt_parts = [
+            "你是一个专业的影视信息刮削助手。",
+            "请根据提供的电视剧名称，判断这部电视剧的整体属性。",
+            "",
+            "重要原则：",
+            "1. 请基于对整部剧的了解来判断，不要针对某一集。",
+            "2. 判断应覆盖整部剧的整体风格，而非某一集的特定内容。",
+            "3. 限制级(restricted)判断标准：包含明确的暴力血腥、裸露性爱、深度恐怖等",
+            "   成人内容的影视作品应标记为 restricted=yes。以下典型例子都是限制级：",
+            "   - 西部世界(Westworld)：大量暴力、裸露、性爱场景 → restricted=yes",
+            "   - 绝命毒师(Breaking Bad)：暴力、毒品、犯罪题材 → restricted=yes",
+            "   - 权利的游戏(Game of Thrones)：暴力、裸露 → restricted=yes",
+            "   - 斯巴达克斯(Spartacus)：极度暴力、大量裸露 → restricted=yes",
+            "   普通剧情片、轻喜剧、动画片等通常为 restricted=no。",
+            "",
+            "当前需要判断的维度："
+        ]
+
+        for i, dim in enumerate(self.dimensions, 1):
+            name = dim.get('name', '')
+            label = dim.get('label', name)
+            values = dim.get('values', [])
+            values_str = ', '.join(str(v) for v in values) if values else ''
+            prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
+
+        prompt_parts.append("")
+        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
+
+        dimensions_schema = {}
+        for dim in self.dimensions:
+            name = dim.get('name')
+            values = dim.get('values', [])
+            if values:
+                dimensions_schema[name] = f"{'|'.join(str(v) for v in values)}|null"
+            else:
+                dimensions_schema[name] = "string|null"
+
+        schema = {
+            "title_cn": "string|null",
+            "title_en": "string|null",
+            "year": "int|null",
+            "type": "tv",
+            "dimensions": dimensions_schema,
+            "confidence": "float"
+        }
+
+        prompt_parts.append(json.dumps(schema, ensure_ascii=False, indent=2))
+
+        return '\n'.join(prompt_parts)

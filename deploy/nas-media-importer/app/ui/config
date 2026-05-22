@@ -2,11 +2,10 @@
     ".url": {
         "nas-media-importer.main": {
             "title": "NAS影视整理入库",
-            "icon": "images/icon-{0}.png",
-            "type": "url",
-            "protocol": "http",
-            "port": "${wizard_port}",
-            "url": "/",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "",
+            "url": "/cgi/ThirdParty/nas-media-importer/index.cgi/",
             "allUsers": true
         }
     }

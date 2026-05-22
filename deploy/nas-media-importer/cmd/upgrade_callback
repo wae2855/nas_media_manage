@@ -1,5 +1,6 @@
 #!/bin/bash
 APP_DIR="${TRIM_APPDEST}"
+SERVER_DIR="${TRIM_APPDEST}/server"
 if [ -x "${APP_DIR}/venv/bin/pip" ]; then
-    "${APP_DIR}/venv/bin/pip" install -r "${APP_DIR}/requirements.txt" 2>/dev/null || true
+    "${APP_DIR}/venv/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" 2>/dev/null || true
 fi

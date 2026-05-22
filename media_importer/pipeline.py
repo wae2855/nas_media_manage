@@ -556,9 +556,16 @@ class PipelineRunner:
 
     def _step_dedup(self, task: Task):
         self._update_progress(task, 6, "dedup", 65)
-        self._log("info", f"同名检测: {task.video_file}", task, "dedup")
 
-        strategy = self.config.get('duplicate_handling', {}).get('strategy', 'skip')
+        dedup_cfg = self.config.get('duplicate_handling', {}) or {}
+        enabled = dedup_cfg.get('enabled', True)
+
+        if not enabled:
+            self._log("info", f"智能同名检测已关闭，跳过跨目录扫描: {task.video_file}", task, "dedup")
+            return
+
+        self._log("info", f"同名检测: {task.video_file}", task, "dedup")
+        strategy = dedup_cfg.get('strategy', 'skip')
         import_roots = self._get_import_roots()
         dedup_result = {'is_duplicate': False}
         for search_dir in import_roots:

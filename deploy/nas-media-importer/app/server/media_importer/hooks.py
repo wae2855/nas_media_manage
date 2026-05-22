@@ -6,6 +6,7 @@ import os
 class HookRunner:
     def __init__(self, config: dict, logger=None):
         hooks_cfg = config.get("hooks", {})
+        self.allowed_dir = hooks_cfg.get("allowed_dir", "")
         self.before_process = hooks_cfg.get("before_process", "")
         self.after_success = hooks_cfg.get("after_success", "")
         self.after_failure = hooks_cfg.get("after_failure", "")
@@ -16,11 +17,39 @@ class HookRunner:
             log_method = getattr(self.logger, level.lower(), self.logger.info)
             log_method(message)
 
+    def _validate_hook_path(self, hook_path: str, hook_name: str) -> bool:
+        if not hook_path or not hook_path.strip():
+            return True
+
+        hook_path = hook_path.strip()
+
+        if not os.path.isabs(hook_path):
+            self._log("error", f"钩子 {hook_name} 路径必须是绝对路径: {hook_path}")
+            return False
+
+        if ".." in hook_path:
+            self._log("error", f"钩子 {hook_name} 路径包含目录穿越: {hook_path}")
+            return False
+
+        real_path = os.path.realpath(hook_path)
+
+        if self.allowed_dir:
+            allowed_real = os.path.realpath(self.allowed_dir)
+            if not real_path.startswith(allowed_real + os.sep) and real_path != allowed_real:
+                self._log("error", f"钩子 {hook_name} 脚本不在允许目录 {self.allowed_dir} 内: {hook_path}")
+                return False
+
+        return True
+
     def _run_hook(self, hook_path: str, hook_name: str, env: dict = None) -> bool:
         if not hook_path or not hook_path.strip():
             return True
 
         hook_path = hook_path.strip()
+
+        if not self._validate_hook_path(hook_path, hook_name):
+            self._log("error", f"钩子 {hook_name} 路径校验失败，拒绝执行")
+            return False
 
         if not os.path.isfile(hook_path):
             self._log("warn", f"钩子脚本不存在: {hook_path} ({hook_name})")

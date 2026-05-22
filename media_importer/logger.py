@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import logging
 import threading
@@ -19,8 +20,13 @@ class Logger:
         self.log_dir = log_dir
         self.max_size_mb = max_size_mb
         self.backup_count = backup_count
+        self._file_handler_enabled = True
 
-        os.makedirs(log_dir, exist_ok=True)
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            print(f"WARNING: 无法创建日志目录 {log_dir}: {e}，将仅输出到控制台", file=sys.stderr)
+            self._file_handler_enabled = False
 
         self.logger = logging.getLogger("media_importer")
         self.logger.setLevel(self.level)
@@ -29,7 +35,8 @@ class Logger:
         self._log_buffer = deque(maxlen=self.MAX_BUFFER_SIZE)
         self._buffer_lock = threading.Lock()
 
-        self._setup_file_handler()
+        if self._file_handler_enabled:
+            self._setup_file_handler()
         self._setup_console_handler()
 
     def _parse_level(self, level_str: str) -> int:

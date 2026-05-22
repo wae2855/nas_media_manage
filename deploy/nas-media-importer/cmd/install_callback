@@ -5,11 +5,33 @@ DATA_DIR="${TRIM_PKGVAR}"
 mkdir -p "${DATA_DIR}/config"  2>/dev/null || true
 mkdir -p "${DATA_DIR}/data"   2>/dev/null || true
 mkdir -p "${DATA_DIR}/logs"   2>/dev/null || true
+mkdir -p "${DATA_DIR}/source"  2>/dev/null || true
+mkdir -p "${DATA_DIR}/tmp"    2>/dev/null || true
 
-if [ ! -f "${DATA_DIR}/config/config.yaml" ]; then
-    if [ -f "${APP_DIR}/config.yaml.example" ]; then
-        cp "${APP_DIR}/config.yaml.example" "${DATA_DIR}/config/config.yaml" 2>/dev/null || true
+CONFIG_FILE="${DATA_DIR}/config/config.yaml"
+
+if [ ! -f "${CONFIG_FILE}" ]; then
+    if [ -f "${APP_DIR}/server/config.yaml.example" ]; then
+        cp "${APP_DIR}/server/config.yaml.example" "${CONFIG_FILE}" 2>/dev/null || true
+    elif [ -f "${APP_DIR}/config.yaml.example" ]; then
+        cp "${APP_DIR}/config.yaml.example" "${CONFIG_FILE}" 2>/dev/null || true
     fi
+fi
+
+if [ -f "${CONFIG_FILE}" ]; then
+    if grep -qE "^source_dir:.*\"/vol1/" "${CONFIG_FILE}" 2>/dev/null; then
+        sed -i "s|^source_dir:.*|source_dir: \"${DATA_DIR}/source\"|" "${CONFIG_FILE}" 2>/dev/null || true
+    fi
+    if grep -qE "^temp_dir:.*\"/vol1/" "${CONFIG_FILE}" 2>/dev/null; then
+        sed -i "s|^temp_dir:.*|temp_dir: \"${DATA_DIR}/tmp\"|" "${CONFIG_FILE}" 2>/dev/null || true
+    fi
+    if grep -qE "^log_dir:.*\"/vol1/" "${CONFIG_FILE}" 2>/dev/null; then
+        sed -i "s|^log_dir:.*|log_dir: \"${DATA_DIR}/logs\"|" "${CONFIG_FILE}" 2>/dev/null || true
+    fi
+fi
+
+if [ -f "${CONFIG_FILE}" ] && [ -n "${wizard_port}" ]; then
+    sed -i "s/^\\(  port:\\).*/\\1 ${wizard_port}/" "${CONFIG_FILE}" 2>/dev/null || true
 fi
 
 if [ ! -f "${DATA_DIR}/data/tasks.json" ]; then

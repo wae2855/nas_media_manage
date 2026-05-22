@@ -211,10 +211,16 @@ class TaskManager:
     def _save_tasks(self):
         dir_path = os.path.dirname(self.path)
         if dir_path:
-            os.makedirs(dir_path, exist_ok=True)
-        data = {tid: t.to_dict() for tid, t in self._tasks.items()}
-        with open(self.path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            try:
+                os.makedirs(dir_path, exist_ok=True)
+            except (OSError, PermissionError):
+                return
+        try:
+            data = {tid: t.to_dict() for tid, t in self._tasks.items()}
+            with open(self.path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except (OSError, PermissionError):
+            pass
 
     def _load_tasks(self):
         if not os.path.exists(self.path):

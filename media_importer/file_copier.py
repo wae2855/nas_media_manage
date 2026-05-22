@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import time
 import shutil
 from safety import validate_file_ext, check_read_permission, check_write_permission, ALLOWED_MEDIA_EXTS
@@ -8,7 +9,15 @@ from safety import validate_file_ext, check_read_permission, check_write_permiss
 class FileCopier:
     def __init__(self, temp_dir: str):
         self.temp_dir = temp_dir
-        os.makedirs(temp_dir, exist_ok=True)
+        self._available = True
+        try:
+            if temp_dir:
+                os.makedirs(temp_dir, exist_ok=True)
+            else:
+                self._available = False
+        except (OSError, PermissionError) as e:
+            print(f"WARNING: 无法创建中转目录 {temp_dir}: {e}，请在前台配置页修改", file=sys.stderr)
+            self._available = False
 
     def check_disk_space(self, file_size: int) -> bool:
         try:

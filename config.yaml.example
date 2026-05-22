@@ -29,6 +29,7 @@ server:
                                   # 建议使用随机字符串，如: openssl rand -hex 32
 
 # [必须] 影视文件来源目录
+# 注意：如果源目录是飞牛挂载的网盘目录，文件刷新时间可能较久，建议改用Alist网盘来实现短时刷新
 source_dir: "/vol1/网盘下载"
 # [必须] 处理过程中的中转目录
 temp_dir: "/vol1/tmp/media_import"
@@ -146,7 +147,11 @@ filename_templates:
 # 5. 同名文件处理配置
 # ------------------------------------------------------------
 duplicate_handling:
-  strategy: "quality"             # 处理策略:
+  enabled: true                   # 是否启用智能同名检测（推荐启用）
+                                  #   true  - 扫描所有入库目录，按下方 strategy 处理
+                                  #   false - 跳过智能检测，仅在文件移动到目标目录时检测同名
+                                  #           若目标目录已存在同名文件，入库失败
+  strategy: "quality"             # 处理策略（仅 enabled=true 时生效）:
                                   #   skip(跳过) - 同名文件已存在则跳过
                                   #   replace(替换) - 用新文件替换已存在的文件
                                   #   rename(重命名) - 两者都保留，新文件添加编号后缀

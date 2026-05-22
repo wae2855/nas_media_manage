@@ -66,7 +66,9 @@ fnpack create nas-media-importer
 
 # 复制代码到 app/server/
 cp -r ../media_importer nas-media-importer/app/server/
-cp -r ../hermes         nas-media-importer/app/server/
+if [ -d ../hermes ]; then
+    cp -r ../hermes         nas-media-importer/app/server/
+fi
 cp ../config.yaml.example nas-media-importer/app/server/
 cp ../requirements.txt    nas-media-importer/app/server/
 
@@ -106,10 +108,13 @@ nas-media-importer/
 │   │   │   ├── metrics.py          # 指标统计
 │   │   │   ├── pipeline.py         # 处理流水线
 │   │   │   ├── safety.py           # 安全模块
-│   │   │   └── task_manager.py     # 任务管理
-│   │   ├── hermes/                 # Hermes 集成（SKILL.md）
-│   │   │   ├── skills/nas-ops/nas-media-importer/SKILL.md
-│   │   │   └── webhook-route-config.yaml
+│   │   │   ├── task_manager.py     # 任务管理
+│   │   │   └── webui/              # 前端界面
+│   │   │       ├── index.html
+│   │   │       ├── app.js
+│   │   │       └── styles.css
+│   │   ├── hermes/                 # Hermes 集成（可选，SKILL.md）
+│   │   │   └── skills/nas-ops/nas-media-importer/SKILL.md
 │   │   ├── config.yaml.example     # 配置模板
 │   │   └── requirements.txt        # Python 依赖
 │   └── ui/                         # 桌面图标入口
@@ -172,7 +177,7 @@ changelog             = 1.0.0 初始版本发布
         "nas-media-importer.main": {
             "title": "NAS影视整理入库",
             "icon": "images/icon-{0}.png",
-            "type": "url",
+            "type": "iframe",
             "protocol": "http",
             "port": "${wizard_port}",
             "url": "/",
@@ -185,11 +190,50 @@ changelog             = 1.0.0 初始版本发布
 字段说明：
 - `title`：桌面图标显示名称
 - `icon`：图标路径，`{0}` 会被替换为 64 或 256
-- `type: "url"`：在浏览器新标签页中打开
+- `type: "iframe"`：在 fnOS 桌面窗口内嵌加载（不会新开浏览器标签页）
 - `port: "${wizard_port}"`：使用向导中用户配置的端口号（V1.1.8+ 支持）
 - `allUsers: true`：所有用户可见
 
-### 5.3 cmd/main — 启动/停止/状态
+> **type 可选值**：
+> - `iframe`：在桌面窗口内嵌加载，体验更集成
+> - `url`：在浏览器新标签页中打开，适合需要完整浏览器功能的场景
+
+### 5.3 config/privilege — 权限配置
+
+```json
+{
+    "defaults": {
+        "run-as": "package"
+    },
+    "username": "nas-media-importer",
+    "groupname": "nas-media-importer"
+}
+```
+
+- `run-as: "package"`：以独立用户身份运行，非 root
+- `username/groupname`：系统创建的专用用户和组
+
+### 5.4 config/resource — 资源配置
+
+```json
+{
+    "data-share": {
+        "shares": [
+            {
+                "name": "nas-media-importer",
+                "permission": {
+                    "rw": ["nas-media-importer"]
+                }
+            }
+        ]
+    }
+}
+```
+
+- 声明数据共享目录，系统自动在 `/vol${x}/@appshare/nas-media-importer` 创建
+- `rw` 权限授予应用专用用户
+
+### 5.5 cmd/main — 启动/停止/状态
 
 基于官方模板，支持：
 - `start` — 后台启动 Python 进程，写 PID 文件
@@ -211,7 +255,7 @@ ${VENV_DIR}/bin/python3 ${APP_DIR}/media_importer/media_importer.py \
 - `TRIM_PKGVAR/app.pid` — PID 文件
 - `TRIM_PKGVAR/info.log` — 运行日志
 
-### 5.4 cmd/install_callback — 安装后初始化
+### 5.6 cmd/install_callback — 安装后初始化
 
 1. 在 `TRIM_PKGVAR/` 下创建 `config/`、`data/`、`logs/` 目录
 2. 复制 `config.yaml.example` → `config/config.yaml`（如不存在）
@@ -220,49 +264,78 @@ ${VENV_DIR}/bin/python3 ${APP_DIR}/media_importer/media_importer.py \
 > 注意：venv 创建不在 install_callback 中进行，而是在首次 `cmd/main start` 时自动完成。
 > 这样避免 install_callback 因 venv 创建失败而报 INSTALL_CALLBACK_EXCEPTION。
 
-### 5.5 cmd/upgrade_callback — 升级后
+### 5.7 cmd/upgrade_callback — 升级后
 
 - 重新 `pip install -r requirements.txt`（如 venv 存在）
 
-### 5.6 cmd/uninstall_callback — 卸载前
+### 5.8 cmd/uninstall_callback — 卸载前
 
 - 删除 `TRIM_APPDEST/venv/`
 
 ---
 
-## 六、配置向导
+## 六、首次安装配置流程
 
-### 6.1 安装向导（wizard/install）
+应用安装后首次启动时，配置文件使用模板默认值（`source_dir`、`llm.api_key` 等均为占位符）。
+服务采用**容错启动**策略：配置不完整时服务仍可启动，用户可通过前台 UI 完善配置。
 
-安装时用户可自定义端口，初始值 `9855`。
+**推荐操作流程**：
 
-### 6.2 配置向导（wizard/config）
+1. 安装应用后，在 fnOS 桌面点击「NAS影视整理入库」图标
+2. 进入前台 UI，切换到「配置」标签页
+3. 依次完善以下必填配置：
+   - **基础配置**：源目录、中转目录、日志目录
+   - **LLM 配置**：API Key、API 地址、模型名称
+   - **入库规则**：path_rules 入库路径模板
+4. 点击「保存配置」
+5. 点击概览页的「重启服务」按钮，使新配置生效
+6. 配置生效后即可使用「立即扫描」开始入库
 
-安装后可在 **系统设置 → 应用设置** 中修改端口。修改后系统自动重启应用，新端口立即生效。
-
-### 6.3 端口配置流转
-
-```
-用户在向导中输入端口 → wizard_port 环境变量 → cmd/main 读取 → --port 参数传递给应用
-                                              → app/ui/config 读取 → 桌面图标打开正确端口
-```
+> 也可以在「配置」页点击「验证配置」检查配置完整性，或点击「测试 LLM 连通性」验证 API 是否可用。
 
 ---
 
-## 七、fnOS 安装后手动配置
+## 七、配置向导
 
-应用安装完成后，用户需编辑配置文件：
+### 7.1 安装向导（wizard/install）
 
-```bash
-# 配置文件路径（根据实际存储卷不同）
-vi /vol1/@appdata/nas-media-importer/config/config.yaml
+安装时分为两步：
+1. **安装提示**：告知用户安装后需打开应用在前台完善配置
+2. **端口配置**：用户可自定义端口，初始值 `9855`
+
+### 7.2 配置向导（wizard/config）
+
+安装后可在 **系统设置 → 应用设置** 中修改端口。修改后系统自动重启应用，新端口立即生效。
+
+### 7.3 端口配置流转
+
+```
+用户在向导中输入端口 → wizard_port 环境变量 → cmd/main 读取 → --port 参数传递给应用
+                                              → install_callback → sed 写入 config.yaml 的 server.port
+                                              → app/ui/index.cgi 运行时读取 config.yaml 的端口
 ```
 
-必须修改的项：
-- `source_dir` — 影视文件来源目录
-- `temp_dir` — 中转目录
-- `log_dir` — 日志目录
-- `llm.api_key` — LLM API 密钥
+### 7.4 双访问入口架构（v1.1.0+）
+
+应用同时提供两种访问方式，互不冲突：
+
+| 访问方 | 入口 URL | 链路 |
+|--------|---------|------|
+| **fnOS 桌面内嵌（含外网域名）** | `/cgi/ThirdParty/nas-media-importer/index.cgi/` | fnOS 5666 → CGI → 127.0.0.1:9855 |
+| **Hermes / 外部脚本 / 浏览器内网** | `http://nas-ip:9855/api/...` | 直连后端 |
+
+**为什么需要 CGI 反向代理？**
+fnOS 桌面通过外网域名访问时，iframe 无法直连后端真实端口（公网不开放 9855）。
+官方推荐的 CGI 方案让所有请求统一走 fnOS 主端口（5666），由 CGI 脚本转发到本机后端。
+这样无论内网还是外网，桌面图标都能正常打开应用。
+
+**直接端口访问保留**：
+后端 Python 服务依然监听 `0.0.0.0:9855`，外部脚本（Hermes、curl 等）可继续通过端口直接访问 API。
+
+> **CGI 方案的限制**：CGI 不支持 WebSocket、SSE 等长连接。当前 WebUI 仅使用简单 REST 调用，完全兼容。如果未来需要实时推送功能，需要让 Hermes 或外部脚本走端口直连访问相关 API。
+
+> **注意**：安装/配置向导中的端口会自动同步到 `config.yaml` 的 `server.port` 字段。
+> 但 **Hermes 的 SKILL 路由配置中的 NAS API 端口需要用户手动同步**，本应用无法自动修改 Hermes 的配置文件。
 
 ---
 
@@ -309,11 +382,16 @@ sudo apt-get install python3-venv
 
 ### Q: config.yaml 修改后不生效
 
-在应用中心重启应用即可。
+在应用中心重启应用，或在前台 UI 概览页点击「重启服务」按钮。
 
 ### Q: 修改端口后桌面图标打开的还是旧端口
 
 在 **系统设置 → 应用设置** 中修改端口（不是直接改 config.yaml），这样桌面图标也会使用新端口。
+
+### Q: 首次安装后前台显示配置校验警告
+
+这是正常的。首次安装使用模板默认配置，部分必填项（如 `source_dir`、`llm.api_key`）为占位符。
+服务采用容错启动策略，即使配置不完整也能启动。请在前台 UI 的「配置」页完善配置后，点击「重启服务」即可。
 
 ---
 

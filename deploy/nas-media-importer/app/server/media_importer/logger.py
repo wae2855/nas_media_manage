@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import logging
+import threading
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from collections import deque
 
 
 class Logger:
+    MAX_BUFFER_SIZE = 500
+
     def __init__(self, level: str = "INFO", fmt: str = "json",
                  log_dir: str = "logs", max_size_mb: int = 100,
                  backup_count: int = 5):
@@ -15,14 +20,23 @@ class Logger:
         self.log_dir = log_dir
         self.max_size_mb = max_size_mb
         self.backup_count = backup_count
+        self._file_handler_enabled = True
 
-        os.makedirs(log_dir, exist_ok=True)
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            print(f"WARNING: 无法创建日志目录 {log_dir}: {e}，将仅输出到控制台", file=sys.stderr)
+            self._file_handler_enabled = False
 
         self.logger = logging.getLogger("media_importer")
         self.logger.setLevel(self.level)
         self.logger.handlers.clear()
 
-        self._setup_file_handler()
+        self._log_buffer = deque(maxlen=self.MAX_BUFFER_SIZE)
+        self._buffer_lock = threading.Lock()
+
+        if self._file_handler_enabled:
+            self._setup_file_handler()
         self._setup_console_handler()
 
     def _parse_level(self, level_str: str) -> int:
@@ -70,6 +84,19 @@ class Logger:
         }
         extra.update(kwargs)
 
+        entry = {
+            "time": extra["timestamp"],
+            "level": level.upper(),
+            "message": msg
+        }
+        if kwargs.get("task_id"):
+            entry["task_id"] = kwargs["task_id"]
+        if kwargs.get("step"):
+            entry["step"] = kwargs["step"]
+
+        with self._buffer_lock:
+            self._log_buffer.append(entry)
+
         log_method = getattr(self.logger, level.lower())
         log_method(msg, extra=extra)
 
@@ -112,6 +139,13 @@ class Logger:
         for handler in self.logger.handlers:
             if isinstance(handler, RotatingFileHandler):
                 handler.doRollover()
+
+    def get_recent_logs(self, limit: int = 100, task_id: str = None) -> list:
+        with self._buffer_lock:
+            logs = list(self._log_buffer)
+        if task_id:
+            logs = [l for l in logs if l.get("task_id") == task_id]
+        return logs[-limit:]
 
 
 class JsonFormatter(logging.Formatter):

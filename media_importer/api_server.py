@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -195,6 +197,37 @@ class APIHandler(BaseHTTPRequestHandler):
             "by_status": counts
         })
 
+    def _restart_service(self):
+        try:
+            if _global_pipeline:
+                _global_pipeline.pause()
+            if _global_watcher:
+                _global_watcher.stop()
+
+            trim_pkgvar = os.environ.get("TRIM_PKGVAR", "")
+            if trim_pkgvar:
+                cmd_main = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                        "..", "cmd", "main")
+                if not os.path.isfile(cmd_main):
+                    cmd_main = "/var/apps/nas-media-importer/cmd/main"
+
+                def do_fnos_restart():
+                    time.sleep(0.5)
+                    try:
+                        subprocess.run([cmd_main, "stop"], timeout=15, capture_output=True)
+                        time.sleep(1)
+                        subprocess.run([cmd_main, "start"], timeout=15, capture_output=True)
+                    except Exception:
+                        pass
+
+                json_response(self, 200, message="服务正在重启，请等待约5秒后刷新页面...")
+                threading.Thread(target=do_fnos_restart, daemon=True).start()
+            else:
+                json_response(self, 200, message="服务正在重启...")
+                threading.Timer(1.0, lambda: os.execv(sys.executable, [sys.executable] + sys.argv)).start()
+        except Exception as e:
+            json_response(self, 500, message="重启失败: " + str(e))
+
     def _config_reload(self):
         global _config, _global_pipeline, _global_notifier, _global_watcher
         try:
@@ -324,6 +357,29 @@ class APIHandler(BaseHTTPRequestHandler):
             json_response(self, 200, data={"success": ok, "message": msg})
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
+
+    def _config_check_permission(self, body: dict):
+        try:
+            from permission_checker import check_config_permissions
+            cfg_to_check = body if body else (_config or {})
+            result = check_config_permissions(cfg_to_check)
+            json_response(self, 200, data=result, message="权限检测完成")
+        except Exception as e:
+            json_response(self, 500, message=f"权限检测异常: {e}")
+
+    def _path_test(self, body: dict):
+        try:
+            path = (body or {}).get("path", "").strip()
+            need_write = bool((body or {}).get("need_write", True))
+            if not path:
+                json_response(self, 400, message="path 参数必填")
+                return
+            from permission_checker import check_path_permission, get_current_user
+            result = check_path_permission(path, need_write=need_write)
+            result["user"] = get_current_user()
+            json_response(self, 200, data=result, message=result["message"])
+        except Exception as e:
+            json_response(self, 500, message=f"路径测试异常: {e}")
 
     def _config_validate(self):
         """基础配置验证：路径、格式、有效性检查（不含LLM和Hermes连通性）"""
@@ -476,6 +532,8 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Frame-Options", "ALLOWALL")
+        self.send_header("Content-Security-Policy", "frame-ancestors *")
         self.end_headers()
         self.wfile.write(content)
         self.wfile.flush()
@@ -493,6 +551,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/run":
             self._run_batch()
+        elif path == "/api/restart":
+            self._restart_service()
         elif path == "/api/watcher/control":
             self._watcher_control(query)
         elif path == "/api/run/file":
@@ -518,6 +578,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self._config_test_llm(body)
         elif path == "/api/config/test-hermes":
             self._config_test_hermes(body)
+        elif path == "/api/config/check-permission":
+            self._config_check_permission(body)
+        elif path == "/api/path/test":
+            self._path_test(body)
         elif path == "/api/config":
             self._config_save(body)
         else:
@@ -589,7 +653,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     elif isinstance(item, str):
                         result.append(_quote_value(item))
                     elif isinstance(item, bool):
-                        result.append(SingleQuotedScalarString(str(item).lower()))
+                        result.append(item)
                     else:
                         result.append(item)
                 return result
@@ -609,7 +673,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     elif isinstance(v, str):
                         result[k] = _quote_value(v)
                     elif isinstance(v, bool):
-                        result[k] = SingleQuotedScalarString(str(v).lower())
+                        result[k] = v
                     else:
                         result[k] = v
                 return result
@@ -628,7 +692,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     elif isinstance(value, str):
                         target[key] = _quote_value(value)
                     elif isinstance(value, bool):
-                        target[key] = SingleQuotedScalarString(str(value).lower())
+                        target[key] = value
                     else:
                         target[key] = value
 
@@ -638,11 +702,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 if isinstance(doc, (dict, CommentedMap)):
                     for key in list(doc.keys()):
                         value = doc[key]
-                        if isinstance(value, str) and not _was_quoted(value):
+                        if isinstance(value, bool):
+                            doc[key] = value
+                        elif isinstance(value, str) and not _was_quoted(value):
                             if _needs_quote(value):
                                 doc[key] = SingleQuotedScalarString(value)
-                        elif isinstance(value, bool):
-                            doc[key] = SingleQuotedScalarString(str(value).lower())
                         elif isinstance(value, list):
                             _normalize_list_quotes(value)
                         elif isinstance(value, (dict, CommentedMap)):
@@ -653,11 +717,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     item = lst[i]
                     if isinstance(item, (dict, CommentedMap)):
                         _normalize_quotes(item)
+                    elif isinstance(item, bool):
+                        lst[i] = item
                     elif isinstance(item, str) and not _was_quoted(item):
                         if _needs_quote(item):
                             lst[i] = SingleQuotedScalarString(item)
-                    elif isinstance(item, bool):
-                        lst[i] = SingleQuotedScalarString(str(item).lower())
 
             _normalize_quotes(config_doc)
 
@@ -856,7 +920,8 @@ class APIHandler(BaseHTTPRequestHandler):
             overall = "degraded"
 
         try:
-            log_dir = _config.get("log_dir", "")
+            log_dir = _config.get("log_dir", "") if _config else ""
+            checks["log_dir_path"] = log_dir
             if os.path.isdir(log_dir):
                 ok, _ = check_write_permission(log_dir)
                 checks["log_dir"] = "ok" if ok else "no_write_permission"
@@ -1027,7 +1092,10 @@ def start_server(host: str, port: int, config: dict):
 
     persistence_dir = os.path.dirname(persistence_path)
     if persistence_dir:
-        os.makedirs(persistence_dir, exist_ok=True)
+        try:
+            os.makedirs(persistence_dir, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            print(f"WARNING: 无法创建任务持久化目录 {persistence_dir}: {e}", file=sys.stderr)
     _global_task_manager = TaskManager(persistence_path, config)
     _global_metrics = get_metrics()
     _global_logger = get_logger(config)

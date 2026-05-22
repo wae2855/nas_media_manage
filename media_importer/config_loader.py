@@ -117,8 +117,7 @@ def load_config(config_path: str = None) -> dict:
     if not os.path.exists(config_path):
         print(f"配置文件不存在，正在从模板复制: {config_path}")
         copy_config_template(config_path)
-        print("配置文件已生成，请编辑后重新启动程序")
-        sys.exit(1)
+        print("配置文件已生成，请通过前台界面完善配置")
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -147,10 +146,9 @@ def load_config(config_path: str = None) -> dict:
 
     errors = validate_config(config)
     if errors:
-        print("配置校验失败:")
+        print("配置校验警告（服务仍可启动，请通过前台完善配置）:")
         for error in errors:
             print(f"  - {error}")
-        sys.exit(1002)
 
     config["_config_path"] = os.path.abspath(config_path)
 
