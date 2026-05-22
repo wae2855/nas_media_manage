@@ -4,7 +4,8 @@ import re
 import time
 import urllib.request
 import ssl
-from typing import List, Dict, Any
+import os
+from typing import List, Dict, Any, Optional
 
 
 class LLMScrapeError(Exception):
@@ -12,6 +13,78 @@ class LLMScrapeError(Exception):
 
 
 class LLMScraper:
+    DEFAULT_SYSTEM_PROMPT = """你是一个专业的影视信息刮削助手。
+请根据提供的视频文件名和字幕文件名，提取影视元数据信息。
+
+重要原则：
+1. 先根据文件名提取可确定的元数据（标题、分辨率、季/集编号等）。
+2. 对于文件名中缺失但你可以通过对这部的了解推断出的信息（如年份、类型等），
+   请大胆填写，不要留空。例如：看到 Breaking Bad S01E02，你应该知道这是
+   《绝命毒师》第一季第二集，首播年份为2008年，类型为tv，不是纪录片。
+3. 只有当你完全无法判断时，才将字段设为 null。
+4. confidence 评分应基于信息完整性：能确定标题+类型+年份的应 ≥0.9，
+   确定标题+类型但年份不确定的应 0.8-0.85，信息严重不足的才给低分。
+
+【标题翻译规则 - 非常重要】
+- 对于已知的影视作品，请使用官方中文译名，不要直译英文标题
+- 常见经典作品的正确译名：
+  * Wuthering Heights → 呼啸山庄（不是"简风暴"或"呼啸的山丘"）
+  * besthd-virgin.territory → 七日谈（成人系列频道，非直译"童贞领地"）
+  * 各种成人影片/系列请使用其公认的中文名称
+- 如果不确定某个标题的官方译名，可以：
+  1. 尝试搜索对应的中文名称
+  2. 使用常见的意译名称
+  3. 切勿机械直译导致歧义
+
+【限制级分类规则 - 非常重要】
+限制级(restricted)判断标准：包含明确的暴力血腥、裸露性爱、深度恐怖等
+成人内容的影视作品应标记为 restricted=yes。
+
+以下典型例子都是限制级：
+- 西部世界(Westworld)：大量暴力、裸露、性爱场景 → restricted=yes
+- 绝命毒师(Breaking Bad)：暴力、毒品、犯罪题材 → restricted=yes
+- 权利的游戏(Game of Thrones)：暴力、裸露 → restricted=yes
+- 斯巴达克斯(Spartacus)：极度暴力、大量裸露 → restricted=yes
+- 呼啸山庄(Wuthering Heights)：2024/2025/2026年翻拍版本含R级内容 → restricted=yes
+- 任何美国R级（Rated R）电影或剧集 → restricted=yes
+- 经典文学改编但含有成人内容的作品 → restricted=yes
+- 成人向动画（如：Death Note, Berserk, Goblin Slayer等）→ restricted=yes
+
+以下通常为非限制级：
+- PG-13或更低分级的作品
+- 儿童动画、合家欢影片
+- 普通剧情片、轻喜剧、纪录片
+
+【维度判断】
+当前需要判断的维度："""
+
+    DEFAULT_SERIES_PROMPT = """你是一个专业的影视信息刮削助手。
+请根据提供的电视剧名称，判断这部电视剧的整体属性。
+
+重要原则：
+1. 请基于对整部剧的了解来判断，不要针对某一集。
+2. 判断应覆盖整部剧的整体风格，而非某一集的特定内容。
+
+【标题翻译规则】
+- 对于已知的影视作品，请使用官方中文译名，不要直译英文标题
+- 如果不确定官方译名，可以使用常见的意译名称
+
+【限制级分类规则】
+限制级(restricted)判断标准：包含明确的暴力血腥、裸露性爱、深度恐怖等
+成人内容的影视作品应标记为 restricted=yes。
+
+以下典型例子都是限制级：
+- 西部世界(Westworld)：大量暴力、裸露、性爱场景 → restricted=yes
+- 绝命毒师(Breaking Bad)：暴力、毒品、犯罪题材 → restricted=yes
+- 权利的游戏(Game of Thrones)：暴力、裸露 → restricted=yes
+- 斯巴达克斯(Spartacus)：极度暴力、大量裸露 → restricted=yes
+- 呼啸山庄(Wuthering Heights)：2024/2025/2026年翻拍版本含R级内容 → restricted=yes
+- 任何美国R级（Rated R）电影或剧集 → restricted=yes
+- 经典文学改编但含有成人内容的作品 → restricted=yes
+
+【维度判断】
+当前需要判断的维度："""
+
     def __init__(self, config: dict):
         llm_config = config.get('llm', {})
         self.api_key = llm_config.get('api_key', '')
@@ -25,29 +98,42 @@ class LLMScraper:
         self.verify_ssl = llm_config.get('verify_ssl', True)
         self.dimensions = config.get('dimensions', [])
 
-    def _build_system_prompt(self) -> str:
-        prompt_parts = [
-            "你是一个专业的影视信息刮削助手。",
-            "请根据提供的视频文件名和字幕文件名，提取影视元数据信息。",
-            "",
-            "重要原则：",
-            "1. 先根据文件名提取可确定的元数据（标题、分辨率、季/集编号等）。",
-            "2. 对于文件名中缺失但你可以通过对这部的了解推断出的信息（如年份、类型等），",
-            "   请大胆填写，不要留空。例如：看到 Breaking Bad S01E02，你应该知道这是",
-            "   《绝命毒师》第一季第二集，首播年份为2008年，类型为tv，不是纪录片。",
-            "3. 只有当你完全无法判断时，才将字段设为 null。",
-            "4. confidence 评分应基于信息完整性：能确定标题+类型+年份的应 ≥0.9，",
-            "   确定标题+类型但年份不确定的应 0.8-0.85，信息严重不足的才给低分。",
-            "5. 限制级(restricted)判断标准：包含明确的暴力血腥、裸露性爱、深度恐怖等",
-            "   成人内容的影视作品应标记为 restricted=yes。以下典型例子都是限制级：",
-            "   - 西部世界(Westworld)：大量暴力、裸露、性爱场景 → restricted=yes",
-            "   - 绝命毒师(Breaking Bad)：暴力、毒品、犯罪题材 → restricted=yes",
-            "   - 权利的游戏(Game of Thrones)：暴力、裸露 → restricted=yes",
-            "   - 斯巴达克斯(Spartacus)：极度暴力、大量裸露 → restricted=yes",
-            "   普通剧情片、轻喜剧、动画片等通常为 restricted=no。",
-            "",
-            "当前需要判断的维度："
+        self.custom_system_prompt = llm_config.get('system_prompt', '')
+        self.custom_series_prompt = llm_config.get('series_prompt', '')
+
+        self._load_prompts_from_file()
+
+    def _load_prompts_from_file(self):
+        """从配置文件加载自定义提示词"""
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'scraper_prompts.md'),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', 'scraper_prompts.md'),
+            '/vol3/@appdata/nas-media-importer/config/scraper_prompts.md',
         ]
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    import re as re_module
+                    system_match = re_module.search(r'system_prompt:\s*\|\s*\n([\s\S]*?)(?=\n\w|$)', content)
+                    series_match = re_module.search(r'series_prompt:\s*\|\s*\n([\s\S]*?)(?=\n\w|$)', content)
+
+                    if system_match:
+                        self.custom_system_prompt = system_match.group(1).strip()
+                    if series_match:
+                        self.custom_series_prompt = series_match.group(1).strip()
+                    break
+                except Exception:
+                    pass
+
+    def _build_system_prompt(self) -> str:
+        if self.custom_system_prompt:
+            prompt_parts = [self.custom_system_prompt]
+        else:
+            prompt_parts = [self.DEFAULT_SYSTEM_PROMPT]
 
         for i, dim in enumerate(self.dimensions, 1):
             name = dim.get('name', '')
@@ -220,23 +306,10 @@ class LLMScraper:
         return self._retry_with_fallback(system_prompt, user_content)
 
     def _build_series_prompt(self) -> str:
-        prompt_parts = [
-            "你是一个专业的影视信息刮削助手。",
-            "请根据提供的电视剧名称，判断这部电视剧的整体属性。",
-            "",
-            "重要原则：",
-            "1. 请基于对整部剧的了解来判断，不要针对某一集。",
-            "2. 判断应覆盖整部剧的整体风格，而非某一集的特定内容。",
-            "3. 限制级(restricted)判断标准：包含明确的暴力血腥、裸露性爱、深度恐怖等",
-            "   成人内容的影视作品应标记为 restricted=yes。以下典型例子都是限制级：",
-            "   - 西部世界(Westworld)：大量暴力、裸露、性爱场景 → restricted=yes",
-            "   - 绝命毒师(Breaking Bad)：暴力、毒品、犯罪题材 → restricted=yes",
-            "   - 权利的游戏(Game of Thrones)：暴力、裸露 → restricted=yes",
-            "   - 斯巴达克斯(Spartacus)：极度暴力、大量裸露 → restricted=yes",
-            "   普通剧情片、轻喜剧、动画片等通常为 restricted=no。",
-            "",
-            "当前需要判断的维度："
-        ]
+        if self.custom_series_prompt:
+            prompt_parts = [self.custom_series_prompt]
+        else:
+            prompt_parts = [self.DEFAULT_SERIES_PROMPT]
 
         for i, dim in enumerate(self.dimensions, 1):
             name = dim.get('name', '')
