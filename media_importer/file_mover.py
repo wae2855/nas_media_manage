@@ -22,7 +22,7 @@ def apply_subtitle_template(video_basename: str, lang: str, subtitle_ext: str) -
 
 def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
                    scraped_info: dict, filename_templates: dict,
-                   allowed_base_dirs: list = None, use_original_filename: bool = False) -> dict:
+                   allowed_base_dirs: list = None) -> dict:
     ok, msg = check_write_permission(import_dir)
     if not ok:
         raise IOError(f"入库目录不可写: {msg}")
@@ -35,18 +35,12 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
 
     video_ext = os.path.splitext(video_path)[1]
 
-    if use_original_filename:
-        # 使用原始文件名
-        final_video_filename = os.path.basename(video_path)
+    if scraped_info.get('type') == 'tv':
+        template = filename_templates.get('tv', '{title_cn}.{title_en}.{year}.S{season}E{episode}.{ext}')
     else:
-        # 使用模板生成文件名
-        if scraped_info.get('type') == 'tv':
-            template = filename_templates.get('tv', '{title_cn}.{title_en}.{year}.S{season}E{episode}.{ext}')
-        else:
-            template = filename_templates.get('movie', '{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}')
+        template = filename_templates.get('movie', '{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}')
 
-        final_video_filename = apply_filename_template(scraped_info, template, video_ext)
-    
+    final_video_filename = apply_filename_template(scraped_info, template, video_ext)
     dest_video = os.path.join(import_dir, final_video_filename)
 
     if os.path.exists(dest_video):

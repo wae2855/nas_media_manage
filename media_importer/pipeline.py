@@ -162,29 +162,8 @@ class PipelineRunner:
             self.hooks.run_before_process(task.to_dict())
             self._step_copy(task)
             temp_video_path_for_cleanup = task.video_path
-            
-            # 检查是否启用了文件刮削
-            file_scraping_config = self.config.get('file_scraping', {})
-            file_scraping_enabled = file_scraping_config.get('enabled', True)
-            
-            if file_scraping_enabled:
-                self._step_scrape(task)
-                self._step_validate(task)
-            else:
-                self._log("info", f"文件刮削已禁用，使用原始文件名: {task.video_file}", task, "scrape")
-                # 构造基本的刮削信息，使用原始文件名
-                task.scraped_info = {
-                    'title_cn': os.path.splitext(task.video_file)[0],
-                    'title_en': os.path.splitext(task.video_file)[0],
-                    'year': '',
-                    'type': 'other',  # 默认类型
-                    'confidence': 1.0,
-                    'dimensions': {}
-                }
-                # 直接更新进度
-                self._update_progress(task, 3, "scrape", 50)
-                self._update_progress(task, 4, "validate", 55)
-            
+            self._step_scrape(task)
+            self._step_validate(task)
             self._step_classify(task)
             self._step_dedup(task)
             self._step_rename(task)
@@ -641,26 +620,15 @@ class PipelineRunner:
         self._log("info", f"生成文件名: {task.video_file}", task, "rename")
 
         if not task.final_filename:
-            # 检查是否启用了文件刮削
-            file_scraping_config = self.config.get('file_scraping', {})
-            file_scraping_enabled = file_scraping_config.get('enabled', True)
-            
-            if not file_scraping_enabled:
-                # 文件刮削禁用，直接使用原始文件名
-                video_ext = os.path.splitext(task.video_path)[1]
-                task.final_filename = os.path.basename(task.video_path)
-                self._log("info", f"文件刮削已禁用，使用原始文件名: {task.final_filename}", task, "rename")
+            templates = self.config.get('filename_templates', {})
+            video_ext = os.path.splitext(task.video_path)[1]
+            if task.scraped_info.get('type') == 'tv':
+                template = templates.get('tv', '')
             else:
-                # 文件刮削启用，使用模板生成文件名
-                templates = self.config.get('filename_templates', {})
-                video_ext = os.path.splitext(task.video_path)[1]
-                if task.scraped_info.get('type') == 'tv':
-                    template = templates.get('tv', '')
-                else:
-                    template = templates.get('movie', '')
-                task.final_filename = apply_filename_template(
-                    task.scraped_info, template, video_ext
-                )
+                template = templates.get('movie', '')
+            task.final_filename = apply_filename_template(
+                task.scraped_info, template, video_ext
+            )
 
         self._update_progress(task, 7, "rename", 75)
 

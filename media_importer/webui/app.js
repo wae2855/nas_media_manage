@@ -1,6 +1,14 @@
 let currentConfig = {};
 let refreshInterval = null;
 
+// 固定维度定义
+const FIXED_DIMENSIONS = [
+    { name: 'media_type', label: '影视类型', type: 'select', options: ['', 'movie', 'tv'] },
+    { name: 'documentary', label: '是否纪录片', type: 'select', options: ['', 'true', 'false'] },
+    { name: 'animation', label: '是否动漫', type: 'select', options: ['', 'true', 'false'] },
+    { name: 'restricted_level', label: '限制级', type: 'multi-select', options: ['0-6', '7-12', '13-15', '17+'] }
+];
+
 function getApiBase() {
     var path = window.location.pathname;
     var idx = path.indexOf('/index.cgi');
@@ -35,11 +43,42 @@ function switchTab(tabName) {
     
     document.getElementById(`${tabName}-panel`).classList.add('active');
     document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    var subTabBar = document.getElementById('config-sub-tab-bar');
+    if (subTabBar) {
+        subTabBar.style.display = (tabName === 'config') ? '' : 'none';
+    }
     
     if (tabName === 'tasks') {
         loadTasks();
         refreshLogs();
     }
+
+    if (tabName === 'config') {
+        applyConfigSubTab(_currentConfigSubTab || 'import');
+    }
+}
+
+// ==================== 配置面板子页签 ====================
+
+var _currentConfigSubTab = 'import';
+
+function switchConfigSubTab(name) {
+    _currentConfigSubTab = name;
+    applyConfigSubTab(name);
+}
+
+function applyConfigSubTab(name) {
+    var btns = document.querySelectorAll('.config-sub-tab-btn');
+    btns.forEach(function(btn) { btn.classList.remove('active'); });
+    var activeBtn = document.getElementById('cfg-subtab-' + name);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    var sections = document.querySelectorAll('#cfg-sections-host .config-section');
+    sections.forEach(function(sec) {
+        var owner = sec.getAttribute('data-subtab') || '';
+        sec.style.display = (owner === name) ? '' : 'none';
+    });
 }
 
 function showToast(message, type = 'success') {
@@ -270,22 +309,7 @@ async function loadConfig() {
         document.getElementById('cfg-source_dir_scan-max_depth').value = scan.max_depth || 5;
 
         var pathRules = c.path_rules || [];
-        if (Array.isArray(pathRules)) {
-            var yamlLines = [];
-            for (var i = 0; i < pathRules.length; i++) {
-                var rule = pathRules[i];
-                yamlLines.push('- conditions:');
-                var cond = rule.conditions || {};
-                var keys = Object.keys(cond);
-                for (var j = 0; j < keys.length; j++) {
-                    yamlLines.push('    ' + keys[j] + ': ' + cond[keys[j]]);
-                }
-                yamlLines.push("  template: '" + (rule.template || '') + "'");
-            }
-            document.getElementById('cfg-path_rules').value = yamlLines.join('\n');
-        } else {
-            document.getElementById('cfg-path_rules').value = '';
-        }
+        renderPathRules(pathRules);
 
         var ft = c.filename_templates || {};
         document.getElementById('cfg-filename_templates-movie').value = ft.movie || '';
@@ -301,14 +325,17 @@ async function loadConfig() {
         var sfh = c.source_file_handling || {};
         document.getElementById('cfg-source_file_handling-delete_after_process').checked = !!sfh.delete_after_process;
 
-        var fs = c.file_scraping || {};
-        var fileScrapingEnabled = (fs.enabled !== false);
-        document.getElementById('cfg-file_scraping_enabled').checked = fileScrapingEnabled;
-        onFileScrapingToggle();
-
         var tq = c.task_queue || {};
         document.getElementById('cfg-task_queue-persistence_path').value = tq.persistence_path || '';
         document.getElementById('cfg-task_queue-max_concurrent').value = tq.max_concurrent || 1;
+
+        var manualReview = c.manual_review || {};
+        document.getElementById('cfg-manual_review-enabled').checked = !!manualReview.enabled;
+
+        if (result.data && result.data.prompts) {
+            var prompts = result.data.prompts;
+            document.getElementById('prompt-system').value = prompts.system_prompt || '';
+        }
     } catch (e) {
         console.error('loadConfig error:', e);
         showToast('加载配置异常: ' + e.message, 'error');
@@ -391,40 +418,7 @@ function buildConfigFromForm() {
         max_depth: parseInt(document.getElementById('cfg-source_dir_scan-max_depth').value)
     };
     
-    // path_rules 使用 YAML 格式
-    const pathRulesText = document.getElementById('cfg-path_rules').value;
-    try {
-        // 简单的 YAML 解析（只处理我们需要的格式）
-        const rules = [];
-        const lines = pathRulesText.trim().split('\n');
-        let currentRule = null;
-        
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('- conditions:')) {
-                if (currentRule) {
-                    rules.push(currentRule);
-                }
-                currentRule = { conditions: {}, template: '' };
-            } else if (currentRule && trimmed.startsWith('template:')) {
-                currentRule.template = trimmed.replace(/^template:\s*/, '').replace(/['"]/g, '');
-            } else if (currentRule && trimmed.length > 0 && !trimmed.startsWith('-')) {
-                const parts = trimmed.split(':');
-                if (parts.length >= 2) {
-                    const key = parts[0].trim();
-                    const value = parts.slice(1).join(':').trim().replace(/['"]/g, '');
-                    currentRule.conditions[key] = value;
-                }
-            }
-        }
-        if (currentRule) {
-            rules.push(currentRule);
-        }
-        config.path_rules = rules;
-    } catch (e) {
-        console.error('Invalid path_rules YAML:', e);
-        config.path_rules = [];
-    }
+    config.path_rules = collectPathRulesFromDOM();
 
     config.filename_templates = {
         movie: document.getElementById('cfg-filename_templates-movie').value,
@@ -441,15 +435,15 @@ function buildConfigFromForm() {
         delete_after_process: document.getElementById('cfg-source_file_handling-delete_after_process').checked
     };
 
-    config.file_scraping = {
-        enabled: document.getElementById('cfg-file_scraping_enabled').checked
-    };
-    
     config.task_queue = {
         persistence_path: document.getElementById('cfg-task_queue-persistence_path').value,
         max_concurrent: parseInt(document.getElementById('cfg-task_queue-max_concurrent').value)
     };
-    
+
+    config.manual_review = {
+        enabled: document.getElementById('cfg-manual_review-enabled').checked
+    };
+
     return config;
 }
 
@@ -518,24 +512,15 @@ async function testAllImportPaths() {
     var resultEl = document.getElementById('perm-result-import-dirs');
     if (!resultEl) return;
 
-    var rulesText = (document.getElementById('cfg-path_rules').value || '').trim();
-    if (!rulesText) {
+    var path_rules = collectPathRulesFromDOM();
+    if (!path_rules || path_rules.length === 0) {
         resultEl.className = 'perm-result perm-error';
-        resultEl.textContent = '请先填写入库规则';
+        resultEl.textContent = '请先添加入库规则';
         return;
     }
 
     resultEl.className = 'perm-result perm-loading';
     resultEl.textContent = '正在测试所有入库目录...';
-
-    var path_rules;
-    try {
-        path_rules = parsePathRulesYaml(rulesText);
-    } catch (e) {
-        resultEl.className = 'perm-result perm-error';
-        resultEl.textContent = '入库规则解析失败: ' + e.message;
-        return;
-    }
 
     var result = await apiRequest('POST', '/config/check-permission', {
         source_dir: '',
@@ -658,14 +643,6 @@ function onDedupEnabledChange() {
     var enabled = checkbox.checked;
     if (warning) warning.style.display = enabled ? 'none' : 'block';
     if (strategyGroup) strategyGroup.style.display = enabled ? 'block' : 'none';
-}
-
-function onFileScrapingToggle() {
-    var checkbox = document.getElementById('cfg-file_scraping_enabled');
-    var llmSection = document.getElementById('llm-config-section');
-    if (!checkbox || !llmSection) return;
-    var enabled = checkbox.checked;
-    llmSection.style.display = enabled ? 'block' : 'none';
 }
 
 function onHermesToggle() {
@@ -931,6 +908,282 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ==================== 路径规则动态 UI ====================
+
+function renderPathRules(rules) {
+    const container = document.getElementById('path-rules-container');
+    if (!container) return;
+    if (!Array.isArray(rules)) rules = [];
+
+    container.innerHTML = rules.map((rule, index) => createRuleCardHTML(rule, index, rules.length)).join('');
+
+    if (rules.length === 1) {
+        var firstCard = container.querySelector('.rule-card');
+        if (firstCard) firstCard.classList.add('expanded');
+    }
+
+    bindPathRuleDrag();
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function buildRuleSummary(rule) {
+    var conditions = rule.conditions || {};
+    var tagsHTML = '';
+    var hasTag = false;
+    for (var d = 0; d < FIXED_DIMENSIONS.length; d++) {
+        var dim = FIXED_DIMENSIONS[d];
+        var value = conditions[dim.name];
+        if (value === undefined || value === null || value === '') continue;
+        var displayValue;
+        if (dim.type === 'multi-select') {
+            displayValue = String(value).split('|').map(function(s) { return s.trim(); }).filter(Boolean).join(' / ');
+            if (!displayValue) continue;
+        } else {
+            displayValue = String(value);
+        }
+        tagsHTML += '<span class="rule-summary-tag">' +
+            '<span class="rule-summary-tag-key">' + escapeHtml(dim.label) + '</span>' +
+            '<span class="rule-summary-tag-val">' + escapeHtml(displayValue) + '</span>' +
+            '</span>';
+        hasTag = true;
+    }
+    if (!hasTag) {
+        tagsHTML = '<span class="rule-summary-tag rule-summary-tag-empty">无条件</span>';
+    }
+
+    var tpl = rule.template || '';
+    var pathHTML;
+    if (!tpl) {
+        pathHTML = '<span class="rule-summary-path-empty">(未设置)</span>';
+    } else {
+        pathHTML = tpl.replace(/(\{[^}]+\})|([^{]+)/g, function(_, varToken, textToken) {
+            if (varToken) {
+                return '<span class="rule-summary-path-var">' + escapeHtml(varToken) + '</span>';
+            }
+            return '<span class="rule-summary-path-text">' + escapeHtml(textToken) + '</span>';
+        });
+    }
+
+    return '<span class="rule-summary-tags">' + tagsHTML + '</span>' +
+        '<span class="rule-summary-arrow">→</span>' +
+        '<span class="rule-summary-path">' + pathHTML + '</span>';
+}
+
+function createRuleCardHTML(rule, index, total) {
+    var conditions = rule.conditions || {};
+    var summary = buildRuleSummary(rule);
+
+    var conditionsHTML = '';
+    for (var d = 0; d < FIXED_DIMENSIONS.length; d++) {
+        var dim = FIXED_DIMENSIONS[d];
+        var value = conditions[dim.name];
+        if (dim.type === 'select') {
+            conditionsHTML += '<div class="rule-condition-item">' +
+                '<label class="rule-condition-label">' + dim.label + '</label>' +
+                '<select class="rule-condition-select" data-dim="' + dim.name + '">' +
+                dim.options.map(function(opt) {
+                    return '<option value="' + opt + '" ' + (value === opt ? 'selected' : '') + '>' + (opt || '(不限制)') + '</option>';
+                }).join('') +
+                '</select></div>';
+        } else if (dim.type === 'multi-select') {
+            var selectedValues = typeof value === 'string' ? value.split('|').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+            conditionsHTML += '<div class="rule-condition-item">' +
+                '<label class="rule-condition-label">' + dim.label + '（可多选）</label>' +
+                '<div class="rule-condition-checkbox-group" data-dim="' + dim.name + '">' +
+                dim.options.map(function(opt) {
+                    return '<label class="rule-condition-checkbox-label">' +
+                        '<input type="checkbox" value="' + opt + '" ' + (selectedValues.indexOf(opt) >= 0 ? 'checked' : '') + ' data-option="' + opt + '">' + opt +
+                        '</label>';
+                }).join('') +
+                '</div></div>';
+        }
+    }
+
+    return '<div class="rule-card" data-index="' + index + '" draggable="true">' +
+        '<div class="rule-card-bar" onclick="toggleRuleCard(this.parentElement)">' +
+            '<span class="rule-card-drag-handle" title="拖动调整匹配优先顺序" onclick="event.stopPropagation();">' +
+                '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>' +
+            '</span>' +
+            '<span class="rule-card-badge">#' + (index + 1) + '</span>' +
+            '<span class="rule-card-summary">' + summary + '</span>' +
+            '<div class="rule-card-actions">' +
+                '<button class="rule-card-chevron" title="展开/折叠">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>' +
+                '</button>' +
+                '<button title="删除" class="rule-btn-delete" onclick="event.stopPropagation();deletePathRule(' + index + ')">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                '</button>' +
+            '</div>' +
+        '</div>' +
+        '<div class="rule-card-body">' +
+            '<div class="rule-card-body-inner">' +
+                '<div class="rule-conditions">' + conditionsHTML + '</div>' +
+                '<div class="rule-template-row">' +
+                    '<label class="rule-condition-label">入库路径模板</label>' +
+                    '<input type="text" class="rule-template-input" placeholder="/vol1/影视/电影/{year}/{title_cn}/" value="' + (rule.template || '') + '">' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+}
+
+function toggleRuleCard(card) {
+    if (!card) return;
+    card.classList.toggle('expanded');
+}
+
+function collectPathRulesFromDOM() {
+    const container = document.getElementById('path-rules-container');
+    if (!container) return [];
+    const cards = container.querySelectorAll('.rule-card');
+    const rules = [];
+
+    for (const card of cards) {
+        const conditions = {};
+        for (const dim of FIXED_DIMENSIONS) {
+            if (dim.type === 'select') {
+                const select = card.querySelector(`[data-dim="${dim.name}"]`);
+                const value = select ? select.value : '';
+                if (value) {
+                    conditions[dim.name] = value;
+                }
+            } else if (dim.type === 'multi-select') {
+                const group = card.querySelector(`[data-dim="${dim.name}"]`);
+                if (group) {
+                    const checked = Array.from(group.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+                    if (checked.length > 0) {
+                        conditions[dim.name] = checked.join('|');
+                    }
+                }
+            }
+        }
+        const template = card.querySelector('.rule-template-input');
+        rules.push({
+            conditions: conditions,
+            template: template ? template.value : ''
+        });
+    }
+
+    return rules;
+}
+
+function addPathRule() {
+    var currentRules = collectPathRulesFromDOM();
+    currentRules.push({ conditions: {}, template: '' });
+    renderPathRules(currentRules);
+    var cards = document.querySelectorAll('#path-rules-container .rule-card');
+    if (cards.length > 0) {
+        cards[cards.length - 1].classList.add('expanded');
+    }
+}
+
+function deletePathRule(index) {
+    const currentRules = collectPathRulesFromDOM();
+    currentRules.splice(index, 1);
+    renderPathRules(currentRules);
+}
+
+function movePathRuleUp(index) {
+    if (index <= 0) return;
+    const currentRules = collectPathRulesFromDOM();
+    const temp = currentRules[index];
+    currentRules[index] = currentRules[index - 1];
+    currentRules[index - 1] = temp;
+    renderPathRules(currentRules);
+}
+
+function movePathRuleDown(index) {
+    const currentRules = collectPathRulesFromDOM();
+    if (index >= currentRules.length - 1) return;
+    const temp = currentRules[index];
+    currentRules[index] = currentRules[index + 1];
+    currentRules[index + 1] = temp;
+    renderPathRules(currentRules);
+}
+
+// ==================== 路径规则拖拽排序 ====================
+
+var _draggingRuleCard = null;
+
+function bindPathRuleDrag() {
+    var container = document.getElementById('path-rules-container');
+    if (!container) return;
+    var cards = container.querySelectorAll('.rule-card');
+    cards.forEach(function(card) {
+        card.addEventListener('dragstart', onRuleDragStart);
+        card.addEventListener('dragend', onRuleDragEnd);
+        card.addEventListener('dragover', onRuleDragOver);
+        card.addEventListener('dragleave', onRuleDragLeave);
+        card.addEventListener('drop', onRuleDrop);
+    });
+}
+
+function onRuleDragStart(e) {
+    _draggingRuleCard = this;
+    this.classList.add('rule-card-dragging');
+    if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', this.getAttribute('data-index') || ''); } catch (err) {}
+    }
+}
+
+function onRuleDragEnd() {
+    this.classList.remove('rule-card-dragging');
+    var container = document.getElementById('path-rules-container');
+    if (container) {
+        container.querySelectorAll('.rule-card-drop-before, .rule-card-drop-after').forEach(function(el) {
+            el.classList.remove('rule-card-drop-before', 'rule-card-drop-after');
+        });
+    }
+    _draggingRuleCard = null;
+}
+
+function onRuleDragOver(e) {
+    if (!_draggingRuleCard || _draggingRuleCard === this) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    var rect = this.getBoundingClientRect();
+    var isAfter = (e.clientY - rect.top) > rect.height / 2;
+    this.classList.toggle('rule-card-drop-before', !isAfter);
+    this.classList.toggle('rule-card-drop-after', isAfter);
+}
+
+function onRuleDragLeave() {
+    this.classList.remove('rule-card-drop-before', 'rule-card-drop-after');
+}
+
+function onRuleDrop(e) {
+    if (!_draggingRuleCard || _draggingRuleCard === this) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var rect = this.getBoundingClientRect();
+    var isAfter = (e.clientY - rect.top) > rect.height / 2;
+
+    var currentRules = collectPathRulesFromDOM();
+    var fromIndex = parseInt(_draggingRuleCard.getAttribute('data-index'), 10);
+    var toIndex = parseInt(this.getAttribute('data-index'), 10);
+    if (isNaN(fromIndex) || isNaN(toIndex)) return;
+
+    var moved = currentRules.splice(fromIndex, 1)[0];
+    var insertIndex = toIndex;
+    if (fromIndex < toIndex) insertIndex -= 1;
+    if (isAfter) insertIndex += 1;
+    if (insertIndex < 0) insertIndex = 0;
+    if (insertIndex > currentRules.length) insertIndex = currentRules.length;
+    currentRules.splice(insertIndex, 0, moved);
+
+    this.classList.remove('rule-card-drop-before', 'rule-card-drop-after');
+    renderPathRules(currentRules);
+}
+
 function startAutoRefresh() {
     if (refreshInterval) clearInterval(refreshInterval);
     refreshInterval = setInterval(function() {
@@ -947,6 +1200,7 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshLogs();
     startAutoRefresh();
     bindPathPermissionAutoTest();
+    applyConfigSubTab(_currentConfigSubTab);
 });
 
 function bindPathPermissionAutoTest() {
@@ -968,3 +1222,132 @@ function bindPathPermissionAutoTest() {
 window.addEventListener('beforeunload', () => {
     if (refreshInterval) clearInterval(refreshInterval);
 });
+
+// ==================== 提示词编辑 ====================
+
+function togglePromptSection() {
+    var panel = document.getElementById('prompt-panel');
+    var toggleBtn = document.getElementById('btn-toggle-prompts');
+    var arrow = document.getElementById('prompt-collapse-arrow');
+    
+    if (!panel) return;
+    
+    var isHidden = panel.style.display === 'none' || panel.style.display === '';
+    
+    if (isHidden) {
+        panel.style.display = 'block';
+        toggleBtn.classList.add('expanded');
+        arrow.textContent = '▼';
+    } else {
+        panel.style.display = 'none';
+        toggleBtn.classList.remove('expanded');
+        arrow.textContent = '▶';
+    }
+}
+
+async function savePrompts() {
+    var systemPrompt = document.getElementById('prompt-system').value;
+    
+    var result = await apiRequest('POST', '/api/config/prompts', {
+        system_prompt: systemPrompt
+    });
+    
+    if (result.code === 200) {
+        showToast(result.message || '提示词已保存，重启服务后生效', 'success');
+    } else {
+        showToast(result.message || '保存失败', 'error');
+    }
+}
+
+async function resetPrompts() {
+    if (!confirm('确定要恢复出厂默认提示词吗？当前修改将丢失。')) {
+        return;
+    }
+    
+    var result = await apiRequest('POST', '/api/config/prompts/reset');
+    
+    if (result.code === 200) {
+        showToast(result.message || '已恢复出厂默认提示词，重启服务后生效', 'success');
+        var prompts = await apiRequest('GET', '/api/config/prompts');
+        if (prompts.code === 200 && prompts.data) {
+            document.getElementById('prompt-system').value = prompts.data.system_prompt || '';
+        }
+    } else {
+        showToast(result.message || '恢复失败', 'error');
+    }
+}
+
+function previewFullPrompt() {
+    var userPrompt = document.getElementById('prompt-system').value;
+    
+    var dimensionList = [
+        '1. 影视类型（media_type）: [movie, tv]',
+        '2. 是否纪录片（documentary）: [true, false]',
+        '3. 是否动漫（animation）: [true, false]',
+        '4. 限制级分类（restricted_level）: [0-6, 7-12, 13-15, 17+]'
+    ];
+    
+    var fullPart = '\n\n【维度判断】\n当前需要判断的维度：\n' + 
+        dimensionList.join('\n') + '\n\n请严格按以下JSON格式返回，不要添加任何解释文字：\n';
+    
+    var movieSchema = JSON.stringify({
+        "title_cn": "string|null",
+        "title_en": "string|null",
+        "year": "int|null",
+        "resolution": "string|null",
+        "quality": "string|null",
+        "language": "string|null",
+        "type": "movie|tv",
+        "season": "int|null",
+        "episode": "int|null",
+        "dimensions": {
+            "media_type": "movie|tv|null",
+            "documentary": "true|false|null",
+            "animation": "true|false|null",
+            "restricted_level": "0-6|7-12|13-15|17+|null"
+        },
+        "confidence": "float"
+    }, null, 2);
+    
+    var tvSchema = JSON.stringify({
+        "title_cn": "string|null",
+        "title_en": "string|null",
+        "year": "int|null",
+        "type": "tv",
+        "dimensions": {
+            "media_type": "movie|tv|null",
+            "documentary": "true|false|null",
+            "animation": "true|false|null",
+            "restricted_level": "0-6|7-12|13-15|17+|null"
+        },
+        "confidence": "float"
+    }, null, 2);
+    
+    var fullMovie = userPrompt + fullPart + movieSchema;
+    var fullTV = userPrompt + fullPart + tvSchema;
+    
+    var overlay = document.createElement('div');
+    overlay.className = 'prompt-preview-overlay';
+    overlay.innerHTML = '<div class="prompt-preview-dialog">' +
+        '<div class="prompt-preview-header">' +
+        '<span class="prompt-preview-title">完整提示词预览</span>' +
+        '<button class="prompt-preview-close" onclick="this.closest(\'.prompt-preview-overlay\').remove()">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+        '</div>' +
+        '<div class="prompt-preview-body">' +
+        '<h4 style="color:var(--primary-color);margin:0 0 8px 0;">▶ 单视频刮削（movie/tv 均适用）</h4>' +
+        '<pre class="prompt-preview-content" style="margin-bottom:16px;">' + escapeHtml(fullMovie) + '</pre>' +
+        '<h4 style="color:var(--primary-color);margin:0 0 8px 0;">▶ 电视剧系列刮削</h4>' +
+        '<pre class="prompt-preview-content">' + escapeHtml(fullTV) + '</pre>' +
+        '</div>' +
+        '</div>';
+    
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            overlay.remove();
+        }
+    });
+    
+    document.body.appendChild(overlay);
+}

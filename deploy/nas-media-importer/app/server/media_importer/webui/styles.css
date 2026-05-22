@@ -117,7 +117,7 @@ body {
 .main-content {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 24px 24px 0;
 }
 
 .panel {
@@ -440,6 +440,64 @@ body {
     padding: 20px;
     margin-bottom: 20px;
     border: 1px solid var(--border-color);
+}
+
+/* ============== 配置面板：子页签 ============== */
+.config-sub-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 6px 24px 8px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+}
+
+.config-sub-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.config-sub-tab-btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.config-sub-tab-btn:hover {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--text-primary);
+}
+
+.config-sub-tab-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.config-sub-tab-btn.active:hover {
+    background: var(--primary-color);
+}
+
+/* ============== 配置面板：sticky 操作栏 ============== */
+.config-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-top: 24px;
+    padding: 14px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .config-section-title {
@@ -1064,4 +1122,624 @@ body {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
+}
+
+/* ============== 入库规则卡片 ============== */
+.path-rules-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rule-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.rule-card:hover {
+    border-color: #5B6E8C;
+}
+
+.rule-card-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s;
+}
+
+.rule-card-bar:hover {
+    background-color: rgba(59, 130, 246, 0.06);
+}
+
+.rule-card-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 24px;
+    color: var(--text-secondary);
+    opacity: 0.45;
+    cursor: grab;
+    flex-shrink: 0;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.rule-card-drag-handle svg {
+    width: 16px;
+    height: 16px;
+}
+
+.rule-card-bar:hover .rule-card-drag-handle {
+    opacity: 0.85;
+}
+
+.rule-card-drag-handle:active {
+    cursor: grabbing;
+    color: var(--primary-color);
+}
+
+.rule-card.rule-card-dragging {
+    opacity: 0.45;
+    border-color: var(--primary-color);
+}
+
+.rule-card.rule-card-drop-before {
+    box-shadow: 0 -2px 0 0 var(--primary-color);
+}
+
+.rule-card.rule-card-drop-after {
+    box-shadow: 0 2px 0 0 var(--primary-color);
+}
+
+.rule-card-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--primary-color);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.rule-card-summary {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    overflow: hidden;
+}
+
+.rule-summary-tags {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.rule-summary-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(59, 130, 246, 0.10);
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    font-size: 11.5px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.rule-summary-tag-key {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.rule-summary-tag-val {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.rule-summary-tag-empty {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.18);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.rule-summary-arrow {
+    color: var(--text-secondary);
+    opacity: 0.55;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.rule-summary-path {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rule-summary-path-text {
+    color: var(--text-secondary);
+}
+
+.rule-summary-path-var {
+    color: var(--primary-color);
+    background: rgba(59, 130, 246, 0.10);
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin: 0 1px;
+}
+
+.rule-summary-path-empty {
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.rule-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.rule-card-actions button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+
+.rule-card-actions button svg {
+    width: 15px;
+    height: 15px;
+}
+
+.rule-card-actions button:hover:not(:disabled) {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.rule-card-actions button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.rule-card-actions .rule-btn-delete:hover:not(:disabled) {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #EF4444;
+}
+
+.rule-card-chevron {
+    transition: transform 0.25s ease;
+}
+
+.rule-card.expanded .rule-card-chevron {
+    transform: rotate(180deg);
+}
+
+.rule-card-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease;
+}
+
+.rule-card.expanded .rule-card-body {
+    grid-template-rows: 1fr;
+}
+
+.rule-card-body-inner {
+    min-height: 0;
+    overflow: hidden;
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: padding 0.25s ease;
+}
+
+.rule-card.expanded .rule-card-body-inner {
+    padding: 4px 12px 12px 12px;
+}
+
+.rule-conditions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.rule-condition-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.rule-condition-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.rule-condition-select,
+.rule-condition-input {
+    width: 100%;
+    padding: 7px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.rule-condition-select:focus,
+.rule-condition-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.rule-condition-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.rule-condition-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.rule-condition-checkbox-label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--primary-color);
+}
+
+.rule-template-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rule-template-input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+}
+
+.rule-template-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.rule-card-number {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+/* ============== 提示词编辑面板 ============== */
+.prompt-section {
+    margin-top: 20px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 16px;
+}
+
+.prompt-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.prompt-toggle-btn:hover {
+    background: #3d4f6a;
+    border-color: var(--primary-color);
+}
+
+.prompt-toggle-btn svg {
+    width: 16px;
+    height: 16px;
+    color: var(--primary-color);
+}
+
+.prompt-toggle-btn .collapse-arrow {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+}
+
+.prompt-toggle-btn.expanded .collapse-arrow {
+    transform: rotate(90deg);
+}
+
+.prompt-panel {
+    margin-top: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.prompt-tabs {
+    display: flex;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.prompt-tab {
+    flex: 1;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+}
+
+.prompt-tab:hover {
+    color: var(--text-primary);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.prompt-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.prompt-content {
+    display: flex;
+    gap: 0;
+    min-height: 400px;
+}
+
+.prompt-editor-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    border-right: 1px solid var(--border-color);
+}
+
+.prompt-editor-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-textarea {
+    flex: 1;
+    width: 100%;
+    min-height: 320px;
+    padding: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.prompt-textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.prompt-textarea::placeholder {
+    color: var(--text-secondary);
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.prompt-guide {
+    width: 320px;
+    padding: 16px;
+    background: rgba(59, 130, 246, 0.03);
+    overflow-y: auto;
+    max-height: 450px;
+}
+
+.prompt-guide-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.prompt-guide-section {
+    margin-bottom: 16px;
+}
+
+.prompt-guide-heading {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.prompt-guide-section p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.prompt-guide-section ul {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.prompt-guide-section li {
+    margin-bottom: 2px;
+}
+
+.prompt-guide-section pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--text-primary);
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.prompt-guide-section strong {
+    color: var(--primary-color);
+}
+
+/* 预览弹窗 */
+.prompt-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.prompt-preview-dialog {
+    background: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 92%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-preview-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.prompt-preview-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.prompt-preview-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.prompt-preview-close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.prompt-preview-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.prompt-preview-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 16px;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+    .prompt-content {
+        flex-direction: column;
+    }
+    
+    .prompt-guide {
+        width: 100%;
+        max-height: 200px;
+        border-top: 1px solid var(--border-color);
+        border-right: none;
+    }
 }

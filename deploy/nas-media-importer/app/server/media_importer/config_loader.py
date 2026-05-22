@@ -35,7 +35,13 @@ def validate_config(config: dict) -> list:
             except OSError:
                 errors.append(f"{dir_key} 不存在且无法创建: {dir_path}")
 
+    # 固定维度白名单校验
     dimensions = config.get("dimensions", [])
+    EXPECTED_DIMENSION_NAMES = {'media_type', 'documentary', 'animation', 'restricted_level'}
+    actual_names = {dim.get('name') for dim in dimensions if dim.get('name')}
+    if actual_names != EXPECTED_DIMENSION_NAMES:
+        errors.append(f"dimensions 名称必须为 {EXPECTED_DIMENSION_NAMES}，实际为 {actual_names}")
+
     for dim in dimensions:
         if not dim.get("name"):
             errors.append("dimension 缺少 name 字段")

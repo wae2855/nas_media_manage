@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NAS影视整理入库</title>
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body>
     <div class="container">
@@ -43,6 +43,34 @@
                 任务
             </button>
         </nav>
+                <nav class="config-sub-tabs" id="config-sub-tab-bar" style="display:none;">
+                    <button id="cfg-subtab-import" class="config-sub-tab-btn active" onclick="switchConfigSubTab('import')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        入库设置
+                    </button>
+                    <button id="cfg-subtab-llm" class="config-sub-tab-btn" onclick="switchConfigSubTab('llm')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                        </svg>
+                        AI 刮削
+                    </button>
+                    <button id="cfg-subtab-notify" class="config-sub-tab-btn" onclick="switchConfigSubTab('notify')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                        通知与安全
+                    </button>
+                    <button id="cfg-subtab-system" class="config-sub-tab-btn" onclick="switchConfigSubTab('system')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                        系统设置
+                    </button>
+                </nav>
 
         <main class="main-content">
             <!-- 概览面板 -->
@@ -179,7 +207,7 @@
                         安全提醒
                     </h2>
                     <div class="notice-content">
-                        本程序需与 Hermes 服务通信，为保障 NAS 数据安全，建议采取以下措施：<br>
+                        本程序如需与 Hermes 服务通信，为保障 NAS 数据安全，建议采取以下措施：<br>
                         1. 通过 WireGuard 等工具组建内网，或直接将 Hermes 部署在 NAS 服务器上<br>
                         2. 在配置文件中设置 <code>server.api_key</code> 启用 API 认证<br>
                         3. 避免将 API 端口直接暴露到公网，防止未授权访问导致数据损失
@@ -189,7 +217,8 @@
 
             <!-- 配置面板 -->
             <div id="config-panel" class="panel">
-                <div class="config-section">
+                <div id="cfg-sections-host">
+                <div class="config-section" data-subtab="system">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
@@ -216,7 +245,7 @@
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="notify">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -240,7 +269,7 @@
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="import">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
@@ -259,12 +288,13 @@
                         <div id="perm-result-cfg-source_dir" class="perm-result"></div>
                         <div class="form-help">
                             待整理的媒体文件源目录。如果使用 /vol1/、/vol2/ 等共享盘下的目录，
-                            必须在 fnOS 应用中心 → nas-media-importer → 设置 → 授权目录 中添加并赋予【读】权限。
+                            必须在 fnOS 应用中心 → nas-media-importer → 设置 → 授权目录 中添加并赋予【读】权限。<br>
+                            <strong>注意：</strong>如果源目录是飞牛挂载的网盘目录，文件刷新时间可能较久，建议改用Alist网盘来实现短时刷新。
                         </div>
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="import">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -275,14 +305,17 @@
                         入库规则配置
                     </h3>
                     <div class="form-group">
-                        <label class="form-label">入库规则（YAML格式）</label>
-                        <textarea id="cfg-path_rules" class="form-textarea" rows="8" placeholder="- conditions:
-    media_type: tv
-  template: '/path/to/TV/{title_cn}/Season {season}/'
-- conditions:
-    media_type: movie
-  template: '/path/to/Movies/{title_cn}/'"></textarea>
-                        <div class="input-action-row">
+                        <label class="form-label">入库规则（匹配从上到下，命中即止）</label>
+                        <div class="form-hint" style="margin-bottom:16px;">
+                            <strong>⚠️ 重要说明：</strong> 规则从上到下依次匹配，第一个满足所有条件的规则生效。请把具体规则放前面，通用规则放后面。<br>
+                            <span style="color:var(--text-secondary);">💡 提示：按住卡片左侧的 <strong>⋮⋮</strong> 手柄可拖动卡片，调整匹配优先顺序。</span>
+                        </div>
+                        <div id="path-rules-container" class="path-rules-container"></div>
+                        <div class="input-action-row" style="margin-top:16px;">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="addPathRule()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                添加规则
+                            </button>
                             <button type="button" class="btn btn-secondary btn-sm" onclick="testAllImportPaths()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                                 测试所有入库目录权限
@@ -320,13 +353,33 @@
                                 <div class="var-group-title">AI维度变量</div>
                                 <div class="var-item"><code>{dimension.media_type}</code> 影视类型（movie/tv）</div>
                                 <div class="var-item"><code>{dimension.documentary}</code> 是否纪录片</div>
-                                <div class="var-item"><code>{dimension.restricted}</code> 是否限制级</div>
+                                <div class="var-item"><code>{dimension.restricted_level}</code> 限制级分类（0-6/7-12/13-15/17+）</div>
+                                <div class="var-item"><code>{dimension.animation}</code> 是否动漫</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="import">
+                    <h3 class="config-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
+                            <path d="M12 2v4m0 12v4"/>
+                        </svg>
+                        入库前人工检查配置
+                    </h3>
+                    <div class="form-group">
+                        <label class="form-label">启用入库前人工检查</label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="cfg-manual_review-enabled">
+                            <label for="cfg-manual_review-enabled"></label>
+                        </div>
+                        <div class="form-hint">（暂未实现逻辑，仅保留配置项）启用后视频会先移动到目标目录但后缀改为 .nascheck，等待用户确认后再改回原后缀名。</div>
+                    </div>
+                </div>
+
+                <div class="config-section" data-subtab="import">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -351,7 +404,7 @@
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="import">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"/>
@@ -372,7 +425,7 @@
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="import">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
@@ -407,7 +460,7 @@
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="import">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
@@ -426,7 +479,7 @@
                     </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" data-subtab="llm">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -495,9 +548,92 @@
                         </button>
                         <span id="llm-test-result" class="test-result" style="display:none;"></span>
                     </div>
+                    <div class="prompt-section">
+                        <button class="prompt-toggle-btn expanded" id="btn-toggle-prompts" onclick="togglePromptSection()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                            <span id="prompt-toggle-text">编辑刮削提示词</span>
+                            <span class="collapse-arrow" id="prompt-collapse-arrow">▼</span>
+                        </button>
+                        <div class="prompt-panel" id="prompt-panel" style="display:block;">
+                            <div class="prompt-content">
+                                <div class="prompt-editor-area">
+                                    <textarea id="prompt-system" class="prompt-textarea" placeholder="系统提示词..."></textarea>
+                                    <div class="prompt-actions">
+                                        <button class="btn btn-primary btn-sm" onclick="savePrompts()">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                            保存修改
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="resetPrompts()">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 21H3v-5"/></svg>
+                                            重置为默认
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="previewFullPrompt()">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                            预览完整提示词
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="prompt-guide">
+                                    <h4 class="prompt-guide-title">📖 提示词编写指南</h4>
+                                    <div class="prompt-guide-section">
+                                        <div class="prompt-guide-heading">文件结构</div>
+                                        <p>提示词采用双文件管理：</p>
+                                        <ul>
+                                            <li><strong>scraper_prompts.example.md</strong>：出厂默认模板（只读，不会被程序修改）</li>
+                                            <li><strong>scraper_prompts.md</strong>：您的自定义文件（保存时自动创建，优先使用）</li>
+                                            <li>点击"重置为默认"会删除自定义文件，恢复使用出厂模板</li>
+                                        </ul>
+                                    </div>
+                                    <div class="prompt-guide-section">
+                                        <div class="prompt-guide-heading">提示词结构</div>
+                                        <p>提示词分为上下两半：</p>
+                                        <ul>
+                                            <li><strong>上半部</strong>（下方编辑区）：您自由编写的内容，会完整发送给 AI</li>
+                                            <li><strong>下半部</strong>（程序自动追加）：分隔线 + 维度列表 + JSON Schema，无需手动编写</li>
+                                        </ul>
+                                    </div>
+                                    <div class="prompt-guide-section">
+                                        <div class="prompt-guide-heading">限制级分类（必须包含）</div>
+                                        <p>请在提示词中明确说明限制级判断标准，程序会自动补充可选值：</p>
+                                        <pre>restricted_level 分级标准（4选1）：
+- "0-6": 适合0-6岁幼儿/儿童
+- "7-12": 适合7-12岁儿童/家庭
+- "13-15": 适合13-15岁青少年
+- "17+": 仅适合17岁以上成人</pre>
+                                    </div>
+                                    <div class="prompt-guide-section">
+                                        <div class="prompt-guide-heading">动漫分类（必须包含）</div>
+                                        <p>请在提示词中明确说明动漫判断标准：</p>
+                                        <pre>animation 判断标准（true/false）：
+- true: 任何动画形式
+- false: 真人拍摄的作品</pre>
+                                    </div>
+                                    <div class="prompt-guide-section">
+                                        <div class="prompt-guide-heading">其他维度</div>
+                                        <ul>
+                                            <li><strong>media_type</strong>：movie（电影）/ tv（电视剧）</li>
+                                            <li><strong>documentary</strong>：true（纪录片）/ false（不是纪录片）</li>
+                                        </ul>
+                                    </div>
+                                    <div class="prompt-guide-section">
+                                        <div class="prompt-guide-heading">刮削优化建议</div>
+                                        <ul>
+                                            <li>提供具体例子（如"小猪佩奇→0-6"）帮助 AI 理解</li>
+                                            <li>强调标题翻译规则，使用官方译名而非直译</li>
+                                            <li>说明 confidence 评分的含义和评分标准</li>
+                                            <li>保留原有的重要规则（如幼儿动画、低龄启蒙→0-6）</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="config-section">
+                <div class="config-section" id="hermes-config-section" data-subtab="notify">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -507,7 +643,7 @@
                     <div class="form-group">
                         <label class="form-label">启用通知</label>
                         <div class="toggle-switch">
-                            <input type="checkbox" id="cfg-hermes_enabled">
+                            <input type="checkbox" id="cfg-hermes_enabled" onchange="onHermesToggle()">
                             <label for="cfg-hermes_enabled"></label>
                         </div>
                     </div>
@@ -564,7 +700,7 @@
                     </div>
                 </div>
 
-                <div class="config-section config-section-advanced">
+                <div class="config-section config-section-advanced" data-subtab="system">
                     <h3 class="config-section-title collapsible" onclick="toggleAdvancedSection(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -623,7 +759,9 @@
                     </div>
                 </div>
 
-                <div class="btn-group btn-group-right">
+                </div><!-- /#cfg-sections-host -->
+
+                <div class="btn-group btn-group-right config-action-bar">
                     <button class="btn btn-danger" onclick="resetConfig()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
@@ -731,6 +869,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=21"></script>
 </body>
 </html>

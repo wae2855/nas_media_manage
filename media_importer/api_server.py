@@ -243,7 +243,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
             if _global_pipeline:
                 _global_pipeline.config = _config
-                _global_pipeline.scraper = type(_global_pipeline.scraper)(_config)
+                from media_importer.llm_scraper import LLMScraper
+                _global_pipeline.scraper = LLMScraper(_config)
                 _global_pipeline.copier = type(_global_pipeline.copier)(_config.get('temp_dir', ''))
 
             hermes_cfg = _config.get("hermes", {})
@@ -251,6 +252,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 _global_notifier = HermesNotifier(_config)
             else:
                 _global_notifier = None
+
+            if _global_pipeline:
+                _global_pipeline.notifier = _global_notifier
 
             if _global_watcher:
                 _global_watcher.stop()
@@ -483,6 +487,11 @@ class APIHandler(BaseHTTPRequestHandler):
             self._config()
         elif path == "/api/config/validate":
             self._config_validate()
+        elif path == "/api/config/prompts":
+            prompts_data = self._load_prompts_for_ui()
+            json_response(self, 200, data=prompts_data)
+        elif path == "/api/config/prompts/reset":
+            self._config_reset_prompts()
         elif path == "/api/watcher/status":
             self._watcher_status()
         elif path == "/api/tasks":
@@ -584,6 +593,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self._path_test(body)
         elif path == "/api/config":
             self._config_save(body)
+        elif path == "/api/config/prompts":
+            self._config_save_prompts(body)
+        elif path == "/api/config/prompts/reset":
+            self._config_reset_prompts()
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
 
@@ -972,7 +985,119 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def _config(self):
         masked = mask_sensitive(_config) if _config else {}
-        json_response(self, 200, data={"config": masked})
+        prompts_data = self._load_prompts_for_ui()
+        json_response(self, 200, data={"config": masked, "prompts": prompts_data})
+
+    def _load_prompts_for_ui(self) -> dict:
+        """
+        读取提示词上半部返回前端展示。
+        优先级：scraper_prompts.md（用户） > scraper_prompts.example.md（出厂默认）
+        """
+        try:
+            config_path = _config.get("_config_path") if _config else None
+            if config_path:
+                prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+            else:
+                prompts_dir = os.path.dirname(os.path.abspath(__file__))
+
+            user_file = os.path.join(prompts_dir, "config", "scraper_prompts.md")
+            example_file = os.path.join(prompts_dir, "config", "scraper_prompts.example.md")
+
+            import yaml as _yaml
+
+            sp = ""
+            using_custom = False
+
+            if os.path.isfile(user_file):
+                with open(user_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if "system_prompt:" in content:
+                    data = _yaml.safe_load(content)
+                    if data and isinstance(data, dict):
+                        sp = (data.get("system_prompt") or "").strip()
+                        using_custom = bool(sp)
+
+            if not sp and os.path.isfile(example_file):
+                data = _yaml.safe_load(open(example_file, "r", encoding="utf-8").read())
+                if data and isinstance(data, dict):
+                    sp = (data.get("system_prompt") or "").strip()
+                    using_custom = False
+
+            if not sp:
+                from media_importer.llm_scraper import LLMScraper
+                ds = LLMScraper.DEFAULT_SYSTEM_PROMPT
+                SEP = "【维度判断】\n当前需要判断的维度："
+                if ds.endswith(SEP):
+                    ds = ds[:-len(SEP)]
+                return {"system_prompt": ds, "using_custom": False}
+
+            return {"system_prompt": sp, "using_custom": using_custom}
+        except Exception as e:
+            import sys, traceback
+            print(f"[ERROR] _load_prompts_for_ui failed: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return {"system_prompt": "", "using_custom": False}
+
+    def _config_save_prompts(self, body: dict):
+        """保存提示词到 scraper_prompts.md"""
+        try:
+            if not body:
+                json_response(self, 400, message="Empty body")
+                return
+
+            system_prompt = body.get("system_prompt", "").strip()
+
+            config_path = _config.get("_config_path") if _config else None
+            if config_path:
+                prompts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config_path))), "config", "scraper_prompts.md")
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                prompts_file = os.path.join(base_dir, "config", "scraper_prompts.md")
+
+            head_comment = """# ============================================================
+# LLM 刮削提示词配置 - 用户自定义
+# ============================================================
+# 在此文件中修改提示词内容，程序会优先使用此处配置
+# 提示词分为两半：上半部（此文件）由您编写，下半部（维度列表+JSON Schema）由程序自动追加
+# 如需恢复出厂默认，点击 WebUI 中的 "重置为默认" 即可
+
+"""
+
+            from ruamel.yaml import YAML
+            from ruamel.yaml.scalarstring import LiteralScalarString
+
+            yaml = YAML()
+            yaml.preserve_quotes = True
+            yaml.width = 120
+
+            doc = {}
+            if system_prompt:
+                doc["system_prompt"] = LiteralScalarString(system_prompt)
+
+            with open(prompts_file, "w", encoding="utf-8") as f:
+                f.write(head_comment)
+                yaml.dump(doc, f)
+
+            json_response(self, 200, message="提示词已保存，重启服务后生效")
+        except Exception as e:
+            json_response(self, 500, message="保存提示词失败: " + str(e))
+
+    def _config_reset_prompts(self):
+        """恢复出厂默认提示词（删除用户文件，回退到 example.md）"""
+        try:
+            config_path = _config.get("_config_path") if _config else None
+            if config_path:
+                prompts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config_path))), "config", "scraper_prompts.md")
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                prompts_file = os.path.join(base_dir, "config", "scraper_prompts.md")
+
+            if os.path.isfile(prompts_file):
+                os.remove(prompts_file)
+
+            json_response(self, 200, message="已恢复出厂默认提示词，重启服务后生效")
+        except Exception as e:
+            json_response(self, 500, message="恢复默认提示词失败: " + str(e))
 
     def _list_tasks(self, query):
         status = query.get("status", [None])[0]

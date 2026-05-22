@@ -156,6 +156,43 @@ EOF
 测试文件 - 来星星的你
 EOF
 
+    # 动漫电影样例（日漫）
+    cat > "$SOURCE_DIR/Spirited.Away.2001.1080p.BluRay.mkv" <<EOF
+测试文件 - 千与千寻（宫崎骏动画电影）
+EOF
+    cat > "$SOURCE_DIR/Spirited.Away.2001.1080p.BluRay.zh.srt" <<EOF
+1
+00:00:01,000 --> 00:00:03,000
+千寻，不要回头
+EOF
+
+    # 动漫电影样例（皮克斯）
+    cat > "$SOURCE_DIR/Coco.2017.1080p.BluRay.mkv" <<EOF
+测试文件 - 寻梦环游记（皮克斯动画电影）
+EOF
+
+    # 动漫电视剧样例（日漫长篇）
+    cat > "$SOURCE_DIR/Attack.on.Titan.S01E01.1080p.mkv" <<EOF
+测试文件 - 进击的巨人 S01E01
+EOF
+    cat > "$SOURCE_DIR/Attack.on.Titan.S01E01.1080p.zh.srt" <<EOF
+1
+00:00:01,000 --> 00:00:03,000
+献出心脏！
+EOF
+    cat > "$SOURCE_DIR/Attack.on.Titan.S01E02.1080p.mkv" <<EOF
+测试文件 - 进击的巨人 S01E02
+EOF
+
+    # 动漫电视剧样例（国漫）
+    mkdir -p "$SOURCE_DIR/罗小黑战记_The.Legend.of.Hei"
+    cat > "$SOURCE_DIR/罗小黑战记_The.Legend.of.Hei/Luo.Xiao.Hei.S01E01.mkv" <<EOF
+测试文件 - 罗小黑战记 S01E01
+EOF
+    cat > "$SOURCE_DIR/罗小黑战记_The.Legend.of.Hei/Luo.Xiao.Hei.S01E02.mkv" <<EOF
+测试文件 - 罗小黑战记 S01E02
+EOF
+
     # 子目录递归测试（电视剧多集放子文件夹）
     mkdir -p "$SOURCE_DIR/西部世界_Westworld"
     cat > "$SOURCE_DIR/西部世界_Westworld/Westworld.S01E01.mkv" <<EOF

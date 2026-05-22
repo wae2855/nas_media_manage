@@ -25,10 +25,18 @@ def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any]) -> 
             continue
         if actual_value is None or expected_value is None:
             return False
-        cmp_actual = _to_comparable(actual_value)
-        cmp_expected = _to_comparable(expected_value)
-        if cmp_actual != cmp_expected:
-            return False
+        # restricted_level 支持 contains 语法（多个值用 | 分隔）
+        if key == 'restricted_level':
+            expected_str = str(expected_value)
+            actual_str = str(actual_value)
+            expected_values = [v.strip() for v in expected_str.split('|')]
+            if actual_str not in expected_values:
+                return False
+        else:
+            cmp_actual = _to_comparable(actual_value)
+            cmp_expected = _to_comparable(expected_value)
+            if cmp_actual != cmp_expected:
+                return False
     return True
 
 
