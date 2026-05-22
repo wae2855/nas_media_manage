@@ -20,6 +20,12 @@ from metrics import Metrics, get_metrics
 from logger import get_logger
 from hermes_hook import HermesNotifier
 from file_watcher import FileWatcher
+from db import (
+    update_task as db_update_task,
+    get_subtitles_by_task as db_get_subtitles,
+    count_by_status as db_count_by_status,
+    count_by_specific_status as db_count_specific,
+)
 
 
 _global_pipeline = None
@@ -124,16 +130,15 @@ class APIHandler(BaseHTTPRequestHandler):
         if task is None:
             json_response(self, 404, message=f"Task not found: {task_id}")
             return
-        json_response(self, 200, data={"task": task.to_dict()})
+        json_response(self, 200, data={"task": task})
 
     def _delete_task(self, task_id: str):
         task = _global_task_manager.get_task(task_id)
         if task is None:
             json_response(self, 404, message=f"Task not found: {task_id}")
             return
-        _global_task_manager._tasks.pop(task_id, None)
-        _global_task_manager._save_tasks()
-        json_response(self, 200, data={"deleted": task_id}, message="Task deleted")
+        db_update_task(_global_task_manager.conn, task_id, status="SKIPPED")
+        json_response(self, 200, data={"deleted": task_id}, message="Task skipped")
 
     def _clear_tasks(self, body: dict):
         status = body.get("status")
@@ -157,7 +162,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     _global_logger.error(f"重试任务执行异常: {e}")
             threading.Thread(target=run_retry, daemon=True).start()
 
-        json_response(self, 200, data={"task": task.to_dict()}, message="任务已重试并开始执行")
+        json_response(self, 200, data={"task": task}, message="任务已重试并开始执行")
 
     def _queue_retry_all(self):
         retried = _global_task_manager.retry_all_failed()
@@ -172,7 +177,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
         json_response(self, 200, data={
             "retried_count": len(retried),
-            "task_ids": [t.task_id for t in retried]
+            "task_ids": [t.get("task_id", "") for t in retried]
         }, message=f"已重试 {len(retried)} 个失败任务并开始执行")
 
     def _queue_pause(self):
@@ -434,9 +439,7 @@ class APIHandler(BaseHTTPRequestHandler):
             return
 
         def run_one():
-            from file_scanner import find_video_files
             video_file = os.path.basename(file_path)
-            from task_manager import Task
             task = _global_task_manager.create_task(
                 video_path=file_path,
                 video_file=video_file,
@@ -448,6 +451,89 @@ class APIHandler(BaseHTTPRequestHandler):
         thread = threading.Thread(target=run_one, daemon=True)
         thread.start()
         json_response(self, 202, message=f"Processing started: {file_path}")
+
+    def _task_confirm(self, task_id: str):
+        if _global_pipeline is None:
+            json_response(self, 500, message="Pipeline not initialized")
+            return
+        try:
+            ok = _global_pipeline.confirm_task(task_id)
+            if ok:
+                json_response(self, 200, message="任务确认入库成功")
+            else:
+                json_response(self, 500, message="确认入库失败")
+        except Exception as e:
+            json_response(self, 400, message=str(e))
+
+    def _task_reclassify(self, task_id: str, body: dict):
+        if _global_pipeline is None:
+            json_response(self, 500, message="Pipeline not initialized")
+            return
+        dimensions = body.get("dimensions", {})
+        if not dimensions:
+            json_response(self, 400, message="缺少 dimensions 参数")
+            return
+        try:
+            task = _global_pipeline.reclassify_task(task_id, dimensions)
+            json_response(self, 200, data={"task": task}, message="重新分类完成")
+        except Exception as e:
+            json_response(self, 400, message=str(e))
+
+    def _task_rollback(self, task_id: str):
+        if _global_pipeline is None:
+            json_response(self, 500, message="Pipeline not initialized")
+            return
+        source_dir = _config.get("source_dir", "") if _config else ""
+        if not source_dir:
+            json_response(self, 400, message="源目录未配置")
+            return
+        try:
+            task = _global_pipeline.rollback_task(task_id, source_dir)
+            json_response(self, 200, data={"task": task}, message="已回退到源目录")
+        except Exception as e:
+            json_response(self, 400, message=str(e))
+
+    def _task_ignore(self, task_id: str):
+        task = _global_task_manager.get_task(task_id)
+        if task is None:
+            json_response(self, 404, message=f"Task not found: {task_id}")
+            return
+        db_update_task(_global_task_manager.conn, task_id,
+                       status="SKIPPED",
+                       skip_reason="用户忽略")
+        json_response(self, 200, message="任务已忽略")
+
+    def _task_subtitles(self, task_id: str):
+        subs = db_get_subtitles(_global_task_manager.conn, task_id)
+        json_response(self, 200, data={"subtitles": subs, "total": len(subs)})
+
+    def _task_confirm_all(self):
+        if _global_pipeline is None:
+            json_response(self, 500, message="Pipeline not initialized")
+            return
+        confirming_tasks = _global_task_manager.list_tasks(status="CONFIRMING", limit=1000)
+        results = []
+        for t in confirming_tasks:
+            tid = t.get("task_id", "")
+            try:
+                ok = _global_pipeline.confirm_task(tid)
+                results.append({"task_id": tid, "success": ok})
+            except Exception as e:
+                results.append({"task_id": tid, "success": False, "error": str(e)})
+        success_count = sum(1 for r in results if r["success"])
+        json_response(self, 200, data={
+            "results": results,
+            "total": len(results),
+            "success": success_count,
+            "failed": len(results) - success_count,
+        }, message=f"批量确认完成: 成功 {success_count}, 失败 {len(results) - success_count}")
+
+    def _task_stats(self):
+        if _global_task_manager is None:
+            json_response(self, 500, message="TaskManager not initialized")
+            return
+        counts = _global_task_manager.count_by_status()
+        json_response(self, 200, data={"by_status": counts})
 
     def _logs(self, query: dict):
         limit = int(query.get("limit", [100])[0])
@@ -496,9 +582,14 @@ class APIHandler(BaseHTTPRequestHandler):
             self._watcher_status()
         elif path == "/api/tasks":
             self._list_tasks(query)
+        elif path == "/api/tasks/stats":
+            self._task_stats()
         elif path.startswith("/api/tasks/"):
             parts = path.split("/")
-            if len(parts) >= 5:
+            if len(parts) >= 5 and parts[4] == "subtitles":
+                task_id = parts[3]
+                self._task_subtitles(task_id)
+            elif len(parts) >= 4:
                 task_id = parts[3]
                 self._get_task(task_id)
             else:
@@ -566,6 +657,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self._watcher_control(query)
         elif path == "/api/run/file":
             self._run_file(body)
+        elif path == "/api/tasks/clear":
+            self._clear_tasks(body)
+        elif path == "/api/tasks/confirm-all":
+            self._task_confirm_all()
         elif path.startswith("/api/tasks/") and path.endswith("/retry"):
             parts = path.split("/")
             if len(parts) >= 5:
@@ -573,8 +668,34 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._retry_task(task_id)
             else:
                 json_response(self, 400, message="Invalid retry path")
-        elif path == "/api/tasks/clear":
-            self._clear_tasks(body)
+        elif path.startswith("/api/tasks/") and path.endswith("/confirm"):
+            parts = path.split("/")
+            if len(parts) >= 5:
+                task_id = parts[3]
+                self._task_confirm(task_id)
+            else:
+                json_response(self, 400, message="Invalid confirm path")
+        elif path.startswith("/api/tasks/") and path.endswith("/reclassify"):
+            parts = path.split("/")
+            if len(parts) >= 5:
+                task_id = parts[3]
+                self._task_reclassify(task_id, body)
+            else:
+                json_response(self, 400, message="Invalid reclassify path")
+        elif path.startswith("/api/tasks/") and path.endswith("/rollback"):
+            parts = path.split("/")
+            if len(parts) >= 5:
+                task_id = parts[3]
+                self._task_rollback(task_id)
+            else:
+                json_response(self, 400, message="Invalid rollback path")
+        elif path.startswith("/api/tasks/") and path.endswith("/ignore"):
+            parts = path.split("/")
+            if len(parts) >= 5:
+                task_id = parts[3]
+                self._task_ignore(task_id)
+            else:
+                json_response(self, 400, message="Invalid ignore path")
         elif path == "/api/queue/pause":
             self._queue_pause()
         elif path == "/api/queue/resume":
@@ -1104,7 +1225,8 @@ class APIHandler(BaseHTTPRequestHandler):
         limit = int(query.get("limit", [20])[0])
         offset = int(query.get("offset", [0])[0])
         show_all = query.get("all", ["false"])[0].lower() == "true"
-        format_mode = query.get("format", ["json"])[0].lower()  # json | text
+        page = query.get("page", [None])[0]
+        format_mode = query.get("format", ["json"])[0].lower()
 
         if status and status.lower() != "all" and status not in VALID_STATUSES:
             json_response(self, 400, message=f"Invalid status: {status}")
@@ -1112,28 +1234,34 @@ class APIHandler(BaseHTTPRequestHandler):
 
         if status and status.lower() == "all":
             status = None
-        elif not status and show_all:
-            status = None
 
-        exclude_completed = not show_all
-        tasks = _global_task_manager.list_tasks(
-            status=status, limit=limit, offset=offset,
-            exclude_completed=exclude_completed if not status else None
+        if page is not None:
+            page_num = int(page)
+            page_size = limit
+        else:
+            page_num = (offset // limit) + 1 if limit > 0 else 1
+            page_size = limit
+
+        from db import list_tasks as db_list
+        rows, total, total_pages = db_list(
+            _global_task_manager.conn,
+            page=page_num,
+            page_size=page_size,
+            status=status,
         )
-        total = len(_global_task_manager._tasks)
-        active_count = sum(1 for t in _global_task_manager._tasks.values()
-                          if t.status in ["PENDING", "PROCESSING", "FAILED"])
+        counts = _global_task_manager.count_by_status()
+        active_count = sum(counts.get(s, 0) for s in ("PENDING", "PROCESSING", "FAILED", "CONFIRMING", "NEEDS_REVIEW"))
 
-        # 1. 构建标准JSON数据（基础）
         json_data = {
-            "tasks": [t.to_dict() for t in tasks],
+            "tasks": rows,
             "total": total,
+            "total_pages": total_pages,
+            "page": page_num,
+            "page_size": page_size,
             "active_count": active_count,
-            "limit": limit,
-            "offset": offset
+            "by_status": counts,
         }
 
-        # 2. 根据format_mode决定返回方式
         if format_mode == "text":
             text_output = format_tasks_to_text(json_data)
             self.send_response(200)
@@ -1190,11 +1318,11 @@ def format_tasks_to_text(json_data: dict) -> str:
         lines.append(f'{"-" * 28} {"-" * 8} {"-" * 6} {"-" * 18} {"-" * 20}')
 
         for t in tasks:
-            name = t.get("video_file", "")
+            name = t.get("source_filename", "")
             name_short = (name[:25] + "...") if len(name) > 28 else name
             status = t.get("status", "")
             pct = t.get("percentage", 0)
-            scraped = t.get("scraped_info", {})
+            scraped = t.get("scrape_result", {})
             error_msg = format_error(t.get("error_message", ""), 20)
             
             title_cn = scraped.get("title_cn", "") or scraped.get("title_en", "") or "?"
@@ -1316,11 +1444,18 @@ def start_server(host: str, port: int, config: dict):
     print("  POST /api/config           - 保存配置")
     print("  POST /api/config/reload    - 重载配置")
     print("  GET  /api/config/validate  - 配置检测（路径、API连通性等）")
-    print("  GET  /api/tasks            - 任务列表")
+    print("  GET  /api/tasks            - 任务列表 (支持 ?page=&page_size=&status=)")
     print("  GET  /api/tasks/{id}       - 任务详情")
+    print("  GET  /api/tasks/{id}/subtitles - 字幕列表")
+    print("  GET  /api/tasks/stats      - 任务统计")
     print("  DELETE /api/tasks/{id}      - 删除任务")
     print("  POST /api/tasks/{id}/retry - 重试任务")
+    print("  POST /api/tasks/{id}/confirm - 确认入库 (CONFIRMING → SUCCESS)")
+    print("  POST /api/tasks/{id}/reclassify - 重新分类 (带 dimensions 参数)")
+    print("  POST /api/tasks/{id}/rollback - 回退到源目录")
+    print("  POST /api/tasks/{id}/ignore - 忽略任务")
     print("  POST /api/tasks/clear      - 清空任务")
+    print("  POST /api/tasks/confirm-all - 批量确认所有待确认任务")
     print("  POST /api/queue/pause      - 暂停队列")
     print("  POST /api/queue/resume     - 恢复队列")
     print("  POST /api/queue/retry-all  - 重试所有失败")

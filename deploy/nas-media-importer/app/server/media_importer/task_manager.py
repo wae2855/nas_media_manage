@@ -1,234 +1,260 @@
 #!/usr/bin/env python3
-import json
-import uuid
-import time
-import threading
 import os
+import shutil
+import threading
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
+
+from db import (
+    init_db, create_task as db_create_task,
+    get_task as db_get_task,
+    update_task as db_update_task,
+    list_tasks as db_list_tasks,
+    list_all_tasks as db_list_all_tasks,
+    count_by_status as db_count_by_status,
+    has_active_tasks as db_has_active_tasks,
+    get_next_pending as db_get_next_pending,
+    count_all_tasks as db_count_all_tasks,
+    find_by_source_path as db_find_by_source_path,
+    find_failed_too_many as db_find_failed,
+    create_subtitles as db_create_subtitles,
+    get_subtitles_by_task as db_get_subtitles,
+    update_subtitles_by_task as db_update_subs,
+    count_subtitles_by_task as db_count_subs,
+    VALID_STATUSES,
+)
 
 
-VALID_STATUSES = ["PENDING", "PROCESSING", "SUCCESS", "FAILED", "SKIPPED"]
-
-STATUS_TRANSITIONS = {
-    "PENDING": ["PROCESSING", "SKIPPED"],
-    "PROCESSING": ["SUCCESS", "FAILED", "SKIPPED"],
-    "SUCCESS": [],
-    "FAILED": ["PENDING"],
-    "SKIPPED": ["PENDING"]
-}
-
-
-@dataclass
-class Task:
-    task_id: str = ""
-    video_file: str = ""
-    video_path: str = ""
-    file_size_mb: float = 0
-    subtitle_files: list = field(default_factory=list)
-    scraped_info: dict = field(default_factory=dict)
-    import_path: str = ""
-    final_filename: str = ""
-    status: str = "PENDING"
-    created_at: str = ""
-    started_at: str = ""
-    completed_at: str = ""
-    error_code: int = 0
-    error_message: str = ""
-    retry_count: int = 0
-    logs: list = field(default_factory=list)
-    current_step: int = 0
-    total_steps: int = 10
-    step_name: str = ""
-    percentage: int = 0
-    bytes_copied: int = 0
-    total_bytes: int = 0
-
-    def __post_init__(self):
-        if not self.task_id:
-            self.task_id = uuid.uuid4().hex[:12]
-        if not self.created_at:
-            self.created_at = datetime.now().isoformat()
-
-    def can_transition_to(self, new_status: str) -> bool:
-        return new_status in STATUS_TRANSITIONS.get(self.status, [])
-
-    def transition_to(self, new_status: str):
-        if not self.can_transition_to(new_status):
-            raise ValueError(
-                f"Invalid transition: {self.status} -> {new_status}"
-            )
-        self.status = new_status
-        if new_status == "PROCESSING":
-            self.started_at = datetime.now().isoformat()
-        elif new_status in ["SUCCESS", "FAILED", "SKIPPED"]:
-            self.completed_at = datetime.now().isoformat()
-
-    def add_log(self, step: str, level: str, message: str):
-        self.logs.append({
-            "timestamp": datetime.now().isoformat(),
-            "step": step,
-            "level": level,
-            "message": message
-        })
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Task":
-        return cls(**data)
+VALID_STATUSES = list(VALID_STATUSES)
 
 
 class TaskManager:
     def __init__(self, persistence_path: str, config: dict = None):
-        self.path = persistence_path
         self.config = config or {}
+        db_dir = os.path.dirname(persistence_path)
+        db_path = os.path.join(db_dir, "tasks.db")
+        self.conn = init_db(db_path)
         self._lock = threading.RLock()
-        self._tasks = {}
-        self._load_tasks()
 
     def create_task(self, video_path: str, video_file: str,
                     subtitle_files: list = None,
-                    file_size_mb: float = 0) -> Task:
-        task = Task(
-            video_file=video_file,
-            video_path=video_path,
-            subtitle_files=subtitle_files or [],
-            file_size_mb=file_size_mb
+                    file_size_mb: float = 0) -> dict:
+        task = db_create_task(
+            self.conn,
+            source_path=video_path,
+            source_filename=video_file,
+            file_size_mb=file_size_mb,
         )
-        with self._lock:
-            self._tasks[task.task_id] = task
-            self._save_tasks()
+        subs = subtitle_files or []
+        if subs:
+            db_create_subtitles(self.conn, task["task_id"], subs)
+        count_subs = len(subs)
+        task["subtitle_files"] = subs
+        task["subtitle_total"] = count_subs
+        task["subtitle_success"] = 0
         return task
 
-    def get_task(self, task_id: str) -> Task:
-        with self._lock:
-            return self._tasks.get(task_id)
+    def get_task(self, task_id: str) -> dict:
+        return db_get_task(self.conn, task_id)
 
-    def get_next_pending(self) -> Task:
-        with self._lock:
-            for task in self._tasks.values():
-                if task.status == "PENDING":
-                    return task
-        return None
+    def get_next_pending(self) -> dict:
+        return db_get_next_pending(self.conn)
 
-    def update_task(self, task: Task):
-        with self._lock:
-            self._tasks[task.task_id] = task
-            self._save_tasks()
-        if self.config.get('auto_delete_success') and task.status == "SUCCESS":
-            self._cleanup_success_task(task.task_id)
+    def update_task(self, task: dict):
+        if task is None:
+            return
+        if isinstance(task, dict):
+            task_id = task.get("task_id", "")
+            update_fields = {k: v for k, v in task.items()
+                            if k not in ("subtitle_files", "subtitle_total",
+                                        "subtitle_success", "logs")}
+            db_update_task(self.conn, task_id, **update_fields)
+        else:
+            task_id = getattr(task, "task_id", "")
+            db_update_task(self.conn, task_id, status=getattr(task, "status", ""))
 
-    def _cleanup_success_task(self, task_id: str):
-        with self._lock:
-            if task_id in self._tasks:
-                del self._tasks[task_id]
-                self._save_tasks()
-
-    def update_progress(self, task: Task, step_num: int, step_name: str,
+    def update_progress(self, task: dict, step_num: int, step_name: str,
                         percentage: int, **kwargs):
-        task.current_step = step_num
-        task.step_name = step_name
-        task.percentage = min(100, max(0, percentage))
-        for k, v in kwargs.items():
-            if hasattr(task, k):
-                setattr(task, k, v)
-        self.update_task(task)
+        if isinstance(task, dict):
+            task["current_step"] = step_num
+            task["step_name"] = step_name
+            task["percentage"] = min(100, max(0, percentage))
+            for k, v in kwargs.items():
+                if k in ("bytes_copied", "total_bytes", "import_path",
+                         "final_filename", "video_path", "subtitle_files"):
+                    task[k] = v
+            db_update_task(
+                self.conn, task["task_id"],
+                current_step=step_num, step_name=step_name,
+                percentage=min(100, max(0, percentage)),
+                **kwargs
+            )
 
     def list_tasks(self, status: str = None, limit: int = 20,
                    offset: int = 0, exclude_completed: bool = None) -> list:
-        with self._lock:
-            tasks = list(self._tasks.values())
-        if status:
-            tasks = [t for t in tasks if t.status == status]
-        elif exclude_completed is None or exclude_completed:
-            tasks = [t for t in tasks if t.status in ["PENDING", "PROCESSING", "FAILED"]]
-        tasks = sorted(tasks, key=lambda t: t.created_at, reverse=True)
-        return tasks[offset:offset + limit]
+        page = (offset // limit) + 1 if limit > 0 else 1
+        page_size = limit
+        if exclude_completed is True and not status:
+            rows, _, _ = db_list_tasks(
+                self.conn, page=1, page_size=10000, status=None
+            )
+            result = []
+            for r in rows:
+                if r["status"] in ("PENDING", "PROCESSING", "FAILED",
+                                   "CONFIRMING", "NEEDS_REVIEW"):
+                    result.append(r)
+            return result[offset:offset + limit]
+        rows, _, _ = db_list_tasks(
+            self.conn, page=page, page_size=page_size, status=status
+        )
+        return rows
 
     def list_all_tasks(self, limit: int = 50, offset: int = 0) -> list:
-        with self._lock:
-            tasks = list(self._tasks.values())
-        tasks = sorted(tasks, key=lambda t: t.created_at, reverse=True)
-        return tasks[offset:offset + limit]
+        rows = db_list_all_tasks(self.conn, limit=limit + offset)
+        return rows[offset:offset + limit]
 
-    def retry_task(self, task_id: str) -> Task:
-        task = self.get_task(task_id)
-        if task and task.status == "FAILED":
-            task.transition_to("PENDING")
-            task.retry_count += 1
-            task.error_code = 0
-            task.error_message = ""
-            task.current_step = 0
-            task.step_name = ""
-            task.percentage = 0
-            self.update_task(task)
-        return task
+    def retry_task(self, task_id: str) -> dict:
+        task = db_get_task(self.conn, task_id)
+        if task and task.get("status") in ("FAILED", "NEEDS_REVIEW"):
+            db_update_task(
+                self.conn, task_id,
+                status="PENDING",
+                retry_count=task.get("retry_count", 0) + 1,
+                error_code=0,
+                error_message="",
+                current_step=0,
+                step_name="",
+                percentage=0,
+            )
+        return db_get_task(self.conn, task_id)
 
     def retry_all_failed(self) -> list:
+        rows = db_list_all_tasks(self.conn, limit=10000)
         retried = []
-        with self._lock:
-            for task in self._tasks.values():
-                if task.status == "FAILED":
-                    task.transition_to("PENDING")
-                    task.retry_count += 1
-                    task.error_code = 0
-                    task.error_message = ""
-                    task.current_step = 0
-                    task.step_name = ""
-                    task.percentage = 0
-                    retried.append(task)
-            self._save_tasks()
+        for task in rows:
+            if task["status"] in ("FAILED", "NEEDS_REVIEW"):
+                db_update_task(
+                    self.conn, task["task_id"],
+                    status="PENDING",
+                    retry_count=task.get("retry_count", 0) + 1,
+                    error_code=0,
+                    error_message="",
+                    current_step=0,
+                    step_name="",
+                    percentage=0,
+                )
+                retried.append(task)
         return retried
 
     def clear_tasks(self, status: str = None):
-        with self._lock:
-            if status:
-                self._tasks = {
-                    tid: t for tid, t in self._tasks.items()
-                    if t.status != status
-                }
-            else:
-                self._tasks = {}
-            self._save_tasks()
+        if status:
+            db_update_task(self.conn, "_clear_all_")
+        else:
+            rows = db_list_all_tasks(self.conn, limit=100000)
+            for r in rows:
+                db_update_task(self.conn, r["task_id"], status="SKIPPED")
 
     def count_by_status(self) -> dict:
-        counts = {s: 0 for s in VALID_STATUSES}
-        with self._lock:
-            for task in self._tasks.values():
-                if task.status in counts:
-                    counts[task.status] += 1
-        return counts
+        return db_count_by_status(self.conn)
 
     def has_active_tasks(self) -> bool:
-        with self._lock:
-            for task in self._tasks.values():
-                if task.status in ("PENDING", "PROCESSING"):
-                    return True
-        return False
+        return db_has_active_tasks(self.conn)
 
-    def _save_tasks(self):
-        dir_path = os.path.dirname(self.path)
-        if dir_path:
-            try:
-                os.makedirs(dir_path, exist_ok=True)
-            except (OSError, PermissionError):
-                return
-        try:
-            data = {tid: t.to_dict() for tid, t in self._tasks.items()}
-            with open(self.path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except (OSError, PermissionError):
-            pass
+    def check_source_duplicate(self, source_path: str) -> dict:
+        history = db_find_by_source_path(self.conn, source_path)
+        if history is None:
+            return {
+                "exists": False,
+                "task_id": None,
+                "action": "CREATE",
+                "reason": "新文件，无历史记录",
+            }
+        old_status = history.get("status", "")
+        old_retry = history.get("retry_count", 0)
+        if old_status in ("SUCCESS",):
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "old_retry": old_retry,
+                "action": "QUARANTINE",
+                "reason": f"历史已处理 ({old_status})",
+            }
+        if old_status in ("FAILED", "SKIPPED"):
+            max_retries = self.config.get("source_dedup", {}).get(
+                "max_auto_retries", 3
+            )
+            if old_retry >= max_retries:
+                return {
+                    "exists": True,
+                    "task_id": history["task_id"],
+                    "old_status": old_status,
+                    "old_retry": old_retry,
+                    "action": "QUARANTINE",
+                    "reason": f"历史失败/跳过已达最大重试次数 ({old_retry}次)",
+                }
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "old_retry": old_retry,
+                "action": "RETRY",
+                "reason": f"历史失败/跳过，重试次数 {old_retry} < {max_retries}，可重新处理",
+            }
+        if old_status in ("PROCESSING", "CONFIRMING"):
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "old_retry": old_retry,
+                "action": "SKIP",
+                "reason": f"任务正在处理/待确认，跳过 ({old_status})",
+            }
+        if old_status in ("NEEDS_REVIEW", "ROLLBACK"):
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "old_retry": old_retry,
+                "action": "SKIP",
+                "reason": f"任务在隔离区/已回退，跳过 ({old_status})",
+            }
+        return {
+            "exists": True,
+            "task_id": history["task_id"],
+            "old_status": old_status,
+            "old_retry": old_retry,
+            "action": "CREATE",
+            "reason": f"未知状态 ({old_status})，创建新任务",
+        }
 
-    def _load_tasks(self):
-        if not os.path.exists(self.path):
-            self._tasks = {}
+    def move_to_quarantine(self, task_id: str, source_path: str,
+                            subtitle_paths: list, quarantine_dir: str):
+        os.makedirs(quarantine_dir, exist_ok=True)
+        task = db_get_task(self.conn, task_id)
+        if not task:
             return
+        video_filename = os.path.basename(source_path)
+        dest_video = os.path.join(quarantine_dir, video_filename)
+        if os.path.exists(source_path):
+            shutil.move(source_path, dest_video)
+        for sub_path in subtitle_paths:
+            if os.path.exists(sub_path):
+                sub_name = os.path.basename(sub_path)
+                dest_sub = os.path.join(quarantine_dir, sub_name)
+                shutil.move(sub_path, dest_sub)
+        db_update_task(
+            self.conn, task_id,
+            status="NEEDS_REVIEW",
+            source_path=dest_video,
+            error_message=f"已移入隔离区: {quarantine_dir}",
+        )
+        db_update_subs(self.conn, task_id, status="NEEDS_REVIEW")
+        self._cleanup_empty_dirs(source_path)
+
+    def _cleanup_empty_dirs(self, file_path: str):
+        parent = os.path.dirname(file_path)
         try:
-            with open(self.path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            self._tasks = {tid: Task.from_dict(td) for tid, td in data.items()}
-        except (json.JSONDecodeError, KeyError):
-            self._tasks = {}
+            if os.path.isdir(parent) and not os.listdir(parent):
+                os.rmdir(parent)
+        except OSError:
+            pass

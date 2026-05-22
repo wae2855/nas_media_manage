@@ -797,7 +797,6 @@
                                 <line x1="6" y1="20" x2="6" y2="16"/>
                             </svg>
                             任务列表
-                            <span class="task-count-hint">（最近 50 条）</span>
                         </h2>
                         <div class="section-actions">
                             <button class="btn btn-sm" onclick="loadTasks()">
@@ -810,26 +809,36 @@
                             </button>
                         </div>
                     </div>
+                    <div class="status-filter-tabs" id="task-status-tabs">
+                        <span class="status-filter-tab active" data-status="all">全部</span>
+                        <span class="status-filter-tab" data-status="PENDING">待处理</span>
+                        <span class="status-filter-tab" data-status="PROCESSING">处理中</span>
+                        <span class="status-filter-tab" data-status="SUCCESS">成功</span>
+                        <span class="status-filter-tab" data-status="CONFIRMING">确认中</span>
+                        <span class="status-filter-tab" data-status="FAILED" style="color:var(--danger-color)">失败</span>
+                        <span class="status-filter-tab" data-status="SKIPPED">跳过</span>
+                        <span class="status-filter-tab" data-status="NEEDS_REVIEW" style="color:var(--warning-color)">需介入</span>
+                        <span class="status-filter-tab" data-status="ROLLBACK">已回退</span>
+                    </div>
                     <div class="table-container">
-                        <table class="data-table">
+                        <table class="data-table" id="tasks-table">
                             <thead>
                                 <tr>
-                                    <th>文件名</th>
+                                    <th>文件名 / 刮削结果</th>
+                                    <th>字幕</th>
                                     <th>状态</th>
-                                    <th>进度</th>
-                                    <th>刮削结果</th>
-                                    <th>执行时间</th>
-                                    <th>异常原因</th>
+                                    <th>入库路径</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody id="tasks-table-body">
                                 <tr>
-                                    <td colspan="7" class="empty-row">暂无任务数据</td>
+                                    <td colspan="5" class="empty-row">暂无任务数据</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                    <div id="pagination-controls" class="pagination-bar"></div>
                 </div>
 
                 <div class="section">
@@ -857,6 +866,47 @@
                     </div>
                     <div class="log-container" id="log-container">
                         <div class="log-line">点击刷新按钮加载日志...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 任务详情弹窗 -->
+            <div id="task-detail-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-header">
+                        <h3>任务详情</h3>
+                        <button class="modal-close" onclick="closeModal('task-detail-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body" id="task-detail-body"></div>
+                    <div class="modal-footer" id="task-detail-footer"></div>
+                </div>
+            </div>
+
+            <!-- 字幕详情弹窗 -->
+            <div id="subtitle-detail-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-dialog modal-md">
+                    <div class="modal-header">
+                        <h3>字幕详情</h3>
+                        <button class="modal-close" onclick="closeModal('subtitle-detail-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body" id="subtitle-detail-body"></div>
+                </div>
+            </div>
+
+            <!-- 回退确认弹窗 -->
+            <div id="rollback-confirm-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-dialog modal-sm">
+                    <div class="modal-header">
+                        <h3>确认回退</h3>
+                        <button class="modal-close" onclick="closeModal('rollback-confirm-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p>确认将该文件回退到源目录？</p>
+                        <p style="color:var(--text-muted);font-size:13px;">回退将删除 temp 目录中的文件，并恢复原始文件名到源目录。关联的字幕文件也会一并回退。</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="closeModal('rollback-confirm-modal')">取消</button>
+                        <button class="btn btn-warning" id="rollback-confirm-btn">确认回退</button>
                     </div>
                 </div>
             </div>

@@ -150,6 +150,21 @@ def load_config(config_path: str = None) -> dict:
     elif not os.path.isabs(persistence_path):
         task_queue["persistence_path"] = os.path.join(project_root, "data", persistence_path)
 
+    if "source_dedup" not in config:
+        config["source_dedup"] = {}
+    source_dedup = config["source_dedup"]
+    source_dedup.setdefault("enabled", True)
+    data_dir = os.path.dirname(task_queue["persistence_path"])
+    source_dedup.setdefault("quarantine_dir", os.path.join(data_dir, "quarantine"))
+    source_dedup.setdefault("max_auto_retries", 3)
+
+    source_dedup_qdir = source_dedup.get("quarantine_dir", "")
+    if source_dedup_qdir and not os.path.isabs(source_dedup_qdir):
+        source_dedup["quarantine_dir"] = os.path.join(project_root, source_dedup_qdir)
+
+    if "manual_review" not in config:
+        config["manual_review"] = {"enabled": False}
+
     errors = validate_config(config)
     if errors:
         print("配置校验警告（服务仍可启动，请通过前台完善配置）:")
@@ -168,7 +183,7 @@ BOOL_FALSE_STRINGS = {'false', 'no', 'off'}
 BOOL_KEYS = {
     'enabled', 'verify_ssl', 'delete_after_process', 'recursive',
     'create_series_folder', 'organize_by_season', 'create_year_folder',
-    'auto_delete_success',
+    'auto_delete_success', 'scan_source',
 }
 
 

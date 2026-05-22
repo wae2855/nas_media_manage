@@ -1,81 +1,157 @@
 #!/usr/bin/env python3
 import os
-import fnmatch
-from pathlib import Path
+import re
+import time
+from typing import List, Optional, Tuple
 
 
-def match_filename_pattern(filename, patterns):
-    for pattern in patterns:
-        if fnmatch.fnmatch(filename, pattern):
-            return True
-    return False
+class FileScanner:
+    VIDEO_EXTENSIONS = (
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm",
+        ".m4v", ".m2ts", ".ts", ".iso", ".bdmv",
+    )
+    SUBTITLE_EXTENSIONS = (
+        ".srt", ".ass", ".ssa", ".sub", ".idx", ".smi",
+    )
 
+    def __init__(self, config: dict, task_manager=None):
+        self.config = config
+        self.task_manager = task_manager
+        self.scan_source = config.get("scan_source", True)
+        self.skip_existing = config.get("skip_existing", True)
+        self.sort_by = config.get("sort_by", "filename")
+        self.sort_reverse = config.get("sort_reverse", False)
+        self.group_delay_sec = config.get("group_delay_sec", 0)
+        self.video_extensions = tuple(
+            config.get("video_extensions", self.__class__.VIDEO_EXTENSIONS)
+        )
+        self.subtitle_extensions = tuple(
+            config.get("subtitle_extensions", self.__class__.SUBTITLE_EXTENSIONS)
+        )
 
-def find_video_files(source_dir, extensions, ignore_patterns, max_depth):
-    video_files = []
-    source_path = Path(source_dir)
+    def scan_path(self, directory: str) -> List[dict]:
+        if not os.path.isdir(directory):
+            return []
+        all_files = []
+        for root, dirs, files in os.walk(directory):
+            # Skip hidden directories
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in sorted(files):
+                fpath = os.path.join(root, f)
+                if not os.path.isfile(fpath):
+                    continue
+                all_files.append(fpath)
+        return self._group_videos(all_files)
 
-    if not source_path.exists():
-        return video_files
+    def _group_videos(self, all_files: List[str]) -> List[dict]:
+        video_files = []
+        subtitle_file_sets = []
+        seen = set()
+        video_set = {
+            f for f in all_files
+            if f.lower().endswith(self.video_extensions)
+        }
+        subtitle_set = {
+            f for f in all_files
+            if f.lower().endswith(self.subtitle_extensions)
+        }
 
-    for root, dirs, files in os.walk(source_dir):
-        current_depth = len(Path(root).relative_to(source_path).parts)
+        groups = {}
+        for vf in video_set:
+            basename_no_ext = os.path.splitext(os.path.basename(vf))[0]
+            # Normalize: remove some common suffixes
+            clean_name = self._clean_name(basename_no_ext)
+            if clean_name not in groups:
+                groups[clean_name] = {"video": vf, "subtitles": []}
+            else:
+                groups[clean_name]["video"] = vf
+            # Find matching subtitles
+            for sf in subtitle_set:
+                sf_basename = os.path.basename(sf)
+                if clean_name in sf_basename or basename_no_ext in sf_basename:
+                    groups[clean_name]["subtitles"].append(sf)
+                    subtitle_set.discard(sf)
 
-        if current_depth > max_depth:
-            dirs[:] = []
-            continue
+        # Also check remaining subtitles by matching video filename nearby
+        for vf in video_set:
+            vdir = os.path.dirname(vf)
+            vbase = os.path.splitext(os.path.basename(vf))[0]
+            for sf in list(subtitle_set):
+                if sf.startswith(vdir) and vbase in sf:
+                    groups.setdefault(
+                        self._clean_name(vbase),
+                        {"video": vf, "subtitles": []}
+                    )["subtitles"].append(sf)
+                    subtitle_set.discard(sf)
 
-        for filename in files:
-            if match_filename_pattern(filename, ignore_patterns):
+        result = []
+        for clean_name, info in groups.items():
+            vpath = info["video"]
+            vfile = os.path.basename(vpath)
+            try:
+                fsize = os.path.getsize(vpath)
+                fsize_mb = round(fsize / (1024 * 1024), 2)
+            except OSError:
+                fsize_mb = 0
+            subtitles = info["subtitles"]
+            video_dir = os.path.dirname(vpath)
+            result.append({
+                "video_path": vpath,
+                "video_file": vfile,
+                "video_dir": video_dir,
+                "file_size_mb": fsize_mb,
+                "subtitle_files": subtitles,
+            })
+
+        if self.sort_by == "filename":
+            result.sort(key=lambda x: x["video_file"], reverse=self.sort_reverse)
+        elif self.sort_by == "size":
+            result.sort(key=lambda x: x["file_size_mb"], reverse=self.sort_reverse)
+        return result
+
+    def scan_and_group(self, directory: str) -> List[dict]:
+        return self.scan_path(directory)
+
+    def scan_and_filter(self, source_dir: str) -> List[dict]:
+        groups = self.scan_and_group(source_dir)
+        if not self.task_manager:
+            return groups
+        quarantine_dir = self.config.get("quarantine_dir", "")
+        if not quarantine_dir:
+            return groups
+        filtered = []
+        for g in groups:
+            dedup = self.task_manager.check_source_duplicate(g["video_path"])
+            if dedup["action"] == "QUARANTINE":
+                self.task_manager.move_to_quarantine(
+                    task_id=dedup["task_id"],
+                    source_path=g["video_path"],
+                    subtitle_paths=g["subtitle_files"],
+                    quarantine_dir=quarantine_dir,
+                )
                 continue
+            if dedup["action"] == "SKIP":
+                if dedup["task_id"]:
+                    self.task_manager.update_task({
+                        "task_id": dedup["task_id"],
+                        "last_seen_at": time.strftime(
+                            "%Y-%m-%dT%H:%M:%S", time.localtime()
+                        ),
+                        "skip_reason": dedup["reason"],
+                    })
+                continue
+            if dedup["action"] == "RETRY" and dedup.get("task_id"):
+                g["retry_task_id"] = dedup["task_id"]
+            filtered.append(g)
+        return filtered
 
-            file_ext = os.path.splitext(filename)[1].lower()
-            if file_ext in extensions:
-                video_files.append(os.path.join(root, filename))
-
-    return sorted(video_files)
-
-
-def find_subtitle_files(video_path, subtitle_extensions):
-    video_dir = os.path.dirname(video_path)
-    video_name = os.path.splitext(os.path.basename(video_path))[0]
-
-    subtitles = []
-
-    if not os.path.exists(video_dir):
-        return subtitles
-
-    for filename in os.listdir(video_dir):
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext not in subtitle_extensions:
-            continue
-
-        if filename.startswith(video_name):
-            subtitles.append(os.path.join(video_dir, filename))
-
-    return sorted(subtitles)
-
-
-def scan_source_dir(source_dir: str, config: dict) -> list:
-    source_dir_config = config.get('source_dir_scan', {})
-    recursive = source_dir_config.get('recursive', True)
-    max_depth = source_dir_config.get('max_depth', 5) if recursive else 0
-    ignore_patterns = source_dir_config.get('ignore_patterns', ['*.tmp', '.DS_Store'])
-
-    video_extensions = [ext.lower() for ext in config.get('video_extensions', ['.mkv', '.mp4', '.avi'])]
-    subtitle_extensions = [ext.lower() for ext in config.get('subtitle_extensions', ['.srt', '.ass', '.ssa'])]
-
-    video_files = find_video_files(source_dir, video_extensions, ignore_patterns, max_depth)
-
-    groups = []
-    for video_path in video_files:
-        video_name = os.path.splitext(os.path.basename(video_path))[0]
-        subtitles = find_subtitle_files(video_path, subtitle_extensions)
-
-        groups.append({
-            'video': video_path,
-            'subtitles': subtitles,
-            'group_name': video_name
-        })
-
-    return groups
+    def _clean_name(self, name: str) -> str:
+        name = re.sub(
+            r"(?i)(\.\w{2,4})$", "", name
+        )
+        name = re.sub(
+            r"(?i)(1080[pi]|720[pi]|2160[pi]|4k|bluray|web[ -]?dl|hdtv|x264|x265|hevc|aac|dd5[.]?1|ac3)",
+            "", name
+        )
+        name = re.sub(r"[.\s_\-]+", " ", name).strip()
+        return name.lower()

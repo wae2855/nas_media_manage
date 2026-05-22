@@ -766,37 +766,177 @@ function resetConfig() {
     }
 }
 
-async function loadTasks() {
-    const result = await apiRequest('GET', '/tasks?all=true&limit=50');
-    if (result.code === 200 && result.data) {
-        const tasks = result.data.tasks || [];
-        const tbody = document.getElementById('tasks-table-body');
-        
-        if (tasks.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="empty-row">暂无任务数据</td></tr>';
-            return;
-        }
-        
-        tbody.innerHTML = tasks.map(task => `
-            <tr>
-                <td title="${task.video_file}">${truncate(task.video_file, 30)}</td>
-                <td><span class="status-value status-${getStatusClass(task.status)}">${getStatusText(task.status)}</span></td>
-                <td>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${task.percentage || 0}%"></div>
-                    </div>
-                    ${task.percentage || 0}%
-                </td>
-                <td title="${getScrapedInfo(task)}">${truncate(getScrapedInfo(task), 25)}</td>
-                <td title="${formatTimeDetail(task)}">${formatTimeBrief(task)}</td>
-                <td title="${task.error_message || ''}">${truncate(task.error_message || '-', 20)}</td>
-                <td>
-                    ${task.status === 'FAILED' ? 
-                        `<button class="btn btn-sm btn-primary" onclick="retryTask('${task.task_id}')">重试</button>` : ''}
-                </td>
-            </tr>
-        `).join('');
+// ==================== 任务列表变量 ====================
+var _currentTaskPage = 1;
+var _currentTaskStatus = 'all';
+var _currentTaskTotalPages = 1;
+
+async function loadTasks(page, status) {
+    if (page !== undefined) _currentTaskPage = page;
+    if (status !== undefined) _currentTaskStatus = status;
+    var pageNum = _currentTaskPage || 1;
+    var statusFilter = _currentTaskStatus || 'all';
+
+    var url = '/tasks?page=' + pageNum + '&limit=20';
+    if (statusFilter !== 'all') {
+        url += '&status=' + encodeURIComponent(statusFilter);
     }
+
+    var result = await apiRequest('GET', url);
+    if (result.code === 200 && result.data) {
+        var tasks = result.data.tasks || [];
+        var total = result.data.total || 0;
+        var totalPages = result.data.total_pages || 1;
+        _currentTaskTotalPages = totalPages;
+
+        renderTaskTable(tasks);
+        renderPagination(totalPages, pageNum, total);
+    } else {
+        var tbody = document.getElementById('tasks-table-body');
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-row">加载失败: ' + (result.message || '未知错误') + '</td></tr>';
+    }
+}
+
+function renderTaskTable(tasks) {
+    var tbody = document.getElementById('tasks-table-body');
+    if (!tasks || tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-row">暂无任务数据</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = tasks.map(function(task) {
+        var tid = task.task_id || '';
+        var filename = task.source_filename || '-';
+        var status = task.status || 'PENDING';
+        var importPath = task.import_path || '';
+        var subtitleInfo = buildSubtitleCell(task);
+        var scrapeInfo = buildScrapeCell(task);
+        var actionsHtml = buildActionButtons(task);
+
+        return '<tr class="fade-in">' +
+            '<td><div class="task-row-main">' +
+                '<div class="task-row-title">' +
+                    '<span class="task-filename" onclick="showTaskDetail(\'' + tid + '\')" title="点击查看详情">' + escapeHtml(filename) + '</span>' +
+                '</div>' +
+                '<div class="task-row-sub">' + scrapeInfo + '</div>' +
+            '</div></td>' +
+            '<td class="task-subtitle-cell">' + subtitleInfo + '</td>' +
+            '<td><span class="status-badge status-badge-' + status + '">' + getStatusText(status) + '</span></td>' +
+            '<td><span class="task-import-path" title="' + escapeHtml(importPath) + '">' + (importPath ? escapeHtml(truncate(importPath, 35)) : '-') + '</span></td>' +
+            '<td><div class="task-actions">' + actionsHtml + '</div></td>' +
+        '</tr>';
+    }).join('');
+}
+
+function buildScrapeCell(task) {
+    var parts = [];
+    var titleCn = task.scrape_title_cn || '';
+    var titleEn = task.scrape_title_en || '';
+    var mediaType = task.scrape_media_type || '';
+    var year = task.scrape_year || '';
+
+    if (titleCn || titleEn) {
+        var title = titleCn || titleEn;
+        parts.push('<span class="task-scrape-chip' + (mediaType === 'movie' ? ' type-movie' : mediaType === 'tv' ? ' type-tv' : '') + '">' +
+            escapeHtml(title) + (year ? ' (' + year + ')' : '') +
+        '</span>');
+    }
+
+    if (mediaType) {
+        parts.push('<span>' + (mediaType === 'movie' ? '电影' : mediaType === 'tv' ? '剧集' : mediaType) + '</span>');
+    }
+
+    if (task.scrape_season) {
+        parts.push('<span>S' + String(task.scrape_season).padStart(2, '0') + '</span>');
+    }
+    if (task.scrape_episode) {
+        parts.push('<span>E' + String(task.scrape_episode).padStart(2, '0') + '</span>');
+    }
+
+    if (task.skip_reason) {
+        parts.push('<span style="color:var(--text-muted)">' + escapeHtml(truncate(task.skip_reason, 20)) + '</span>');
+    } else if (task.error_message) {
+        parts.push('<span style="color:var(--danger-color)">' + escapeHtml(truncate(task.error_message, 20)) + '</span>');
+    }
+
+    return parts.length > 0 ? parts.join(' ') : '<span style="color:var(--text-muted)">等待处理...</span>';
+}
+
+function buildSubtitleCell(task) {
+    var subs = task.subtitle_files;
+    if (!subs || subs.length === 0) {
+        return '<span class="task-subtitle-count">无</span>';
+    }
+    var count = subs.length;
+    return '<span class="task-subtitle-count has-subs" onclick="showSubtitleDetail(\'' + task.task_id + '\')">' +
+        '字幕 x' + count +
+    '</span>';
+}
+
+function buildActionButtons(task) {
+    var tid = task.task_id || '';
+    var status = task.status || '';
+    var btns = [];
+
+    btns.push('<button class="task-action-btn copy-path" onclick="copyPathToClipboard(\'' + escapeHtml(tid) + '\')" title="复制源路径到剪贴板">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+    '</button>');
+
+    btns.push('<button class="task-action-btn" onclick="showTaskDetail(\'' + escapeHtml(tid) + '\')" title="查看详情">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M22 12c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2s10 4.48 10 10z"/></svg>' +
+    '</button>');
+
+    if (status === 'CONFIRMING') {
+        btns.push('<button class="task-action-btn confirm" onclick="confirmTask(\'' + escapeHtml(tid) + '\')" title="确认入库">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</button>');
+        btns.push('<button class="task-action-btn reclassify" onclick="showTaskDetail(\'' + escapeHtml(tid) + '\')" title="修改分类">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-3-3m3 3 3-3M5 21h14"/></svg>' +
+        '</button>');
+        btns.push('<button class="task-action-btn rollback" onclick="confirmRollback(\'' + escapeHtml(tid) + '\')" title="回退到源目录">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>' +
+        '</button>');
+    }
+
+    if (status === 'FAILED' || status === 'NEEDS_REVIEW') {
+        btns.push('<button class="task-action-btn retry" onclick="retryTask(\'' + escapeHtml(tid) + '\')" title="重试">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
+        '</button>');
+    }
+
+    if (status === 'FAILED' || status === 'NEEDS_REVIEW' || status === 'ROLLBACK') {
+        btns.push('<button class="task-action-btn ignore" onclick="ignoreTask(\'' + escapeHtml(tid) + '\')" title="忽略">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>' +
+        '</button>');
+    }
+
+    return btns.join('');
+}
+
+function renderPagination(totalPages, currentPage, total) {
+    var container = document.getElementById('pagination-controls');
+    if (!container) return;
+
+    if (totalPages <= 1) {
+        container.innerHTML = '<span class="pagination-info">共 ' + (total || 0) + ' 条</span>';
+        return;
+    }
+
+    var html = '';
+    html += '<button class="pagination-btn" onclick="loadTasks(1)" ' + (currentPage <= 1 ? 'disabled' : '') + '>首页</button>';
+    html += '<button class="pagination-btn" onclick="loadTasks(' + (currentPage - 1) + ')" ' + (currentPage <= 1 ? 'disabled' : '') + '>上一页</button>';
+
+    var startPage = Math.max(1, currentPage - 2);
+    var endPage = Math.min(totalPages, currentPage + 2);
+    for (var p = startPage; p <= endPage; p++) {
+        html += '<button class="pagination-btn ' + (p === currentPage ? 'active' : '') + '" onclick="loadTasks(' + p + ')">' + p + '</button>';
+    }
+
+    html += '<button class="pagination-btn" onclick="loadTasks(' + (currentPage + 1) + ')" ' + (currentPage >= totalPages ? 'disabled' : '') + '>下一页</button>';
+    html += '<button class="pagination-btn" onclick="loadTasks(' + totalPages + ')" ' + (currentPage >= totalPages ? 'disabled' : '') + '>末页</button>';
+    html += '<span class="pagination-info">第 ' + currentPage + '/' + totalPages + ' 页 (共 ' + (total || 0) + ' 条)</span>';
+
+    container.innerHTML = html;
 }
 
 function formatTimeBrief(task) {
@@ -819,43 +959,29 @@ function formatTimeDetail(task) {
     return parts.join('\n') || '-';
 }
 
-function getStatusClass(status) {
-    const map = {
-        'SUCCESS': 'ok',
-        'FAILED': 'error',
-        'PROCESSING': 'warning',
-        'PENDING': 'warning',
-        'SKIPPED': 'disabled'
-    };
-    return map[status] || 'unknown';
-}
-
 function getStatusText(status) {
-    const map = {
+    var map = {
         'SUCCESS': '成功',
         'FAILED': '失败',
         'PROCESSING': '处理中',
         'PENDING': '待处理',
-        'SKIPPED': '跳过'
+        'SKIPPED': '跳过',
+        'CONFIRMING': '确认中',
+        'NEEDS_REVIEW': '需介入',
+        'ROLLBACK': '已回退'
     };
-    return map[status] || status;
-}
-
-function getScrapedInfo(task) {
-    const info = task.scraped_info;
-    if (!info) return '-';
-    const title = info.title_cn || info.title_en || '未知';
-    const year = info.year ? `(${info.year})` : '';
-    return `${title}${year}`;
+    return map[status] || status || '未知';
 }
 
 function truncate(text, length) {
-    if (!text) return '-';
+    if (!text) return '';
     return text.length > length ? text.substring(0, length) + '...' : text;
 }
 
+// ==================== 任务操作函数 ====================
+
 async function retryTask(taskId) {
-    const result = await apiRequest('POST', `/tasks/${taskId}/retry`);
+    var result = await apiRequest('POST', '/tasks/' + encodeURIComponent(taskId) + '/retry');
     if (result.code === 200) {
         showToast('任务已重试并开始执行');
         loadTasks();
@@ -864,32 +990,292 @@ async function retryTask(taskId) {
     }
 }
 
+async function confirmTask(taskId) {
+    var result = await apiRequest('POST', '/tasks/' + encodeURIComponent(taskId) + '/confirm');
+    if (result.code === 200) {
+        showToast('任务确认入库成功');
+        loadTasks();
+    } else {
+        showToast(result.message || '确认失败', 'error');
+    }
+}
+
+async function reclassifyTask(taskId, dimensions) {
+    var result = await apiRequest('POST', '/tasks/' + encodeURIComponent(taskId) + '/reclassify', {
+        dimensions: dimensions
+    });
+    if (result.code === 200) {
+        showToast('重新分类完成');
+        loadTasks();
+        closeModal('task-detail-modal');
+    } else {
+        showToast(result.message || '重新分类失败', 'error');
+    }
+}
+
+async function rollbackTask(taskId) {
+    var result = await apiRequest('POST', '/tasks/' + encodeURIComponent(taskId) + '/rollback');
+    if (result.code === 200) {
+        showToast('已回退到源目录');
+        loadTasks();
+        closeModal('rollback-confirm-modal');
+        closeModal('task-detail-modal');
+    } else {
+        showToast(result.message || '回退失败', 'error');
+    }
+}
+
+async function ignoreTask(taskId) {
+    if (!confirm('确认忽略该任务？')) return;
+    var result = await apiRequest('POST', '/tasks/' + encodeURIComponent(taskId) + '/ignore');
+    if (result.code === 200) {
+        showToast('任务已忽略');
+        loadTasks();
+    } else {
+        showToast(result.message || '操作失败', 'error');
+    }
+}
+
+function confirmRollback(taskId) {
+    var modal = document.getElementById('rollback-confirm-modal');
+    var btn = document.getElementById('rollback-confirm-btn');
+    btn.onclick = function() { rollbackTask(taskId); };
+    modal.style.display = 'flex';
+}
+
+async function copyPathToClipboard(taskId) {
+    var result = await apiRequest('GET', '/tasks/' + encodeURIComponent(taskId));
+    if (result.code === 200 && result.data && result.data.task) {
+        var path = result.data.task.source_path || '';
+        if (path) {
+            try {
+                await navigator.clipboard.writeText(path);
+                showToast('路径已复制到剪贴板');
+            } catch (e) {
+                showToast('复制失败: ' + e.message, 'error');
+            }
+        } else {
+            showToast('无源路径', 'warning');
+        }
+    } else {
+        showToast('获取任务信息失败', 'error');
+    }
+}
+
+// ==================== 详情弹窗 ====================
+
+async function showTaskDetail(taskId) {
+    var result = await apiRequest('GET', '/tasks/' + encodeURIComponent(taskId));
+    if (result.code !== 200 || !result.data || !result.data.task) {
+        showToast('获取任务详情失败', 'error');
+        return;
+    }
+    var task = result.data.task;
+    var body = document.getElementById('task-detail-body');
+    var footer = document.getElementById('task-detail-footer');
+
+    var dims = task.scrape_dimensions || {};
+    var dimHtml = '';
+    if (Object.keys(dims).length > 0) {
+        dimHtml = '<div class="detail-field"><div class="detail-field-label">分类维度</div>' +
+            '<div class="detail-dim-grid" id="detail-dim-grid">';
+        for (var key in dims) {
+            dimHtml += '<div class="detail-dim-item">' +
+                '<span class="detail-dim-key">' + escapeHtml(key) + '</span>' +
+                '<span class="detail-dim-val">' + escapeHtml(String(dims[key])) + '</span>' +
+            '</div>';
+        }
+        dimHtml += '</div></div>';
+    }
+
+    var scrapeResult = task.scrape_result || {};
+    var scrapeInfo = '';
+    if (scrapeResult && typeof scrapeResult === 'object') {
+        var title = scrapeResult.title_cn || scrapeResult.title_en || '';
+        if (title) {
+            scrapeInfo += '<div class="detail-field"><div class="detail-field-label">刮削标题</div><div class="detail-field-value">' + escapeHtml(title) + '</div></div>';
+        }
+        if (scrapeResult.year) {
+            scrapeInfo += '<div class="detail-field"><div class="detail-field-label">年份</div><div class="detail-field-value">' + escapeHtml(scrapeResult.year) + '</div></div>';
+        }
+        if (scrapeResult.type) {
+            scrapeInfo += '<div class="detail-field"><div class="detail-field-label">类型</div><div class="detail-field-value">' + escapeHtml(scrapeResult.type) + '</div></div>';
+        }
+        if (scrapeResult.confidence !== undefined) {
+            scrapeInfo += '<div class="detail-field"><div class="detail-field-label">置信度</div><div class="detail-field-value">' + scrapeResult.confidence + '</div></div>';
+        }
+    }
+
+    var dedupResult = task.dedup_result || {};
+    var dedupInfo = '';
+    if (dedupResult && dedupResult.is_duplicate) {
+        dedupInfo += '<div class="detail-field"><div class="detail-field-label">查重结果 (重复)</div><div class="detail-field-value">已存在文件: ' + escapeHtml(dedupResult.existing_file || '') + '</div></div>';
+    }
+
+    body.innerHTML =
+        '<div class="detail-field"><div class="detail-field-label">任务ID</div><div class="detail-field-value code">' + escapeHtml(task.task_id || '') + '</div></div>' +
+        '<div class="detail-field"><div class="detail-field-label">源文件名</div><div class="detail-field-value">' + escapeHtml(task.source_filename || '') + '</div></div>' +
+        '<div class="detail-field"><div class="detail-field-label">源路径</div><div class="detail-field-value code">' + escapeHtml(task.source_path || '') + '</div></div>' +
+        '<div class="detail-field"><div class="detail-field-label">状态</div><div class="detail-field-value"><span class="status-badge status-badge-' + (task.status || 'PENDING') + '">' + getStatusText(task.status) + '</span></div></div>' +
+        '<div class="detail-field"><div class="detail-field-label">时间</div><div class="detail-field-value">' + formatTimeDetail(task).replace(/\n/g, '<br>') + '</div></div>' +
+        scrapeInfo +
+        dimHtml +
+        dedupInfo +
+        '<div class="detail-field"><div class="detail-field-label">入库路径</div><div class="detail-field-value code">' + escapeHtml(task.import_path || '-') + '</div></div>' +
+        (task.final_filename ? '<div class="detail-field"><div class="detail-field-label">最终文件名</div><div class="detail-field-value">' + escapeHtml(task.final_filename) + '</div></div>' : '') +
+        (task.error_message ? '<div class="detail-field"><div class="detail-field-label">错误信息</div><div class="detail-field-value" style="color:var(--danger-color)">' + escapeHtml(task.error_message) + '</div></div>' : '') +
+        (task.skip_reason ? '<div class="detail-field"><div class="detail-field-label">跳过原因</div><div class="detail-field-value" style="color:var(--text-muted)">' + escapeHtml(task.skip_reason) + '</div></div>' : '');
+
+    footer.innerHTML = '';
+    var status = task.status || '';
+
+    if (status === 'CONFIRMING') {
+        var reclassifyHtml = buildReclassifyForm(task);
+        body.innerHTML += reclassifyHtml;
+
+        footer.innerHTML =
+            '<button class="btn btn-secondary" onclick="closeModal(\'task-detail-modal\')">关闭</button>' +
+            '<button class="btn btn-warning" onclick="confirmRollback(\'' + escapeHtml(task.task_id) + '\')">回退</button>' +
+            '<button class="btn btn-primary" onclick="confirmTask(\'' + escapeHtml(task.task_id) + '\')">确认入库</button>';
+    } else if (status === 'FAILED' || status === 'NEEDS_REVIEW') {
+        footer.innerHTML =
+            '<button class="btn btn-secondary" onclick="closeModal(\'task-detail-modal\')">关闭</button>' +
+            '<button class="btn btn-primary" onclick="retryTask(\'' + escapeHtml(task.task_id) + '\')">重试</button>';
+    } else {
+        footer.innerHTML =
+            '<button class="btn btn-secondary" onclick="closeModal(\'task-detail-modal\')">关闭</button>';
+    }
+
+    var modal = document.getElementById('task-detail-modal');
+    modal.style.display = 'flex';
+}
+
+function buildReclassifyForm(task) {
+    var dims = task.scrape_dimensions || {};
+    var pathRules = currentConfig.path_rules || [];
+    var allDimKeys = new Set();
+    pathRules.forEach(function(rule) {
+        if (rule.conditions) {
+            Object.keys(rule.conditions).forEach(function(k) { allDimKeys.add(k); });
+        }
+    });
+    if (Object.keys(dims).length > 0) {
+        Object.keys(dims).forEach(function(k) { allDimKeys.add(k); });
+    }
+
+    if (allDimKeys.size === 0) return '';
+
+    var html = '<div class="detail-field"><div class="detail-field-label">修改分类维度</div><div class="detail-dim-grid" id="reclassify-dim-grid">';
+    allDimKeys.forEach(function(key) {
+        var currentVal = dims[key] || '';
+        html += '<div class="detail-dim-item">' +
+            '<span class="detail-dim-key">' + escapeHtml(key) + '</span>' +
+            '<input type="text" class="detail-dim-select" id="reclassify-dim-' + escapeHtml(key) + '" value="' + escapeHtml(String(currentVal)) + '">' +
+        '</div>';
+    });
+    html += '</div>' +
+        '<button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="submitReclassify(\'' + escapeHtml(task.task_id) + '\')">应用修改</button>' +
+        '</div>';
+    return html;
+}
+
+async function submitReclassify(taskId) {
+    var grid = document.getElementById('reclassify-dim-grid');
+    if (!grid) return;
+    var inputs = grid.querySelectorAll('input');
+    var dims = {};
+    inputs.forEach(function(inp) {
+        var key = inp.id.replace('reclassify-dim-', '');
+        var val = inp.value.trim();
+        if (val) dims[key] = val;
+    });
+    await reclassifyTask(taskId, dims);
+}
+
+// ==================== 字幕弹窗 ====================
+
+async function showSubtitleDetail(taskId) {
+    var result = await apiRequest('GET', '/tasks/' + encodeURIComponent(taskId) + '/subtitles');
+    if (result.code !== 200 || !result.data) {
+        showToast('获取字幕信息失败', 'error');
+        return;
+    }
+    var subtitles = result.data.subtitles || [];
+    var body = document.getElementById('subtitle-detail-body');
+
+    if (subtitles.length === 0) {
+        body.innerHTML = '<div class="empty-state"><div class="empty-state-text">无字幕记录</div></div>';
+    } else {
+        var html = '<table class="subtitle-table"><thead><tr>' +
+            '<th>文件名</th><th>语言</th><th>状态</th><th>入库路径</th>' +
+        '</tr></thead><tbody>';
+        subtitles.forEach(function(sub) {
+            html += '<tr>' +
+                '<td>' + escapeHtml(sub.source_filename || '-') + '</td>' +
+                '<td>' + escapeHtml(sub.lang || '-') + '</td>' +
+                '<td><span class="status-badge status-badge-' + (sub.status || 'PENDING') + '">' + getStatusText(sub.status) + '</span></td>' +
+                '<td class="task-import-path">' + (sub.import_path ? escapeHtml(truncate(sub.import_path, 30)) : '-') + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        body.innerHTML = html;
+    }
+
+    var modal = document.getElementById('subtitle-detail-modal');
+    modal.style.display = 'flex';
+}
+
+// ==================== 弹窗控制 ====================
+
+function closeModal(modalId) {
+    var modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+}
+
+// 点击遮罩层关闭弹窗
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('modal-overlay')) {
+        e.target.style.display = 'none';
+    }
+});
+
+// ==================== 状态筛选页签点击 ====================
+
+document.addEventListener('click', function(e) {
+    var tab = e.target.closest('.status-filter-tab');
+    if (tab) {
+        var tabs = document.querySelectorAll('.status-filter-tab');
+        tabs.forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var status = tab.getAttribute('data-status') || 'all';
+        _currentTaskPage = 1;
+        loadTasks(1, status);
+    }
+});
+
+// ==================== 日志 ====================
+
 async function refreshLogs() {
-    const result = await apiRequest('GET', '/logs?limit=100');
+    var result = await apiRequest('GET', '/logs?limit=100');
     if (result.code === 200 && result.data) {
-        const logs = result.data.logs || [];
-        const container = document.getElementById('log-container');
-        
+        var logs = result.data.logs || [];
+        var container = document.getElementById('log-container');
         if (logs.length === 0) {
             container.innerHTML = '<div class="log-line">暂无日志</div>';
             return;
         }
-        
-        container.innerHTML = logs.map(log => {
-            const timestamp = (log.time || '-').substring(11, 19);
-            const level = log.level || 'INFO';
-            const message = log.message || log.raw || JSON.stringify(log);
-            const step = log.step || '';
-            const taskId = log.task_id || '';
-            
+        container.innerHTML = logs.map(function(log) {
+            var timestamp = (log.time || '-').substring(11, 19);
+            var level = log.level || 'INFO';
+            var message = log.message || log.raw || JSON.stringify(log);
+            var step = log.step || '';
+            var taskId = log.task_id || '';
             var levelClass = 'log-level-info';
             if (level === 'ERROR') levelClass = 'log-level-error';
             else if (level === 'WARN' || level === 'WARNING') levelClass = 'log-level-warn';
             else if (level === 'DEBUG') levelClass = 'log-level-debug';
-            
             var stepTag = step ? '<span class="log-step">' + step + '</span> ' : '';
             var taskTag = taskId ? '<span class="log-task">[' + taskId.substring(0, 8) + ']</span> ' : '';
-            
             return '<div class="log-line">' +
                 '<span class="log-time">' + timestamp + '</span> ' +
                 '<span class="' + levelClass + '">' + level + '</span> ' +
@@ -897,14 +1283,14 @@ async function refreshLogs() {
                 '<span class="log-msg">' + escapeHtml(message) + '</span>' +
                 '</div>';
         }).join('');
-        
         container.scrollTop = container.scrollHeight;
     }
 }
 
 function escapeHtml(text) {
+    if (text == null) return '';
     var div = document.createElement('div');
-    div.appendChild(document.createTextNode(text));
+    div.appendChild(document.createTextNode(String(text)));
     return div.innerHTML;
 }
 
@@ -923,15 +1309,6 @@ function renderPathRules(rules) {
     }
 
     bindPathRuleDrag();
-}
-
-function escapeHtml(s) {
-    return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 }
 
 function buildRuleSummary(rule) {
