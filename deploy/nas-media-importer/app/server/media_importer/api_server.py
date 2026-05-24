@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -14,7 +15,8 @@ WEBUI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webui")
 
 from config_loader import load_config, mask_sensitive
 from config_validator import validate_config
-from task_manager import TaskManager, VALID_STATUSES
+from task_manager import TaskManager
+from db import VALID_STATUSES
 from pipeline import PipelineRunner
 from metrics import Metrics, get_metrics
 from logger import get_logger
@@ -22,10 +24,21 @@ from hermes_hook import HermesNotifier
 from file_watcher import FileWatcher
 from db import (
     update_task as db_update_task,
+    delete_task as db_delete_task,
     get_subtitles_by_task as db_get_subtitles,
+    update_subtitles_by_task as db_update_subtitles_by_task,
+    update_subtitle as db_update_subtitle,
     count_by_status as db_count_by_status,
     count_by_specific_status as db_count_specific,
+    get_all_dimensions as db_get_all_dimensions,
+    get_enabled_dimensions as db_get_enabled_dimensions,
+    get_dimension as db_get_dimension,
+    update_dimension as db_update_dimension,
+    enable_dimension as db_enable_dimension,
+    disable_dimension as db_disable_dimension,
+    reset_dimension as db_reset_dimension,
 )
+from dimension_manager import check_tier_access
 
 
 _global_pipeline = None
@@ -132,26 +145,151 @@ class APIHandler(BaseHTTPRequestHandler):
             return
         json_response(self, 200, data={"task": task})
 
-    def _delete_task(self, task_id: str):
+    def _delete_task(self, task_id: str, delete_files: bool = False):
         task = _global_task_manager.get_task(task_id)
         if task is None:
             json_response(self, 404, message=f"Task not found: {task_id}")
             return
-        db_update_task(_global_task_manager.conn, task_id, status="SKIPPED")
-        json_response(self, 200, data={"deleted": task_id}, message="Task skipped")
+
+        current_status = task.get("status", "")
+        if current_status == "PROCESSING":
+            json_response(self, 400, message="任务正在处理中，无法删除，请等待处理完成")
+            return
+
+        deleted_files = []
+        missing_files = []
+        file_location = task.get("file_location", "source")
+
+        temp_files_to_cleanup = []
+        if file_location == "temp":
+            vp = task.get("video_path", "")
+            if vp:
+                if os.path.exists(vp):
+                    temp_files_to_cleanup.append(vp)
+                else:
+                    missing_files.append(os.path.basename(vp))
+            for sub in (task.get("subtitle_files") or []):
+                sub_str = str(sub) if sub else ""
+                if sub_str:
+                    if os.path.exists(sub_str):
+                        temp_files_to_cleanup.append(sub_str)
+                    else:
+                        missing_files.append(os.path.basename(sub_str))
+
+        temp_dir = _config.get('temp_dir', '') if _config else ''
+        for f in temp_files_to_cleanup:
+            try:
+                f_abs = os.path.abspath(f)
+                if temp_dir and f_abs.startswith(os.path.abspath(temp_dir) + os.sep):
+                    if os.path.exists(f):
+                        os.remove(f)
+                        deleted_files.append(os.path.basename(f))
+                    else:
+                        missing_files.append(os.path.basename(f))
+            except OSError:
+                pass
+
+        if delete_files:
+            files_to_delete = []
+            files_to_check = []
+
+            if file_location == "import":
+                ivp = task.get("import_video_path", "")
+                if ivp:
+                    files_to_check.append(ivp)
+                for sub in (task.get("subtitle_files") or []):
+                    sub_str = str(sub) if sub else ""
+                    if sub_str:
+                        files_to_check.append(sub_str)
+            elif file_location == "quarantine":
+                sp = task.get("source_path", "")
+                if sp:
+                    files_to_check.append(sp)
+                for sub in (task.get("subtitle_files") or []):
+                    sub_str = str(sub) if sub else ""
+                    if sub_str:
+                        files_to_check.append(sub_str)
+            elif file_location == "source":
+                sp = task.get("source_path", "")
+                if sp:
+                    files_to_check.append(sp)
+                for sub in (task.get("subtitle_files") or []):
+                    sub_str = str(sub) if sub else ""
+                    if sub_str:
+                        files_to_check.append(sub_str)
+
+            # 先记录哪些文件存在/不存在
+            for f in files_to_check:
+                if os.path.exists(f):
+                    files_to_delete.append(f)
+                else:
+                    missing_files.append(os.path.basename(f))
+
+            source_policy = _config.get("source_policy", {}) if _config else {}
+            import_dirs = []
+            for rule in (_config.get("path_rules", []) if _config else []):
+                tpl = rule.get("template", "")
+                if tpl:
+                    import_dirs.append(tpl)
+
+            allowed_dirs = [
+                _config.get("source_dir", "") if _config else "",
+                _config.get("temp_dir", "") if _config else "",
+                source_policy.get("quarantine_dir", ""),
+            ] + import_dirs
+
+            for f in files_to_delete:
+                try:
+                    f_abs = os.path.abspath(f)
+                    allowed = any(
+                        d and f_abs.startswith(os.path.abspath(d) + os.sep)
+                        for d in allowed_dirs
+                    )
+                    if allowed and os.path.exists(f):
+                        os.remove(f)
+                        deleted_files.append(os.path.basename(f))
+                except OSError:
+                    pass
+
+        db_delete_task(_global_task_manager.conn, task_id)
+
+        location_labels = {
+            "source": "源文件", "quarantine": "隔离区文件",
+            "import": "入库文件", "temp": "中转文件",
+        }
+        loc_label = location_labels.get(file_location, "文件")
+        result = {"deleted": task_id, "file_location": file_location}
+        
+        msg_parts = ["任务已删除"]
+        
+        if deleted_files:
+            result["deleted_files"] = deleted_files
+            msg_parts.append(f"已删除 {len(deleted_files)} 个{loc_label}")
+        
+        if missing_files and delete_files:
+            result["missing_files"] = missing_files
+            msg_parts.append(f"{len(missing_files)} 个文件已不存在")
+
+        json_response(self, 200, data=result, message="，".join(msg_parts))
 
     def _clear_tasks(self, body: dict):
         status = body.get("status")
-        if status and status not in VALID_STATUSES:
+        if status:
+            status = str(status).strip().upper()
+        if status and status != "ALL" and status not in VALID_STATUSES:
+            if _global_logger:
+                _global_logger.warning(f"Invalid status filter: {status}, VALID_STATUSES={VALID_STATUSES}")
             json_response(self, 400, message=f"Invalid status: {status}")
             return
+        if status and status == "ALL":
+            status = None
         _global_task_manager.clear_tasks(status=status)
         json_response(self, 200, message="Tasks cleared", data={"status": status or "all"})
 
     def _retry_task(self, task_id: str):
         task = _global_task_manager.retry_task(task_id)
         if task is None:
-            json_response(self, 404, message=f"Task not found or cannot retry: {task_id}")
+            json_response(self, 400, message=f"任务不存在或当前状态不可重试: {task_id}")
             return
 
         if _global_pipeline and not _global_pipeline.is_paused():
@@ -239,7 +377,7 @@ class APIHandler(BaseHTTPRequestHandler):
             config_path = _config.get("_config_path") if _config else None
             new_config = load_config(config_path) if config_path else load_config()
 
-            if _global_task_manager and _global_task_manager.has_active_tasks():
+            if _global_task_manager and _global_task_manager.has_running_tasks():
                 json_response(self, 400, message="当前有任务正在执行，请等待任务完成后再重载配置")
                 return
 
@@ -261,25 +399,34 @@ class APIHandler(BaseHTTPRequestHandler):
             if _global_pipeline:
                 _global_pipeline.notifier = _global_notifier
 
-            if _global_watcher:
-                _global_watcher.stop()
-                _global_watcher = None
-
-            watcher_cfg = _config.get("file_watcher", {})
-            if watcher_cfg.get("enabled", False):
-                def on_new_files(new_files):
-                    if _global_pipeline and not _global_pipeline.is_paused():
-                        try:
-                            _global_pipeline.run_all()
-                        except Exception as e:
-                            _global_logger.error("批量处理异常: " + str(e))
-
-                _global_watcher = FileWatcher(_config, on_new_files=on_new_files, logger=_global_logger)
-                _global_watcher.start()
+            self._reload_watcher()
 
             json_response(self, 200, message="配置已重载并生效")
         except Exception as e:
             json_response(self, 500, message="配置重载失败: " + str(e))
+
+    def _reload_watcher(self):
+        global _global_watcher
+        if _global_watcher:
+            _global_watcher.stop()
+            _global_watcher = None
+
+        watcher_cfg = _config.get("file_watcher", {})
+        if watcher_cfg.get("enabled", False):
+            def on_new_files(new_files):
+                if _global_pipeline and not _global_pipeline.is_paused():
+                    try:
+                        _global_pipeline.run_all()
+                    except Exception as e:
+                        _global_logger.error("批量处理异常: " + str(e))
+
+            _global_watcher = FileWatcher(_config, on_new_files=on_new_files, logger=_global_logger)
+            _global_watcher.start()
+            _global_logger.info("文件监控已应用新配置并重启: "
+                                f"enabled={watcher_cfg.get('enabled')}, "
+                                f"poll_interval={watcher_cfg.get('poll_interval')}s")
+        else:
+            _global_logger.info("文件监控已停用（配置 enabled=false）")
 
     def _get_real_config_value(self, *path) -> str:
         if _config:
@@ -363,6 +510,24 @@ class APIHandler(BaseHTTPRequestHandler):
         try:
             from config_validator import test_hermes_webhook
             ok, msg = test_hermes_webhook(base_url, route_name, secret, timeout=15)
+            json_response(self, 200, data={"success": ok, "message": msg})
+        except Exception as e:
+            json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
+
+    def _config_test_tmdb(self, body: dict):
+        api_key = body.get("api_key", "")
+
+        if not api_key or self._is_masked_value(api_key):
+            api_key = self._get_real_config_value("metadata", "tmdb", "api_key")
+            if not api_key:
+                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
+                return
+
+        try:
+            from tmdb_client import TMDbClient
+            client = TMDbClient(api_key)
+            ok = client.test_connection()
+            msg = "连接成功" if ok else "连接失败，请检查 API Key 是否正确"
             json_response(self, 200, data={"success": ok, "message": msg})
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
@@ -461,7 +626,9 @@ class APIHandler(BaseHTTPRequestHandler):
             if ok:
                 json_response(self, 200, message="任务确认入库成功")
             else:
-                json_response(self, 500, message="确认入库失败")
+                task = _global_task_manager.get_task(task_id)
+                err = task.get("error_message", "") if task else ""
+                json_response(self, 500, message="确认入库失败" + (f": {err}" if err else ""))
         except Exception as e:
             json_response(self, 400, message=str(e))
 
@@ -479,33 +646,146 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             json_response(self, 400, message=str(e))
 
-    def _task_rollback(self, task_id: str):
-        if _global_pipeline is None:
-            json_response(self, 500, message="Pipeline not initialized")
-            return
-        source_dir = _config.get("source_dir", "") if _config else ""
-        if not source_dir:
-            json_response(self, 400, message="源目录未配置")
-            return
-        try:
-            task = _global_pipeline.rollback_task(task_id, source_dir)
-            json_response(self, 200, data={"task": task}, message="已回退到源目录")
-        except Exception as e:
-            json_response(self, 400, message=str(e))
-
     def _task_ignore(self, task_id: str):
         task = _global_task_manager.get_task(task_id)
         if task is None:
             json_response(self, 404, message=f"Task not found: {task_id}")
             return
-        db_update_task(_global_task_manager.conn, task_id,
-                       status="SKIPPED",
-                       skip_reason="用户忽略")
+        current_status = task.get("status", "")
+        if current_status not in ("FAILED", "CONFIRMING"):
+            json_response(self, 400, message=f"当前状态不可忽略: {current_status}")
+            return
+        source_policy = _config.get("source_policy", {}) if _config else {}
+        quarantine_dir = source_policy.get("quarantine_dir", "")
+        file_location = task.get("file_location", "source")
+
+        if file_location == "temp":
+            temp_video = task.get("video_path", "")
+            if quarantine_dir and temp_video and os.path.exists(temp_video):
+                os.makedirs(quarantine_dir, exist_ok=True)
+                dest_video = TaskManager._resolve_dest_path(
+                    quarantine_dir, os.path.basename(temp_video))
+                try:
+                    shutil.move(temp_video, dest_video)
+                except (OSError, shutil.Error):
+                    dest_video = temp_video
+                subtitle_paths = task.get("subtitle_files", [])
+                new_sub_paths = {}
+                for sub in subtitle_paths:
+                    if sub and os.path.exists(sub):
+                        dest_sub = TaskManager._resolve_dest_path(
+                            quarantine_dir, os.path.basename(sub))
+                        try:
+                            shutil.move(sub, dest_sub)
+                            new_sub_paths[os.path.basename(sub)] = dest_sub
+                        except (OSError, shutil.Error):
+                            pass
+                if new_sub_paths:
+                    subs = db_get_subtitles(_global_task_manager.conn, task_id)
+                    for sub in subs:
+                        sub_basename = os.path.basename(
+                            sub.get("source_path", "") or sub.get("target_path", ""))
+                        if sub_basename in new_sub_paths:
+                            db_update_subtitle(
+                                _global_task_manager.conn, sub["id"],
+                                target_path=new_sub_paths[sub_basename])
+                db_update_task(_global_task_manager.conn, task_id,
+                               status="SKIPPED",
+                               skip_reason="用户忽略",
+                               source_path=dest_video,
+                               source_filename=os.path.basename(dest_video),
+                               file_location="quarantine",
+                               video_path="")
+            else:
+                temp_dir = _config.get('temp_dir', '') if _config else ''
+                if temp_video and temp_dir and str(temp_video).startswith(temp_dir) and os.path.exists(temp_video):
+                    try:
+                        os.remove(temp_video)
+                    except OSError:
+                        pass
+                    for sub in (task.get("subtitle_files") or []):
+                        sub_str = str(sub) if sub else ""
+                        if sub_str and os.path.exists(sub_str) and temp_dir in sub_str:
+                            try:
+                                os.remove(sub_str)
+                            except OSError:
+                                pass
+                db_update_subtitles_by_task(
+                    _global_task_manager.conn, task_id,
+                    status="FAILED", target_path="")
+                db_update_task(_global_task_manager.conn, task_id,
+                               status="SKIPPED",
+                               skip_reason="用户忽略",
+                               file_location="source")
+        else:
+            source_path = task.get("source_path", "")
+            subtitle_paths = task.get("subtitle_files", [])
+            if quarantine_dir and source_path and os.path.exists(source_path):
+                _global_task_manager.move_to_quarantine(
+                    task_id=task_id,
+                    source_path=source_path,
+                    subtitle_paths=subtitle_paths if isinstance(subtitle_paths, list) else [],
+                    quarantine_dir=quarantine_dir,
+                )
+                db_update_task(_global_task_manager.conn, task_id,
+                               status="SKIPPED",
+                               skip_reason="用户忽略",
+                               error_message=f"已移入隔离区: {quarantine_dir}")
+            else:
+                db_update_task(_global_task_manager.conn, task_id,
+                               status="SKIPPED",
+                               skip_reason="用户忽略")
         json_response(self, 200, message="任务已忽略")
 
     def _task_subtitles(self, task_id: str):
         subs = db_get_subtitles(_global_task_manager.conn, task_id)
         json_response(self, 200, data={"subtitles": subs, "total": len(subs)})
+
+    def _task_rename(self, task_id: str, body: dict):
+        new_filename = (body.get("new_filename") or "").strip()
+        if not new_filename:
+            json_response(self, 400, message="new_filename 参数必填")
+            return
+        task = _global_task_manager.get_task(task_id)
+        if task is None:
+            json_response(self, 404, message=f"Task not found: {task_id}")
+            return
+        file_location = task.get("file_location", "source")
+        if file_location == "deleted":
+            json_response(self, 400, message="文件已删除，无法重命名")
+            return
+        if file_location == "import":
+            current_path = task.get("import_video_path", "")
+        elif file_location == "temp":
+            current_path = task.get("video_path", "")
+        elif file_location == "quarantine":
+            current_path = task.get("source_path", "")
+        else:
+            current_path = task.get("source_path", "")
+        if not current_path or not os.path.exists(current_path):
+            json_response(self, 400, message=f"当前文件路径不存在: {current_path}")
+            return
+        current_dir = os.path.dirname(current_path)
+        new_path = os.path.join(current_dir, new_filename)
+        if os.path.exists(new_path) and new_path != current_path:
+            json_response(self, 400, message=f"目标文件名已存在: {new_filename}")
+            return
+        try:
+            os.rename(current_path, new_path)
+        except OSError as e:
+            json_response(self, 500, message=f"重命名失败: {e}")
+            return
+        update_fields = {"source_filename": new_filename}
+        if file_location == "import":
+            update_fields["import_video_path"] = new_path
+            update_fields["final_filename"] = new_filename
+        elif file_location == "temp":
+            update_fields["video_path"] = new_path
+        elif file_location in ("source", "quarantine"):
+            update_fields["source_path"] = new_path
+        db_update_task(_global_task_manager.conn, task_id, **update_fields)
+        updated_task = _global_task_manager.get_task(task_id)
+        json_response(self, 200, data={"task": updated_task}, message="文件重命名成功")
 
     def _task_confirm_all(self):
         if _global_pipeline is None:
@@ -561,10 +841,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
         if path == "/":
             self._serve_static_file("index.html")
-        elif path == "/styles.css":
-            self._serve_static_file("styles.css")
-        elif path == "/app.js":
-            self._serve_static_file("app.js")
+        elif path.startswith("/css/") or path.startswith("/js/"):
+            self._serve_static_file(path.lstrip("/"))
         elif path == "/api/health":
             self._health()
         elif path == "/api/metrics":
@@ -576,8 +854,13 @@ class APIHandler(BaseHTTPRequestHandler):
         elif path == "/api/config/prompts":
             prompts_data = self._load_prompts_for_ui()
             json_response(self, 200, data=prompts_data)
+        elif path == "/api/config/prompts/tmdb":
+            prompts_data = self._load_tmdb_prompts_for_ui()
+            json_response(self, 200, data=prompts_data)
         elif path == "/api/config/prompts/reset":
             self._config_reset_prompts()
+        elif path == "/api/config/prompts/tmdb/reset":
+            self._config_reset_tmdb_prompts()
         elif path == "/api/watcher/status":
             self._watcher_status()
         elif path == "/api/tasks":
@@ -602,11 +885,22 @@ class APIHandler(BaseHTTPRequestHandler):
             self._skill()
         elif path == "/api/skills":
             self._skills_list()
+        elif path == "/api/dimensions":
+            self._dimensions_list()
+        elif path == "/api/dimensions/enabled":
+            self._dimensions_enabled()
+        elif path.startswith("/api/dimensions/"):
+            dim_name = path.split("/api/dimensions/")[1].rstrip("/")
+            self._dimension_get(dim_name)
         else:
             self._serve_static_file(path.lstrip("/"))
 
     def _serve_static_file(self, filename):
         file_path = os.path.join(WEBUI_DIR, filename)
+        real_path = os.path.realpath(file_path)
+        if not real_path.startswith(os.path.realpath(WEBUI_DIR)):
+            json_response(self, 403, message="Access denied")
+            return
         if not os.path.isfile(file_path):
             json_response(self, 404, message=f"File not found: {filename}")
             return
@@ -682,13 +976,6 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._task_reclassify(task_id, body)
             else:
                 json_response(self, 400, message="Invalid reclassify path")
-        elif path.startswith("/api/tasks/") and path.endswith("/rollback"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                self._task_rollback(task_id)
-            else:
-                json_response(self, 400, message="Invalid rollback path")
         elif path.startswith("/api/tasks/") and path.endswith("/ignore"):
             parts = path.split("/")
             if len(parts) >= 5:
@@ -696,6 +983,21 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._task_ignore(task_id)
             else:
                 json_response(self, 400, message="Invalid ignore path")
+        elif path.startswith("/api/tasks/") and path.endswith("/rename"):
+            parts = path.split("/")
+            if len(parts) >= 5:
+                task_id = parts[3]
+                self._task_rename(task_id, body)
+            else:
+                json_response(self, 400, message="Invalid rename path")
+        elif path.startswith("/api/tasks/") and path.endswith("/delete"):
+            parts = path.split("/")
+            if len(parts) >= 5:
+                task_id = parts[3]
+                delete_files = bool(body.get("delete_files", False)) if body else False
+                self._delete_task(task_id, delete_files=delete_files)
+            else:
+                json_response(self, 400, message="Invalid delete path")
         elif path == "/api/queue/pause":
             self._queue_pause()
         elif path == "/api/queue/resume":
@@ -708,18 +1010,89 @@ class APIHandler(BaseHTTPRequestHandler):
             self._config_test_llm(body)
         elif path == "/api/config/test-hermes":
             self._config_test_hermes(body)
+        elif path == "/api/config/test-tmdb":
+            self._config_test_tmdb(body)
         elif path == "/api/config/check-permission":
             self._config_check_permission(body)
         elif path == "/api/path/test":
             self._path_test(body)
+        elif path == "/api/config/section":
+            self._config_save_section(body)
         elif path == "/api/config":
             self._config_save(body)
         elif path == "/api/config/prompts":
             self._config_save_prompts(body)
+        elif path == "/api/config/prompts/tmdb":
+            self._config_save_tmdb_prompts(body)
         elif path == "/api/config/prompts/reset":
             self._config_reset_prompts()
+        elif path == "/api/config/prompts/tmdb/reset":
+            self._config_reset_tmdb_prompts()
+        elif path.startswith("/api/dimensions/") and path.endswith("/enable"):
+            dim_name = path.split("/api/dimensions/")[1].replace("/enable", "")
+            self._dimension_enable(dim_name)
+        elif path.startswith("/api/dimensions/") and path.endswith("/disable"):
+            dim_name = path.split("/api/dimensions/")[1].replace("/disable", "")
+            self._dimension_disable(dim_name)
+        elif path.startswith("/api/dimensions/") and path.endswith("/reset"):
+            dim_name = path.split("/api/dimensions/")[1].replace("/reset", "")
+            self._dimension_reset(dim_name)
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
+
+    def do_PUT(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        body = read_json_body(self)
+
+        if path.startswith("/api/"):
+            if not self._check_auth():
+                self._auth_required()
+                return
+
+        if path.startswith("/api/dimensions/"):
+            dim_name = path.split("/api/dimensions/")[1].rstrip("/")
+            self._dimension_update(dim_name, body)
+        else:
+            json_response(self, 404, message=f"Endpoint not found: {path}")
+
+    def _config_save_section(self, body: dict):
+        section = body.get("section", "")
+        data = body.get("data", {})
+
+        if not section or not data:
+            json_response(self, 400, message="缺少 section 或 data 参数")
+            return
+
+        section_map = {
+            "basic": ["source_dir", "temp_dir", "source_policy"],
+            "path_rules": ["path_rules", "fallback_dir"],
+            "import_options": ["manual_review", "duplicate_handling", "filename_templates"],
+            "metadata.tmdb": ["metadata"],
+            "llm": ["llm"],
+            "server": ["server"],
+            "hermes": ["hermes"],
+            "file_watcher": ["file_watcher"],
+            "advanced": ["log_dir", "task_queue"],
+        }
+
+        if section not in section_map:
+            json_response(self, 400, message=f"未知的配置区块: {section}")
+            return
+
+        try:
+            section_body = {}
+            for key in section_map[section]:
+                if key in data:
+                    section_body[key] = data[key]
+
+            if not section_body:
+                json_response(self, 400, message="区块数据为空")
+                return
+
+            self._config_save(section_body)
+        except Exception as e:
+            json_response(self, 500, message=f"保存区块配置失败: {str(e)}")
 
     def _config_save(self, body: dict):
         """保存配置到文件，保留原有格式和注释"""
@@ -818,8 +1191,11 @@ class APIHandler(BaseHTTPRequestHandler):
                         continue
                     if key == "hooks":
                         continue
-                    if isinstance(value, dict) and key in target and isinstance(target.get(key), (dict, CommentedMap)):
-                        update_nested(target[key], value)
+                    if isinstance(value, dict):
+                        if key in target and isinstance(target.get(key), (dict, CommentedMap)):
+                            update_nested(target[key], value)
+                        else:
+                            target[key] = _process_dict(value)
                     elif isinstance(value, list):
                         old_list = target.get(key) if isinstance(target, (dict, CommentedMap)) else None
                         target[key] = _process_list(value, old_list)
@@ -862,15 +1238,30 @@ class APIHandler(BaseHTTPRequestHandler):
             with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(config_doc, f)
 
-            has_running_tasks = _global_task_manager and _global_task_manager.has_active_tasks()
+            has_running_tasks = _global_task_manager and _global_task_manager.has_running_tasks()
 
             if has_running_tasks:
                 global _config_dirty
                 _config_dirty = True
-                json_response(self, 200, message="配置已保存到文件。当前有任务正在执行，新配置将在任务完成后自动生效，或点击「重载配置」立即生效（可能影响正在执行的任务）")
+                json_response(self, 200, message="配置已保存到文件。当前有任务正在执行，任务完成后自动同步内存配置，或点击「重载配置」立即生效（可能影响正在执行的任务）")
             else:
                 if isinstance(_config, dict):
                     self._update_config_safely(_config, body)
+                quarantine_dir = _config.get("source_policy", {}).get("quarantine_dir", "")
+                if quarantine_dir and not os.path.exists(quarantine_dir):
+                    try:
+                        os.makedirs(quarantine_dir, exist_ok=True)
+                    except OSError:
+                        pass
+
+                if "file_watcher" in body:
+                    try:
+                        self._reload_watcher()
+                        json_response(self, 200, message="轮询监控配置已保存并立即生效")
+                        return
+                    except Exception as e:
+                        _global_logger.error(f"文件监控配置更新后重启失败: {e}")
+
                 json_response(self, 200, message="配置已保存并生效")
         except Exception as e:
             import traceback
@@ -889,6 +1280,7 @@ class APIHandler(BaseHTTPRequestHandler):
         sensitive_fields = [
             ("server", "api_key"),
             ("llm", "api_key"),
+            ("metadata", "tmdb", "api_key"),
             ("hermes", "webhook", "secret"),
         ]
         
@@ -970,7 +1362,7 @@ class APIHandler(BaseHTTPRequestHandler):
             if not task_id:
                 json_response(self, 400, message="Missing task_id")
                 return
-            self._delete_task(task_id)
+            self._delete_task(task_id, delete_files=False)
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
 
@@ -997,6 +1389,88 @@ class APIHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body_bytes)
         self.wfile.flush()
+
+    def _dimensions_list(self):
+        try:
+            dims = db_get_all_dimensions(_global_task_manager.conn)
+            json_response(self, 200, data={"dimensions": dims, "total": len(dims)})
+        except Exception as e:
+            json_response(self, 500, message=f"获取维度列表失败: {e}")
+
+    def _dimensions_enabled(self):
+        try:
+            dims = db_get_enabled_dimensions(_global_task_manager.conn)
+            json_response(self, 200, data={"dimensions": dims, "total": len(dims)})
+        except Exception as e:
+            json_response(self, 500, message=f"获取已启用维度失败: {e}")
+
+    def _dimension_get(self, name: str):
+        try:
+            dim = db_get_dimension(_global_task_manager.conn, name)
+            if dim is None:
+                json_response(self, 404, message=f"维度不存在: {name}")
+                return
+            json_response(self, 200, data=dim)
+        except Exception as e:
+            json_response(self, 500, message=f"获取维度失败: {e}")
+
+    def _dimension_update(self, name: str, body: dict):
+        try:
+            dim = db_get_dimension(_global_task_manager.conn, name)
+            if dim is None:
+                json_response(self, 404, message=f"维度不存在: {name}")
+                return
+            allowed = {}
+            for key in ("label", "ai_prompt", "tmdb_field", "value_list", "color", "description"):
+                if key in body:
+                    allowed[key] = body[key]
+            if not allowed:
+                json_response(self, 400, message="无有效更新字段")
+                return
+            updated = db_update_dimension(_global_task_manager.conn, name, **allowed)
+            json_response(self, 200, data=updated, message="维度配置已更新")
+        except Exception as e:
+            json_response(self, 500, message=f"更新维度失败: {e}")
+
+    def _dimension_enable(self, name: str):
+        try:
+            dim = db_get_dimension(_global_task_manager.conn, name)
+            if dim is None:
+                json_response(self, 404, message=f"维度不存在: {name}")
+                return
+            required_tier = dim.get("required_tier", "free")
+            if required_tier != "free" and not check_tier_access(required_tier):
+                json_response(self, 403, message=f"该维度需要 {required_tier.upper()} 许可")
+                return
+            updated = db_enable_dimension(_global_task_manager.conn, name)
+            json_response(self, 200, data=updated, message=f"维度 {dim.get('label', name)} 已启用")
+        except Exception as e:
+            json_response(self, 500, message=f"启用维度失败: {e}")
+
+    def _dimension_disable(self, name: str):
+        try:
+            dim = db_get_dimension(_global_task_manager.conn, name)
+            if dim is None:
+                json_response(self, 404, message=f"维度不存在: {name}")
+                return
+            updated = db_disable_dimension(_global_task_manager.conn, name)
+            json_response(self, 200, data=updated, message=f"维度 {dim.get('label', name)} 已禁用")
+        except Exception as e:
+            json_response(self, 500, message=f"禁用维度失败: {e}")
+
+    def _dimension_reset(self, name: str):
+        try:
+            dim = db_get_dimension(_global_task_manager.conn, name)
+            if dim is None:
+                json_response(self, 404, message=f"维度不存在: {name}")
+                return
+            updated = db_reset_dimension(_global_task_manager.conn, name)
+            if updated is None:
+                json_response(self, 500, message="恢复默认失败: 缺少默认配置")
+                return
+            json_response(self, 200, data=updated, message=f"维度 {dim.get('label', name)} 已恢复默认配置")
+        except Exception as e:
+            json_response(self, 500, message=f"恢复默认失败: {e}")
 
     def _skills_list(self):
         skills_dir = os.path.join(
@@ -1107,6 +1581,8 @@ class APIHandler(BaseHTTPRequestHandler):
     def _config(self):
         masked = mask_sensitive(_config) if _config else {}
         prompts_data = self._load_prompts_for_ui()
+        tmdb_data = self._load_tmdb_prompts_for_ui()
+        prompts_data["tmdb_system_prompt"] = tmdb_data.get("system_prompt", "")
         json_response(self, 200, data={"config": masked, "prompts": prompts_data})
 
     def _load_prompts_for_ui(self) -> dict:
@@ -1156,6 +1632,46 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             import sys, traceback
             print(f"[ERROR] _load_prompts_for_ui failed: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return {"system_prompt": "", "using_custom": False}
+
+    def _load_tmdb_prompts_for_ui(self) -> dict:
+        try:
+            config_path = _config.get("_config_path") if _config else None
+            if config_path:
+                prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+            else:
+                prompts_dir = os.path.dirname(os.path.abspath(__file__))
+
+            user_file = os.path.join(prompts_dir, "config", "tmdb_prompts.md")
+
+            import yaml as _yaml
+
+            sp = ""
+            using_custom = False
+
+            if os.path.isfile(user_file):
+                with open(user_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if "system_prompt:" in content:
+                    data = _yaml.safe_load(content)
+                    if data and isinstance(data, dict):
+                        sp = (data.get("system_prompt") or "").strip()
+                        using_custom = bool(sp)
+
+            if not sp:
+                from media_importer.llm_scraper import LLMScraper
+                ds = LLMScraper.TMDB_CONTEXT_PROMPT
+                SEP = "【维度判断】\n当前需要判断的维度："
+                if ds.endswith(SEP):
+                    ds = ds[:-len(SEP)]
+                sp = ds.strip()
+                using_custom = False
+
+            return {"system_prompt": sp, "using_custom": using_custom}
+        except Exception as e:
+            import sys, traceback
+            print(f"[ERROR] _load_tmdb_prompts_for_ui failed: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             return {"system_prompt": "", "using_custom": False}
 
@@ -1220,6 +1736,65 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             json_response(self, 500, message="恢复默认提示词失败: " + str(e))
 
+    def _config_save_tmdb_prompts(self, body: dict):
+        """保存 TMDB 版提示词到 tmdb_prompts.md"""
+        try:
+            if not body:
+                json_response(self, 400, message="Empty body")
+                return
+
+            system_prompt = body.get("system_prompt", "").strip()
+
+            config_path = _config.get("_config_path") if _config else None
+            if config_path:
+                prompts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config_path))), "config", "tmdb_prompts.md")
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                prompts_file = os.path.join(base_dir, "config", "tmdb_prompts.md")
+
+            head_comment = """# ============================================================
+# LLM+TMDB 刮削提示词配置
+# ============================================================
+# 当 TMDb API 命中元数据后，使用此提示词让 AI 整理/校验 TMDb 数据
+# 程序会自动追加维度列表和 JSON Schema，此文件只需编写上半部
+# 如需恢复出厂默认，点击 WebUI 中的 "重置为默认" 即可
+
+"""
+            from ruamel.yaml import YAML
+            from ruamel.yaml.scalarstring import LiteralScalarString
+
+            yaml = YAML()
+            yaml.preserve_quotes = True
+            yaml.width = 120
+
+            doc = {}
+            if system_prompt:
+                doc["system_prompt"] = LiteralScalarString(system_prompt)
+
+            with open(prompts_file, "w", encoding="utf-8") as f:
+                f.write(head_comment)
+                yaml.dump(doc, f)
+
+            json_response(self, 200, message="LLM+TMDB 提示词已保存，重启服务后生效")
+        except Exception as e:
+            json_response(self, 500, message="保存 LLM+TMDB 提示词失败: " + str(e))
+
+    def _config_reset_tmdb_prompts(self):
+        try:
+            config_path = _config.get("_config_path") if _config else None
+            if config_path:
+                prompts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config_path))), "config", "tmdb_prompts.md")
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                prompts_file = os.path.join(base_dir, "config", "tmdb_prompts.md")
+
+            if os.path.isfile(prompts_file):
+                os.remove(prompts_file)
+
+            json_response(self, 200, message="已恢复出厂默认 LLM+TMDB 提示词，重启服务后生效")
+        except Exception as e:
+            json_response(self, 500, message="恢复 LLM+TMDB 默认提示词失败: " + str(e))
+
     def _list_tasks(self, query):
         status = query.get("status", [None])[0]
         limit = int(query.get("limit", [20])[0])
@@ -1228,11 +1803,15 @@ class APIHandler(BaseHTTPRequestHandler):
         page = query.get("page", [None])[0]
         format_mode = query.get("format", ["json"])[0].lower()
 
-        if status and status.lower() != "all" and status not in VALID_STATUSES:
+        if status:
+            status = status.strip().upper()
+        if status and status != "ALL" and status not in VALID_STATUSES:
+            if _global_logger:
+                _global_logger.warning(f"Invalid status filter: {status}, VALID_STATUSES={VALID_STATUSES}")
             json_response(self, 400, message=f"Invalid status: {status}")
             return
 
-        if status and status.lower() == "all":
+        if status and status == "ALL":
             status = None
 
         if page is not None:
@@ -1250,7 +1829,7 @@ class APIHandler(BaseHTTPRequestHandler):
             status=status,
         )
         counts = _global_task_manager.count_by_status()
-        active_count = sum(counts.get(s, 0) for s in ("PENDING", "PROCESSING", "FAILED", "CONFIRMING", "NEEDS_REVIEW"))
+        active_count = sum(counts.get(s, 0) for s in ("PENDING", "PROCESSING", "FAILED", "CONFIRMING"))
 
         json_data = {
             "tasks": rows,
@@ -1336,20 +1915,78 @@ def format_tasks_to_text(json_data: dict) -> str:
 
 
 
+def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
+    temp_dir = config.get('temp_dir', '')
+    reset_count = 0
+    cleaned_temp_count = 0
+
+    all_tasks = task_manager.list_tasks(limit=10000)
+    active_temp_files = set()
+
+    for task in all_tasks:
+        status = task.get("status", "")
+        tid = task.get("task_id", "")
+
+        if status == "PROCESSING":
+            temp_video = task.get("video_path", "")
+            if temp_video and os.path.exists(temp_video):
+                try:
+                    os.remove(temp_video)
+                    cleaned_temp_count += 1
+                except OSError:
+                    pass
+            for sub in (task.get("subtitle_files") or []):
+                sub_str = str(sub) if sub else ""
+                if sub_str and os.path.exists(sub_str):
+                    try:
+                        os.remove(sub_str)
+                    except OSError:
+                        pass
+            db_update_task(task_manager.conn, tid,
+                           status="PENDING", file_location="source",
+                           video_path="", current_step=0, percentage=0)
+            reset_count += 1
+
+        elif status == "CONFIRMING":
+            temp_video = task.get("video_path", "")
+            if temp_video:
+                active_temp_files.add(os.path.abspath(temp_video))
+            for sub in (task.get("subtitle_files") or []):
+                sub_str = str(sub) if sub else ""
+                if sub_str:
+                    active_temp_files.add(os.path.abspath(sub_str))
+
+    if temp_dir and os.path.isdir(temp_dir):
+        for f in os.listdir(temp_dir):
+            fpath = os.path.abspath(os.path.join(temp_dir, f))
+            if os.path.isfile(fpath) and fpath not in active_temp_files:
+                try:
+                    os.remove(fpath)
+                    cleaned_temp_count += 1
+                except OSError:
+                    pass
+
+    if reset_count > 0 or cleaned_temp_count > 0:
+        msg_parts = []
+        if reset_count > 0:
+            msg_parts.append(f"重置 {reset_count} 个崩溃任务为 PENDING")
+        if cleaned_temp_count > 0:
+            msg_parts.append(f"清理 {cleaned_temp_count} 个孤立临时文件")
+        logger.info("启动清理: " + ", ".join(msg_parts))
+
+
 def start_server(host: str, port: int, config: dict):
     global _global_pipeline, _global_task_manager, _global_metrics, _global_logger, _global_notifier, _config
 
     _config = config
-    persistence_path = config.get("task_queue", {}).get("persistence_path",
-        os.path.join(os.path.dirname(__file__), "..", "data", "tasks.json"))
+    data_dir = config.get("_data_dir",
+        os.path.join(os.path.dirname(__file__), "..", "data"))
 
-    persistence_dir = os.path.dirname(persistence_path)
-    if persistence_dir:
-        try:
-            os.makedirs(persistence_dir, exist_ok=True)
-        except (OSError, PermissionError) as e:
-            print(f"WARNING: 无法创建任务持久化目录 {persistence_dir}: {e}", file=sys.stderr)
-    _global_task_manager = TaskManager(persistence_path, config)
+    try:
+        os.makedirs(data_dir, exist_ok=True)
+    except (OSError, PermissionError) as e:
+        print(f"WARNING: 无法创建数据目录 {data_dir}: {e}", file=sys.stderr)
+    _global_task_manager = TaskManager(data_dir, config)
     _global_metrics = get_metrics()
     _global_logger = get_logger(config)
 
@@ -1367,6 +2004,8 @@ def start_server(host: str, port: int, config: dict):
 
     _global_logger.info("API 服务初始化完成")
 
+    _cleanup_orphaned_state(config, _global_task_manager, _global_logger)
+
     def notify_error(error_type: str, error_message: str, extra_data: dict = None):
         if _global_notifier:
             _global_notifier.notify_program_error(error_type, error_message, extra_data)
@@ -1380,7 +2019,7 @@ def start_server(host: str, port: int, config: dict):
                 _global_logger.error(f"批量处理异常: {e}")
                 notify_error("batch_error", str(e), {"new_files": list(new_files)})
 
-        if _config_dirty and not _global_task_manager.has_active_tasks():
+        if _config_dirty and not _global_task_manager.has_running_tasks():
             _config_dirty = False
             try:
                 config_path = _config.get("_config_path") if _config else None
@@ -1414,7 +2053,7 @@ def start_server(host: str, port: int, config: dict):
                 def run_initial_batch():
                     global _config_dirty
                     _global_pipeline.run_all()
-                    if _config_dirty and not _global_task_manager.has_active_tasks():
+                    if _config_dirty and not _global_task_manager.has_running_tasks():
                         _config_dirty = False
                         try:
                             config_path = _config.get("_config_path") if _config else None
@@ -1436,8 +2075,8 @@ def start_server(host: str, port: int, config: dict):
     print(f"HTTP API 服务启动: http://{host}:{port}")
     print("端点列表:")
     print("  GET  /                      - Web UI 首页")
-    print("  GET  /styles.css            - 样式文件")
-    print("  GET  /app.js                - JavaScript 文件")
+    print("  GET  /css/*                 - 样式文件")
+    print("  GET  /js/*                  - JavaScript 文件")
     print("  GET  /api/health           - 健康检查")
     print("  GET  /api/metrics          - 指标统计")
     print("  GET  /api/config           - 当前配置")
@@ -1448,11 +2087,11 @@ def start_server(host: str, port: int, config: dict):
     print("  GET  /api/tasks/{id}       - 任务详情")
     print("  GET  /api/tasks/{id}/subtitles - 字幕列表")
     print("  GET  /api/tasks/stats      - 任务统计")
-    print("  DELETE /api/tasks/{id}      - 删除任务")
+    print("  DELETE /api/tasks/{id}      - 删除任务(仅DB记录)")
+    print("  POST /api/tasks/{id}/delete - 删除任务(可选删除文件, body: {delete_files: bool})")
     print("  POST /api/tasks/{id}/retry - 重试任务")
     print("  POST /api/tasks/{id}/confirm - 确认入库 (CONFIRMING → SUCCESS)")
     print("  POST /api/tasks/{id}/reclassify - 重新分类 (带 dimensions 参数)")
-    print("  POST /api/tasks/{id}/rollback - 回退到源目录")
     print("  POST /api/tasks/{id}/ignore - 忽略任务")
     print("  POST /api/tasks/clear      - 清空任务")
     print("  POST /api/tasks/confirm-all - 批量确认所有待确认任务")

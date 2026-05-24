@@ -22,7 +22,7 @@ def apply_subtitle_template(video_basename: str, lang: str, subtitle_ext: str) -
 
 def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
                    scraped_info: dict, filename_templates: dict,
-                   allowed_base_dirs: list = None) -> dict:
+                   allowed_base_dirs: list = None, overwrite: bool = False) -> dict:
     ok, msg = check_write_permission(import_dir)
     if not ok:
         raise IOError(f"入库目录不可写: {msg}")
@@ -44,12 +44,15 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
     dest_video = os.path.join(import_dir, final_video_filename)
 
     if os.path.exists(dest_video):
-        raise IOError(
-            f"目标已存在同名文件: {final_video_filename}\n"
-            f"路径: {dest_video}\n"
-            f"提示: 当前关闭了智能同名检测，无法自动处理冲突。\n"
-            f"请手动处理已存在的文件，或开启智能同名检测后使用替换/重命名等策略。"
-        )
+        if overwrite:
+            os.remove(dest_video)
+        else:
+            raise IOError(
+                f"目标已存在同名文件: {final_video_filename}\n"
+                f"路径: {dest_video}\n"
+                f"提示: 同名去重检测未拦截到此冲突。\n"
+                f"请手动处理已存在的文件，或检查 duplicate_handling 配置。"
+            )
 
     ok, msg = safe_move(video_path, dest_video, allowed_base_dirs)
     if not ok:

@@ -30,23 +30,13 @@ def validate_config(config: dict) -> list:
         if not dir_path:
             errors.append(f"{dir_key} 未配置")
         elif not os.path.isdir(dir_path):
-            try:
-                os.makedirs(dir_path, exist_ok=True)
-            except OSError:
-                errors.append(f"{dir_key} 不存在且无法创建: {dir_path}")
+            errors.append(f"{dir_key} 不存在: {dir_path}")
 
-    # 固定维度白名单校验
-    dimensions = config.get("dimensions", [])
-    EXPECTED_DIMENSION_NAMES = {'media_type', 'documentary', 'animation', 'restricted_level'}
-    actual_names = {dim.get('name') for dim in dimensions if dim.get('name')}
-    if actual_names != EXPECTED_DIMENSION_NAMES:
-        errors.append(f"dimensions 名称必须为 {EXPECTED_DIMENSION_NAMES}，实际为 {actual_names}")
-
-    for dim in dimensions:
-        if not dim.get("name"):
-            errors.append("dimension 缺少 name 字段")
-        if not dim.get("values") or not isinstance(dim["values"], list):
-            errors.append(f"dimension '{dim.get('name')}' 缺少有效的 values 列表")
+    quarantine_dir = config.get("source_policy", {}).get("quarantine_dir", "")
+    if not quarantine_dir:
+        errors.append("source_policy.quarantine_dir 未配置")
+    elif not os.path.isdir(quarantine_dir):
+        errors.append(f"source_policy.quarantine_dir 不存在: {quarantine_dir}")
 
     return errors
 
@@ -69,6 +59,11 @@ def mask_sensitive(config: dict) -> dict:
                 masked["llm"]["api_key"] = api_key[:prefix_end] + "***"
             else:
                 masked["llm"]["api_key"] = "***"
+
+    if masked.get("metadata", {}).get("tmdb", {}).get("api_key"):
+        tmdb_api_key = masked["metadata"]["tmdb"]["api_key"]
+        if tmdb_api_key:
+            masked["metadata"]["tmdb"]["api_key"] = "***"
 
     if masked.get("hermes", {}).get("webhook", {}).get("secret"):
         masked["hermes"]["webhook"]["secret"] = "***"
@@ -141,29 +136,57 @@ def load_config(config_path: str = None) -> dict:
             config[key] = os.path.join(project_root, path_val)
 
     task_queue = config.get("task_queue", {})
-    persistence_path = task_queue.get("persistence_path", "")
-    if not persistence_path:
-        if trim_pkgvar:
-            task_queue["persistence_path"] = os.path.join(trim_pkgvar, "data", "tasks.json")
-        else:
-            task_queue["persistence_path"] = os.path.join(project_root, "data", "tasks.json")
-    elif not os.path.isabs(persistence_path):
-        task_queue["persistence_path"] = os.path.join(project_root, "data", persistence_path)
+    if "persistence_path" in task_queue:
+        del task_queue["persistence_path"]
 
-    if "source_dedup" not in config:
-        config["source_dedup"] = {}
-    source_dedup = config["source_dedup"]
-    source_dedup.setdefault("enabled", True)
-    data_dir = os.path.dirname(task_queue["persistence_path"])
-    source_dedup.setdefault("quarantine_dir", os.path.join(data_dir, "quarantine"))
-    source_dedup.setdefault("max_auto_retries", 3)
+    if "source_file_handling" in config:
+        del config["source_file_handling"]
 
-    source_dedup_qdir = source_dedup.get("quarantine_dir", "")
-    if source_dedup_qdir and not os.path.isabs(source_dedup_qdir):
-        source_dedup["quarantine_dir"] = os.path.join(project_root, source_dedup_qdir)
+    if "source_dedup" in config:
+        old = config.pop("source_dedup")
+        if "source_policy" not in config:
+            config["source_policy"] = {}
+        config["source_policy"].setdefault("dedup_enabled", old.get("enabled", True))
+        config["source_policy"].setdefault("quarantine_dir", old.get("quarantine_dir", ""))
+
+    if "source_dir_scan" in config:
+        scan = config.pop("source_dir_scan")
+        if "source_policy" not in config:
+            config["source_policy"] = {}
+        config["source_policy"].setdefault("scan_recursive", scan.get("recursive", True))
+        config["source_policy"].setdefault("scan_max_depth", scan.get("max_depth", 5))
+
+    if "source_policy" not in config:
+        config["source_policy"] = {}
+    source_policy = config["source_policy"]
+    source_policy.setdefault("dedup_enabled", True)
+
+    if trim_pkgvar:
+        data_dir = os.path.join(trim_pkgvar, "data")
+    else:
+        data_dir = os.path.join(project_root, "data")
+    config["_data_dir"] = data_dir
+
+    source_policy.setdefault("scan_recursive", True)
+    source_policy.setdefault("scan_max_depth", 5)
+
+    quarantine_dir = source_policy.get("quarantine_dir", "")
+    if quarantine_dir and not os.path.isabs(quarantine_dir):
+        source_policy["quarantine_dir"] = os.path.join(project_root, quarantine_dir)
+
+    if "metadata" not in config:
+        config["metadata"] = {}
+    if "tmdb" not in config["metadata"]:
+        config["metadata"]["tmdb"] = {}
+    config["metadata"]["tmdb"].setdefault("enabled", True)
+    config["metadata"]["tmdb"].setdefault("language", "zh-CN")
+    config["metadata"]["tmdb"].setdefault("fallback_language", "en-US")
+    config["metadata"]["tmdb"].setdefault("confidence_threshold", 0.6)
 
     if "manual_review" not in config:
         config["manual_review"] = {"enabled": False}
+
+    config.setdefault("fallback_dir", "")
 
     errors = validate_config(config)
     if errors:

@@ -88,6 +88,9 @@ def parse_filename_info(filename: str) -> Dict[str, Optional[str]]:
     return result
 
 
+VIDEO_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.ts', '.mov', '.wmv', '.m2ts', '.flv'}
+
+
 def find_existing_file(search_dir: str, scraped_info: dict) -> List[str]:
     if not os.path.exists(search_dir):
         return []
@@ -104,6 +107,9 @@ def find_existing_file(search_dir: str, scraped_info: dict) -> List[str]:
 
     for root, dirs, files in os.walk(search_dir):
         for filename in files:
+            ext = os.path.splitext(filename)[1].lower()
+            if ext not in VIDEO_EXTENSIONS:
+                continue
             file_info = parse_filename_info(filename)
 
             year_match = target_info['year'] and file_info['year'] and target_info['year'] == file_info['year']
@@ -136,13 +142,9 @@ def get_resolution_score(resolution: str) -> int:
 
 
 def compare_quality(new_file_path: str, existing_file_path: str, new_file_info: dict) -> str:
-    """
-    质量比较函数
-    返回 'keep_existing', 'replace', 或 'rename'
-    """
     new_resolution = new_file_info.get('resolution')
     new_size = os.path.getsize(new_file_path) if os.path.exists(new_file_path) else 0
-    
+
     existing_info = parse_filename_info(os.path.basename(existing_file_path))
     existing_resolution = existing_info.get('resolution')
     existing_size = os.path.getsize(existing_file_path) if os.path.exists(existing_file_path) else 0
@@ -155,16 +157,10 @@ def compare_quality(new_file_path: str, existing_file_path: str, new_file_info: 
     elif new_res_score < existing_res_score:
         return 'keep_existing'
     else:
-        if new_res_score >= 0:
-            if new_size < existing_size:
-                return 'replace'
-            else:
-                return 'keep_existing'
+        if new_size > existing_size:
+            return 'replace'
         else:
-            if new_size > existing_size:
-                return 'replace'
-            else:
-                return 'keep_existing'
+            return 'keep_existing'
 
 
 def check_duplicate(import_path: str, scraped_info: dict, strategy: str, new_file_path: str = None) -> dict:
@@ -220,18 +216,24 @@ def check_duplicate(import_path: str, scraped_info: dict, strategy: str, new_fil
             result['skip_message'] = f"同名文件已存在，将重命名为: {os.path.basename(result['suggested_filename'])}"
 
         elif strategy == 'quality':
-            if new_file_path:
+            if new_file_path and os.path.exists(new_file_path):
                 quality_decision = compare_quality(new_file_path, existing_files[0], scraped_info)
                 result['quality_decision'] = quality_decision
-                
-                new_res = scraped_info.get('resolution', '未知')
-                existing_res = parse_filename_info(os.path.basename(existing_files[0])).get('resolution', '未知')
-                
+
+                new_res = scraped_info.get('resolution', '未知') or '未知'
+                existing_res = parse_filename_info(os.path.basename(existing_files[0])).get('resolution', '未知') or '未知'
+                new_size_mb = round(os.path.getsize(new_file_path) / (1024 * 1024), 1) if os.path.exists(new_file_path) else 0
+                existing_size_mb = round(os.path.getsize(existing_files[0]) / (1024 * 1024), 1) if os.path.exists(existing_files[0]) else 0
+
                 if quality_decision == 'replace':
-                    result['skip_message'] = f"质量优先: 新文件质量更高，将替换已存在文件 ({new_res} -> {existing_res})"
-                    result['quality_reason'] = f"新文件分辨率更高或压缩更好"
+                    result['skip_message'] = f"质量优先: 新文件更优，将替换已存在文件 (新: {new_res}/{new_size_mb}MB, 已有: {existing_res}/{existing_size_mb}MB)"
+                    result['quality_reason'] = f"新文件分辨率更高或同分辨率下文件更大"
                 else:
-                    result['skip_message'] = f"质量优先: 保留已存在文件 ({existing_res} >= {new_res})"
+                    result['skip_message'] = f"质量优先: 保留已存在文件 (已有: {existing_res}/{existing_size_mb}MB, 新: {new_res}/{new_size_mb}MB)"
                     result['quality_reason'] = f"已存在文件质量更高或相当"
+            else:
+                result['quality_decision'] = 'keep_existing'
+                result['skip_message'] = f"同名文件已存在: {result['existing_file']} (无法比较质量，保留已存在文件)"
+                result['quality_reason'] = "源文件暂不可访问，默认保留已存在文件"
 
     return result

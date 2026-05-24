@@ -13,25 +13,11 @@ from typing import Dict, Any, List, Tuple
 
 
 def check_path(path: str, require_write: bool = False) -> Tuple[bool, str]:
-    """
-    检查路径是否存在，可选检查写入权限
-    
-    Args:
-        path: 要检查的路径
-        require_write: 是否需要写入权限
-    
-    Returns:
-        (是否通过, 详细信息)
-    """
     if not path:
         return False, "路径未配置"
     
     if not os.path.exists(path):
-        try:
-            os.makedirs(path, exist_ok=True)
-            return True, f"路径不存在，已自动创建: {path}"
-        except Exception as e:
-            return False, f"路径不存在且无法创建: {path}, 错误: {str(e)}"
+        return False, f"路径不存在: {path}"
     
     if not os.path.isdir(path):
         return False, f"路径不是目录: {path}"
@@ -197,21 +183,32 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes:
     else:
         ok, msg = check_path(temp_dir, require_write=True)
         add_check("temp_dir", "ok" if ok else "error", msg)
-    
+
+    source_policy = config.get("source_policy", {})
+    quarantine_dir = source_policy.get("quarantine_dir", "")
+    if not quarantine_dir:
+        add_check("quarantine_dir", "error", "隔离区目录未配置")
+    else:
+        ok, msg = check_path(quarantine_dir, require_write=True)
+        add_check("quarantine_dir", "ok" if ok else "error", msg)
+
+    norm_source = source_dir.rstrip("/") if source_dir else ""
+    norm_temp = temp_dir.rstrip("/") if temp_dir else ""
+    norm_quarantine = quarantine_dir.rstrip("/") if quarantine_dir else ""
+
+    if norm_source and norm_temp and norm_source == norm_temp:
+        add_check("dir_conflict", "error", "源目录与中转目录不能相同，否则会导致数据丢失")
+    if norm_source and norm_quarantine and norm_source == norm_quarantine:
+        add_check("dir_conflict", "error", "源目录与隔离区目录不能相同，否则会导致数据丢失")
+    if norm_temp and norm_quarantine and norm_temp == norm_quarantine:
+        add_check("dir_conflict", "error", "中转目录与隔离区目录不能相同，否则会导致数据丢失")
+
     log_dir = config.get("log_dir", "")
     if not log_dir:
         add_check("log_dir", "warning", "日志目录未配置，将使用默认路径")
     else:
         ok, msg = check_path(log_dir, require_write=True)
         add_check("log_dir", "ok" if ok else "error", msg)
-    
-    task_queue = config.get("task_queue", {})
-    persistence_path = task_queue.get("persistence_path", "")
-    if persistence_path:
-        persistence_dir = os.path.dirname(persistence_path)
-        if persistence_dir:
-            ok, msg = check_path(persistence_dir, require_write=True)
-            add_check("task_persistence", "ok" if ok else "error", msg)
     
     llm_config = config.get("llm", {})
     if not llm_config.get("api_key"):

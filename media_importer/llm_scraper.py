@@ -18,7 +18,7 @@ class LLMScraper:
 
 重要原则：
 1. 先根据文件名提取可确定的元数据（标题、分辨率、季/集编号等）。
-2. 对于文件名中缺失但你可以通过对这部的了解推断出的信息（如年份、类型等），
+2. 对于文件名中缺失但你可以通过对这部作品的了解推断出的信息（如年份、类型等），
    请大胆填写，不要留空。例如：看到 Breaking Bad S01E02，你应该知道这是
    《绝命毒师》第一季第二集，首播年份为2008年，类型为tv，不是纪录片。
 3. 只有当你完全无法判断时，才将字段设为 null。
@@ -42,23 +42,23 @@ class LLMScraper:
 【正确与错误刮削示例】
 文件名示例：
   文件: "Wuthering.Heights.2024.1080p.BluRay.x264.mkv"
-  ✅ 正确: title_cn="呼啸山庄", title_en="Wuthering Heights", year=2024, media_type="movie", restricted_level="17+"
-  ❌ 错误: title_cn="简风暴", title_en="Wuthering Heights", year=2024, media_type="movie", restricted_level="7-12"
+  ✅ 正确: title_cn="呼啸山庄", title_en="Wuthering Heights", year=2024
+  ❌ 错误: title_cn="简风暴", title_en="Wuthering Heights", year=2024
 
 文件名示例：
   文件: "besthd-virgin.territory.2023.1080p.mkv"
-  ✅ 正确: title_cn="七日谈", media_type="movie", restricted_level="17+"
-  ❌ 错误: title_cn="童贞领地", media_type="movie", restricted_level="0-6"
+  ✅ 正确: title_cn="七日谈"
+  ❌ 错误: title_cn="童贞领地"
 
 文件名示例：
   文件: "Breaking.Bad.S01E01.1080p.mkv"
-  ✅ 正确: title_cn="绝命毒师", title_en="Breaking Bad", year=2008, media_type="tv", season=1, episode=1, restricted_level="17+"
-  ❌ 错误: title_cn="绝命制毒", title_en="Breaking Bad", year=2009, media_type="tv", season=1, episode=1, restricted_level="13-15"
+  ✅ 正确: title_cn="绝命毒师", title_en="Breaking Bad", year=2008, season=1, episode=1
+  ❌ 错误: title_cn="绝命制毒", year=2009
 
 文件名示例：
   文件: "Spirited.Away.2001.720p.mkv"
-  ✅ 正确: title_cn="千与千寻", title_en="Spirited Away", year=2001, media_type="movie", animation="true", restricted_level="7-12", documentary="false"
-  ❌ 错误: title_cn="神秘失踪", title_en="Spirited Away", year=2001, media_type="tv", restricted_level="0-6"
+  ✅ 正确: title_cn="千与千寻", title_en="Spirited Away", year=2001
+  ❌ 错误: title_cn="神秘失踪"
 
 【标题翻译规则 - 非常重要】
 - 对于已知的影视作品，请使用官方中文译名，不要直译英文标题
@@ -74,30 +74,18 @@ class LLMScraper:
   2. 使用常见的意译名称
   3. 切勿机械直译导致歧义
 
-【限制级分类规则 - 非常重要】
-restricted_level 分级标准（4选1）：
-- "0-6": 适合0-6岁幼儿/儿童观看（幼儿动画、低龄启蒙）
-- "7-12": 适合7-12岁儿童/家庭观看（合家欢动画、儿童向剧集、PG/PG-13以下）
-- "13-15": 适合13-15岁青少年观看（轻度暴力/恐怖/敏感内容，PG-13或同等分级）
-- "17+": 仅适合17岁以上成人观看（暴力血腥、裸露性爱、深度恐怖、美国R级或同等）
+【维度判断】
+当前需要判断的维度："""
 
-典型例子：
-- "小猪佩奇" → restricted_level="0-6"
-- "寻梦环游记"、"冰雪奇缘" → restricted_level="7-12"
-- "复仇者联盟"、"哈利波特"系列 → restricted_level="13-15"
-- "西部世界"、"绝命毒师"、"权力的游戏"、"斯巴达克斯" → restricted_level="17+"
-- "呼啸山庄"2024/2025/2026 R级翻拍 → restricted_level="17+"
-- 成人向动画（如 Death Note, Berserk, Goblin Slayer）→ restricted_level="17+"
+    TMDB_CONTEXT_PROMPT = """你是一个专业的影视信息整理助手。
+系统已通过 TMDb API 获取到该影视作品的元数据，请基于这些数据整理为系统所需的格式化信息。
 
-【动漫分类规则 - 非常重要】
-animation 判断标准（true/false）：
-- true: 任何动画形式（日漫、国漫、欧美动画、动画电影）
-- false: 真人拍摄的作品
-注意：animation=true 的作品仍然有 media_type（movie/tv）区分。
-典型例子：
-- "进击的巨人" → animation=true, media_type=tv
-- "千与千寻" → animation=true, media_type=movie
-- "阿凡达"（真人+CG，主要为真人表演）→ animation=false
+重要原则：
+1. TMDb 数据是优先参考来源，标题、年份、类型等基础信息优先采用 TMDb 数据。
+2. 若 TMDb 数据不完整或存疑（如缺少某些维度信息、类型标签不够精确），请结合你的知识进行补充判断。例如：TMDb 可能未明确标注是否动漫，但你可以根据作品信息自行判断。
+3. 如果 TMDb 数据与文件名信息有冲突，以 TMDb 数据为准，但季/集编号以文件名为准。
+4. 对于 TMDb 未提供的维度（如限制级分类、是否动漫、是否纪录片等），请根据 TMDb 的类型标签(genres)、简介(overview)、成人标记(adult)等线索推断；线索不足时，请联网搜索该作品的相关信息后判断。
+5. confidence 评分：有 TMDb 数据且信息完整时通常应 ≥0.95；TMDb 数据不完整需 AI 补充时适当降低至 0.85-0.9；完全依赖 AI 推断的维度单独评估。
 
 【维度判断】
 当前需要判断的维度："""
@@ -113,17 +101,28 @@ animation 判断标准（true/false）：
         self.fallback_model = llm_config.get('fallback_model')
         self.confidence_threshold = llm_config.get('confidence_threshold', 0.8)
         self.verify_ssl = llm_config.get('verify_ssl', True)
-        # 固定维度定义（硬编码）
         self.dimensions = [
-            {'name': 'media_type', 'label': '影视类型', 'values': ['movie', 'tv'], 'ai_prompt': '请判断这是电影还是电视剧（movie/tv）'},
-            {'name': 'documentary', 'label': '是否纪录片', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为纪录片（true/false）'},
-            {'name': 'animation', 'label': '是否动漫', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为动漫/动画作品（true/false）'},
-            {'name': 'restricted_level', 'label': '限制级分类', 'values': ['0-6', '7-12', '13-15', '17+'], 'ai_prompt': '请判断内容的年龄分级：0-6、7-12、13-15、17+'},
+            {'name': 'media_type', 'label': '影视类型', 'values': ['movie', 'tv'], 'ai_prompt': '请判断这是电影（movie）还是电视剧（tv）。如果有季集信息（S01E01格式）则为电视剧；如果是完整独立故事则为电影。'},
+            {'name': 'documentary', 'label': '是否纪录片', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为纪录片（true/false）。纪录片是以真实事件、人物、自然为主题的非虚构影视作品，包括自然纪录片、历史纪录片、社会纪录片等。'},
+            {'name': 'restricted_level', 'label': '限制级分类', 'values': ['0-6', '7-12', '13-16', '17+'], 'ai_prompt': '请判断内容的年龄分级：0-6（幼儿/儿童内容）、7-12（家庭向，适合全家观看）、13-16（青少年向，可能含轻微暴力或恐怖）、17+（成人内容，含明显暴力、色情或恐怖元素）。如不确定，请联网查询该影视的官方分级后判断。'},
+            {'name': 'animation', 'label': '是否动漫', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为动漫/动画作品（true/false）。包括日本动画、中国动画、欧美动画电影等。以动画形式制作的作品均属于此类。'},
+            {'name': 'region', 'label': '地区', 'values': ['us', 'cn', 'hk', 'tw', 'jp', 'kr', 'gb', 'fr', 'de', 'it', 'es', 'in', 'other'], 'ai_prompt': '请判断该影视作品的主要制片国家或地区：us（美国）、cn（中国大陆）、hk（中国香港）、tw（中国台湾）、jp（日本）、kr（韩国）、gb（英国）、fr（法国）、de（德国）、it（意大利）、es（西班牙）、in（印度）、other（其他）。根据标题语言、制作方、内容风格等综合判断。'},
+            {'name': 'origin_lang', 'label': '原始语言', 'values': ['zh', 'en', 'ja', 'ko', 'other'], 'ai_prompt': '请判断该影视作品的原始语言：zh（中文）、en（英语）、ja（日语）、ko（韩语）、other（其他语言）。根据标题和内容判断。'},
+            {'name': 'broad_genre', 'label': '类型', 'values': ['horror_mystery', 'scifi_fantasy', 'war', 'action_adventure', 'comedy', 'drama_romance', 'documentary', 'music', 'kids', 'tv_show', 'other'], 'ai_prompt': '请判断该影视作品的主要类型：horror_mystery（恐怖/悬疑）、scifi_fantasy（科幻/奇幻）、war（战争/军事）、action_adventure（动作/冒险）、comedy（喜剧）、drama_romance（剧情/情感）、documentary（纪录/纪实）、music（音乐/演出）、kids（儿童/家庭）、tv_show（电视节目）、other（其他）。如果同时属于多个类型，选择风格最鲜明突出的那个。'},
         ]
 
         self.custom_system_prompt = llm_config.get('system_prompt', '')
 
         self._load_prompts_from_file()
+
+        self.custom_tmdb_prompt = ''
+        self._load_tmdb_prompts_from_file()
+
+    def load_dimensions_from_db(self, conn):
+        from dimension_manager import get_dimensions_for_scrape
+        db_dims = get_dimensions_for_scrape(conn)
+        if db_dims:
+            self.dimensions = db_dims
 
     @staticmethod
     def _get_default_prompts() -> dict:
@@ -133,6 +132,15 @@ animation 判断标准（true/false）：
             "system": LLMScraper.DEFAULT_SYSTEM_PROMPT,
             "sep": sep
         }
+
+    @staticmethod
+    def _get_default_tmdb_prompt() -> str:
+        """返回默认 TMDB 版提示词（供 API 层调用，不含分隔线）"""
+        sep = "【维度判断】\n当前需要判断的维度："
+        prompt = LLMScraper.TMDB_CONTEXT_PROMPT
+        if prompt.endswith(sep):
+            prompt = prompt[:-len(sep)]
+        return prompt.strip()
 
     def _load_prompts_from_file(self):
         """
@@ -183,7 +191,40 @@ animation 判断标准（true/false）：
         except Exception:
             pass
 
-    def _build_system_prompt(self) -> str:
+    def _load_tmdb_prompts_from_file(self):
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'tmdb_prompts.md'),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', 'tmdb_prompts.md'),
+            '/vol3/@appdata/nas-media-importer/config/tmdb_prompts.md',
+        ]
+        SEP = "【维度判断】\n当前需要判断的维度："
+
+        prompts_file = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                prompts_file = path
+                break
+
+        if prompts_file is None:
+            return
+
+        try:
+            import yaml
+            with open(prompts_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+
+            if data and isinstance(data, dict):
+                sp = (data.get('system_prompt') or '').strip()
+
+                if SEP in sp:
+                    sp = sp.split(SEP)[0].strip()
+
+                if sp:
+                    self.custom_tmdb_prompt = sp
+        except Exception:
+            pass
+
+    def _build_system_prompt(self, exclude_dims: set = None) -> str:
         SEP = "【维度判断】\n当前需要判断的维度："
 
         if self.custom_system_prompt:
@@ -196,25 +237,65 @@ animation 判断标准（true/false）：
 
         prompt_parts = [base, "", SEP, ""]
 
-        for i, dim in enumerate(self.dimensions, 1):
+        dims = [d for d in self.dimensions if d.get('name') not in (exclude_dims or set())]
+        for i, dim in enumerate(dims, 1):
             name = dim.get('name', '')
             label = dim.get('label', name)
             values = dim.get('values', [])
             values_str = ', '.join(str(v) for v in values) if values else ''
-            prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
+            ai_hint = dim.get('ai_prompt', '')
+            if ai_hint:
+                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}] — {ai_hint}")
+            else:
+                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
 
         prompt_parts.append("")
         prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
 
-        json_schema = self._build_json_schema()
+        json_schema = self._build_json_schema(exclude_dims)
         prompt_parts.append(json.dumps(json_schema, ensure_ascii=False, indent=2))
 
         return '\n'.join(prompt_parts)
 
-    def _build_json_schema(self) -> Dict[str, Any]:
+    def _build_system_prompt_with_context(self, exclude_dims: set = None) -> str:
+        SEP = "【维度判断】\n当前需要判断的维度："
+
+        if self.custom_tmdb_prompt:
+            base = self.custom_tmdb_prompt
+        else:
+            base = self.TMDB_CONTEXT_PROMPT
+
+        if base.endswith(SEP):
+            base = base[:-len(SEP)]
+
+        prompt_parts = [base, "", SEP, ""]
+
+        dims = [d for d in self.dimensions if d.get('name') not in (exclude_dims or set())]
+        for i, dim in enumerate(dims, 1):
+            name = dim.get('name', '')
+            label = dim.get('label', name)
+            values = dim.get('values', [])
+            values_str = ', '.join(str(v) for v in values) if values else ''
+            ai_hint = dim.get('ai_prompt', '')
+            if ai_hint:
+                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}] — {ai_hint}")
+            else:
+                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
+
+        prompt_parts.append("")
+        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
+
+        json_schema = self._build_json_schema(exclude_dims)
+        prompt_parts.append(json.dumps(json_schema, ensure_ascii=False, indent=2))
+
+        return '\n'.join(prompt_parts)
+
+    def _build_json_schema(self, exclude_dims: set = None) -> Dict[str, Any]:
         dimensions_schema = {}
         for dim in self.dimensions:
             name = dim.get('name')
+            if exclude_dims and name in exclude_dims:
+                continue
             values = dim.get('values', [])
             if values:
                 dimensions_schema[name] = f"{'|'.join(str(v) for v in values)}|null"
@@ -338,9 +419,13 @@ animation 判断标准（true/false）：
             raise last_error
         raise LLMScrapeError("所有重试均失败")
 
-    def scrape(self, video_filename: str, subtitle_filenames: List[str] = None) -> Dict[str, Any]:
+    def scrape(self, video_filename: str, subtitle_filenames: List[str] = None,
+               conn=None) -> Dict[str, Any]:
         if subtitle_filenames is None:
             subtitle_filenames = []
+
+        if conn:
+            self.load_dimensions_from_db(conn)
 
         user_content_parts = [
             "视频文件名:",
@@ -360,9 +445,57 @@ animation 判断标准（true/false）：
 
         return self._retry_with_fallback(system_prompt, user_content)
 
+    def scrape_with_context(self, video_filename: str, subtitle_filenames: List[str],
+                            tmdb_context: str, tmdb_dimensions: dict = None,
+                            conn=None) -> Dict[str, Any]:
+        if conn:
+            self.load_dimensions_from_db(conn)
+
+        exclude_dims = set(tmdb_dimensions.keys()) if tmdb_dimensions else set()
+
+        user_content_parts = [
+            "视频文件名:",
+            video_filename,
+            ""
+        ]
+
+        if subtitle_filenames:
+            user_content_parts.append("字幕文件名:")
+            for sub_file in subtitle_filenames:
+                user_content_parts.append(f"- {sub_file}")
+        else:
+            user_content_parts.append("字幕文件: 无")
+
+        user_content_parts.append("")
+        user_content_parts.append(tmdb_context)
+
+        user_content = '\n'.join(user_content_parts)
+        system_prompt = self._build_system_prompt_with_context(exclude_dims=exclude_dims)
+
+        result = self._retry_with_fallback(system_prompt, user_content)
+
+        if tmdb_dimensions:
+            ai_dims = result.get('dimensions', {})
+            for dim_name, dim_info in tmdb_dimensions.items():
+                ai_dims[dim_name] = dim_info['value']
+            result['dimensions'] = ai_dims
+
+        return result
+
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
         user_content = f"剧名:\n{series_name}"
         system_prompt = self._build_series_prompt()
+
+        return self._retry_with_fallback(system_prompt, user_content)
+
+    def scrape_series_with_context(self, series_name: str, tmdb_context: str) -> Dict[str, Any]:
+        user_content_parts = [
+            f"剧名:\n{series_name}",
+            "",
+            tmdb_context
+        ]
+        user_content = '\n'.join(user_content_parts)
+        system_prompt = self._build_series_prompt_with_context()
 
         return self._retry_with_fallback(system_prompt, user_content)
 
@@ -374,6 +507,48 @@ animation 判断标准（true/false）：
             base = self.custom_system_prompt
         else:
             base = self.DEFAULT_SYSTEM_PROMPT
+
+        if base.endswith(SEP):
+            base = base[:-len(SEP)]
+
+        prompt_parts = [base, "", SEP, ""]
+
+        for i, dim in enumerate(self.dimensions, 1):
+            name = dim.get('name', '')
+            label = dim.get('label', name)
+            values = dim.get('values', [])
+            values_str = ', '.join(str(v) for v in values) if values else ''
+            prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
+
+        prompt_parts.append("")
+        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
+
+        dimensions_schema = {}
+        for dim in self.dimensions:
+            name = dim.get('name')
+            values = dim.get('values', [])
+            if values:
+                dimensions_schema[name] = f"{'|'.join(str(v) for v in values)}|null"
+            else:
+                dimensions_schema[name] = "string|null"
+
+        schema = {
+            "title_cn": "string|null",
+            "title_en": "string|null",
+            "year": "int|null",
+            "type": "tv",
+            "dimensions": dimensions_schema,
+            "confidence": "float"
+        }
+
+        prompt_parts.append(json.dumps(schema, ensure_ascii=False, indent=2))
+
+        return '\n'.join(prompt_parts)
+
+    def _build_series_prompt_with_context(self) -> str:
+        SEP = "【维度判断】\n当前需要判断的维度："
+
+        base = self.TMDB_CONTEXT_PROMPT
 
         if base.endswith(SEP):
             base = base[:-len(SEP)]

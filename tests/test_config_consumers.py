@@ -7,7 +7,7 @@
 - source_file_handling: delete_after_process
 - llm: api_key / base_url / model / verify_ssl / confidence_threshold
 - hermes: enabled / webhook.* / events
-- task_queue: max_concurrent / persistence_path
+- task_queue: max_concurrent
 - logging: level / format / max_size_mb / backup_count
 - pipeline: 同名检测 enable 开关生效
 - file_mover: 目标已存在同名文件兜底
@@ -214,7 +214,7 @@ def test_pipeline_with_full_config():
                 'confidence_threshold': 0.8, 'verify_ssl': True},
         'hermes': {'enabled': False, 'webhook': {}},
         'hooks': {'allowed_dir': '', 'before_process': '', 'after_success': '', 'after_failure': ''},
-        'task_queue': {'persistence_path': '/tmp/test_tasks.json', 'max_concurrent': 1},
+        'task_queue': {'max_concurrent': 1},
         'logging': {'level': 'INFO', 'format': 'text', 'max_size_mb': 10, 'backup_count': 2},
     }
     try:
@@ -223,7 +223,7 @@ def test_pipeline_with_full_config():
         from logger import Logger
         from metrics import Metrics
         logger = Logger(level='INFO', fmt='text', log_dir=cfg['log_dir'])
-        tm = TaskManager(cfg['task_queue']['persistence_path'])
+        tm = TaskManager('/tmp/test_data')
         metrics = Metrics()
         p = PipelineRunner(cfg, tm, logger, metrics)
         ok("PipelineRunner 完整配置实例化成功")

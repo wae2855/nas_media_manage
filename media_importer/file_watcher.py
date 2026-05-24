@@ -31,7 +31,7 @@ class FileWatcher:
         try:
             groups = scan_source_dir(self.source_dir, self.config)
             for group in groups:
-                known.add(group["video"])
+                known.add(group["video_path"])
                 for sub in group.get("subtitles", []):
                     known.add(sub)
         except Exception as e:

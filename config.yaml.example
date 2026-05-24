@@ -36,13 +36,19 @@ temp_dir: "/vol1/tmp/media_import"
 # [必须] 日志目录
 log_dir: "/vol1/logs/media_import"
 
-source_dir_scan:
-  recursive: true                 # 是否递归扫描子目录
-  max_depth: 5                    # 递归最大深度
-  ignore_patterns:                # 扫描忽略的文件名模式
-    - "*.tmp"
-    - ".DS_Store"
-    - "*partial*"
+source_policy:
+  dedup_enabled: true             # 是否启用源端去重检测
+                                  #   启用后，扫描源目录时会检查文件是否已处理过
+                                  #   完全相同的重复文件 → 自动隔离
+                                  #   文件已变更（如重新下载高清版）→ 进入「待确认重复」状态
+                                  #   历史失败未超限 → 自动重试
+                                  #   历史失败已超限 → 自动隔离
+  quarantine_dir: "/vol1/@appdata/nas-media-importer/data/quarantine"
+                                  # 隔离区路径，重复文件和失败超限文件将被移入此目录
+                                  # ⚠️ 不能与源目录或中转目录相同
+  max_auto_retries: 3             # 同一文件失败超过此次数后移入隔离区
+  scan_recursive: true            # 是否递归扫描源目录子目录
+  scan_max_depth: 5               # 源目录递归扫描最大深度
 
 video_extensions:                 # 支持的视频格式（仅这些后缀的文件会被处理）
   - ".mkv"
@@ -64,38 +70,9 @@ subtitle_extensions:              # 支持的字幕格式
 # ------------------------------------------------------------
 # 3. 入库规则配置
 # ------------------------------------------------------------
-# AI判断维度：定义AI刮削时需要返回的分类维度（固定为以下4个）
-# 每个维度包含: name(字段名) label(显示名) values(可选值) ai_prompt(AI提示)
-dimensions:
-  - name: media_type
-    label: 影视类型
-    values:
-      - "movie"
-      - "tv"
-    ai_prompt: "请判断这是电影还是电视剧（movie/tv）"
-
-  - name: documentary
-    label: 是否纪录片
-    values:
-      - "true"
-      - "false"
-    ai_prompt: "请判断是否为纪录片（true/false）"
-
-  - name: animation
-    label: 是否动漫
-    values:
-      - "true"
-      - "false"
-    ai_prompt: "请判断是否为动漫/动画作品（true/false），包括日漫、国漫、欧美动画电影等"
-
-  - name: restricted_level
-    label: 限制级分类
-    values:
-      - "0-6"
-      - "7-12"
-      - "13-15"
-      - "17+"
-    ai_prompt: "请判断内容的年龄分级：0-6（幼儿/儿童）、7-12（家庭向）、13-15（青少年）、17+（成人）"
+# 维度配置已移至数据库管理，请通过 Web UI 的「维度配置」页签进行管理
+# 默认启用3个维度：影视类型(media_type)、是否纪录片(documentary)、限制级分类(restricted_level)
+# 可添加维度：是否动漫(animation)、地区(region)、原始语言(origin_lang)、分辨率等级(resolution_tier)、类型(broad_genre)
 
 # 路径规则：按条件从上到下匹配，第一个匹配的规则生效
 # 支持变量: {title_cn} {title_en} {year} {season} {episode} {resolution} {quality} {ext}
@@ -150,6 +127,10 @@ path_rules:
   - conditions: {}
     template: "/vol1/影视/其他/{title_cn} ({year})/"
 
+# 兜底入库目录：所有规则都不匹配时，文件将存入此目录
+# 不设置时，无匹配的文件在分类阶段报错中断
+fallback_dir: "/vol1/影视/未分类/"
+
 # 特殊处理规则
 rules:
   - name: tv_series_folder
@@ -195,23 +176,39 @@ duplicate_handling:
                                   #     - 无分辨率信息时保留体积较大的文件
 
 # ------------------------------------------------------------
-# 6. 源文件处理配置
+# 6. 源文件处理策略
 # ------------------------------------------------------------
-source_file_handling:
-  delete_after_process: true      # 处理成功或跳过后是否删除源文件
-                                  # 启用后，视频、字幕及同名附属文件（如 .nfo、.jpg 等）将被一并删除
-                                  # 目录中无视频/字幕的孤立文件也会被清理，空目录递归删除
-                                  # ⚠️ 若关闭此选项，源文件将保留在源目录中，
-                                  #   每次轮询都会重新扫描并尝试处理之前失败的文件，持续消耗 AI Token
+# 源目录中的文件在处理完成后会被自动清理（包括视频和附属字幕文件），以保持源目录干净：
+#   处理成功 → 源文件立即删除
+#   处理跳过 → 源文件立即删除
+#   处理失败（未超限）→ 源文件保留，等待下次重试
+#   处理失败（超限）→ 源文件移入隔离区
+# 重复文件处理策略详见 source_policy 配置
 
 # ------------------------------------------------------------
 # 6.5 入库前人工检查配置
 # ------------------------------------------------------------
 manual_review:
-  enabled: false                  # 是否启用入库前人工检查（暂未实现，仅保留配置项）
-                                  #   启用后视频会先移动到目标目录但后缀改为 .nascheck
-                                  #   等待用户确认后再改回原后缀名
-                                  #   确认有问题则移回源目录
+  enabled: false                  # 是否启用入库前人工检查
+                                  #   启用后，视频刮削分类完成时不会自动入库
+                                  #   而是进入"确认中"(CONFIRMING)状态等待人工确认
+                                  #   确认后执行入库，有问题可回退到源目录
+
+# ------------------------------------------------------------
+# 6.8 影视元数据刮削配置
+# ------------------------------------------------------------
+metadata:
+  tmdb:
+    enabled: false                  # 是否启用TMDb（The Movie Database）元数据API
+                                  #   true  - 优先使用TMDb，失败时降级到LLM
+                                  #   false - 完全使用LLM进行刮削
+    api_key: ""                   # [必须] TMDb API密钥（如果 enabled=true 时必填
+                                  # 获取地址：https://www.themoviedb.org/settings/api
+                                  # 注册账号后，申请开发者API Key即可
+    language: "zh-CN"           # TMDb返回语言（默认中文）
+    fallback_language: "en-US"   # 中文无结果时的回退语言
+    request_timeout: 10           # API请求超时（秒）
+    max_retries: 3                # API失败重试次数
 
 # ------------------------------------------------------------
 # 7. LLM 大模型配置
@@ -260,7 +257,6 @@ hermes:
 # 9. 任务队列配置
 # ------------------------------------------------------------
 task_queue:
-  persistence_path: "tasks.json"  # 任务持久化文件路径
   max_concurrent: 1               # 最大并发任务数
 
 # ------------------------------------------------------------

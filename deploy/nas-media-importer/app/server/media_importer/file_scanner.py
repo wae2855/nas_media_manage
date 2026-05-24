@@ -91,7 +91,7 @@ class FileScanner:
             vfile = os.path.basename(vpath)
             try:
                 fsize = os.path.getsize(vpath)
-                fsize_mb = round(fsize / (1024 * 1024), 2)
+                fsize_mb = round(fsize / (1024 * 1024), 4)
             except OSError:
                 fsize_mb = 0
             subtitles = info["subtitles"]
@@ -117,32 +117,18 @@ class FileScanner:
         groups = self.scan_and_group(source_dir)
         if not self.task_manager:
             return groups
-        quarantine_dir = self.config.get("quarantine_dir", "")
-        if not quarantine_dir:
-            return groups
         filtered = []
         for g in groups:
             dedup = self.task_manager.check_source_duplicate(g["video_path"])
-            if dedup["action"] == "QUARANTINE":
-                self.task_manager.move_to_quarantine(
-                    task_id=dedup["task_id"],
-                    source_path=g["video_path"],
-                    subtitle_paths=g["subtitle_files"],
-                    quarantine_dir=quarantine_dir,
-                )
-                continue
             if dedup["action"] == "SKIP":
-                if dedup["task_id"]:
+                if dedup.get("task_id"):
                     self.task_manager.update_task({
                         "task_id": dedup["task_id"],
                         "last_seen_at": time.strftime(
                             "%Y-%m-%dT%H:%M:%S", time.localtime()
                         ),
-                        "skip_reason": dedup["reason"],
                     })
                 continue
-            if dedup["action"] == "RETRY" and dedup.get("task_id"):
-                g["retry_task_id"] = dedup["task_id"]
             filtered.append(g)
         return filtered
 
@@ -156,3 +142,8 @@ class FileScanner:
         )
         name = re.sub(r"[.\s_\-]+", " ", name).strip()
         return name.lower()
+
+
+def scan_source_dir(source_dir: str, config: dict, task_manager=None) -> list:
+    scanner = FileScanner(config, task_manager=task_manager)
+    return scanner.scan_and_filter(source_dir)

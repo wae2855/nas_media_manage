@@ -207,7 +207,6 @@ def main():
                 }
             },
             'task_queue': {
-                'persistence_path': '/tmp/cfg_test_e2e/tasks.json',
                 'max_concurrent': 2,
             },
             'hooks': {
@@ -390,7 +389,6 @@ hermes:
     verify_ssl: 'false'
     events: []
 task_queue:
-  persistence_path: ""
   max_concurrent: 1
 hooks:
   allowed_dir: ""

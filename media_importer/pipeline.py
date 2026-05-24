@@ -18,8 +18,9 @@ from db import (
 )
 from file_scanner import FileScanner
 from file_copier import FileCopier
+from metadata_scraper import MetadataScraper
 from llm_scraper import LLMScraper, LLMScrapeError
-from classifier import classify
+from classifier import classify, render_template
 from dedup_checker import check_duplicate
 from file_mover import apply_filename_template, move_to_import, delete_source_files, delete_source_with_companions, remove_empty_parent_dir, cleanup_source_non_media
 from hooks import HookRunner
@@ -62,7 +63,7 @@ class PipelineRunner:
         self.hooks = HookRunner(config, logger)
         self._paused = threading.Event()
 
-        self.scraper = LLMScraper(config)
+        self.scraper = MetadataScraper(config)
         self.copier = FileCopier(config.get('temp_dir', ''))
 
         self._last_notified_error = None
@@ -127,43 +128,25 @@ class PipelineRunner:
 
     def scan_and_create_tasks(self) -> list:
         source_dir = self.config.get('source_dir', '')
-        quarantine_dir = self.config.get('quarantine_dir', '')
+        source_policy = self.config.get('source_policy', {})
         scanner = FileScanner(self.config, task_manager=self.task_manager)
-        groups = scanner.scan_and_filter(source_dir) if quarantine_dir else scanner.scan_and_group(source_dir)
+        groups = scanner.scan_and_filter(source_dir) if source_policy.get('dedup_enabled', True) else scanner.scan_and_group(source_dir)
 
         tasks = []
         for group in groups:
-            retry_task_id = group.get("retry_task_id")
-            if retry_task_id:
-                db_update_task(
-                    self.task_manager.conn, retry_task_id,
-                    status="PENDING",
-                    started_at=None,
-                    completed_at=None,
-                    error_code=0,
-                    error_message="",
-                    current_step=0,
-                    step_name="",
-                    percentage=0,
-                    last_seen_at=datetime.now().isoformat(),
-                )
-                task = self.task_manager.get_task(retry_task_id)
-                task["video_path"] = group["video_path"]
-                task["subtitle_files"] = group["subtitle_files"]
-            else:
-                task = self.task_manager.create_task(
-                    video_path=group["video_path"],
-                    video_file=group["video_file"],
-                    subtitle_files=group["subtitle_files"],
-                    file_size_mb=group["file_size_mb"],
-                )
+            task = self.task_manager.create_task(
+                video_path=group["video_path"],
+                video_file=group["video_file"],
+                subtitle_files=group["subtitle_files"],
+                file_size_mb=group["file_size_mb"],
+            )
             tasks.append(task)
 
         self._log("info", f"扫描完成，创建/重试 {len(tasks)} 个任务")
         return tasks
 
     def process_one(self, task: dict) -> bool:
-        original_source_video = task.get("source_path", task.get("video_path", ""))
+        original_source_video = task.get("source_path") or task.get("video_path", "")
         original_source_subs = list(task.get("subtitle_files", []))
         temp_video_path_for_cleanup = None
 
@@ -178,8 +161,26 @@ class PipelineRunner:
             self.hooks.run_before_process(task)
             self._step_copy(task)
             temp_video_path_for_cleanup = task.get("video_path", "")
+            db_update_task(self.task_manager.conn, tid,
+                           file_location="temp", video_path=task.get("video_path", ""))
             self._step_scrape(task)
             self._step_validate(task)
+
+            if task.get("_needs_confirm"):
+                confirm_reason = task.get("_confirm_reason", "刮削信息不足")
+                task["confirm_status"] = "PENDING"
+                task["status"] = "CONFIRMING"
+                db_update_task(self.task_manager.conn, tid,
+                               confirm_status="PENDING", status="CONFIRMING",
+                               video_path=task.get("video_path", ""),
+                               file_location="temp",
+                               error_message=confirm_reason)
+                self._log("info", f"任务等待人工确认: {task.get('source_filename', '')} - {confirm_reason}", task)
+                self.hooks.run_after_success(task)
+                if self.metrics:
+                    self.metrics.record_task_complete("confirming")
+                return True
+
             self._step_classify(task)
 
             manual_review = self.config.get("manual_review", {})
@@ -189,7 +190,9 @@ class PipelineRunner:
                 task["confirm_status"] = "PENDING"
                 task["status"] = "CONFIRMING"
                 db_update_task(self.task_manager.conn, tid,
-                               confirm_status="PENDING", status="CONFIRMING")
+                               confirm_status="PENDING", status="CONFIRMING",
+                               video_path=task.get("video_path", ""),
+                               file_location="temp")
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')}", task)
                 self.hooks.run_after_success(task)
                 if self.metrics:
@@ -207,7 +210,8 @@ class PipelineRunner:
             task["import_success"] = 1
             db_update_task(self.task_manager.conn, tid,
                            status="SUCCESS", completed_at=task["completed_at"],
-                           import_success=1)
+                           import_success=1, file_location="import",
+                           import_video_path=task.get("import_video_path", ""))
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")
@@ -218,31 +222,41 @@ class PipelineRunner:
             task["status"] = "SKIPPED"
             task["skip_reason"] = str(e)
             task["completed_at"] = datetime.now().isoformat()
-            db_update_task(self.task_manager.conn, tid,
-                           status="SKIPPED", skip_reason=str(e),
-                           completed_at=task["completed_at"])
-            if self.metrics:
-                self.metrics.record_task_complete("skipped")
             self._log("info", f"任务跳过: {task.get('source_filename', '')} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
 
-            delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
-            if delete_after_process:
-                source_dir = self.config.get('source_dir', '')
-                if source_dir and original_source_video and original_source_video.startswith(source_dir):
-                    video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
-                    sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
-                    companion_count = delete_source_with_companions(
-                        original_source_video, original_source_subs,
-                        video_exts, sub_exts, allowed_base_dirs=[source_dir]
-                    )
-                    msg = f"已清理源目录文件: {os.path.basename(original_source_video)}"
-                    if companion_count > 0:
-                        msg += f" (含 {companion_count} 个附属文件)"
-                    self._log("info", msg, task, "cleanup")
-                    remove_empty_parent_dir(original_source_video, source_dir)
+            source_policy = self.config.get("source_policy", {})
+            quarantine_dir = source_policy.get("quarantine_dir", "")
+            source_dir = self.config.get('source_dir', '')
+
+            if original_source_video.startswith(source_dir):
+                self.task_manager.move_to_quarantine(
+                    task_id=tid,
+                    source_path=original_source_video,
+                    subtitle_paths=original_source_subs,
+                    quarantine_dir=quarantine_dir,
+                )
+                db_update_task(self.task_manager.conn, tid,
+                               status="SKIPPED", skip_reason=str(e),
+                               completed_at=task["completed_at"],
+                               file_location="quarantine",
+                               video_path="")
+                self._log("info", f"跳过文件已移入隔离区: {os.path.basename(original_source_video)}", task, "cleanup")
+            elif original_source_video.startswith(quarantine_dir):
+                db_update_task(self.task_manager.conn, tid,
+                               status="SKIPPED", skip_reason=str(e),
+                               completed_at=task["completed_at"],
+                               file_location="quarantine",
+                               video_path="")
             else:
-                self._log("info", f"保留源目录文件（配置为不删除）: {os.path.basename(original_source_video)}", task, "cleanup")
+                db_update_task(self.task_manager.conn, tid,
+                               status="SKIPPED", skip_reason=str(e),
+                               completed_at=task["completed_at"],
+                               file_location="source",
+                               video_path="")
+
+            if self.metrics:
+                self.metrics.record_task_complete("skipped")
             return True
 
         except Exception as e:
@@ -250,14 +264,41 @@ class PipelineRunner:
             task["status"] = "FAILED"
             task["error_message"] = error_msg
             task["completed_at"] = datetime.now().isoformat()
-            db_update_task(self.task_manager.conn, tid,
-                           status="FAILED", error_message=error_msg,
-                           completed_at=task["completed_at"])
+            self._log("error", f"任务失败: {task.get('source_filename', '')} - {e}", task)
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+
+            source_policy = self.config.get("source_policy", {})
+            quarantine_dir = source_policy.get("quarantine_dir", "")
+            source_dir = self.config.get('source_dir', '')
+            if original_source_video.startswith(source_dir):
+                self.task_manager.move_to_quarantine(
+                    task_id=tid,
+                    source_path=original_source_video,
+                    subtitle_paths=original_source_subs,
+                    quarantine_dir=quarantine_dir,
+                )
+                db_update_task(self.task_manager.conn, tid,
+                               status="FAILED", error_message=error_msg,
+                               completed_at=task["completed_at"],
+                               file_location="quarantine",
+                               video_path="")
+                self._log("info", f"失败文件已移入隔离区: {os.path.basename(original_source_video)}", task, "cleanup")
+            elif original_source_video.startswith(quarantine_dir):
+                db_update_task(self.task_manager.conn, tid,
+                               status="FAILED", error_message=error_msg,
+                               completed_at=task["completed_at"],
+                               file_location="quarantine",
+                               video_path="")
+            else:
+                db_update_task(self.task_manager.conn, tid,
+                               status="FAILED", error_message=error_msg,
+                               completed_at=task["completed_at"],
+                               file_location="source",
+                               video_path="")
+
             self.hooks.run_after_failure(task)
             if self.metrics:
                 self.metrics.record_task_complete("failed")
-            self._log("error", f"任务失败: {task.get('source_filename', '')} - {e}", task)
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
 
             if self._is_system_error(error_msg):
                 self._notify_program_error(
@@ -272,8 +313,9 @@ class PipelineRunner:
             raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN')}")
         tid = task_id
         original_source_video = task.get("source_path", "")
-        subtitle_files = task.get("subtitle_files", [])
-        original_source_subs = subtitle_files or []
+        subtitle_source_files = task.get("subtitle_source_files", [])
+        original_source_subs = subtitle_source_files or task.get("subtitle_files", [])
+        temp_video_path_for_cleanup = task.get("video_path", "")
 
         task["confirm_status"] = "CONFIRMED"
         task["confirmed_at"] = datetime.now().isoformat()
@@ -285,8 +327,6 @@ class PipelineRunner:
                        confirm_status="CONFIRMED")
 
         try:
-            self._step_dedup(task)
-            self._step_rename(task)
             self._step_import_from_confirm(task, original_source_video, original_source_subs)
             self._step_notify(task)
             self._step_record(task)
@@ -296,7 +336,8 @@ class PipelineRunner:
             task["import_success"] = 1
             db_update_task(self.task_manager.conn, tid,
                            status="SUCCESS", completed_at=task["completed_at"],
-                           import_success=1)
+                           import_success=1, file_location="import",
+                           import_video_path=task.get("import_video_path", ""))
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")
@@ -307,9 +348,11 @@ class PipelineRunner:
             task["status"] = "FAILED"
             task["error_message"] = error_msg
             task["completed_at"] = datetime.now().isoformat()
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
             db_update_task(self.task_manager.conn, tid,
                            status="FAILED", error_message=error_msg,
-                           completed_at=task["completed_at"])
+                           completed_at=task["completed_at"],
+                           file_location="source")
             self._log("error", f"确认入库失败: {task.get('source_filename', '')} - {e}", task)
             return False
 
@@ -318,6 +361,7 @@ class PipelineRunner:
         if not task:
             raise PipelineError(f"任务不存在: {task_id}")
         tid = task_id
+        temp_video_path_for_cleanup = task.get("video_path", "")
 
         current_dims = task.get("scrape_dimensions", {})
         if isinstance(current_dims, str):
@@ -338,8 +382,13 @@ class PipelineRunner:
         path_rules = self.config.get("path_rules", [])
         import_path = classify(scrape_result, path_rules)
         if not import_path:
-            dims_str = ', '.join(f'{k}={v}' for k, v in current_dims.items())
-            raise PipelineError(f"重新分类失败，维度=[{dims_str}]")
+            fallback_dir = self.config.get("fallback_dir", "")
+            if fallback_dir:
+                import_path = render_template(fallback_dir, scrape_result)
+                self._log("info", f"重新分类：无匹配规则，使用兜底目录: {import_path}", task, "classify")
+            else:
+                dims_str = ', '.join(f'{k}={v}' for k, v in current_dims.items())
+                raise PipelineError(f"重新分类失败，维度=[{dims_str}]")
 
         if not os.path.isabs(import_path):
             project_root = os.path.dirname(
@@ -352,46 +401,80 @@ class PipelineRunner:
 
         task["import_path"] = import_path
         task["classify_result"] = import_path
-        task["status"] = "CONFIRMING"
+        task["status"] = "PROCESSING"
         db_update_task(self.task_manager.conn, tid,
                        import_path=import_path,
                        classify_result=import_path,
-                       status="CONFIRMING")
-        self._log("info", f"任务重新分类完成: {import_path}", task, "classify")
-        return task
+                       status="PROCESSING",
+                       current_step=5,
+                       step_name="classify",
+                       percentage=50)
+        self._log("info", f"任务重新分类完成: {import_path}，继续后续流程", task, "classify")
 
-    def rollback_task(self, task_id: str, source_dir: str) -> dict:
-        task = self.task_manager.get_task(task_id)
-        if not task:
-            raise PipelineError(f"任务不存在: {task_id}")
-        tid = task_id
+        try:
+            self._step_dedup(task)
+            self._step_rename(task)
+            original_source_video = task.get("source_path", "")
+            subtitle_source_files = task.get("subtitle_source_files", [])
+            original_source_subs = subtitle_source_files or task.get("subtitle_files", [])
+            self._step_import(task, original_source_video, original_source_subs)
+            self._step_notify(task)
+            self._step_record(task)
 
-        source_path = task.get("source_path", "")
-        source_filename = task.get("source_filename", "")
-        source_filename_orig = task.get("final_filename") or source_filename
+            task["status"] = "SUCCESS"
+            task["completed_at"] = datetime.now().isoformat()
+            task["import_success"] = 1
+            db_update_task(self.task_manager.conn, tid,
+                           status="SUCCESS", completed_at=task["completed_at"],
+                           import_success=1, file_location="import",
+                           import_video_path=task.get("import_video_path", ""))
+            self.hooks.run_after_success(task)
+            if self.metrics:
+                self.metrics.record_task_complete("success")
+            self._log("info", f"重新分类入库成功: {task.get('source_filename', '')}", task)
+        except PipelineSkipError as e:
+            task["status"] = "SKIPPED"
+            task["skip_reason"] = str(e)
+            task["completed_at"] = datetime.now().isoformat()
+            source_policy = self.config.get("source_policy", {})
+            quarantine_dir = source_policy.get("quarantine_dir", "")
+            source_dir = self.config.get('source_dir', '')
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            source_path = task.get("source_path", "")
+            if source_path and os.path.exists(source_path) and source_path.startswith(source_dir):
+                self.task_manager.move_to_quarantine(
+                    task_id=tid,
+                    source_path=source_path,
+                    subtitle_paths=task.get("subtitle_files", []),
+                    quarantine_dir=quarantine_dir,
+                )
+                db_update_task(self.task_manager.conn, tid,
+                               status="SKIPPED", skip_reason=str(e),
+                               completed_at=task["completed_at"],
+                               file_location="quarantine", video_path="")
+            elif source_path and source_path.startswith(quarantine_dir):
+                db_update_task(self.task_manager.conn, tid,
+                               status="SKIPPED", skip_reason=str(e),
+                               completed_at=task["completed_at"],
+                               file_location="quarantine", video_path="")
+            else:
+                db_update_task(self.task_manager.conn, tid,
+                               status="SKIPPED", skip_reason=str(e),
+                               completed_at=task["completed_at"],
+                               file_location="source", video_path="")
+            self._log("info", f"重新分类后跳过: {task.get('source_filename', '')} - {e}", task)
+        except Exception as e:
+            error_msg = str(e)
+            task["status"] = "FAILED"
+            task["error_message"] = error_msg
+            task["completed_at"] = datetime.now().isoformat()
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            db_update_task(self.task_manager.conn, tid,
+                           status="FAILED", error_message=error_msg,
+                           completed_at=task["completed_at"],
+                           file_location="source", video_path="")
+            self._log("error", f"重新分类入库失败: {task.get('source_filename', '')} - {e}", task)
 
-        temp_dir = self.config.get("temp_dir", "")
-        temp_video = task.get("video_path", "")
-        if temp_dir and temp_video.startswith(temp_dir):
-            restored = False
-            dest_path = os.path.join(source_dir, source_filename_orig)
-            os.makedirs(source_dir, exist_ok=True)
-            if os.path.exists(temp_video):
-                shutil.move(temp_video, dest_path)
-                restored = True
-            subs = task.get("subtitle_files", [])
-            for sub in subs:
-                if sub.startswith(temp_dir) and os.path.exists(sub):
-                    sub_dest = os.path.join(source_dir, os.path.basename(sub))
-                    shutil.move(sub, sub_dest)
-            if restored:
-                self._log("info", f"已回退文件到源目录: {dest_path}", task, "rollback")
-
-        db_update_task(self.task_manager.conn, tid,
-                       status="ROLLBACK",
-                       error_message="用户回退到源目录")
-        db_update_subs(self.task_manager.conn, tid, status="ROLLBACK")
-        self._log("info", f"任务已回退: {source_filename}", task, "rollback")
         return self.task_manager.get_task(tid)
 
     def _cleanup_temp_on_failure(self, task: dict, temp_video_path: str):
@@ -412,9 +495,8 @@ class PipelineRunner:
         self._log("info", "开始批量处理")
 
         source_dir = self.config.get("source_dir", "")
-        delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
 
-        if delete_after_process and source_dir:
+        if source_dir:
             video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
             sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
             deleted_files, deleted_dirs = cleanup_source_non_media(source_dir, video_exts, sub_exts)
@@ -471,9 +553,13 @@ class PipelineRunner:
 
     def _step_copy(self, task: dict):
         self._update_progress(task, 2, "copy", 20)
-        video_path = task.get("video_path", task.get("source_path", ""))
+        file_location = task.get("file_location", "source")
+        if file_location in ("source", "quarantine"):
+            video_path = task.get("source_path", "")
+        else:
+            video_path = task.get("video_path") or task.get("source_path", "")
         subtitle_files = task.get("subtitle_files", [])
-        self._log("info", f"复制文件: {task.get('source_filename', '')}", task, "copy")
+        self._log("info", f"复制文件: {task.get('source_filename', '')} (从{file_location})", task, "copy")
 
         def progress_cb(copied, total):
             pct = int(20 + (copied / total) * 10) if total > 0 else 25
@@ -490,6 +576,14 @@ class PipelineRunner:
             )
             task["video_path"] = copied[0]
             task["subtitle_files"] = copied[1:] if len(copied) > 1 else []
+            tid = task.get("task_id", "")
+            if tid:
+                sub_target_paths = copied[1:] if len(copied) > 1 else []
+                subs = db_get_subtitles(self.task_manager.conn, tid)
+                for i, sub in enumerate(subs):
+                    if i < len(sub_target_paths):
+                        db_update_subtitle(self.task_manager.conn, sub["id"],
+                                           target_path=sub_target_paths[i])
         except IOError as e:
             raise PipelineError(f"复制失败: {e}")
 
@@ -499,10 +593,26 @@ class PipelineRunner:
         self._update_progress(task, 3, "scrape", 35)
         self._log("info", f"刮削元数据: {task.get('source_filename', '')}", task, "scrape")
 
+        file_dimensions = {}
+        try:
+            from dimension_manager import get_dimensions_for_file
+            from file_analyzer import analyze_file
+            file_dims_config = get_dimensions_for_file(self.task_manager.conn)
+            if file_dims_config:
+                video_path = task.get("video_path") or task.get("source_path", "")
+                if video_path and os.path.isfile(video_path):
+                    file_dimensions = analyze_file(video_path, file_dims_config)
+                    if file_dimensions:
+                        fd_str = ', '.join(f'{k}={v["value"]}' for k, v in file_dimensions.items())
+                        self._log("info", f"文件推导维度: [{fd_str}]", task, "scrape")
+        except Exception as e:
+            self._log("warning", f"文件维度分析失败（不影响刮削）: {e}", task, "scrape")
+
         try:
             result = self.scraper.scrape(
                 task.get("source_filename", ""),
-                task.get("subtitle_files", [])
+                task.get("subtitle_files", []),
+                conn=self.task_manager.conn
             )
             task["scrape_result"] = result
             if self.metrics:
@@ -523,6 +633,10 @@ class PipelineRunner:
                         self._log("info", f"整剧维度覆盖: [{changed_str}]", task, "scrape")
 
             scrape_dimensions = result.get("dimensions", {})
+            for dim_name, dim_info in file_dimensions.items():
+                if dim_info.get('value') is not None:
+                    scrape_dimensions[dim_name] = dim_info['value']
+            result['dimensions'] = scrape_dimensions
             task["scrape_dimensions"] = scrape_dimensions
             task["scrape_title_cn"] = result.get('title_cn', '')
             task["scrape_title_en"] = result.get('title_en', '')
@@ -617,10 +731,13 @@ class PipelineRunner:
                 missing_fields.append("AI置信度过低")
 
         if missing_fields:
-            error_msg = f"刮削信息不足，需要人工干预。缺失字段: {'; '.join(missing_fields)}"
+            confirm_reason = f"刮削信息不足，需要人工确认。缺失字段: {'; '.join(missing_fields)}"
             if warnings:
-                error_msg += f"。警告: {'; '.join(warnings)}"
-            raise PipelineError(error_msg)
+                confirm_reason += f"。警告: {'; '.join(warnings)}"
+            task["_needs_confirm"] = True
+            task["_confirm_reason"] = confirm_reason
+            self._log("warn", confirm_reason, task, "validate")
+            return
 
         if warnings:
             self._log("warn", f"刮削警告: {'; '.join(warnings)}", task, "validate")
@@ -638,12 +755,17 @@ class PipelineRunner:
         scraped = task.get("scrape_result", {})
         import_path = classify(scraped, path_rules)
         if not import_path:
-            rules_desc = []
-            for i, rule in enumerate(path_rules):
-                cond = rule.get('conditions', {})
-                cond_str = ', '.join(f'{k}={v}' for k, v in cond.items())
-                rules_desc.append(f"规则{i+1}: [{cond_str}]")
-            self._log("error",
+            fallback_dir = self.config.get("fallback_dir", "")
+            if fallback_dir:
+                import_path = render_template(fallback_dir, scraped)
+                self._log("info", f"无匹配规则，使用兜底目录: {import_path}", task, "classify")
+            else:
+                rules_desc = []
+                for i, rule in enumerate(path_rules):
+                    cond = rule.get('conditions', {})
+                    cond_str = ', '.join(f'{k}={v}' for k, v in cond.items())
+                    rules_desc.append(f"规则{i+1}: [{cond_str}]")
+                self._log("error",
                       f"无匹配规则。文件维度=[{dims_str}], "
                       f"可用规则: {'; '.join(rules_desc) if rules_desc else '无规则配置'}",
                       task, "classify")
@@ -747,10 +869,6 @@ class PipelineRunner:
     def _step_dedup(self, task: dict):
         self._update_progress(task, 6, "dedup", 65)
         dedup_cfg = self.config.get('duplicate_handling', {}) or {}
-        enabled = dedup_cfg.get('enabled', True)
-        if not enabled:
-            self._log("info", f"智能同名检测已关闭，跳过跨目录扫描: {task.get('source_filename', '')}", task, "dedup")
-            return
         self._log("info", f"同名检测: {task.get('source_filename', '')}", task, "dedup")
         strategy = dedup_cfg.get('strategy', 'skip')
         import_roots = self._get_import_roots()
@@ -797,7 +915,7 @@ class PipelineRunner:
                         else:
                             self._log("warning", f"删除文件失败: {msg}", task, "dedup")
                             raise PipelineError(f"无法删除已存在文件: {msg}")
-                elif quality_decision == 'keep_existing':
+                else:
                     skip_msg = dedup_result.get('skip_message', "质量优先: 保留已存在文件")
                     raise PipelineSkipError(skip_msg)
 
@@ -861,15 +979,15 @@ class PipelineRunner:
             task.get("scrape_result", {}),
             templates,
             allowed_base_dirs=allowed_dirs,
+            overwrite=False,
         )
-
         task["video_path"] = move_result.get('video', temp_video_path)
         task["subtitle_files"] = move_result.get('subtitles', [])
+        task["import_video_path"] = move_result.get('video', "")
 
         source_dir = self.config.get('source_dir', '')
-        delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
 
-        if delete_after_process and source_dir and original_source_video:
+        if source_dir and original_source_video:
             video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
             sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
             companion_count = delete_source_with_companions(
@@ -881,13 +999,25 @@ class PipelineRunner:
             if companion_count > 0:
                 msg += f" (含 {companion_count} 个附属文件)"
             self._log("info", msg, task, "import")
-        elif not delete_after_process and source_dir and original_source_video:
-            self._log("info", f"保留源目录文件（配置为不删除）: {os.path.basename(original_source_video)}", task, "import")
 
         temp_dir = self.config.get('temp_dir', '')
         if temp_video_path and temp_dir and str(temp_video_path).startswith(temp_dir):
             delete_source_files([temp_video_path], allowed_base_dirs=allowed_dirs)
             self._log("info", f"已清理临时文件: {os.path.basename(temp_video_path)}", task, "import")
+
+        tid = task.get("task_id", "")
+        db_update_task(self.task_manager.conn, tid,
+                       import_video_path=task.get("import_video_path", ""),
+                       import_success=1)
+
+        import_subs = move_result.get('subtitles', [])
+        subs = db_get_subtitles(self.task_manager.conn, tid)
+        now = datetime.now().isoformat()
+        for i, sub in enumerate(subs):
+            import_path = import_subs[i] if i < len(import_subs) else ""
+            db_update_subtitle(self.task_manager.conn, sub["id"],
+                               status="SUCCESS", import_path=import_path,
+                               confirm_status="CONFIRMED", completed_at=now)
 
         self._update_progress(task, 8, "import", 90)
 
@@ -931,8 +1061,7 @@ class PipelineRunner:
         task["import_video_path"] = move_result.get('video', "")
 
         source_dir = self.config.get('source_dir', '')
-        delete_after_process = self.config.get('source_file_handling', {}).get('delete_after_process', True)
-        if delete_after_process and source_dir and original_source_video:
+        if source_dir and original_source_video:
             video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
             sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
             delete_source_with_companions(
@@ -948,9 +1077,14 @@ class PipelineRunner:
                        import_video_path=task.get("import_video_path", ""),
                        import_success=1)
 
-        db_update_subs(self.task_manager.conn, tid,
-                       status="SUCCESS", confirm_status="CONFIRMED",
-                       completed_at=datetime.now().isoformat())
+        import_subs = move_result.get('subtitles', [])
+        subs = db_get_subtitles(self.task_manager.conn, tid)
+        now = datetime.now().isoformat()
+        for i, sub in enumerate(subs):
+            import_path = import_subs[i] if i < len(import_subs) else ""
+            db_update_subtitle(self.task_manager.conn, sub["id"],
+                               status="SUCCESS", import_path=import_path,
+                               confirm_status="CONFIRMED", completed_at=now)
 
         self._update_progress(task, 8, "import", 90)
 

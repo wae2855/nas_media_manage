@@ -14,17 +14,16 @@ from logger import get_logger
 from hermes_hook import HermesNotifier
 
 
-def _get_persistence_path(config):
-    return config.get("task_queue", {}).get("persistence_path")
+def _get_data_dir(config):
+    return config.get("_data_dir",
+        os.path.join(os.path.dirname(__file__), "..", "data"))
 
 
 def _build_components(config):
-    persistence_path = _get_persistence_path(config)
-    persistence_dir = os.path.dirname(persistence_path)
-    if persistence_dir:
-        os.makedirs(persistence_dir, exist_ok=True)
+    data_dir = _get_data_dir(config)
+    os.makedirs(data_dir, exist_ok=True)
 
-    task_manager = TaskManager(persistence_path, config)
+    task_manager = TaskManager(data_dir, config)
     metrics = get_metrics()
     logger = get_logger(config)
 
@@ -64,7 +63,7 @@ def cmd_run(args):
         groups = scan_source_dir(config.get("source_dir", ""), config)
         logger.info(f"扫描到 {len(groups)} 个视频文件组")
         for group in groups:
-            logger.info(f"  - {group['video']}")
+            logger.info(f"  - {group['video_path']}")
         return
 
     logger.info("开始批量处理")
@@ -79,8 +78,8 @@ def cmd_run(args):
 
 def cmd_list(args):
     config = _load_config(args)
-    persistence_path = _get_persistence_path(config)
-    task_manager = TaskManager(persistence_path, config)
+    data_dir = _get_data_dir(config)
+    task_manager = TaskManager(data_dir, config)
 
     status_map = {
         "all": None,
@@ -106,8 +105,8 @@ def cmd_list(args):
 
 def cmd_show(args):
     config = _load_config(args)
-    persistence_path = _get_persistence_path(config)
-    task_manager = TaskManager(persistence_path, config)
+    data_dir = _get_data_dir(config)
+    task_manager = TaskManager(data_dir, config)
     task = task_manager.get_task(args.task_id)
 
     if task is None:
@@ -140,8 +139,8 @@ def cmd_show(args):
 
 def cmd_retry(args):
     config = _load_config(args)
-    persistence_path = _get_persistence_path(config)
-    task_manager = TaskManager(persistence_path, config)
+    data_dir = _get_data_dir(config)
+    task_manager = TaskManager(data_dir, config)
 
     if args.task_id:
         task = task_manager.retry_task(args.task_id)
@@ -156,8 +155,8 @@ def cmd_retry(args):
 
 def cmd_queue(args):
     config = _load_config(args)
-    persistence_path = _get_persistence_path(config)
-    task_manager = TaskManager(persistence_path, config)
+    data_dir = _get_data_dir(config)
+    task_manager = TaskManager(data_dir, config)
     counts = task_manager.count_by_status()
     print("\n队列状态:")
     print(f"  PENDING:    {counts.get('PENDING', 0)}")
@@ -169,8 +168,8 @@ def cmd_queue(args):
 
 def cmd_clear(args):
     config = _load_config(args)
-    persistence_path = _get_persistence_path(config)
-    task_manager = TaskManager(persistence_path, config)
+    data_dir = _get_data_dir(config)
+    task_manager = TaskManager(data_dir, config)
 
     status_map = {
         "all": None,
@@ -264,8 +263,8 @@ def cmd_health(args):
 
 def cmd_metrics(args):
     config = _load_config(args)
-    persistence_path = _get_persistence_path(config)
-    task_manager = TaskManager(persistence_path, config)
+    data_dir = _get_data_dir(config)
+    task_manager = TaskManager(data_dir, config)
     metrics = get_metrics()
     counts = task_manager.count_by_status()
 
