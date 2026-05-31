@@ -33,8 +33,8 @@ create_manifest() {
     cat > "${PKG_DIR}/manifest" << EOF
 appname               = ${APP_NAME}
 version               = ${VERSION}
-display_name          = NAS影视整理入库
-desc                  = NAS影视自动化入库系统，支持AI智能刮削、自动分类入库影视文件
+display_name          = 影音库AI智能整理
+desc                  = 影音库AI智能整理，支持AI智能刮削、自动分类入库影视文件
 platform              = all
 source                = thirdparty
 maintainer            = wae2855
@@ -390,7 +390,7 @@ create_ui_config() {
 {
     ".url": {
         "nas-media-importer.main": {
-            "title": "NAS影视整理入库",
+            "title": "影音库AI智能整理",
             "icon": "images/icon_{0}.png",
             "type": "iframe",
             "protocol": "",

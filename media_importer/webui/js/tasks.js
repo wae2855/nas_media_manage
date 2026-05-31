@@ -44,8 +44,15 @@ var FILE_LOCATION_LABELS = {
     'source': '源目录',
     'temp': '中转目录',
     'import': '已入库',
-    'quarantine': '隔离区',
+    'recycle': '回收站',
     'deleted': '已删除'
+};
+
+var STATUS_GROUPS = {
+    'pending': ['PENDING'],
+    'processing': ['PROCESSING', 'CONFIRMING'],
+    'failed': ['FAILED'],
+    'completed': ['SUCCESS', 'SKIPPED']
 };
 
 async function loadTasks(page, status) {
@@ -58,35 +65,59 @@ async function loadTasks(page, status) {
     }
     var statusFilter = _currentTaskStatus || 'all';
 
-    var url = '/tasks?page=' + pageNum + '&limit=20';
-    if (statusFilter !== 'all') {
-        url += '&status=' + encodeURIComponent(statusFilter);
-    }
-
-    var result = await apiRequest('GET', url);
-    if (result.code === 200 && result.data) {
-        var tasks = result.data.tasks || [];
-        var total = result.data.total || 0;
-        var totalPages = result.data.total_pages || 1;
-        _currentTaskTotalPages = totalPages;
-
-        if (tasks.length > 0) {
-            console.log('[loadTasks] 第1条数据字段:', Object.keys(tasks[0]).join(', '));
-            console.log('[loadTasks] 第1条 source_filename:', tasks[0].source_filename, 'source_path:', tasks[0].source_path);
+    var groupStatuses = STATUS_GROUPS[statusFilter];
+    if (groupStatuses) {
+        var allTasks = [];
+        var totalCount = 0;
+        var totalPages = 1;
+        for (var gi = 0; gi < groupStatuses.length; gi++) {
+            var url = '/tasks?page=' + pageNum + '&limit=20&status=' + encodeURIComponent(groupStatuses[gi]);
+            var result = await apiRequest('GET', url);
+            if (result.code === 200 && result.data) {
+                allTasks = allTasks.concat(result.data.tasks || []);
+                totalCount += result.data.total || 0;
+                totalPages = Math.max(totalPages, result.data.total_pages || 1);
+            }
         }
-
-        renderTaskTable(tasks);
-        renderPagination(totalPages, pageNum, total);
+        allTasks.sort(function(a, b) {
+            var ta = a.created_at || '';
+            var tb = b.created_at || '';
+            return ta > tb ? -1 : ta < tb ? 1 : 0;
+        });
+        _currentTaskTotalPages = totalPages;
+        if (allTasks.length > 0) {
+            console.log('[loadTasks] 第1条数据字段:', Object.keys(allTasks[0]).join(', '));
+        }
+        renderTaskTable(allTasks);
+        renderPagination(totalPages, pageNum, totalCount);
     } else {
-        var tbody = document.getElementById('tasks-table-body');
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-row">加载失败: ' + (result.message || '未知错误') + '</td></tr>';
+        var url = '/tasks?page=' + pageNum + '&limit=20';
+        if (statusFilter !== 'all') {
+            url += '&status=' + encodeURIComponent(statusFilter);
+        }
+        var result = await apiRequest('GET', url);
+        if (result.code === 200 && result.data) {
+            var tasks = result.data.tasks || [];
+            var total = result.data.total || 0;
+            var totalPages = result.data.total_pages || 1;
+            _currentTaskTotalPages = totalPages;
+            if (tasks.length > 0) {
+                console.log('[loadTasks] 第1条数据字段:', Object.keys(tasks[0]).join(', '));
+                console.log('[loadTasks] 第1条 source_filename:', tasks[0].source_filename, 'source_path:', tasks[0].source_path);
+            }
+            renderTaskTable(tasks);
+            renderPagination(totalPages, pageNum, total);
+        } else {
+            var tbody = document.getElementById('tasks-table-body');
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-row">加载失败: ' + (result.message || '未知错误') + '</td></tr>';
+        }
     }
 }
 
 function renderTaskTable(tasks) {
     var tbody = document.getElementById('tasks-table-body');
     if (!tasks || tasks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-row">暂无任务数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-row"><div class="empty-state-container"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="empty-state-title">暂无任务记录</div><div class="empty-state-desc">将视频文件放入源目录后，点击"立即扫描"即可开始处理</div><div class="empty-state-actions"><button class="btn btn-primary btn-sm" onclick="switchTab(\'overview\')">前往首页</button><button class="btn btn-secondary btn-sm" onclick="switchTab(\'config\')">配置源目录</button></div></div></td></tr>';
         return;
     }
 
@@ -132,7 +163,7 @@ function buildLocationCell(task, importPath) {
         locationPath = task.import_video_path || importPath || '';
     } else if (fileLocation === 'temp') {
         locationPath = task.video_path || '';
-    } else if (fileLocation === 'quarantine') {
+    } else if (fileLocation === 'recycle') {
         locationPath = task.source_path || '';
     } else if (fileLocation === 'source') {
         locationPath = task.source_path || '';
@@ -191,6 +222,20 @@ function buildScrapeCell(task) {
     }
     if (task.scrape_episode && task.scrape_episode !== 'null' && task.scrape_episode !== 'None') {
         parts.push('<span>E' + String(task.scrape_episode).padStart(2, '0') + '</span>');
+    }
+
+    if (task.scrape_confidence != null && task.scrape_confidence !== '') {
+        var conf = Number(task.scrape_confidence);
+        var confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-mid' : 'conf-low';
+        var traceAttr = '';
+        if (task.scrape_trace && typeof task.scrape_trace === 'object') {
+            traceAttr = encodeURIComponent(JSON.stringify(task.scrape_trace));
+        }
+        parts.push('<span class="conf-clickable ' + confClass + '"' +
+            ' onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))"' +
+            ' data-trace="' + traceAttr + '"' +
+            ' data-filename="' + escapeHtml(task.source_filename || '') + '"' +
+            '>' + conf.toFixed(2) + '</span>');
     }
 
     if (task.skip_reason) {
@@ -256,7 +301,7 @@ function buildActionButtons(task) {
     }
 
     if (status !== 'PROCESSING') {
-        btns.push('<button class="task-action-btn delete" onclick="showDeleteConfirm(\'' + escapeHtml(tid) + '\',\'' + escapeHtml(task.source_filename || '') + '\',\'' + escapeHtml(task.file_location || 'source') + '\')" data-tooltip="删除">' +
+        btns.push('<button class="task-action-btn delete" onclick="showDeleteConfirm(\'' + escapeHtml(tid) + '\',\'' + escapeHtml(task.source_filename || '') + '\',\'' + escapeHtml(task.file_location || 'source') + '\')" data-tooltip="移入回收站">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
         '</button>');
     }
@@ -307,12 +352,12 @@ function formatTimeDetail(task) {
 
 function getStatusText(status) {
     var map = {
-        'SUCCESS': '成功',
+        'SUCCESS': '完成',
         'FAILED': '失败',
         'PROCESSING': '处理中',
         'PENDING': '待处理',
-        'SKIPPED': '跳过',
-        'CONFIRMING': '确认中'
+        'SKIPPED': '完成 · 跳过',
+        'CONFIRMING': '处理中 · 需确认'
     };
     return map[status] || status || '未知';
 }
@@ -481,7 +526,16 @@ async function showTaskDetail(taskId) {
         if (scrapeResult.confidence !== undefined) {
             var conf = Number(scrapeResult.confidence);
             var confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-mid' : 'conf-low';
-            scrapeFields.push(['置信度', '<span class="detail-confidence ' + confClass + '">' + conf.toFixed(2) + '</span>']);
+            var detailTraceAttr = '';
+            var detailTraceObj = task.scrape_trace;
+            if (detailTraceObj && typeof detailTraceObj === 'object') {
+                detailTraceAttr = encodeURIComponent(JSON.stringify(detailTraceObj));
+            }
+            scrapeFields.push(['置信度', '<span class="detail-confidence conf-clickable ' + confClass + '"' +
+                ' onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))"' +
+                ' data-trace="' + detailTraceAttr + '"' +
+                ' data-filename="' + escapeHtml(task.source_filename || '') + '"' +
+                '>' + conf.toFixed(2) + '</span>']);
         }
         if (scrapeResult.ai_reason) scrapeFields.push(['AI 判定依据', escapeHtml(String(scrapeResult.ai_reason))]);
         sections.push({ label: 'AI 刮削结果', fields: scrapeFields });
@@ -531,6 +585,20 @@ async function showTaskDetail(taskId) {
     if (task.completed_at) timeFields.push(['完成时间', task.completed_at.replace('T', ' ').substring(0, 19)]);
     sections.push({ label: '时间', fields: timeFields });
 
+    var scrapeTrace = task.scrape_trace;
+    if (scrapeTrace && typeof scrapeTrace === 'object') {
+        var traceHtml = _renderScrapeTrace(scrapeTrace, filename);
+        sections.push({ label: '决策路径', html: traceHtml });
+    } else if (scrapeTrace && typeof scrapeTrace === 'string') {
+        try {
+            var parsedTrace = JSON.parse(scrapeTrace);
+            var traceHtml = _renderScrapeTrace(parsedTrace, filename);
+            sections.push({ label: '决策路径', html: traceHtml });
+        } catch(e) {
+            // ignore parse error
+        }
+    }
+
     // 渲染 section
     body.innerHTML = sections.map(function(sec) {
         var html = '<div class="detail-section"><div class="detail-section-title">' + escapeHtml(sec.label) + '</div>';
@@ -550,7 +618,7 @@ async function showTaskDetail(taskId) {
     // ===== Footer =====
     var deleteBtn = '';
     if (status !== 'PROCESSING') {
-        deleteBtn = '<button class="btn btn-danger" onclick="showDeleteConfirm(\'' + escapeHtml(task.task_id) + '\',\'' + escapeHtml(task.source_filename || '') + '\',\'' + escapeHtml(fileLocation) + '\')">删除任务</button>';
+        deleteBtn = '<button class="btn btn-danger" onclick="showDeleteConfirm(\'' + escapeHtml(task.task_id) + '\',\'' + escapeHtml(task.source_filename || '') + '\',\'' + escapeHtml(fileLocation) + '\')">移入回收站</button>';
     }
     footer.innerHTML = '';
     if (status === 'CONFIRMING') {
@@ -727,7 +795,7 @@ var _locationLabels = {
     'source': '源目录',
     'temp': '中转目录',
     'import': '入库目录',
-    'quarantine': '隔离区',
+    'recycle': '回收站',
     'deleted': '已删除'
 };
 
@@ -735,15 +803,15 @@ var _locationFileLabels = {
     'source': '源文件',
     'temp': '中转文件',
     'import': '入库文件',
-    'quarantine': '隔离区文件',
+    'recycle': '回收站文件',
     'deleted': '文件'
 };
 
 var _locationWarnings = {
-    'source': '将删除源目录中的原始文件，删除后无法恢复',
-    'temp': '将删除中转目录中的临时文件',
-    'import': '⚠️ 将删除已入库的文件！此操作不可恢复，请确认不再需要此影视文件',
-    'quarantine': '将删除隔离区中的文件，删除后无法恢复',
+    'source': '源文件将移入回收站',
+    'temp': '中转文件将移入回收站',
+    'import': '⚠️ 已入库文件将移入回收站，请确认不再需要此影视文件',
+    'recycle': '将永久删除回收站中的文件，删除后无法恢复',
     'deleted': ''
 };
 
@@ -770,19 +838,19 @@ function showDeleteConfirm(taskId, filename, fileLocation) {
 
     if (fileLocation === 'import') {
         fileCheckbox.checked = false;
-        fileLabel.textContent = '同时删除入库文件（' + locText + '）';
-    } else if (fileLocation === 'quarantine') {
+        fileLabel.textContent = '同时移入回收站（' + locText + '）';
+    } else if (fileLocation === 'recycle') {
         fileCheckbox.checked = true;
-        fileLabel.textContent = '同时删除隔离区文件（' + locText + '）';
+        fileLabel.textContent = '同时永久删除回收站文件（' + locText + '）';
     } else if (fileLocation === 'temp') {
         fileCheckbox.checked = true;
-        fileLabel.textContent = '同时删除中转文件（' + locText + '）';
+        fileLabel.textContent = '同时移入回收站（' + locText + '）';
     } else if (fileLocation === 'source') {
         fileCheckbox.checked = false;
-        fileLabel.textContent = '同时删除源文件（' + locText + '）';
+        fileLabel.textContent = '同时移入回收站（' + locText + '）';
     } else {
         fileCheckbox.checked = false;
-        fileLabel.textContent = '同时删除关联文件';
+        fileLabel.textContent = '同时移入回收站';
     }
 
     modal.setAttribute('data-task-id', taskId);
@@ -806,7 +874,7 @@ async function deleteTask() {
         loadTasks(_currentTaskPage, _currentTaskStatus);
         if (typeof refreshOverview === 'function') refreshOverview();
     } else {
-        alert('删除失败: ' + (result.message || '未知错误'));
+        alert('操作失败: ' + (result.message || '未知错误'));
     }
 }
 
@@ -858,6 +926,210 @@ async function refreshLogs() {
         }).join('');
         container.scrollTop = container.scrollHeight;
     }
+}
+
+function _renderScrapeTrace(trace, filename) {
+    if (!trace || typeof trace !== 'object') {
+        return '<div style="padding:12px;color:var(--text-secondary);font-size:13px;">暂无决策路径数据</div>';
+    }
+
+    var html = '<div class="scrape-trace-timeline">';
+
+    var steps = [];
+
+    var fc = trace.filename_clean;
+    if (fc) {
+        steps.push({
+            type: 'INPUT',
+            label: '文件名输入',
+            color: '#06B6D4',
+            detail: fc.original || fc.clean_title || '-',
+            sub: '清洗后: ' + (fc.clean_title || '-') + (fc.year ? ' (' + fc.year + ')' : '') + (fc.removed_items && fc.removed_items.length ? ' | 移除: ' + fc.removed_items.join(', ') : ''),
+        });
+    }
+
+    if (trace.ai_clean) {
+        steps.push({
+            type: 'AI',
+            label: 'AI 辅助清洗',
+            color: '#F59E0B',
+            detail: trace.ai_clean.clean_title || '-',
+            sub: '方法: ' + (trace.ai_clean.method || 'ai'),
+        });
+    }
+
+    var ts = trace.provider_search;
+    if (ts) {
+        var providerName = trace.provider_type || 'TMDb';
+        steps.push({
+            type: 'PROVIDER',
+            label: providerName + ' 搜索',
+            color: '#8B5CF6',
+            detail: '查询: ' + (ts.query || '-'),
+            sub: (ts.total_results || 0) + ' 个结果' + (ts.fallback_used ? ' (使用了英文回退)' : '') + ' | 匹配: ' + (ts.selected_title || '-'),
+        });
+    }
+
+    var pfr = trace.provider_fallback_reasons;
+    if (!ts && pfr && pfr.length > 0) {
+        var fallbackRows = pfr.map(function(p) {
+            var icon = '';
+            var iconColor = '#94A3B8';
+            if (p.status === 'error') { icon = '✗'; iconColor = '#EF4444'; }
+            else if (p.status === 'no_results') { icon = '∅'; iconColor = '#F59E0B'; }
+            else if (p.status === 'below_threshold') { icon = '↓'; iconColor = '#F59E0B'; }
+            else if (p.status === 'details_error') { icon = '⚠'; iconColor = '#EF4444'; }
+            else if (p.status === 'not_configured') { icon = '—'; iconColor = '#94A3B8'; }
+            else { icon = '?'; iconColor = '#94A3B8'; }
+            var name = p.display_name || p.provider_type || '未知';
+            return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
+                '<span style="color:' + iconColor + ';font-weight:600;min-width:16px;text-align:center;">' + icon + '</span>' +
+                '<span style="font-weight:500;color:var(--text-primary);">' + escapeHtml(name) + '</span>' +
+                '<span style="color:var(--text-secondary);">' + escapeHtml(p.reason || '未知原因') + '</span>' +
+            '</div>';
+        });
+        steps.push({
+            type: 'WARN',
+            label: 'Provider 降级为 AI-only',
+            color: '#F59E0B',
+            sub: '所有元数据源均不可用，降级为纯 AI 刮削',
+            extra: fallbackRows.join(''),
+        });
+    }
+
+    var cc = trace.confidence_calc;
+    if (cc) {
+        if (cc.search_conf && typeof cc.search_conf === 'object') {
+            var sc = cc.search_conf;
+            var scVal = sc.search_conf !== undefined ? sc.search_conf.toFixed(3) : '-';
+            steps.push({
+                type: 'CALC',
+                label: '搜索置信度 (search_conf)',
+                color: '#A78BFA',
+                detail: 'T=' + (sc.T !== undefined ? sc.T.toFixed(3) : '-') + ' × R=' + (sc.R !== undefined ? sc.R.toFixed(3) : '-') + ' = ' + scVal,
+                sub: (sc.T_reason || '') + (sc.R_formula ? ' | R公式: ' + sc.R_formula : '') + (sc.total_results !== undefined ? ' | N=' + sc.total_results : ''),
+            });
+        } else if (cc.T !== undefined || cc.R !== undefined) {
+            steps.push({
+                type: 'CALC',
+                label: '置信度计算',
+                color: '#06B6D4',
+                detail: 'T=' + (cc.T !== undefined ? cc.T.toFixed(3) : '-') + ' × R=' + (cc.R !== undefined ? cc.R.toFixed(3) : '-') + ' = ' + (cc['T×R'] !== undefined ? cc['T×R'].toFixed(3) : '-'),
+                sub: cc.T_reason || cc.formula || '',
+            });
+        }
+
+        if (cc.data_gate) {
+            var dg = cc.data_gate;
+            var dgVal = dg.value !== undefined ? (dg.value === 1 ? '1.0 ✓' : '0.0 ✗') : '-';
+            var dimRows = '';
+
+            if (dg.dimensions && typeof dg.dimensions === 'object') {
+                for (var dk in dg.dimensions) {
+                    var dim = dg.dimensions[dk];
+                    var dimConf = dim.confidence !== undefined ? dim.confidence.toFixed(3) : (dim.final_confidence !== undefined ? dim.final_confidence.toFixed(3) : '-');
+                    var dimColor = (dim.confidence !== undefined ? dim.confidence : (dim.final_confidence !== undefined ? dim.final_confidence : 0)) >= 0.8 ? '#22C55E' : ((dim.confidence !== undefined ? dim.confidence : (dim.final_confidence !== undefined ? dim.final_confidence : 0)) >= 0.5 ? '#F59E0B' : '#EF4444');
+                    var sourceTag = '';
+                    if (dim.source === 'tmdb') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(167,139,250,0.12);color:#A78BFA;">Provider</span>';
+                    else if (dim.source === 'ai') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(239,68,68,0.1);color:#EF4444;">AI</span>';
+                    else if (dim.source === 'file') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(16,185,129,0.1);color:#22C55E;">FILE</span>';
+                    else if (dim.source === 'missing') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(148,163,184,0.1);color:#94A3B8;">缺失</span>';
+                    else sourceTag = '<span style="color:var(--text-secondary);font-size:11px;">(' + escapeHtml(dim.source || '?') + ')</span>';
+
+                    var weightStr = dim.weight !== undefined ? ' w=' + dim.weight : '';
+                    dimRows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
+                        '<span>' + escapeHtml(dk) + ' ' + sourceTag + '<span style="color:var(--text-secondary);font-size:11px;">' + weightStr + '</span></span>' +
+                        '<span style="color:' + dimColor + ';font-weight:500;">' + dimConf + '</span>' +
+                    '</div>';
+                }
+            }
+
+            steps.push({
+                type: 'CALC',
+                label: '数据门控 (data_gate)',
+                color: '#3B82F6',
+                detail: dgVal,
+                sub: cc.formula || 'final = search_conf × data_gate',
+                extra: dimRows || undefined,
+            });
+        }
+
+        if (cc.gate_blocked || (cc.data_gate && cc.data_gate.blocked)) {
+            var blocked = cc.gate_blocked || cc.data_gate.blocked;
+            steps.push({
+                type: 'RESULT',
+                label: '⚠ 门控拦截',
+                color: '#EF4444',
+                detail: escapeHtml(blocked.dim_name || '未知') + ' 来源 ' + escapeHtml(blocked.source || '未知') + ' 不信任',
+                sub: '强制判定为 NEEDS_REVIEW',
+            });
+        }
+
+        if (cc.final_confidence !== undefined) {
+            var fcv = cc.final_confidence;
+            var fcColor = fcv >= 0.8 ? '#22C55E' : (fcv >= 0.5 ? '#F59E0B' : '#EF4444');
+            steps.push({
+                type: 'RESULT',
+                label: '最终置信度',
+                color: fcColor,
+                detail: fcv.toFixed(4),
+                sub: fcv >= 0.8 ? '自动通过' : (fcv >= 0.5 ? '需人工确认' : (fcv >= 0.3 ? '需人工审核' : '刮削失败')),
+            });
+        }
+    }
+
+    var dims = trace.dimensions;
+    if (dims && typeof dims === 'object' && !cc) {
+        var dimRows = '';
+        for (var key in dims) {
+            var d = dims[key];
+            var confVal = d.final_confidence !== undefined ? d.final_confidence.toFixed(3) : '-';
+            var confColor = d.final_confidence >= 0.8 ? '#22C55E' : (d.final_confidence >= 0.5 ? '#F59E0B' : '#EF4444');
+            dimRows += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
+                '<span>' + escapeHtml(key) + ' <span style="color:var(--text-secondary);">(' + (d.source || '?') + ')</span></span>' +
+                '<span style="color:' + confColor + ';font-weight:500;">' + confVal + '</span>' +
+            '</div>';
+        }
+        steps.push({
+            type: 'CALC',
+            label: '维度置信度',
+            color: '#06B6D4',
+            detail: '',
+            sub: '',
+            extra: dimRows,
+        });
+    }
+
+    var fc2 = trace.final_confidence;
+    if (fc2 !== undefined && !cc) {
+        var fcColor = fc2 >= 0.8 ? '#22C55E' : (fc2 >= 0.5 ? '#F59E0B' : '#EF4444');
+        steps.push({
+            type: 'RESULT',
+            label: '最终置信度',
+            color: fcColor,
+            detail: fc2.toFixed(4),
+            sub: fc2 >= 0.8 ? '自动通过' : (fc2 >= 0.5 ? '需人工确认' : (fc2 >= 0.3 ? '需人工审核' : '刮削失败')),
+        });
+    }
+
+    steps.forEach(function(step, idx) {
+        var isLast = idx === steps.length - 1;
+        html += '<div class="scrape-trace-step">';
+        html += '<div class="scrape-trace-dot" style="background:' + step.color + ';"></div>';
+        if (!isLast) html += '<div class="scrape-trace-line"></div>';
+        html += '<div class="scrape-trace-content">';
+        html += '<div class="scrape-trace-label" style="color:' + step.color + ';">' + escapeHtml(step.label) + '</div>';
+        if (step.detail) html += '<div class="scrape-trace-detail">' + escapeHtml(step.detail) + '</div>';
+        if (step.sub) html += '<div class="scrape-trace-sub">' + escapeHtml(step.sub) + '</div>';
+        if (step.extra) html += '<div class="scrape-trace-extra">' + step.extra + '</div>';
+        html += '</div></div>';
+    });
+
+    html += '</div>';
+    html += '<div style="margin-top:12px;text-align:center;">';
+    html += '<button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))" data-trace="' + encodeURIComponent(JSON.stringify(trace)) + '" data-filename="' + escapeHtml(filename || '') + '">查看置信度计算过程</button>';
+    html += '</div>';
+    return html;
 }
 
 function escapeHtml(text) {

@@ -44,7 +44,7 @@ var FILE_LOCATION_LABELS = {
     'source': '源目录',
     'temp': '中转目录',
     'import': '已入库',
-    'quarantine': '隔离区',
+    'recycle': '回收站',
     'deleted': '已删除'
 };
 
@@ -132,7 +132,7 @@ function buildLocationCell(task, importPath) {
         locationPath = task.import_video_path || importPath || '';
     } else if (fileLocation === 'temp') {
         locationPath = task.video_path || '';
-    } else if (fileLocation === 'quarantine') {
+    } else if (fileLocation === 'recycle') {
         locationPath = task.source_path || '';
     } else if (fileLocation === 'source') {
         locationPath = task.source_path || '';
@@ -191,6 +191,20 @@ function buildScrapeCell(task) {
     }
     if (task.scrape_episode && task.scrape_episode !== 'null' && task.scrape_episode !== 'None') {
         parts.push('<span>E' + String(task.scrape_episode).padStart(2, '0') + '</span>');
+    }
+
+    if (task.scrape_confidence != null && task.scrape_confidence !== '') {
+        var conf = Number(task.scrape_confidence);
+        var confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-mid' : 'conf-low';
+        var traceAttr = '';
+        if (task.scrape_trace && typeof task.scrape_trace === 'object') {
+            traceAttr = encodeURIComponent(JSON.stringify(task.scrape_trace));
+        }
+        parts.push('<span class="conf-clickable ' + confClass + '"' +
+            ' onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))"' +
+            ' data-trace="' + traceAttr + '"' +
+            ' data-filename="' + escapeHtml(task.source_filename || '') + '"' +
+            '>' + conf.toFixed(2) + '</span>');
     }
 
     if (task.skip_reason) {
@@ -481,7 +495,16 @@ async function showTaskDetail(taskId) {
         if (scrapeResult.confidence !== undefined) {
             var conf = Number(scrapeResult.confidence);
             var confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-mid' : 'conf-low';
-            scrapeFields.push(['置信度', '<span class="detail-confidence ' + confClass + '">' + conf.toFixed(2) + '</span>']);
+            var detailTraceAttr = '';
+            var detailTraceObj = task.scrape_trace;
+            if (detailTraceObj && typeof detailTraceObj === 'object') {
+                detailTraceAttr = encodeURIComponent(JSON.stringify(detailTraceObj));
+            }
+            scrapeFields.push(['置信度', '<span class="detail-confidence conf-clickable ' + confClass + '"' +
+                ' onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))"' +
+                ' data-trace="' + detailTraceAttr + '"' +
+                ' data-filename="' + escapeHtml(task.source_filename || '') + '"' +
+                '>' + conf.toFixed(2) + '</span>']);
         }
         if (scrapeResult.ai_reason) scrapeFields.push(['AI 判定依据', escapeHtml(String(scrapeResult.ai_reason))]);
         sections.push({ label: 'AI 刮削结果', fields: scrapeFields });
@@ -530,6 +553,20 @@ async function showTaskDetail(taskId) {
     if (task.started_at) timeFields.push(['开始时间', task.started_at.replace('T', ' ').substring(0, 19)]);
     if (task.completed_at) timeFields.push(['完成时间', task.completed_at.replace('T', ' ').substring(0, 19)]);
     sections.push({ label: '时间', fields: timeFields });
+
+    var scrapeTrace = task.scrape_trace;
+    if (scrapeTrace && typeof scrapeTrace === 'object') {
+        var traceHtml = _renderScrapeTrace(scrapeTrace, filename);
+        sections.push({ label: '决策路径', html: traceHtml });
+    } else if (scrapeTrace && typeof scrapeTrace === 'string') {
+        try {
+            var parsedTrace = JSON.parse(scrapeTrace);
+            var traceHtml = _renderScrapeTrace(parsedTrace, filename);
+            sections.push({ label: '决策路径', html: traceHtml });
+        } catch(e) {
+            // ignore parse error
+        }
+    }
 
     // 渲染 section
     body.innerHTML = sections.map(function(sec) {
@@ -727,7 +764,7 @@ var _locationLabels = {
     'source': '源目录',
     'temp': '中转目录',
     'import': '入库目录',
-    'quarantine': '隔离区',
+    'recycle': '回收站',
     'deleted': '已删除'
 };
 
@@ -735,7 +772,7 @@ var _locationFileLabels = {
     'source': '源文件',
     'temp': '中转文件',
     'import': '入库文件',
-    'quarantine': '隔离区文件',
+    'recycle': '回收站文件',
     'deleted': '文件'
 };
 
@@ -743,7 +780,7 @@ var _locationWarnings = {
     'source': '将删除源目录中的原始文件，删除后无法恢复',
     'temp': '将删除中转目录中的临时文件',
     'import': '⚠️ 将删除已入库的文件！此操作不可恢复，请确认不再需要此影视文件',
-    'quarantine': '将删除隔离区中的文件，删除后无法恢复',
+    'recycle': '将删除回收站中的文件，删除后无法恢复',
     'deleted': ''
 };
 
@@ -771,9 +808,9 @@ function showDeleteConfirm(taskId, filename, fileLocation) {
     if (fileLocation === 'import') {
         fileCheckbox.checked = false;
         fileLabel.textContent = '同时删除入库文件（' + locText + '）';
-    } else if (fileLocation === 'quarantine') {
+    } else if (fileLocation === 'recycle') {
         fileCheckbox.checked = true;
-        fileLabel.textContent = '同时删除隔离区文件（' + locText + '）';
+        fileLabel.textContent = '同时删除回收站文件（' + locText + '）';
     } else if (fileLocation === 'temp') {
         fileCheckbox.checked = true;
         fileLabel.textContent = '同时删除中转文件（' + locText + '）';
@@ -858,6 +895,182 @@ async function refreshLogs() {
         }).join('');
         container.scrollTop = container.scrollHeight;
     }
+}
+
+function _renderScrapeTrace(trace, filename) {
+    if (!trace || typeof trace !== 'object') {
+        return '<div style="padding:12px;color:var(--text-secondary);font-size:13px;">暂无决策路径数据</div>';
+    }
+
+    var html = '<div class="scrape-trace-timeline">';
+
+    var steps = [];
+
+    var fc = trace.filename_clean;
+    if (fc) {
+        steps.push({
+            type: 'INPUT',
+            label: '文件名输入',
+            color: '#06B6D4',
+            detail: fc.original || fc.clean_title || '-',
+            sub: '清洗后: ' + (fc.clean_title || '-') + (fc.year ? ' (' + fc.year + ')' : '') + (fc.removed_items && fc.removed_items.length ? ' | 移除: ' + fc.removed_items.join(', ') : ''),
+        });
+    }
+
+    if (trace.ai_clean) {
+        steps.push({
+            type: 'AI',
+            label: 'AI 辅助清洗',
+            color: '#F59E0B',
+            detail: trace.ai_clean.clean_title || '-',
+            sub: '方法: ' + (trace.ai_clean.method || 'ai'),
+        });
+    }
+
+    var ts = trace.tmdb_search;
+    if (ts) {
+        steps.push({
+            type: 'TMDB',
+            label: 'TMDB 搜索',
+            color: '#8B5CF6',
+            detail: '查询: ' + (ts.query || '-'),
+            sub: (ts.total_results || 0) + ' 个结果' + (ts.fallback_used ? ' (使用了英文回退)' : '') + ' | 匹配: ' + (ts.selected_title || '-'),
+        });
+    }
+
+    var cc = trace.confidence_calc;
+    if (cc) {
+        if (cc.search_conf && typeof cc.search_conf === 'object') {
+            var sc = cc.search_conf;
+            var scVal = sc.search_conf !== undefined ? sc.search_conf.toFixed(3) : '-';
+            steps.push({
+                type: 'CALC',
+                label: '搜索置信度 (search_conf)',
+                color: '#A78BFA',
+                detail: 'T=' + (sc.T !== undefined ? sc.T.toFixed(3) : '-') + ' × R=' + (sc.R !== undefined ? sc.R.toFixed(3) : '-') + ' = ' + scVal,
+                sub: (sc.T_reason || '') + (sc.R_formula ? ' | R公式: ' + sc.R_formula : '') + (sc.total_results !== undefined ? ' | N=' + sc.total_results : ''),
+            });
+        } else if (cc.T !== undefined || cc.R !== undefined) {
+            steps.push({
+                type: 'CALC',
+                label: '置信度计算',
+                color: '#06B6D4',
+                detail: 'T=' + (cc.T !== undefined ? cc.T.toFixed(3) : '-') + ' × R=' + (cc.R !== undefined ? cc.R.toFixed(3) : '-') + ' = ' + (cc['T×R'] !== undefined ? cc['T×R'].toFixed(3) : '-'),
+                sub: cc.T_reason || cc.formula || '',
+            });
+        }
+
+        if (cc.data_gate) {
+            var dg = cc.data_gate;
+            var dgVal = dg.value !== undefined ? (dg.value === 1 ? '1.0 ✓' : '0.0 ✗') : '-';
+            var dimRows = '';
+
+            if (dg.dimensions && typeof dg.dimensions === 'object') {
+                for (var dk in dg.dimensions) {
+                    var dim = dg.dimensions[dk];
+                    var dimConf = dim.confidence !== undefined ? dim.confidence.toFixed(3) : (dim.final_confidence !== undefined ? dim.final_confidence.toFixed(3) : '-');
+                    var dimColor = (dim.confidence !== undefined ? dim.confidence : (dim.final_confidence !== undefined ? dim.final_confidence : 0)) >= 0.8 ? '#22C55E' : ((dim.confidence !== undefined ? dim.confidence : (dim.final_confidence !== undefined ? dim.final_confidence : 0)) >= 0.5 ? '#F59E0B' : '#EF4444');
+                    var sourceTag = '';
+                    if (dim.source === 'tmdb') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(167,139,250,0.12);color:#A78BFA;">TMDB</span>';
+                    else if (dim.source === 'ai') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(239,68,68,0.1);color:#EF4444;">AI</span>';
+                    else if (dim.source === 'file') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(16,185,129,0.1);color:#22C55E;">FILE</span>';
+                    else if (dim.source === 'missing') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(148,163,184,0.1);color:#94A3B8;">缺失</span>';
+                    else sourceTag = '<span style="color:var(--text-secondary);font-size:11px;">(' + escapeHtml(dim.source || '?') + ')</span>';
+
+                    var weightStr = dim.weight !== undefined ? ' w=' + dim.weight : '';
+                    dimRows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
+                        '<span>' + escapeHtml(dk) + ' ' + sourceTag + '<span style="color:var(--text-secondary);font-size:11px;">' + weightStr + '</span></span>' +
+                        '<span style="color:' + dimColor + ';font-weight:500;">' + dimConf + '</span>' +
+                    '</div>';
+                }
+            }
+
+            steps.push({
+                type: 'CALC',
+                label: '数据门控 (data_gate)',
+                color: '#3B82F6',
+                detail: dgVal,
+                sub: cc.formula || 'final = search_conf × data_gate',
+                extra: dimRows || undefined,
+            });
+        }
+
+        if (cc.gate_blocked || (cc.data_gate && cc.data_gate.blocked)) {
+            var blocked = cc.gate_blocked || cc.data_gate.blocked;
+            steps.push({
+                type: 'RESULT',
+                label: '⚠ 门控拦截',
+                color: '#EF4444',
+                detail: escapeHtml(blocked.dim_name || '未知') + ' 来源 ' + escapeHtml(blocked.source || '未知') + ' 不信任',
+                sub: '强制判定为 NEEDS_REVIEW',
+            });
+        }
+
+        if (cc.final_confidence !== undefined) {
+            var fcv = cc.final_confidence;
+            var fcColor = fcv >= 0.8 ? '#22C55E' : (fcv >= 0.5 ? '#F59E0B' : '#EF4444');
+            steps.push({
+                type: 'RESULT',
+                label: '最终置信度',
+                color: fcColor,
+                detail: fcv.toFixed(4),
+                sub: fcv >= 0.8 ? '自动通过' : (fcv >= 0.5 ? '需人工确认' : (fcv >= 0.3 ? '需人工审核' : '刮削失败')),
+            });
+        }
+    }
+
+    var dims = trace.dimensions;
+    if (dims && typeof dims === 'object' && !cc) {
+        var dimRows = '';
+        for (var key in dims) {
+            var d = dims[key];
+            var confVal = d.final_confidence !== undefined ? d.final_confidence.toFixed(3) : '-';
+            var confColor = d.final_confidence >= 0.8 ? '#22C55E' : (d.final_confidence >= 0.5 ? '#F59E0B' : '#EF4444');
+            dimRows += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
+                '<span>' + escapeHtml(key) + ' <span style="color:var(--text-secondary);">(' + (d.source || '?') + ')</span></span>' +
+                '<span style="color:' + confColor + ';font-weight:500;">' + confVal + '</span>' +
+            '</div>';
+        }
+        steps.push({
+            type: 'CALC',
+            label: '维度置信度',
+            color: '#06B6D4',
+            detail: '',
+            sub: '',
+            extra: dimRows,
+        });
+    }
+
+    var fc2 = trace.final_confidence;
+    if (fc2 !== undefined && !cc) {
+        var fcColor = fc2 >= 0.8 ? '#22C55E' : (fc2 >= 0.5 ? '#F59E0B' : '#EF4444');
+        steps.push({
+            type: 'RESULT',
+            label: '最终置信度',
+            color: fcColor,
+            detail: fc2.toFixed(4),
+            sub: fc2 >= 0.8 ? '自动通过' : (fc2 >= 0.5 ? '需人工确认' : (fc2 >= 0.3 ? '需人工审核' : '刮削失败')),
+        });
+    }
+
+    steps.forEach(function(step, idx) {
+        var isLast = idx === steps.length - 1;
+        html += '<div class="scrape-trace-step">';
+        html += '<div class="scrape-trace-dot" style="background:' + step.color + ';"></div>';
+        if (!isLast) html += '<div class="scrape-trace-line"></div>';
+        html += '<div class="scrape-trace-content">';
+        html += '<div class="scrape-trace-label" style="color:' + step.color + ';">' + escapeHtml(step.label) + '</div>';
+        if (step.detail) html += '<div class="scrape-trace-detail">' + escapeHtml(step.detail) + '</div>';
+        if (step.sub) html += '<div class="scrape-trace-sub">' + escapeHtml(step.sub) + '</div>';
+        if (step.extra) html += '<div class="scrape-trace-extra">' + step.extra + '</div>';
+        html += '</div></div>';
+    });
+
+    html += '</div>';
+    html += '<div style="margin-top:12px;text-align:center;">';
+    html += '<button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))" data-trace="' + encodeURIComponent(JSON.stringify(trace)) + '" data-filename="' + escapeHtml(filename || '') + '">查看置信度计算过程</button>';
+    html += '</div>';
+    return html;
 }
 
 function escapeHtml(text) {

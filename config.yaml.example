@@ -1,5 +1,5 @@
 # ============================================================
-# NAS影视自动化入库系统 - 配置模板
+# 影音库AI智能整理 - 配置模板
 # ============================================================
 # 首次安装时会自动复制到 config/config.yaml
 # 升级时 config/config.yaml 不会被覆盖
@@ -37,16 +37,10 @@ temp_dir: "/vol1/tmp/media_import"
 log_dir: "/vol1/logs/media_import"
 
 source_policy:
-  dedup_enabled: true             # 是否启用源端去重检测
-                                  #   启用后，扫描源目录时会检查文件是否已处理过
-                                  #   完全相同的重复文件 → 自动隔离
-                                  #   文件已变更（如重新下载高清版）→ 进入「待确认重复」状态
-                                  #   历史失败未超限 → 自动重试
-                                  #   历史失败已超限 → 自动隔离
-  quarantine_dir: "/vol1/@appdata/nas-media-importer/data/quarantine"
-                                  # 隔离区路径，重复文件和失败超限文件将被移入此目录
+  recycle_dir: "/vol1/@appdata/nas-media-importer/data/recycle"
+                                  # 回收站路径，重复文件和失败超限文件将被移入此目录
                                   # ⚠️ 不能与源目录或中转目录相同
-  max_auto_retries: 3             # 同一文件失败超过此次数后移入隔离区
+  max_auto_retries: 3             # 同一文件失败超过此次数后移入回收站
   scan_recursive: true            # 是否递归扫描源目录子目录
   scan_max_depth: 5               # 源目录递归扫描最大深度
 
@@ -182,7 +176,7 @@ duplicate_handling:
 #   处理成功 → 源文件立即删除
 #   处理跳过 → 源文件立即删除
 #   处理失败（未超限）→ 源文件保留，等待下次重试
-#   处理失败（超限）→ 源文件移入隔离区
+#   处理失败（超限）→ 源文件移入回收站
 # 重复文件处理策略详见 source_policy 配置
 
 # ------------------------------------------------------------
@@ -222,6 +216,9 @@ llm:
   max_retries: 2                  # 最大重试次数
   retry_delay: 3                  # 重试间隔（秒）
   fallback_model: "gpt-3.5-turbo" # 备选模型（主模型失败时降级使用）
+  fast_model: ""                  # 快速模型（标题清洗+TMDB结果整理，留空则使用fallback_model）
+  fast_base_url: ""               # 快速模型API地址（留空则使用base_url）
+  fast_api_key: ""                # 快速模型API密钥（留空则使用api_key）
   confidence_threshold: 0.8       # AI置信度阈值（低于此值的刮削结果将被拒绝）
   verify_ssl: true                # 是否验证SSL证书（代理环境可设为false）
                                   # 如需自定义刮削提示词，请在 config/scraper_prompts.md 中配置

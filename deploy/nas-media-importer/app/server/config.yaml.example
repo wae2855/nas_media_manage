@@ -37,18 +37,19 @@ temp_dir: "/vol1/tmp/media_import"
 log_dir: "/vol1/logs/media_import"
 
 source_policy:
-  dedup_enabled: true             # 是否启用源端去重检测
-                                  #   启用后，扫描源目录时会检查文件是否已处理过
-                                  #   完全相同的重复文件 → 自动隔离
-                                  #   文件已变更（如重新下载高清版）→ 进入「待确认重复」状态
-                                  #   历史失败未超限 → 自动重试
-                                  #   历史失败已超限 → 自动隔离
-  quarantine_dir: "/vol1/@appdata/nas-media-importer/data/quarantine"
-                                  # 隔离区路径，重复文件和失败超限文件将被移入此目录
+  recycle_dir: "/vol1/@appdata/nas-media-importer/data/recycle"
+                                  # 回收站路径，重复文件和失败超限文件将被移入此目录
                                   # ⚠️ 不能与源目录或中转目录相同
-  max_auto_retries: 3             # 同一文件失败超过此次数后移入隔离区
+  max_auto_retries: 3             # 同一文件失败超过此次数后移入回收站
   scan_recursive: true            # 是否递归扫描源目录子目录
   scan_max_depth: 5               # 源目录递归扫描最大深度
+  cleanup_source_after_done: true # 入库完成后是否清理源文件
+                                  #   true  - 入库成功后自动清理源文件（移入回收站）
+                                  #   false - 入库后保留源文件（只读模式）
+  recycle_retention_days: 30      # 回收站文件保留天数，超期自动清理（0=永不过期）
+  # ⚠️ 以下旧字段已废弃，保留仅为兼容旧配置，新部署请使用 cleanup_source_after_done
+  # cleanup_mode: "full_cleanup"  # 已废弃 → cleanup_source_after_done: true
+  # delete_source_after_import: true  # 已废弃 → cleanup_source_after_done: true
 
 video_extensions:                 # 支持的视频格式（仅这些后缀的文件会被处理）
   - ".mkv"
@@ -182,7 +183,7 @@ duplicate_handling:
 #   处理成功 → 源文件立即删除
 #   处理跳过 → 源文件立即删除
 #   处理失败（未超限）→ 源文件保留，等待下次重试
-#   处理失败（超限）→ 源文件移入隔离区
+#   处理失败（超限）→ 源文件移入回收站
 # 重复文件处理策略详见 source_policy 配置
 
 # ------------------------------------------------------------
@@ -277,3 +278,21 @@ logging:
   format: "json"                  # 日志格式: json / text
   max_size_mb: 100                # 单个日志文件最大大小（MB）
   backup_count: 5                 # 保留的日志文件数量
+
+# ------------------------------------------------------------
+# 12. 源目录智能清理配置
+# ------------------------------------------------------------
+# 对源目录中已入库影视的残留文件（字幕、样本、垃圾文件等）进行智能清理
+# 仅处理已成功入库的影视文件所在目录，不会影响未处理的文件
+source_cleaner:
+  enabled: false                  # 是否启用源目录智能清理
+                                  #   true  - 按计划自动清理源目录中已入库影视的残留文件
+                                  #   false - 不自动清理
+  cleanup_mode: "keep_media_only" # 清理模式
+                                  #   keep_media_only    - 仅保留影视文件本身，清理其他所有文件
+                                  #   keep_media_related - 保留影视文件及关联字幕/海报，清理其余文件
+  ai_enabled: false               # 是否启用AI辅助判断（需LLM配置）
+                                  #   true  - 使用AI判断文件是否为垃圾/无关文件，更精准但更慢
+                                  #   false - 仅按规则判断（扩展名、大小、黑名单模式）
+  junk_video_max_size_mb: 50      # 视频文件小于此大小（MB）视为垃圾视频样本
+                                  #   0 = 不按大小判断

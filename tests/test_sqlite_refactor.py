@@ -14,11 +14,11 @@ import unittest
 from unittest.mock import patch, MagicMock, PropertyMock
 from datetime import datetime
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'media_importer'))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import db as db_module
-from task_manager import TaskManager
-from file_scanner import FileScanner
+from media_importer.core import db as db_module
+from media_importer.core.task_manager import TaskManager
+from media_importer.storage.file_scanner import FileScanner
 
 
 # ============================================================
@@ -304,9 +304,9 @@ class TestTaskManager(unittest.TestCase):
         }
         self.tm = TaskManager(data_dir, self.config)
         self.source_dir = os.path.join(self.tmpdir, "source")
-        self.quarantine_dir = os.path.join(self.tmpdir, "quarantine")
+        self.recycle_dir = os.path.join(self.tmpdir, "recycle")
         os.makedirs(self.source_dir, exist_ok=True)
-        os.makedirs(self.quarantine_dir, exist_ok=True)
+        os.makedirs(self.recycle_dir, exist_ok=True)
 
     def test_01_create_task(self):
         task = self.tm.create_task(
@@ -419,31 +419,31 @@ class TestTaskManager(unittest.TestCase):
         result = self.tm.check_source_duplicate("/dup/confirming.mkv")
         self.assertEqual(result["action"], "SKIP")
 
-    def test_16_move_to_quarantine(self):
-        video_path = os.path.join(self.source_dir, "quarantine_test.mkv")
-        sub_path = os.path.join(self.source_dir, "quarantine_test.chs.srt")
+    def test_16_move_to_recycle_bin(self):
+        video_path = os.path.join(self.source_dir, "recycle_test.mkv")
+        sub_path = os.path.join(self.source_dir, "recycle_test.chs.srt")
         with open(video_path, 'w') as f:
             f.write("fake video")
         with open(sub_path, 'w') as f:
             f.write("fake subtitle")
 
         t = self.tm.create_task(
-            video_path=video_path, video_file="quarantine_test.mkv",
+            video_path=video_path, video_file="recycle_test.mkv",
             subtitle_files=[sub_path],
         )
-        self.tm.move_to_quarantine(
+        self.tm.move_to_recycle_bin(
             task_id=t["task_id"],
             source_path=video_path,
             subtitle_paths=[sub_path],
-            quarantine_dir=self.quarantine_dir,
+            recycle_dir=self.recycle_dir,
         )
-        self.assertTrue(os.path.exists(os.path.join(self.quarantine_dir, "quarantine_test.mkv")))
-        self.assertTrue(os.path.exists(os.path.join(self.quarantine_dir, "quarantine_test.chs.srt")))
+        self.assertTrue(os.path.exists(os.path.join(self.recycle_dir, "recycle_test.mkv")))
+        self.assertTrue(os.path.exists(os.path.join(self.recycle_dir, "recycle_test.chs.srt")))
         self.assertFalse(os.path.exists(video_path))
         self.assertFalse(os.path.exists(sub_path))
 
         updated = self.tm.get_task(t["task_id"])
-        self.assertEqual(updated["file_location"], "quarantine")
+        self.assertEqual(updated["file_location"], "recycle")
 
     def test_17_list_tasks_pagination(self):
         for i in range(15):
@@ -470,7 +470,7 @@ class TestFileScanner(unittest.TestCase):
             "source_dir": self.tmpdir,
             "source_dedup": {
                 "enabled": True,
-                "quarantine_dir": os.path.join(self.tmpdir, "quarantine"),
+                "recycle_dir": os.path.join(self.tmpdir, "recycle"),
             },
         }
         self.scanner = FileScanner(self.config)
@@ -566,7 +566,7 @@ class TestFileScanner(unittest.TestCase):
         tm.conn = conn
         self.config["source_dedup"] = {
             "enabled": True,
-            "quarantine_dir": os.path.join(self.tmpdir, "quarantine"),
+            "recycle_dir": os.path.join(self.tmpdir, "recycle"),
         }
         scanner = FileScanner(self.config, task_manager=tm)
         groups = scanner.scan_and_filter(self.tmpdir)
@@ -633,11 +633,11 @@ class TestPipeline(unittest.TestCase):
             f.write(content)
         return fpath
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_01_process_one_success_flow(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner, PipelineError
+        from media_importer.pipeline import PipelineRunner, PipelineError
 
         video_path = self._create_video_file("Inception.2010.mkv")
         temp_copy = os.path.join(self.temp_dir, "Inception.2010.mkv")
@@ -656,9 +656,9 @@ class TestPipeline(unittest.TestCase):
         MockHooks.return_value.run_before_process.return_value = None
         MockHooks.return_value.run_after_success.return_value = None
 
-        with patch('pipeline.classify') as mock_classify, \
-             patch('pipeline.move_to_import') as mock_move, \
-             patch('pipeline.apply_filename_template') as mock_rename:
+        with patch('media_importer.pipeline.steps.classify') as mock_classify, \
+             patch('media_importer.pipeline.steps.move_to_import') as mock_move, \
+             patch('media_importer.pipeline.steps.apply_filename_template') as mock_rename:
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "盗梦空间 (2010)")
             mock_rename.return_value = "盗梦空间 (2010).mkv"
             mock_move.return_value = {
@@ -678,11 +678,11 @@ class TestPipeline(unittest.TestCase):
             self.assertTrue(result)
             self.assertEqual(task["status"], "SUCCESS")
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_02_process_one_confirming_flow(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_video_file("ConfirmMovie.mkv")
         temp_copy = os.path.join(self.temp_dir, "ConfirmMovie.mkv")
@@ -702,7 +702,7 @@ class TestPipeline(unittest.TestCase):
 
         self.config["manual_review"] = {"enabled": True}
 
-        with patch('pipeline.classify') as mock_classify:
+        with patch('media_importer.pipeline.steps.classify') as mock_classify:
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "确认电影 (2023)")
             pipeline = PipelineRunner(
                 config=self.config, task_manager=self.tm,
@@ -716,12 +716,12 @@ class TestPipeline(unittest.TestCase):
             self.assertEqual(task["status"], "CONFIRMING")
             self.assertEqual(task["confirm_status"], "PENDING")
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_03_process_one_scrape_failure(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
-        from llm_scraper import LLMScrapeError
+        from media_importer.pipeline import PipelineRunner
+        from media_importer.scraper.llm_scraper import LLMScrapeError
 
         video_path = self._create_video_file("BadFile.mkv")
         temp_copy = os.path.join(self.temp_dir, "BadFile.mkv")
@@ -733,7 +733,7 @@ class TestPipeline(unittest.TestCase):
         MockHooks.return_value.run_before_process.return_value = None
         MockHooks.return_value.run_after_failure.return_value = None
 
-        with patch('pipeline.delete_source_files'):
+        with patch('media_importer.pipeline.steps.delete_source_files'):
             pipeline = PipelineRunner(
                 config=self.config, task_manager=self.tm,
                 metrics=None, logger=None, notifier=None,
@@ -746,11 +746,11 @@ class TestPipeline(unittest.TestCase):
             self.assertEqual(task["status"], "FAILED")
             self.assertIn("刮削失败", task["error_message"])
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_04_process_one_classify_failure(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_video_file("NoRuleFile.mkv")
         temp_copy = os.path.join(self.temp_dir, "NoRuleFile.mkv")
@@ -768,8 +768,8 @@ class TestPipeline(unittest.TestCase):
         MockHooks.return_value.run_before_process.return_value = None
         MockHooks.return_value.run_after_failure.return_value = None
 
-        with patch('pipeline.classify') as mock_classify, \
-             patch('pipeline.delete_source_files'):
+        with patch('media_importer.pipeline.steps.classify') as mock_classify, \
+             patch('media_importer.pipeline.steps.delete_source_files'):
             mock_classify.return_value = None
             pipeline = PipelineRunner(
                 config=self.config, task_manager=self.tm,
@@ -783,11 +783,11 @@ class TestPipeline(unittest.TestCase):
             self.assertEqual(task["status"], "FAILED")
             self.assertIn("分类匹配失败", task["error_message"])
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_05_confirm_task(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_video_file("ConfirmTest.mkv")
         temp_copy = os.path.join(self.temp_dir, "ConfirmTest.mkv")
@@ -807,10 +807,10 @@ class TestPipeline(unittest.TestCase):
 
         self.config["manual_review"] = {"enabled": True}
 
-        with patch('pipeline.classify') as mock_classify, \
-             patch('pipeline.move_to_import') as mock_move, \
-             patch('pipeline.apply_filename_template') as mock_rename, \
-             patch('pipeline.delete_source_files'):
+        with patch('media_importer.pipeline.steps.classify') as mock_classify, \
+             patch('media_importer.pipeline.steps.move_to_import') as mock_move, \
+             patch('media_importer.pipeline.steps.apply_filename_template') as mock_rename, \
+             patch('media_importer.pipeline.steps.delete_source_files'):
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "确认测试 (2024)")
             mock_rename.return_value = "确认测试 (2024).mkv"
             mock_move.return_value = {
@@ -833,11 +833,11 @@ class TestPipeline(unittest.TestCase):
             updated = self.tm.get_task(task["task_id"])
             self.assertEqual(updated["status"], "SUCCESS")
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_06_confirm_task_wrong_status(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner, PipelineError
+        from media_importer.pipeline import PipelineRunner, PipelineError
 
         MockHooks.return_value.run_before_process.return_value = None
         pipeline = PipelineRunner(
@@ -850,11 +850,11 @@ class TestPipeline(unittest.TestCase):
         with self.assertRaises(PipelineError):
             pipeline.confirm_task(task["task_id"])
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_08_reclassify_task(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_video_file("ReclassifyTest.mkv")
         temp_copy = os.path.join(self.temp_dir, "ReclassifyTest.mkv")
@@ -874,7 +874,7 @@ class TestPipeline(unittest.TestCase):
 
         self.config["manual_review"] = {"enabled": True}
 
-        with patch('pipeline.classify') as mock_classify:
+        with patch('media_importer.pipeline.steps.classify') as mock_classify:
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "重分类测试 (2024)")
             pipeline = PipelineRunner(
                 config=self.config, task_manager=self.tm,
@@ -886,9 +886,9 @@ class TestPipeline(unittest.TestCase):
             pipeline.process_one(task)
             self.assertEqual(task["status"], "CONFIRMING")
 
-            with patch('pipeline.classify') as mock_classify2, \
-                 patch('pipeline.move_to_import') as mock_move, \
-                 patch('pipeline.apply_filename_template') as mock_rename:
+            with patch('media_importer.pipeline.steps.classify') as mock_classify2, \
+                 patch('media_importer.pipeline.steps.move_to_import') as mock_move, \
+                 patch('media_importer.pipeline.steps.apply_filename_template') as mock_rename:
                 mock_classify2.return_value = os.path.join(self.import_dir, "tv", "重分类测试")
                 mock_rename.return_value = "重分类测试.mkv"
                 mock_move.return_value = {
@@ -902,15 +902,15 @@ class TestPipeline(unittest.TestCase):
                 self.assertEqual(result["status"], "SUCCESS")
 
     def test_09_extract_series_name(self):
-        from pipeline import _extract_series_name
+        from media_importer.pipeline.utils import _extract_series_name
         self.assertEqual(_extract_series_name("Breaking.Bad.S01E01.1080p.mkv"), "Breaking Bad")
         self.assertEqual(_extract_series_name("Game.of.Thrones.S02.mkv"), "Game of Thrones")
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_10_process_one_validate_failure(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_video_file("EmptyScrape.mkv")
         temp_copy = os.path.join(self.temp_dir, "EmptyScrape.mkv")
@@ -929,7 +929,7 @@ class TestPipeline(unittest.TestCase):
         MockHooks.return_value.run_before_process.return_value = None
         MockHooks.return_value.run_after_failure.return_value = None
 
-        with patch('pipeline.delete_source_files'):
+        with patch('media_importer.pipeline.steps.delete_source_files'):
             pipeline = PipelineRunner(
                 config=self.config, task_manager=self.tm,
                 metrics=None, logger=None, notifier=None,
@@ -1043,8 +1043,8 @@ class TestEndToEnd(unittest.TestCase):
         self.source_dir = os.path.join(self.tmpdir, "source")
         self.temp_dir = os.path.join(self.tmpdir, "temp")
         self.import_dir = os.path.join(self.tmpdir, "import")
-        self.quarantine_dir = os.path.join(self.tmpdir, "quarantine")
-        for d in [self.source_dir, self.temp_dir, self.import_dir, self.quarantine_dir]:
+        self.recycle_dir = os.path.join(self.tmpdir, "recycle")
+        for d in [self.source_dir, self.temp_dir, self.import_dir, self.recycle_dir]:
             os.makedirs(d, exist_ok=True)
 
         self.db_path = os.path.join(self.tmpdir, "e2e.db")
@@ -1055,7 +1055,7 @@ class TestEndToEnd(unittest.TestCase):
             "temp_dir": self.temp_dir,
             "source_dedup": {
                 "enabled": True,
-                "quarantine_dir": self.quarantine_dir,
+                "recycle_dir": self.recycle_dir,
             },
             "manual_review": {"enabled": False},
             "duplicate_handling": {"enabled": False},
@@ -1093,11 +1093,11 @@ class TestEndToEnd(unittest.TestCase):
             f.write(content)
         return fpath
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_01_full_movie_pipeline(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_source_file("The.Matrix.1999.mkv")
         temp_copy = os.path.join(self.temp_dir, "The.Matrix.1999.mkv")
@@ -1116,9 +1116,9 @@ class TestEndToEnd(unittest.TestCase):
         MockHooks.return_value.run_before_process.return_value = None
         MockHooks.return_value.run_after_success.return_value = None
 
-        with patch('pipeline.classify') as mock_classify, \
-             patch('pipeline.move_to_import') as mock_move, \
-             patch('pipeline.apply_filename_template') as mock_rename:
+        with patch('media_importer.pipeline.steps.classify') as mock_classify, \
+             patch('media_importer.pipeline.steps.move_to_import') as mock_move, \
+             patch('media_importer.pipeline.steps.apply_filename_template') as mock_rename:
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "黑客帝国 (1999)")
             mock_rename.return_value = "黑客帝国 (1999).mkv"
             mock_move.return_value = {
@@ -1146,11 +1146,11 @@ class TestEndToEnd(unittest.TestCase):
             self.assertEqual(db_task["status"], "SUCCESS")
             self.assertIsNotNone(db_task["completed_at"])
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_02_confirming_then_confirm(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_source_file("Review.Movie.2024.mkv")
         temp_copy = os.path.join(self.temp_dir, "Review.Movie.2024.mkv")
@@ -1170,10 +1170,10 @@ class TestEndToEnd(unittest.TestCase):
 
         self.config["manual_review"] = {"enabled": True}
 
-        with patch('pipeline.classify') as mock_classify, \
-             patch('pipeline.move_to_import') as mock_move, \
-             patch('pipeline.apply_filename_template') as mock_rename, \
-             patch('pipeline.delete_source_files'):
+        with patch('media_importer.pipeline.steps.classify') as mock_classify, \
+             patch('media_importer.pipeline.steps.move_to_import') as mock_move, \
+             patch('media_importer.pipeline.steps.apply_filename_template') as mock_rename, \
+             patch('media_importer.pipeline.steps.delete_source_files'):
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "审核电影 (2024)")
             mock_rename.return_value = "审核电影 (2024).mkv"
             mock_move.return_value = {
@@ -1198,11 +1198,11 @@ class TestEndToEnd(unittest.TestCase):
             self.assertEqual(db_task["status"], "SUCCESS")
             self.assertEqual(db_task["confirm_status"], "CONFIRMED")
 
-    @patch('pipeline.HookRunner')
-    @patch('pipeline.FileCopier')
-    @patch('pipeline.LLMScraper')
+    @patch('media_importer.pipeline.runner.HookRunner')
+    @patch('media_importer.pipeline.runner.FileCopier')
+    @patch('media_importer.pipeline.runner.MetadataScraper')
     def test_04_confirming_then_reclassify(self, MockScraper, MockCopier, MockHooks):
-        from pipeline import PipelineRunner
+        from media_importer.pipeline import PipelineRunner
 
         video_path = self._create_source_file("Reclassify.Movie.2024.mkv")
         temp_copy = os.path.join(self.temp_dir, "Reclassify.Movie.2024.mkv")
@@ -1222,7 +1222,7 @@ class TestEndToEnd(unittest.TestCase):
 
         self.config["manual_review"] = {"enabled": True}
 
-        with patch('pipeline.classify') as mock_classify:
+        with patch('media_importer.pipeline.steps.classify') as mock_classify:
             mock_classify.return_value = os.path.join(self.import_dir, "movies", "重分类电影 (2024)")
             pipeline = PipelineRunner(
                 config=self.config, task_manager=self.tm,
@@ -1234,9 +1234,9 @@ class TestEndToEnd(unittest.TestCase):
             pipeline.process_one(task)
             self.assertEqual(task["status"], "CONFIRMING")
 
-            with patch('pipeline.classify') as mock_classify2, \
-                 patch('pipeline.move_to_import') as mock_move, \
-                 patch('pipeline.apply_filename_template') as mock_rename:
+            with patch('media_importer.pipeline.steps.classify') as mock_classify2, \
+                 patch('media_importer.pipeline.steps.move_to_import') as mock_move, \
+                 patch('media_importer.pipeline.steps.apply_filename_template') as mock_rename:
                 mock_classify2.return_value = os.path.join(self.import_dir, "tv", "重分类电影")
                 mock_rename.return_value = "重分类电影.mkv"
                 mock_move.return_value = {

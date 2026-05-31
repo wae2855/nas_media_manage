@@ -13,7 +13,7 @@
 - file_mover: 目标已存在同名文件兜底
 """
 import sys, os, tempfile, shutil, yaml
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'media_importer'))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 PASS = 0
 FAIL = 0
@@ -37,7 +37,7 @@ def section(name):
 
 def test_config_loader_normalization():
     section("1. config_loader 兼容历史配置")
-    from config_loader import _normalize_bool_strings
+    from media_importer.core.config_loader import _normalize_bool_strings
     cases = [
         ({'enabled': 'true'}, True),
         ({'enabled': 'TRUE'}, True),
@@ -59,7 +59,7 @@ def test_config_loader_normalization():
 
 def test_file_watcher_config():
     section("2. file_watcher 配置消费")
-    from file_watcher import FileWatcher
+    from media_importer.monitor.file_watcher import FileWatcher
     cfg = {
         'file_watcher': {'enabled': True, 'poll_interval': 30, 'ignore_patterns': ['*.tmp']},
         'source_dir': '/tmp',
@@ -93,9 +93,8 @@ def test_file_watcher_config():
 
 def test_duplicate_handling_config():
     section("3. pipeline 同名检测 enabled 开关")
-    import pipeline
-    # 检查 _step_dedup 是否会读取 enabled 字段
-    src = open(pipeline.__file__).read()
+    import media_importer.pipeline.steps as pipeline_steps
+    src = open(pipeline_steps.__file__).read()
     if "dedup_cfg.get('enabled', True)" in src:
         ok("pipeline._step_dedup 读取 duplicate_handling.enabled")
     else:
@@ -110,7 +109,7 @@ def test_duplicate_handling_config():
 
 def test_file_mover_dest_conflict():
     section("4. file_mover 目标已存在同名文件兜底")
-    from file_mover import move_to_import
+    from media_importer.storage.file_mover import move_to_import
     tmpdir = tempfile.mkdtemp(prefix='mvtest_')
     try:
         # 准备源视频和已存在的目标
@@ -144,7 +143,7 @@ def test_file_mover_dest_conflict():
 
 def test_logger_config():
     section("5. logger 配置消费")
-    from logger import Logger
+    from media_importer.core.logger import Logger
     tmpdir = tempfile.mkdtemp(prefix='logtest_')
     try:
         l = Logger(level='DEBUG', fmt='text', log_dir=tmpdir,
@@ -162,7 +161,7 @@ def test_logger_config():
 
 def test_hermes_config():
     section("6. hermes_hook 配置消费")
-    from hermes_hook import HermesNotifier
+    from media_importer.notify.hermes_hook import HermesNotifier
     cfg = {
         'hermes': {
             'enabled': True,
@@ -218,10 +217,10 @@ def test_pipeline_with_full_config():
         'logging': {'level': 'INFO', 'format': 'text', 'max_size_mb': 10, 'backup_count': 2},
     }
     try:
-        from pipeline import PipelineRunner
-        from task_manager import TaskManager
-        from logger import Logger
-        from metrics import Metrics
+        from media_importer.pipeline import PipelineRunner
+        from media_importer.core.task_manager import TaskManager
+        from media_importer.core.logger import Logger
+        from media_importer.core.metrics import Metrics
         logger = Logger(level='INFO', fmt='text', log_dir=cfg['log_dir'])
         tm = TaskManager('/tmp/test_data')
         metrics = Metrics()
@@ -240,7 +239,7 @@ def test_pipeline_with_full_config():
 
 def test_permission_checker():
     section("8. permission_checker 配置消费")
-    from permission_checker import check_config_permissions, check_path_permission, is_app_managed_path, extract_root_from_template
+    from media_importer.monitor.permission_checker import check_config_permissions, check_path_permission, is_app_managed_path, extract_root_from_template
 
     # is_app_managed_path
     if is_app_managed_path('/vol3/@appdata/nas-media-importer/logs'):

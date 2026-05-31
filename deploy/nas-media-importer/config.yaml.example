@@ -37,9 +37,8 @@ temp_dir: "/vol1/tmp/media_import"
 log_dir: "/vol1/logs/media_import"
 
 source_policy:
-  dedup_enabled: true             # 是否启用源端去重检测
-  quarantine_dir: "/vol1/@appdata/nas-media-importer/data/quarantine"
-  max_auto_retries: 3             # 同一文件失败超过此次数后移入隔离区
+  recycle_dir: "/vol1/@appdata/nas-media-importer/data/recycle"
+  max_auto_retries: 3             # 同一文件失败超过此次数后移入回收站
   scan_recursive: true            # 是否递归扫描源目录子目录
   scan_max_depth: 5               # 源目录递归扫描最大深度
 

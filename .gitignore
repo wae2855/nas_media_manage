@@ -32,3 +32,15 @@ logs/
 *~
 
 hermes/
+.playwright-mcp/
+.trae/
+*.png
+config/config.yaml.backup_*
+deploy/nas-media-importer/app/server/config/*.backup_*
+deploy/nas-media-importer/app/server/config/config.yaml.playwright_backup
+deploy/nas-media-importer/app/server/config/media_import.db*
+screenshot_*.py
+test_*.py
+!tests/test_*.py
+scripts/_*.py
+theme_preview.html

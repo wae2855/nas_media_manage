@@ -4,14 +4,14 @@ import os
 import sys
 import threading
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from config_loader import load_config, mask_sensitive
-from task_manager import TaskManager
-from pipeline import PipelineRunner
-from metrics import get_metrics
-from logger import get_logger
-from hermes_hook import HermesNotifier
+from media_importer.core.config_loader import load_config, mask_sensitive
+from media_importer.core.task_manager import TaskManager
+from media_importer.pipeline import PipelineRunner
+from media_importer.core.metrics import get_metrics
+from media_importer.core.logger import get_logger
+from media_importer.notify.hermes_hook import HermesNotifier
 
 
 def _get_data_dir(config):
@@ -49,7 +49,7 @@ def cmd_serve(args):
     config = _load_config(args)
     host = args.host or config.get("server", {}).get("host", "0.0.0.0")
     port = args.port or config.get("server", {}).get("port", 9855)
-    from api_server import start_server
+    from media_importer.api.handler import start_server
     start_server(host, port, config)
 
 
@@ -59,7 +59,7 @@ def cmd_run(args):
 
     if args.dry_run:
         logger.info("Dry-run: 扫描源目录")
-        from file_scanner import scan_source_dir
+        from media_importer.storage.file_scanner import scan_source_dir
         groups = scan_source_dir(config.get("source_dir", ""), config)
         logger.info(f"扫描到 {len(groups)} 个视频文件组")
         for group in groups:
