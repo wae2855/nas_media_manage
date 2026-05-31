@@ -29,6 +29,85 @@ function toggleFlowDiagram() {
     }
 }
 
+function toggleOverviewSection(titleEl) {
+    var section = titleEl.closest('.collapsible-section');
+    var body = section.querySelector('.collapsible-body');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        section.classList.add('expanded');
+    } else {
+        body.style.display = 'none';
+        section.classList.remove('expanded');
+    }
+}
+
+var _onboardingStep = 1;
+
+function startSetupWizard() {
+    _onboardingStep = 1;
+    showOnboardingStep(1);
+    document.getElementById('onboarding-modal').style.display = 'flex';
+}
+
+function nextOnboardingStep() {
+    if (_onboardingStep === 4) {
+        closeModal('onboarding-modal');
+        localStorage.setItem('nas_onboarding_done', '1');
+        switchTab('overview');
+        return;
+    }
+
+    if (_onboardingStep === 2) {
+        var sourceDir = document.getElementById('onboard-source_dir').value;
+        if (sourceDir) {
+            document.getElementById('cfg-source_dir').value = sourceDir;
+        }
+        var tempDir = document.getElementById('onboard-temp_dir').value;
+        if (tempDir) {
+            document.getElementById('cfg-temp_dir').value = tempDir;
+        }
+    }
+
+    if (_onboardingStep === 3) {
+        var provider = document.getElementById('onboard-llm_provider').value;
+        var apiKey = document.getElementById('onboard-llm_api_key').value;
+        if (apiKey) {
+            var providerSelect = document.getElementById('cfg-llm-provider');
+            if (providerSelect) providerSelect.value = provider;
+            var apiKeyInput = document.getElementById('cfg-llm-api_key');
+            if (apiKeyInput) apiKeyInput.value = apiKey;
+        }
+    }
+
+    _onboardingStep++;
+    showOnboardingStep(_onboardingStep);
+}
+
+function showOnboardingStep(step) {
+    for (var i = 1; i <= 4; i++) {
+        var el = document.getElementById('onboarding-step-' + i);
+        if (el) el.style.display = (i === step) ? 'block' : 'none';
+    }
+
+    var progressBar = document.getElementById('onboarding-progress-bar');
+    if (progressBar) progressBar.style.width = (step * 25) + '%';
+
+    var nextBtn = document.getElementById('onboarding-next');
+    var skipBtn = document.getElementById('onboarding-skip');
+
+    if (step === 1) {
+        nextBtn.textContent = '开始配置';
+        skipBtn.textContent = '跳过';
+    } else if (step === 4) {
+        nextBtn.textContent = '完成';
+        skipBtn.style.display = 'none';
+    } else {
+        nextBtn.textContent = '下一步';
+        skipBtn.textContent = '跳过';
+        skipBtn.style.display = '';
+    }
+}
+
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const icon = document.getElementById('toast-icon');
@@ -190,7 +269,12 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshLogs();
     startAutoRefresh();
     bindPathPermissionAutoTest();
-    applyConfigSubTab(_currentConfigSubTab);
+
+    if (!localStorage.getItem('nas_onboarding_done')) {
+        setTimeout(function() {
+            startSetupWizard();
+        }, 1500);
+    }
 });
 
 window.addEventListener('beforeunload', () => {

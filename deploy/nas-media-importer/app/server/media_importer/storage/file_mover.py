@@ -2,7 +2,7 @@
 import os
 import shutil
 import re
-from media_importer.core.safety import validate_path_safety, safe_delete, safe_move, check_write_permission, ALLOWED_MEDIA_EXTS
+from media_importer.core.safety import validate_path_safety, safe_delete, safe_move, check_write_permission
 from .classifier import render_template
 
 
@@ -45,7 +45,11 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
 
     if os.path.exists(dest_video):
         if overwrite:
-            os.remove(dest_video)
+            from media_importer.core.safety import move_to_recycle
+            recycle_dir = ""
+            ok, _, msg = move_to_recycle(dest_video, recycle_dir, reason="import_overwrite")
+            if not ok:
+                os.remove(dest_video)
         else:
             raise IOError(
                 f"目标已存在同名文件: {final_video_filename}\n"

@@ -300,7 +300,7 @@ def _load_config(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="media_importer",
-        description="NAS影视自动化入库系统 - 自动刮削、分类、入库影视文件"
+        description="影音库AI智能整理 - 自动刮削、分类、入库影视文件"
     )
     parser.add_argument("-c", "--config", help="配置文件路径 (默认: media_importer/config.yaml)")
 

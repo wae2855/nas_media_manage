@@ -37,10 +37,10 @@ pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ig
 nas_media_manage/
 ├── media_importer/          # 后端 Python 包（唯一源码目录）
 │   ├── media_importer.py    # CLI 入口：scan / serve / process 子命令
-│   ├── core/                # db / config / logger / metrics / safety
-│   ├── scraper/             # providers / llm_scraper / confidence_engine / dimension_manager
+│   ├── core/                # db / config / recycle / logger / metrics / safety
+│   ├── scraper/             # providers / llm_scraper / confidence_engine / filename_cleaner / title_matcher / dimension_manager
 │   ├── storage/             # scanner / copier / mover / analyzer / dedup / classifier
-│   ├── pipeline/            # runner / steps / confirm
+│   ├── pipeline/            # runner / steps / steps_scrape / steps_file / confirm
 │   ├── api/                 # HTTP API（handler.py 路由 + Mixin 组合）
 │   ├── notify/              # hermes_hook / hooks
 │   ├── monitor/             # file_watcher / permission_checker
@@ -83,8 +83,8 @@ nas_media_manage/
 
 ## 配置变更
 
-- 配置键变更必须在 `core/config_loader.py` 添加自动迁移逻辑
-- 新增配置项需同步：config_loader -> config_validator -> config_handlers -> 前端
+- 配置键变更必须在 `core/config_migrations.py` 添加自动迁移逻辑
+- 新增配置项需同步：config_loader -> config_migrations -> config_validator -> config_handlers -> 前端
 
 ## 任务状态变更
 

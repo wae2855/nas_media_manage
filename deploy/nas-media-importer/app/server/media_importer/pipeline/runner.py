@@ -10,7 +10,7 @@ from media_importer.core.db import (
 from media_importer.storage.file_scanner import FileScanner
 from media_importer.storage.file_copier import FileCopier
 from media_importer.scraper.metadata_scraper import MetadataScraper
-from media_importer.storage.file_mover import delete_source_files, cleanup_source_non_media
+from media_importer.storage.file_mover import delete_source_files
 from media_importer.notify.hooks import HookRunner
 from .utils import PipelineSkipError
 from .steps import StepsMixin
@@ -29,7 +29,13 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         self._paused = threading.Event()
 
         self.scraper = MetadataScraper(config)
-        self.copier = FileCopier(config.get('temp_dir', ''))
+        video_exts = config.get("video_extensions", [])
+        sub_exts = config.get("subtitle_extensions", [])
+        media_exts = set(
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+            for ext in video_exts + sub_exts
+        )
+        self.copier = FileCopier(config.get('temp_dir', ''), media_exts)
 
         self._last_notified_error = None
         self._last_notified_time = 0
@@ -93,7 +99,6 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
     def scan_and_create_tasks(self) -> list:
         source_dir = self.config.get('source_dir', '')
-        source_policy = self.config.get('source_policy', {})
         scanner = FileScanner(self.config, task_manager=self.task_manager)
         groups = scanner.scan_and_filter(source_dir)
 
@@ -212,35 +217,11 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             self._log("info", f"任务跳过: {task.get('source_filename', '')} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
 
-            source_policy = self.config.get("source_policy", {})
-            recycle_dir = source_policy.get("recycle_dir", "")
-            source_dir = self.config.get('source_dir', '')
-
-            if original_source_video.startswith(source_dir):
-                self.task_manager.move_to_recycle_bin(
-                    task_id=tid,
-                    source_path=original_source_video,
-                    subtitle_paths=original_source_subs,
-                    recycle_dir=recycle_dir,
-                )
-                db_update_task(self.task_manager.conn, tid,
-                               status="SKIPPED", skip_reason=str(e),
-                               completed_at=task["completed_at"],
-                               file_location="recycle",
-                               video_path="")
-                self._log("info", f"跳过文件已移入回收站: {os.path.basename(original_source_video)}", task, "cleanup")
-            elif original_source_video.startswith(recycle_dir):
-                db_update_task(self.task_manager.conn, tid,
-                               status="SKIPPED", skip_reason=str(e),
-                               completed_at=task["completed_at"],
-                               file_location="recycle",
-                               video_path="")
-            else:
-                db_update_task(self.task_manager.conn, tid,
-                               status="SKIPPED", skip_reason=str(e),
-                               completed_at=task["completed_at"],
-                               file_location="source",
-                               video_path="")
+            db_update_task(self.task_manager.conn, tid,
+                           status="SKIPPED", skip_reason=str(e),
+                           completed_at=task["completed_at"],
+                           file_location="source",
+                           video_path="")
 
             if self.metrics:
                 self.metrics.record_task_complete("skipped")
@@ -254,34 +235,11 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             self._log("error", f"任务失败: {task.get('source_filename', '')} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
 
-            source_policy = self.config.get("source_policy", {})
-            recycle_dir = source_policy.get("recycle_dir", "")
-            source_dir = self.config.get('source_dir', '')
-            if original_source_video.startswith(source_dir):
-                self.task_manager.move_to_recycle_bin(
-                    task_id=tid,
-                    source_path=original_source_video,
-                    subtitle_paths=original_source_subs,
-                    recycle_dir=recycle_dir,
-                )
-                db_update_task(self.task_manager.conn, tid,
-                               status="FAILED", error_message=error_msg,
-                               completed_at=task["completed_at"],
-                               file_location="recycle",
-                               video_path="")
-                self._log("info", f"失败文件已移入回收站: {os.path.basename(original_source_video)}", task, "cleanup")
-            elif original_source_video.startswith(recycle_dir):
-                db_update_task(self.task_manager.conn, tid,
-                               status="FAILED", error_message=error_msg,
-                               completed_at=task["completed_at"],
-                               file_location="recycle",
-                               video_path="")
-            else:
-                db_update_task(self.task_manager.conn, tid,
-                               status="FAILED", error_message=error_msg,
-                               completed_at=task["completed_at"],
-                               file_location="source",
-                               video_path="")
+            db_update_task(self.task_manager.conn, tid,
+                           status="FAILED", error_message=error_msg,
+                           completed_at=task["completed_at"],
+                           file_location="source",
+                           video_path="")
 
             self.hooks.run_after_failure(task)
             if self.metrics:
@@ -312,13 +270,6 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         self._log("info", "开始批量处理")
 
         source_dir = self.config.get("source_dir", "")
-
-        if source_dir:
-            video_exts = [ext.lower() for ext in self.config.get('video_extensions', [])]
-            sub_exts = [ext.lower() for ext in self.config.get('subtitle_extensions', [])]
-            deleted_files, deleted_dirs = cleanup_source_non_media(source_dir, video_exts, sub_exts)
-            if deleted_files > 0 or deleted_dirs > 0:
-                self._log("info", f"源目录预清理: 删除 {deleted_files} 个非媒体文件, {deleted_dirs} 个空目录")
 
         pending_task = self.task_manager.get_next_pending()
 

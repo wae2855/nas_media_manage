@@ -74,6 +74,23 @@ def find_by_source_filename(conn: sqlite3.Connection, source_filename: str
     return _rows_to_dicts(cur.fetchall())
 
 
+def find_by_fingerprint(conn: sqlite3.Connection, fingerprint: str,
+                        status_filter: str = None) -> dict:
+    if not fingerprint:
+        return None
+    if status_filter:
+        cur = conn.execute(
+            "SELECT * FROM tasks WHERE source_fingerprint=? AND status=? ORDER BY created_at DESC LIMIT 1",
+            (fingerprint, status_filter)
+        )
+    else:
+        cur = conn.execute(
+            "SELECT * FROM tasks WHERE source_fingerprint=? ORDER BY created_at DESC LIMIT 1",
+            (fingerprint,)
+        )
+    return _row_to_dict(cur.fetchone())
+
+
 def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                status: str = None) -> tuple:
     offset = (page - 1) * page_size
@@ -94,7 +111,7 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.scrape_confidence, t.scrape_trace, t.import_path, t.final_filename, "
                 "t.skip_reason, t.error_message, t.import_success, "
                 "t.confirm_status, t.video_path, t.file_location, "
-                "t.import_video_path, "
+                "t.import_video_path, t.provider_type, t.provider_id, "
                 "t.created_at, t.started_at, t.completed_at, "
                 "(SELECT COUNT(*) FROM task_subtitles ts WHERE ts.task_id=t.task_id) AS subtitle_total, "
                 "(SELECT COUNT(*) FROM task_subtitles ts WHERE ts.task_id=t.task_id AND ts.status='SUCCESS') AS subtitle_success "
@@ -127,6 +144,8 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "dedup_result", "dedup_existing_file", "import_video_path",
         "video_path", "file_location", "import_success", "confirm_status", "confirmed_at",
         "skip_reason", "error_code", "error_message",
+        "provider_type", "provider_id",
+        "source_fingerprint", "source_file_size", "source_mtime",
     }
     update_fields = {}
     for k, v in fields.items():

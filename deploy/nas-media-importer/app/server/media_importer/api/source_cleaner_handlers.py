@@ -47,12 +47,9 @@ class SourceCleanerHandlers:
                 body = json.loads(handler.rfile.read(content_length).decode("utf-8"))
         except (json.JSONDecodeError, ValueError):
             pass
-        confirmed = body.get("confirmed", False)
         merge_strategy = body.get("merge_strategy", None)
-        record = cleaner.execute(task_paths=task_paths, confirmed=confirmed,
+        record = cleaner.execute(task_paths=task_paths,
                                  merge_strategy=merge_strategy)
-        if record.get("status") == "need_confirm":
-            return json_response(handler, 200, record, "need_confirm")
         conn = get_db(handler)
         save_cleaner_record(conn, record)
         return json_response(handler, 200, record)

@@ -33,7 +33,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
         conn.execute(idx_sql)
     for idx_sql in CREATE_SUBTITLES_INDEXES:
         conn.execute(idx_sql)
-    from .dimension_repo import _seed_dimensions
+    from .migrations import _seed_dimensions
     _seed_dimensions(conn)
     from .cleaner_repo import init_cleaner_tables
     init_cleaner_tables(conn)

@@ -44,6 +44,11 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
 
 
+def get_db(handler):
+    from . import globals
+    return globals._global_task_manager.conn
+
+
 def format_tasks_to_text(json_data: dict) -> str:
     lines = []
     active_count = json_data.get("active_count", 0)
@@ -51,7 +56,7 @@ def format_tasks_to_text(json_data: dict) -> str:
     tasks = json_data.get("tasks", [])
 
     lines.append("+--------------------------------------------------------------------------------------------+")
-    lines.append(f"|  NAS影视入库系统 - 活跃任务                                                                   |")
+    lines.append(f"|  影音库AI智能整理 - 活跃任务                                                                  |")
     lines.append(f"|  活跃任务: {active_count}{' ' * 6}总记录: {total}{' ' * 54} |")
     lines.append("+--------------------------------------------------------------------------------------------+")
     lines.append("")

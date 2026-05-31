@@ -1,12 +1,10 @@
 import os
-import time
 
 from media_importer.core.config_loader import load_config, mask_sensitive
 from media_importer.api import globals
 from media_importer.core.config_validator import validate_config
 from media_importer.notify.hermes_hook import HermesNotifier
 from media_importer.monitor.file_watcher import FileWatcher
-from media_importer.core.metrics import get_metrics
 from media_importer.core.db import list_tasks as db_list
 from .utils import json_response
 
@@ -14,6 +12,15 @@ from .utils import json_response
 class ConfigHandlersMixin:
     def _config(self):
         masked = mask_sensitive(globals._config) if globals._config else {}
+        sp = masked.get("source_policy", {})
+        if "cleanup_mode" not in sp:
+            cleanup_after_done = sp.get("cleanup_source_after_done")
+            if cleanup_after_done is False:
+                sp["cleanup_mode"] = "read_only"
+            elif cleanup_after_done is True:
+                sp["cleanup_mode"] = "full_cleanup"
+        if "delete_source_after_import" not in sp:
+            sp["delete_source_after_import"] = sp.get("cleanup_source_after_done", True)
         prompts_data = self._load_prompts_for_ui()
         json_response(self, 200, data={"config": masked, "prompts": prompts_data})
 
@@ -162,14 +169,19 @@ class ConfigHandlersMixin:
 
             has_running_tasks = globals._global_task_manager and globals._global_task_manager.has_running_tasks()
 
-            if has_running_tasks:
+            safe_sections = {"source_cleaner", "confidence", "advanced"}
+            body_sections = set(body.keys())
+            is_safe_update = body_sections.issubset(safe_sections)
+
+            if has_running_tasks and not is_safe_update:
 
                 globals._config_dirty = True
                 json_response(self, 200, message="配置已保存到文件。当前有任务正在执行，任务完成后自动同步内存配置，或点击「重载配置」立即生效（可能影响正在执行的任务）")
             else:
                 if isinstance(globals._config, dict):
                     self._update_config_safely(globals._config, body)
-                recycle_dir = globals._config.get("source_policy", {}).get("recycle_dir", "")
+                quarantine_dir = globals._config.get("source_policy", {}).get("quarantine_dir", "")
+                recycle_dir = globals._config.get("source_policy", {}).get("recycle_dir", "") or quarantine_dir
                 if recycle_dir and not os.path.exists(recycle_dir):
                     try:
                         os.makedirs(recycle_dir, exist_ok=True)
@@ -207,8 +219,9 @@ class ConfigHandlersMixin:
             "server": ["server"],
             "hermes": ["hermes"],
             "file_watcher": ["file_watcher"],
-            "advanced": ["log_dir", "task_queue"],
+            "advanced": ["log_dir", "task_queue", "video_extensions", "subtitle_extensions"],
             "confidence": ["confidence"],
+            "source_cleaner": ["source_cleaner"],
         }
 
         if section not in section_map:
@@ -322,420 +335,6 @@ class ConfigHandlersMixin:
         else:
             globals._global_logger.info("文件监控已停用（配置 enabled=false）")
 
-    def _config_test_llm(self, body: dict):
-        base_url = body.get("base_url", "")
-        api_key = body.get("api_key", "")
-        model = body.get("model", "")
-        provider = body.get("provider", "openai")
-
-        if not api_key or self._is_masked_value(api_key):
-            api_key = self._get_real_config_value("llm", "api_key")
-            if not api_key:
-                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
-                return
-
-        if not base_url or self._is_masked_value(base_url):
-            base_url = self._get_real_config_value("llm", "base_url")
-            if not base_url:
-                json_response(self, 200, data={"success": False, "message": "API 地址未配置"})
-                return
-
-        if not model:
-            model = self._get_real_config_value("llm", "model")
-            if not model:
-                json_response(self, 200, data={"success": False, "message": "模型名称未配置"})
-                return
-
-        try:
-            from media_importer.core.config_validator import test_llm_api
-            ok, msg = test_llm_api(base_url, api_key, model, timeout=15)
-            json_response(self, 200, data={"success": ok, "message": msg})
-        except Exception as e:
-            json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
-
-    def _config_test_hermes(self, body: dict):
-        base_url = body.get("base_url", "")
-        route_name = body.get("route_name", "")
-        secret = body.get("secret", "")
-
-        if not base_url or self._is_masked_value(base_url):
-            base_url = self._get_real_config_value("hermes", "webhook", "base_url")
-        if not route_name:
-            route_name = self._get_real_config_value("hermes", "webhook", "route_name")
-        if not secret or self._is_masked_value(secret):
-            secret = self._get_real_config_value("hermes", "webhook", "secret")
-
-        if not base_url:
-            json_response(self, 200, data={"success": False, "message": "Webhook 地址未配置"})
-            return
-
-        if not route_name:
-            json_response(self, 200, data={"success": False, "message": "路由名称未配置"})
-            return
-
-        try:
-            from media_importer.core.config_validator import test_hermes_webhook
-            ok, msg = test_hermes_webhook(base_url, route_name, secret, timeout=15)
-            json_response(self, 200, data={"success": ok, "message": msg})
-        except Exception as e:
-            json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
-
-    _tmdb_genres_cache = None
-    _tmdb_genres_cache_time = 0
-    _TMDB_GENRES_CACHE_TTL = 3600
-
-    def _tmdb_genres_list(self):
-        import time
-        now = time.time()
-        if (ConfigHandlersMixin._tmdb_genres_cache is not None
-                and now - ConfigHandlersMixin._tmdb_genres_cache_time < ConfigHandlersMixin._TMDB_GENRES_CACHE_TTL):
-            json_response(self, 200, data=ConfigHandlersMixin._tmdb_genres_cache)
-            return
-
-        api_key = self._get_real_config_value("metadata", "tmdb", "api_key")
-        if not api_key:
-            json_response(self, 400, message="TMDB API Key 未配置，请先在配置面板中填写 API Key")
-            return
-
-        try:
-            from media_importer.scraper.tmdb_client import TMDbClient
-            client = TMDbClient(api_key)
-            raw = client.get_genre_list()
-
-            movie_genres = raw.get("movie", [])
-            tv_genres = raw.get("tv", [])
-
-            GENRE_GROUP_MAP = {
-                28: "动作/冒险", 12: "动作/冒险", 10759: "动作/冒险", 37: "动作/冒险",
-                27: "恐怖/悬疑", 9648: "恐怖/悬疑", 53: "恐怖/悬疑", 10758: "恐怖/悬疑",
-                878: "科幻/奇幻", 14: "科幻/奇幻", 10765: "科幻/奇幻",
-                10752: "战争/军事", 10768: "战争/军事",
-                35: "喜剧",
-                18: "剧情/情感", 10749: "剧情/情感", 80: "剧情/情感", 36: "剧情/情感",
-                10751: "剧情/情感", 10766: "剧情/情感", 10770: "剧情/情感",
-                99: "纪录/纪实",
-                16: "动画",
-                10402: "音乐/演出",
-                10762: "儿童/家庭",
-                10763: "电视节目", 10764: "电视节目", 10767: "电视节目",
-                10760: "其他", 10769: "其他",
-            }
-
-            NAME_ZH_MAP = {
-                28: "动作", 12: "冒险", 16: "动画", 35: "喜剧", 80: "犯罪",
-                99: "纪录片", 18: "剧情", 14: "奇幻", 36: "历史", 10402: "音乐",
-                878: "科幻", 10749: "爱情", 53: "惊悚", 10752: "战争", 37: "西部",
-                27: "恐怖", 9648: "悬疑", 10759: "动作冒险", 10765: "科幻/奇幻",
-                10766: "肥皂剧", 10768: "战争政治", 10758: "恐怖/悬疑",
-                10762: "儿童", 10763: "新闻", 10764: "真人秀", 10767: "脱口秀",
-                10760: "短剧", 10769: "海外剧", 10770: "电视电影", 10751: "家庭",
-            }
-
-            seen_ids = set()
-            combined = []
-            for g in movie_genres:
-                gid = g.get("id")
-                if gid in seen_ids:
-                    continue
-                seen_ids.add(gid)
-                en_name = g.get("name", "")
-                zh_name = NAME_ZH_MAP.get(gid, en_name)
-                group = GENRE_GROUP_MAP.get(gid, "其他")
-                is_both = any(tg.get("id") == gid for tg in tv_genres)
-                combined.append({
-                    "id": gid,
-                    "name": f"{zh_name} ({en_name})",
-                    "type": "both" if is_both else "movie",
-                    "group": group,
-                })
-            for g in tv_genres:
-                gid = g.get("id")
-                if gid in seen_ids:
-                    continue
-                seen_ids.add(gid)
-                en_name = g.get("name", "")
-                zh_name = NAME_ZH_MAP.get(gid, en_name)
-                group = GENRE_GROUP_MAP.get(gid, "其他")
-                combined.append({
-                    "id": gid,
-                    "name": f"{zh_name} ({en_name})",
-                    "type": "tv",
-                    "group": group,
-                })
-
-            cache_data = {"movie": movie_genres, "tv": tv_genres, "combined": combined}
-            ConfigHandlersMixin._tmdb_genres_cache = cache_data
-            ConfigHandlersMixin._tmdb_genres_cache_time = now
-
-            json_response(self, 200, data=cache_data)
-        except Exception as e:
-            json_response(self, 503, message=f"获取 TMDB 类型列表失败: {str(e)}")
-
-    def _config_test_tmdb(self, body: dict):
-        api_key = body.get("api_key", "")
-
-        if not api_key or self._is_masked_value(api_key):
-            api_key = self._get_real_config_value("metadata", "tmdb", "api_key")
-            if not api_key:
-                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
-                return
-
-        try:
-            from media_importer.scraper.tmdb_client import TMDbClient
-            client = TMDbClient(api_key)
-            ok = client.test_connection()
-            msg = "连接成功" if ok else "连接失败，请检查 API Key 是否正确"
-            json_response(self, 200, data={"success": ok, "message": msg})
-        except Exception as e:
-            json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
-
-    def _tmdb_preview(self, body: dict):
-        query = (body or {}).get("query", "").strip()
-        media_type = (body or {}).get("type", "movie")
-
-        if not query:
-            json_response(self, 400, message="请输入影视名称")
-            return
-
-        api_key = self._get_real_config_value("metadata", "tmdb", "api_key")
-        if not api_key:
-            json_response(self, 400, message="TMDB API Key 未配置，请先在配置面板中填写 API Key")
-            return
-
-        try:
-            from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
-            client = TMDbClient(api_key)
-
-            if media_type == "tv":
-                search_result = client.search_tv(query)
-                if not search_result:
-                    json_response(self, 200, data={"found": False, "message": "未找到匹配的电视剧"})
-                    return
-                tmdb_id = search_result.get("id")
-                details = client.get_tv_details(tmdb_id)
-            else:
-                search_result = client.search_movie(query)
-                if not search_result:
-                    json_response(self, 200, data={"found": False, "message": "未找到匹配的电影"})
-                    return
-                tmdb_id = search_result.get("id")
-                details = client.get_movie_details(tmdb_id)
-
-            preview = {
-                "found": True,
-                "type": media_type,
-                "id": tmdb_id,
-                "title": details.get("title") or details.get("name", ""),
-                "original_title": details.get("original_title") or details.get("original_name", ""),
-                "release_date": details.get("release_date") or details.get("first_air_date", ""),
-                "overview": details.get("overview", ""),
-                "genres": [{"id": g.get("id"), "name": g.get("name")} for g in details.get("genres", [])],
-                "production_countries": [{"iso_3166_1": c.get("iso_3166_1"), "name": c.get("name")} for c in details.get("production_countries", [])],
-                "origin_country": details.get("origin_country", []),
-                "original_language": details.get("original_language", ""),
-                "vote_average": details.get("vote_average", 0),
-                "popularity": details.get("popularity", 0),
-                "poster_path": details.get("poster_path", ""),
-                "raw": details,
-            }
-            json_response(self, 200, data=preview)
-        except TMDbError as e:
-            json_response(self, 503, message=f"TMDB API 调用失败: {str(e)}")
-        except Exception as e:
-            json_response(self, 500, message=f"预览异常: {str(e)}")
-
-    def _tmdb_search(self, body: dict):
-        query = (body or {}).get("query", "").strip()
-        media_type = (body or {}).get("type", "movie")
-        language = (body or {}).get("language", "").strip() or None
-
-        if not query:
-            json_response(self, 400, message="请输入影视名称")
-            return
-
-        api_key = self._get_real_config_value("metadata", "tmdb", "api_key")
-        if not api_key:
-            json_response(self, 400, message="TMDB API Key 未配置")
-            return
-
-        try:
-            from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
-            client = TMDbClient(api_key)
-
-            if media_type == "tv":
-                search_result = client.search_tv_list(query, language=language)
-            else:
-                search_result = client.search_movie_list(query, language=language)
-
-            results = search_result.get("results", [])[:10]
-            items = []
-            for r in results:
-                item = {
-                    "id": r.get("id"),
-                    "title": r.get("title") or r.get("name", ""),
-                    "original_title": r.get("original_title") or r.get("original_name", ""),
-                    "release_date": r.get("release_date") or r.get("first_air_date", ""),
-                    "vote_average": r.get("vote_average", 0),
-                    "poster_path": r.get("poster_path", ""),
-                    "overview": (r.get("overview", "") or "")[:100],
-                    "genre_ids": r.get("genre_ids", []),
-                    "media_type": media_type,
-                }
-                items.append(item)
-
-            json_response(self, 200, data={
-                "total_results": search_result.get("total_results", 0),
-                "items": items,
-            })
-        except TMDbError as e:
-            json_response(self, 503, message=f"TMDB API 调用失败: {str(e)}")
-        except Exception as e:
-            json_response(self, 500, message=f"搜索异常: {str(e)}")
-
-    def _tmdb_details(self, body: dict):
-        tmdb_id = (body or {}).get("id")
-        media_type = (body or {}).get("type", "movie")
-
-        if not tmdb_id:
-            json_response(self, 400, message="请提供 TMDB ID")
-            return
-
-        api_key = self._get_real_config_value("metadata", "tmdb", "api_key")
-        if not api_key:
-            json_response(self, 400, message="TMDB API Key 未配置")
-            return
-
-        try:
-            from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
-            client = TMDbClient(api_key)
-
-            if media_type == "tv":
-                details = client.get_tv_details(int(tmdb_id))
-            else:
-                details = client.get_movie_details(int(tmdb_id))
-
-            json_response(self, 200, data={
-                "found": True,
-                "type": media_type,
-                "details": details,
-            })
-        except TMDbError as e:
-            json_response(self, 503, message=f"TMDB API 调用失败: {str(e)}")
-        except Exception as e:
-            json_response(self, 500, message=f"详情获取异常: {str(e)}")
-
-    def _scrape_preview(self, body: dict):
-        filename = (body or {}).get("filename", "").strip()
-
-        if not filename:
-            json_response(self, 400, message="请输入视频文件名")
-            return
-
-        import time
-        import logging
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-        from media_importer.scraper.llm_scraper import LLMScraper
-        from media_importer.scraper.metadata_scraper import MetadataScraper
-        from media_importer.scraper.confidence_engine import FilenameCleaner
-        from media_importer.scraper.providers import create_providers
-
-        logger = globals._global_logger
-        cleaner = FilenameCleaner()
-        clean_result = cleaner.clean(filename)
-
-        ai_result = None
-        provider_ai_result = None
-        ai_elapsed = 0
-        provider_ai_elapsed = 0
-        providers = create_providers(globals._config)
-        provider_enabled = bool(providers)
-        preview_timeout = 60
-
-        if logger:
-            logger.info(f"[scrape_preview] 开始: filename={filename}, provider_enabled={provider_enabled}")
-
-        def _run_ai_only():
-            try:
-                if logger:
-                    logger.info("[scrape_preview] 纯AI刮削开始")
-                llm_scraper = LLMScraper(globals._config)
-                t0 = time.time()
-                result = llm_scraper.scrape(filename)
-                elapsed = round(time.time() - t0, 2)
-                if logger:
-                    logger.info(f"[scrape_preview] 纯AI刮削完成: {elapsed}s")
-                return result, elapsed
-            except Exception as e:
-                if logger:
-                    logger.error(f"[scrape_preview] 纯AI刮削异常: {e}")
-                return {"error": str(e)}, 0
-
-        def _run_provider_ai():
-            try:
-                if logger:
-                    logger.info("[scrape_preview] Provider+AI刮削开始")
-                metadata_scraper = MetadataScraper(globals._config)
-                conn = getattr(globals._global_task_manager, 'conn', None) if globals._global_task_manager else None
-                t0 = time.time()
-                result = metadata_scraper.scrape(filename, conn=conn)
-                elapsed = round(time.time() - t0, 2)
-                if logger:
-                    logger.info(f"[scrape_preview] Provider+AI刮削完成: {elapsed}s")
-                return result, elapsed
-            except Exception as e:
-                if logger:
-                    logger.error(f"[scrape_preview] Provider+AI刮削异常: {e}")
-                return {"error": str(e)}, 0
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            futures = {}
-            futures['ai'] = executor.submit(_run_ai_only)
-            if provider_enabled:
-                futures['provider'] = executor.submit(_run_provider_ai)
-
-            for key, future in futures.items():
-                try:
-                    result, elapsed = future.result(timeout=preview_timeout)
-                    if key == 'ai':
-                        ai_result = result
-                        ai_elapsed = elapsed
-                    else:
-                        provider_ai_result = result
-                        provider_ai_elapsed = elapsed
-                except FuturesTimeout:
-                    if logger:
-                        logger.warning(f"[scrape_preview] {key} 超时 ({preview_timeout}s)")
-                    if key == 'ai':
-                        ai_result = {"error": f"纯 AI 刮削超时（{preview_timeout} 秒），请检查 LLM 连接配置"}
-                    else:
-                        provider_ai_result = {"error": f"Provider+AI 刮削超时（{preview_timeout} 秒），可能原因：元数据源 API 不可达或 LLM 响应过慢，请参考「纯 AI 刮削」结果"}
-                except Exception as e:
-                    if logger:
-                        logger.error(f"[scrape_preview] {key} 异常: {e}")
-                    if key == 'ai':
-                        ai_result = {"error": str(e)}
-                    else:
-                        provider_ai_result = {"error": str(e)}
-
-        if logger:
-            logger.info(f"[scrape_preview] 完成: ai={ai_elapsed}s, provider_ai={provider_ai_elapsed}s")
-
-        json_response(self, 200, data={
-            "filename": filename,
-            "clean_result": {
-                "clean_title": clean_result.clean_title,
-                "year": clean_result.year,
-                "season": clean_result.season,
-                "episode": clean_result.episode,
-                "method": clean_result.method,
-                "removed_items": clean_result.removed_items,
-            },
-            "ai_only": ai_result,
-            "ai_only_elapsed": ai_elapsed,
-            "provider_ai": provider_ai_result,
-            "provider_ai_elapsed": provider_ai_elapsed,
-        })
-
     def _config_check_permission(self, body: dict):
         try:
             from media_importer.monitor.permission_checker import check_config_permissions
@@ -785,97 +384,6 @@ class ConfigHandlersMixin:
             self._watcher_status()
         else:
             json_response(self, 400, message="Invalid action: use pause/resume/status")
-
-    def _health(self):
-        from media_importer.core.safety import check_write_permission
-        checks = {}
-        overall = "ok"
-
-        try:
-            source_dir = globals._config.get("source_dir", "")
-            if os.path.isdir(source_dir):
-                if os.access(source_dir, os.R_OK):
-                    checks["source_dir"] = "ok"
-                else:
-                    checks["source_dir"] = "no_read_permission"
-            else:
-                checks["source_dir"] = "error"
-        except Exception:
-            checks["source_dir"] = "error"
-            overall = "degraded"
-
-        try:
-            temp_dir = globals._config.get("temp_dir", "")
-            if os.path.isdir(temp_dir):
-                ok, _ = check_write_permission(temp_dir)
-                checks["temp_dir"] = "ok" if ok else "no_write_permission"
-            else:
-                checks["temp_dir"] = "error"
-        except Exception:
-            checks["temp_dir"] = "error"
-            overall = "degraded"
-
-        try:
-            log_dir = globals._config.get("log_dir", "") if globals._config else ""
-            checks["log_dir_path"] = log_dir
-            if os.path.isdir(log_dir):
-                ok, _ = check_write_permission(log_dir)
-                checks["log_dir"] = "ok" if ok else "no_write_permission"
-            else:
-                checks["log_dir"] = "error"
-        except Exception:
-            checks["log_dir"] = "error"
-            overall = "degraded"
-
-        try:
-            llm_config = globals._config.get("llm", {})
-            api_key = llm_config.get("api_key", "")
-            checks["llm_api"] = "ok" if api_key else "skipped"
-        except Exception:
-            checks["llm_api"] = "skipped"
-
-        try:
-            hermes_enabled = globals._config.get("hermes", {}).get("enabled", False)
-            checks["hermes"] = "ok" if hermes_enabled else "disabled"
-        except Exception:
-            checks["hermes"] = "disabled"
-
-        try:
-            disk_check_dir = globals._config.get("temp_dir", "/tmp")
-            stat = os.statvfs(disk_check_dir)
-            free_gb = stat.f_bavail * stat.f_frsize / (1024**3)
-            checks["disk_space"] = "ok" if free_gb > 1 else "low"
-        except Exception:
-            checks["disk_space"] = "error"
-            overall = "degraded"
-
-        if "error" in checks.values():
-            overall = "degraded"
-
-        json_response(self, 200, data={
-            "status": overall,
-            "checks": checks,
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
-        }, message=f"Health check: {overall}")
-
-    def _metrics(self):
-        m = get_metrics()
-        counts = globals._global_task_manager.count_by_status() if globals._global_task_manager else {}
-        json_response(self, 200, data={
-            **m.to_dict(),
-            "queue_by_status": counts
-        })
-
-    def _logs(self, query: dict):
-        limit = int(query.get("limit", [100])[0])
-        task_id = query.get("task_id", [None])[0]
-
-        if globals._global_logger:
-            result_lines = globals._global_logger.get_recent_logs(limit=limit, task_id=task_id)
-        else:
-            result_lines = []
-
-        json_response(self, 200, data={"logs": result_lines})
 
     def _list_tasks(self, query):
         from media_importer.core.db import VALID_STATUSES

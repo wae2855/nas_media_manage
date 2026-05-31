@@ -5,7 +5,9 @@ from .logger import get_logger
 from .metrics import Metrics, get_metrics
 from .safety import (
     validate_path_safety, validate_file_ext, check_read_permission,
-    check_write_permission, safe_delete, safe_move,
+    check_write_permission, safe_delete, safe_move, make_fingerprint,
+    move_to_recycle, move_to_recycle_with_companions, move_dir_to_recycle,
+    list_recycle_dir, restore_from_recycle, delete_from_recycle, recycle_cleanup,
 )
 from .db import (
     init_db, create_task, get_task, update_task, delete_task,

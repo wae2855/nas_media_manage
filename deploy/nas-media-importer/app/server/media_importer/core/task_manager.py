@@ -17,6 +17,7 @@ from .db import (
     get_next_pending as db_get_next_pending,
     count_all_tasks as db_count_all_tasks,
     find_by_source_path as db_find_by_source_path,
+    find_by_fingerprint as db_find_by_fingerprint,
     find_failed_too_many as db_find_failed,
     create_subtitles as db_create_subtitles,
     get_subtitles_by_task as db_get_subtitles,
@@ -174,9 +175,31 @@ class TaskManager:
     def has_running_tasks(self) -> bool:
         return db_has_running_tasks(self.conn)
 
-    def check_source_duplicate(self, source_path: str) -> dict:
+    def check_source_duplicate(self, source_path: str,
+                                source_fingerprint: str = "") -> dict:
         history = db_find_by_source_path(self.conn, source_path)
         if history is None:
+            if source_fingerprint:
+                fp_hit = db_find_by_fingerprint(self.conn, source_fingerprint)
+                if fp_hit:
+                    old_status = fp_hit.get("status", "")
+                    if old_status in ("PROCESSING", "CONFIRMING"):
+                        return {
+                            "exists": True,
+                            "task_id": fp_hit["task_id"],
+                            "old_status": old_status,
+                            "action": "SKIP",
+                            "reason": f"指纹匹配到正在处理的任务 ({old_status})",
+                        }
+                    if old_status == "SUCCESS":
+                        return {
+                            "exists": True,
+                            "task_id": fp_hit["task_id"],
+                            "old_status": old_status,
+                            "action": "RENAME_DETECTED",
+                            "old_path": fp_hit.get("source_path", ""),
+                            "reason": f"文件改名检测: 原名 {fp_hit.get('source_filename', '')}",
+                        }
             return {
                 "exists": False,
                 "task_id": None,
@@ -191,6 +214,24 @@ class TaskManager:
                 "old_status": old_status,
                 "action": "SKIP",
                 "reason": f"任务正在处理/待确认，跳过 ({old_status})",
+            }
+        if old_status == "SUCCESS" and self._is_file_changed(source_path, history):
+            current_size = os.path.getsize(source_path) if os.path.isfile(source_path) else 0
+            old_size = history.get("source_file_size") or int((history.get("file_size_mb") or 0) * 1024 * 1024)
+            if old_size and abs(current_size - old_size) > 1024:
+                return {
+                    "exists": True,
+                    "task_id": history["task_id"],
+                    "old_status": old_status,
+                    "action": "REPROCESS",
+                    "reason": "文件大小变化，可能是新版本",
+                }
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "action": "UPDATE_MTIME",
+                "reason": "仅修改时间变化，文件大小未变",
             }
         return {
             "exists": True,

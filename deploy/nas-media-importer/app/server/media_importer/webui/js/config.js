@@ -1,6 +1,224 @@
 let currentConfig = {};
 
-var _currentConfigSubTab = 'dimensions';
+var _currentConfigSubTab = 'import';
+
+var _advancedConfigExpanded = false;
+
+function toggleAdvancedConfig() {
+    var toggle = document.querySelector('.config-advanced-toggle');
+    var container = document.getElementById('advanced-config-container');
+    var wrapper = document.getElementById('config-cards-wrapper');
+    
+    _advancedConfigExpanded = !_advancedConfigExpanded;
+    
+    if (_advancedConfigExpanded) {
+        toggle.classList.add('expanded');
+        
+        if (wrapper) {
+            wrapper.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 1, 1), opacity 0.4s ease-out';
+            wrapper.style.transform = 'translateY(-100px) scale(0.95)';
+            wrapper.style.opacity = '0';
+            setTimeout(() => {
+                wrapper.style.display = 'none';
+            }, 450);
+        }
+        
+        container.style.transform = 'translateY(400px)';
+        container.style.opacity = '0';
+        
+        setTimeout(() => {
+            container.classList.add('open');
+            container.classList.add('reveal');
+            requestAnimationFrame(() => {
+                container.style.transition = 'transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease-out';
+                container.style.transform = '';
+                container.style.opacity = '';
+            });
+        }, 200);
+    } else {
+        container.classList.remove('open');
+        container.classList.remove('reveal');
+        container.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 1, 1), opacity 0.4s ease-out';
+        container.style.transform = 'translateY(400px)';
+        container.style.opacity = '0';
+        
+        setTimeout(() => {
+            container.style.transform = '';
+        }, 500);
+        
+        if (wrapper) {
+            wrapper.style.display = '';
+            wrapper.style.transform = 'translateY(100px) scale(0.95)';
+            wrapper.style.opacity = '0';
+            
+            setTimeout(() => {
+                requestAnimationFrame(() => {
+                    wrapper.style.transition = 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease-out';
+                    wrapper.style.transform = '';
+                    wrapper.style.opacity = '';
+                });
+            }, 100);
+        }
+        
+        setTimeout(() => {
+            toggle.classList.remove('expanded');
+            container.style.opacity = '';
+        }, 500);
+    }
+}
+
+var _navStack = [{ view: 'home', breadcrumb: '配置' }];
+
+var _viewConfig = {
+    'home':              { section: null,   viewGroup: null,         breadcrumb: null },
+    'dir-sub':           { section: null,   viewGroup: null,         breadcrumb: '目录配置' },
+    'source':            { section: 'basic', viewGroup: 'source',     breadcrumb: '源目录' },
+    'temp':              { section: 'basic', viewGroup: 'temp',       breadcrumb: '中转目录' },
+    'recycle':           { section: 'basic', viewGroup: 'recycle',    breadcrumb: '回收站目录' },
+    'source-cleaner':    { section: 'source_cleaner', viewGroup: null, breadcrumb: '源文件智能清理' },
+    'path-rules':        { section: 'path_rules', viewGroup: null,    breadcrumb: '入库规则', showReviewToggle: true },
+    'metadata-providers':{ section: 'metadata.providers', viewGroup: null, breadcrumb: '影视刮削配置' },
+    'llm-config':        { section: 'llm',  viewGroup: 'llm-config', breadcrumb: 'AI配置' },
+    'llm-prompt':        { section: 'llm',  viewGroup: 'llm-prompt', breadcrumb: 'AI刮削提示词' },
+    'file-watcher':      { section: 'file_watcher', viewGroup: null,  breadcrumb: '定时任务' },
+    'import-options':    { section: 'import_options', viewGroup: null, breadcrumb: '入库名称规范', hideReviewToggle: true },
+    'dimensions':        { section: 'dimensions', viewGroup: null,    breadcrumb: '影视分类维度' },
+    'confidence':        { section: 'confidence', viewGroup: null,    breadcrumb: '置信度计算配置' },
+    'server':            { section: 'server', viewGroup: null,        breadcrumb: '安全配置' },
+    'hermes':            { section: 'hermes', viewGroup: null,        breadcrumb: 'Hermes通知' },
+    'advanced':          { section: 'advanced', viewGroup: null,      breadcrumb: '系统设置' }
+};
+
+function navTo(viewId) {
+    var cfg = _viewConfig[viewId];
+    if (!cfg) return;
+    _navStack.push({ view: viewId, breadcrumb: cfg.breadcrumb || viewId });
+    renderView(viewId);
+    updateBreadcrumb();
+}
+
+function navBack() {
+    if (_navStack.length <= 1) return;
+    _navStack.pop();
+    var top = _navStack[_navStack.length - 1];
+    renderView(top.view);
+    updateBreadcrumb();
+}
+
+function navToBreadcrumb(index) {
+    if (index < 0 || index >= _navStack.length - 1) return;
+    _navStack = _navStack.slice(0, index + 1);
+    var top = _navStack[_navStack.length - 1];
+    renderView(top.view);
+    updateBreadcrumb();
+}
+
+function renderView(viewId) {
+    var cfg = _viewConfig[viewId];
+    if (!cfg) return;
+
+    var cardsHome = document.getElementById('config-cards-home');
+    var dirSub = document.getElementById('config-dir-sub-cards');
+    var sectionsHost = document.getElementById('cfg-sections-host');
+
+    if (cardsHome) cardsHome.classList.remove('active');
+    if (dirSub) dirSub.classList.remove('active');
+
+    if (viewId === 'home') {
+        if (cardsHome) cardsHome.classList.add('active');
+        if (sectionsHost) {
+            sectionsHost.querySelectorAll('.config-section').forEach(function(s) {
+                s.classList.add('collapsed-section');
+            });
+        }
+        return;
+    }
+
+    if (viewId === 'dir-sub') {
+        if (dirSub) dirSub.classList.add('active');
+        if (sectionsHost) {
+            sectionsHost.querySelectorAll('.config-section').forEach(function(s) {
+                s.classList.add('collapsed-section');
+            });
+        }
+        return;
+    }
+
+    if (sectionsHost) {
+        sectionsHost.querySelectorAll('.config-section').forEach(function(sec) {
+            var sectionName = sec.getAttribute('data-section');
+            if (sectionName === cfg.section) {
+                sec.classList.remove('collapsed-section');
+                if (cfg.viewGroup) {
+                    sec.querySelectorAll('[data-view-group]').forEach(function(fg) {
+                        if (fg.getAttribute('data-view-group') === cfg.viewGroup) {
+                            fg.classList.add('view-visible');
+                        } else {
+                            fg.classList.remove('view-visible');
+                        }
+                    });
+                } else {
+                    sec.querySelectorAll('[data-view-group]').forEach(function(fg) {
+                        fg.classList.add('view-visible');
+                    });
+                }
+            } else {
+                sec.classList.add('collapsed-section');
+                sec.querySelectorAll('[data-view-group]').forEach(function(fg) {
+                    fg.classList.remove('view-visible');
+                });
+            }
+        });
+    }
+
+    var reviewToggle = document.getElementById('cfg-manual_review-enabled');
+    if (reviewToggle) {
+        var reviewGroup = reviewToggle.closest('.form-group');
+        if (reviewGroup) {
+            if (cfg.showReviewToggle) {
+                reviewGroup.style.display = '';
+            } else if (cfg.hideReviewToggle) {
+                reviewGroup.style.display = 'none';
+            } else {
+                reviewGroup.style.display = '';
+            }
+        }
+    }
+
+    if (cfg.section === 'dimensions' && typeof loadDimensions === 'function') {
+        loadDimensions();
+    }
+}
+
+function updateBreadcrumb() {
+    var container = document.getElementById('config-breadcrumb');
+    if (!container) return;
+    var backBtn = container.querySelector('.back-btn');
+    if (backBtn) {
+        backBtn.style.display = _navStack.length > 1 ? '' : 'none';
+    }
+    var itemsHtml = '';
+    for (var i = 0; i < _navStack.length; i++) {
+        var item = _navStack[i];
+        var isCurrent = (i === _navStack.length - 1);
+        if (i > 0) {
+            itemsHtml += '<span class="config-breadcrumb-separator">›</span>';
+        }
+        if (isCurrent) {
+            itemsHtml += '<span class="config-breadcrumb-item current">' + item.breadcrumb + '</span>';
+        } else {
+            itemsHtml += '<span class="config-breadcrumb-item" onclick="navToBreadcrumb(' + i + ')">' + item.breadcrumb + '</span>';
+        }
+    }
+    var existingItems = container.querySelectorAll('.config-breadcrumb-item, .config-breadcrumb-separator');
+    existingItems.forEach(function(el) { el.remove(); });
+    container.insertAdjacentHTML('beforeend', itemsHtml);
+}
+
+async function savePathRulesWithReview() {
+    await saveSection('path_rules');
+    await saveSection('import_options');
+}
 
 function switchTab(tabName) {
     var panels = document.querySelectorAll('.panel');
@@ -12,22 +230,24 @@ function switchTab(tabName) {
     document.getElementById(`${tabName}-panel`).classList.add('active');
     document.getElementById(`tab-${tabName}`).classList.add('active');
 
-    var subTabBar = document.getElementById('config-sub-tab-bar');
-    if (subTabBar) {
-        if (tabName === 'config') {
-            subTabBar.classList.remove('collapsed-section');
-        } else {
-            subTabBar.classList.add('collapsed-section');
-        }
-    }
-
     if (tabName === 'tasks') {
         loadTasks();
         refreshLogs();
     }
 
     if (tabName === 'config') {
-        applyConfigSubTab(_currentConfigSubTab || 'dimensions');
+        var breadcrumb = document.getElementById('config-breadcrumb');
+        if (breadcrumb) breadcrumb.style.display = '';
+        if (_navStack.length <= 1) {
+            navTo('home');
+        } else {
+            var top = _navStack[_navStack.length - 1];
+            renderView(top.view);
+            updateBreadcrumb();
+        }
+    } else {
+        var breadcrumb = document.getElementById('config-breadcrumb');
+        if (breadcrumb) breadcrumb.style.display = 'none';
     }
 
     if (tabName === 'recycle') {
@@ -35,31 +255,6 @@ function switchTab(tabName) {
     }
 }
 
-function switchConfigSubTab(name) {
-    _currentConfigSubTab = name;
-    applyConfigSubTab(name);
-}
-
-function applyConfigSubTab(name) {
-    var btns = document.querySelectorAll('.config-sub-tab-btn');
-    btns.forEach(function(btn) { btn.classList.remove('active'); });
-    var activeBtn = document.getElementById('cfg-subtab-' + name);
-    if (activeBtn) activeBtn.classList.add('active');
-
-    var sections = document.querySelectorAll('#cfg-sections-host .config-section');
-    sections.forEach(function(sec) {
-        var owner = sec.getAttribute('data-subtab') || '';
-        if (owner === name) {
-            sec.classList.remove('collapsed-section');
-        } else {
-            sec.classList.add('collapsed-section');
-        }
-    });
-
-    if (name === 'dimensions' && typeof loadDimensions === 'function') {
-        loadDimensions();
-    }
-}
 
 function _safeGet(obj) {
     var result = obj;
@@ -101,12 +296,13 @@ async function loadConfig() {
         document.getElementById('cfg-source_cleaner-ai_enabled').checked = !!sourceCleaner.ai_enabled;
         document.getElementById('cfg-source_cleaner-merge_strategy').value = sourceCleaner.merge_strategy || 'intersection';
         document.getElementById('cfg-source_cleaner-junk_video_max_size_mb').value = sourceCleaner.junk_video_max_size_mb != null ? sourceCleaner.junk_video_max_size_mb : 0;
-        document.getElementById('cfg-source_cleaner-delete_extensions').value = (sourceCleaner.delete_extensions || []).join(',');
-        document.getElementById('cfg-source_cleaner-protect_extensions').value = (sourceCleaner.protect_extensions || []).join(',');
-        document.getElementById('cfg-source_cleaner-blacklist_patterns').value = (sourceCleaner.blacklist_patterns || []).join(',');
+        document.getElementById('cfg-source_cleaner-delete_extensions').value = (sourceCleaner.delete_extensions || []).join('\n');
+        document.getElementById('cfg-source_cleaner-protect_extensions').value = (sourceCleaner.protect_extensions || []).join('\n');
+        document.getElementById('cfg-source_cleaner-blacklist_patterns').value = (sourceCleaner.blacklist_patterns || []).join('\n');
         document.getElementById('cfg-source_cleaner-cleanup_empty_dirs').checked = !!sourceCleaner.cleanup_empty_dirs;
-        document.getElementById('cfg-source_cleaner-confirm_before_cleanup').checked = !!sourceCleaner.confirm_before_cleanup;
         document.getElementById('cfg-source_cleaner-schedule').value = sourceCleaner.schedule || '';
+        var aiPromptEl = document.getElementById('cfg-source_cleaner-ai_prompt');
+        if (aiPromptEl) aiPromptEl.value = sourceCleaner.ai_prompt || '';
         onSourceCleanerToggle();
 
         var metadata = c.metadata || {};
@@ -172,6 +368,13 @@ async function loadConfig() {
 
         var tq = c.task_queue || {};
         document.getElementById('cfg-task_queue-max_concurrent').value = tq.max_concurrent || 1;
+
+        var videoExts = c.video_extensions || [];
+        var subExts = c.subtitle_extensions || [];
+        var videoExtEl = document.getElementById('cfg-video_extensions');
+        var subExtEl = document.getElementById('cfg-subtitle_extensions');
+        if (videoExtEl) videoExtEl.value = videoExts.join('\n');
+        if (subExtEl) subExtEl.value = subExts.join('\n');
 
         var manualReview = c.manual_review || {};
         document.getElementById('cfg-manual_review-enabled').checked = !!manualReview.enabled;
@@ -438,14 +641,21 @@ function _buildSourceCleanerData() {
             ai_enabled: document.getElementById('cfg-source_cleaner-ai_enabled').checked,
             merge_strategy: document.getElementById('cfg-source_cleaner-merge_strategy').value || 'intersection',
             junk_video_max_size_mb: parseInt(document.getElementById('cfg-source_cleaner-junk_video_max_size_mb').value) || 0,
-            delete_extensions: document.getElementById('cfg-source_cleaner-delete_extensions').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
-            protect_extensions: document.getElementById('cfg-source_cleaner-protect_extensions').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
-            blacklist_patterns: document.getElementById('cfg-source_cleaner-blacklist_patterns').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+            delete_extensions: _parseMultiLineInput('cfg-source_cleaner-delete_extensions'),
+            protect_extensions: _parseMultiLineInput('cfg-source_cleaner-protect_extensions'),
+            blacklist_patterns: _parseMultiLineInput('cfg-source_cleaner-blacklist_patterns'),
             cleanup_empty_dirs: document.getElementById('cfg-source_cleaner-cleanup_empty_dirs').checked,
-            confirm_before_cleanup: document.getElementById('cfg-source_cleaner-confirm_before_cleanup').checked,
-            schedule: document.getElementById('cfg-source_cleaner-schedule').value.trim()
+            schedule: document.getElementById('cfg-source_cleaner-schedule').value.trim(),
+            ai_prompt: (document.getElementById('cfg-source_cleaner-ai_prompt') || {}).value || ''
         }
     };
+}
+
+function _parseMultiLineInput(id) {
+    var el = document.getElementById(id);
+    if (!el) return [];
+    var raw = el.value || '';
+    return raw.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
 }
 
 function _buildPathRulesData() {
@@ -622,11 +832,31 @@ function _buildWatcherData() {
 }
 
 function _buildAdvancedData() {
+    var videoExtEl = document.getElementById('cfg-video_extensions');
+    var subExtEl = document.getElementById('cfg-subtitle_extensions');
+    var videoExts = [];
+    var subExts = [];
+    if (videoExtEl) {
+        videoExts = videoExtEl.value.split('\n').map(function(s) {
+            s = s.trim();
+            if (s && !s.startsWith('.')) s = '.' + s;
+            return s;
+        }).filter(function(s) { return s; });
+    }
+    if (subExtEl) {
+        subExts = subExtEl.value.split('\n').map(function(s) {
+            s = s.trim();
+            if (s && !s.startsWith('.')) s = '.' + s;
+            return s;
+        }).filter(function(s) { return s; });
+    }
     return {
         log_dir: document.getElementById('cfg-log_dir').value,
         task_queue: {
             max_concurrent: parseInt(document.getElementById('cfg-task_queue-max_concurrent').value)
-        }
+        },
+        video_extensions: videoExts,
+        subtitle_extensions: subExts
     };
 }
 
@@ -987,25 +1217,65 @@ function onHermesToggle() {
 
 function onSourceCleanerToggle() {
     var checkbox = document.getElementById('cfg-source_cleaner-enabled');
-    var section = document.getElementById('source-cleaner-config-section');
-    if (!checkbox || !section) return;
+    if (!checkbox) return;
     var enabled = checkbox.checked;
     var fields = document.getElementById('source-cleaner-fields');
     if (fields) {
-        if (enabled) {
-            fields.classList.remove('collapsed-section');
-        } else {
-            fields.classList.add('collapsed-section');
-        }
+        fields.style.display = enabled ? '' : 'none';
     }
     var aiCheckbox = document.getElementById('cfg-source_cleaner-ai_enabled');
     var mergeGroup = document.getElementById('source-cleaner-merge-strategy-group');
     if (mergeGroup) {
-        if (enabled && aiCheckbox && aiCheckbox.checked) {
-            mergeGroup.style.display = '';
-        } else {
-            mergeGroup.style.display = 'none';
-        }
+        mergeGroup.style.display = (enabled && aiCheckbox && aiCheckbox.checked) ? '' : 'none';
+    }
+    var aiPromptRow = document.getElementById('sc-ai-prompt-row');
+    if (aiPromptRow) {
+        aiPromptRow.style.display = (enabled && aiCheckbox && aiCheckbox.checked) ? '' : 'none';
+    }
+}
+
+function showSCAIPromptModal() {
+    var modal = document.getElementById('sc-ai-prompt-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+var SC_AI_DEFAULT_PROMPT = '你是"影音库AI智能整理"系统的源目录清理助手。你的任务是分析源目录中的文件，判断哪些是垃圾文件应该删除，哪些是影视相关文件应该保留。\n\n【分析原则】\n1. 整体视角：分析整个目录的文件构成，而非孤立判断单个文件\n2. 容量对比：同一目录下，视频文件大小差异显著时，小文件大概率是广告/样本/预告\n3. 命名模式：文件名含 sample、trailer、预告、花絮、广告等关键词的应删除\n4. 关联识别：与视频同名的 .nfo、.jpg、.png 等是影视元数据/海报，应保留\n5. 字幕文件：.srt、.ass 等字幕文件应保留\n6. 保守原则：无法确定时倾向于保留，避免误删\n\n【判断标准】\n- 主视频文件（通常最大的视频文件）→ 保留\n- 字幕文件 → 保留\n- 与主视频同名的元数据/海报 → 保留\n- 样本/预告/广告视频（明显小于主视频）→ 删除\n- BT下载附带的无用文件（.url, .txt说明, 下载站广告图）→ 删除\n- 无法判断的文件 → 保留\n\n【输出格式】\n请严格按以下JSON格式返回，不要添加任何解释文字：\n{\n    "analysis": "简要分析说明",\n    "decisions": {\n        "文件名": {"action": "keep或delete", "reason": "判断理由"}\n    }\n}';
+
+function resetSCAIPrompt() {
+    var el = document.getElementById('cfg-source_cleaner-ai_prompt');
+    if (el) {
+        el.value = SC_AI_DEFAULT_PROMPT;
+        showToast('已恢复为默认提示词', 'success');
+    }
+}
+
+function saveSCAIPrompt() {
+    closeModal('sc-ai-prompt-modal');
+    showToast('AI提示词已暂存，请点击保存按钮提交配置', 'info');
+}
+
+function switchSCTab(tabName) {
+    var tabs = document.querySelectorAll('.sc-tab-btn');
+    var panels = document.querySelectorAll('.sc-tab-panel');
+    tabs.forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-sc-tab') === tabName);
+    });
+    panels.forEach(function(p) {
+        p.classList.toggle('active', p.getAttribute('data-sc-panel') === tabName);
+    });
+}
+
+function toggleSCAdvanced() {
+    var toggle = document.querySelector('.sc-advanced-toggle');
+    var body = document.getElementById('sc-advanced-body');
+    if (!toggle || !body) return;
+    var collapsed = body.classList.contains('collapsed-section');
+    if (collapsed) {
+        body.classList.remove('collapsed-section');
+        toggle.classList.add('expanded');
+    } else {
+        body.classList.add('collapsed-section');
+        toggle.classList.remove('expanded');
     }
 }
 
@@ -1288,6 +1558,11 @@ function _renderTmdbDetailsStructured(data, type) {
 
     html += '</div>';
     return html;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function _renderTmdbFieldValue(key, val) {
@@ -1788,10 +2063,10 @@ function generateConsultPrompt() {
         dimLines += '  ' + dk + '(' + label + '): ' + srcParts.join(' > ') + '\n';
     });
 
-    var prompt = '# NAS 影视入库系统 — 置信度配置咨询助手\n'
-        + '\n你是 NAS 影视自动化入库系统的配置顾问。你的任务是根据用户需求，给出精确的配置建议，让用户直接在 Web 界面上修改对应参数。\n'
+    var prompt = '# 影音库AI智能整理 — 置信度配置咨询助手\n'
+        + '\n你是"影音库AI智能整理"系统的配置顾问。你的任务是根据用户需求，给出精确的配置建议，让用户直接在 Web 界面上修改对应参数。\n'
         + '\n## 一、系统工作流程\n'
-        + '\nNAS 影视入库系统自动刮削视频文件元数据并分类入库。处理流程：\n'
+        + '\n影音库AI智能整理系统自动刮削视频文件元数据并分类入库。处理流程：\n'
         + '\n1. **文件名清洗**：用正则表达式从文件名中提取标题、年份、季集号。支持中英文标题自动拆分（如"蝙蝠侠：黑暗骑士.The.Dark.Knight.2008"会拆分为英文标题"The Dark Knight"）。如果年份可疑（如年份在未来、或清洗后标题残留年份），标记为 year_suspect，跳过直接搜索。\n'
         + '2. **Provider 搜索**：用清洗后的标题+年份搜索 Provider 数据库，获取匹配结果。如果第一次搜索无结果或匹配分低于阈值，会触发 AI 辅助清洗后重新搜索。\n'
         + '3. **AI 刮削**：调用 LLM 提取元数据（标题、年份、分辨率、维度信息等）。\n'
@@ -2186,13 +2461,132 @@ async function previewCleanerResult() {
     var result = await apiRequest('GET', '/source-cleaner/preview');
     if (result.code === 200 && result.data) {
         var data = result.data;
-        var toDelete = data.to_delete || [];
-        var toKeep = data.to_keep || [];
-        var summary = '将删除 ' + toDelete.length + ' 个文件，保留 ' + toKeep.length + ' 个文件';
+        var items = data.items || [];
+        var total = items.length;
         resultEl.className = 'test-result success';
-        resultEl.textContent = '✓ ' + summary;
+        resultEl.textContent = '✓ 将清理 ' + total + ' 项';
+
+        var summaryEl = document.getElementById('sc-preview-summary');
+        var treeEl = document.getElementById('sc-preview-tree');
+
+        var categories = {};
+        var totalSize = 0;
+        for (var i = 0; i < items.length; i++) {
+            var cat = items[i].category || 'other';
+            if (!categories[cat]) categories[cat] = {count: 0, size: 0, label: cat};
+            categories[cat].count++;
+            categories[cat].size += (items[i].size_mb || 0);
+            totalSize += (items[i].size_mb || 0);
+        }
+
+        var catLabels = {
+            'junk_video': '垃圾视频',
+            'delete_extension': '删除后缀',
+            'blacklist_pattern': '黑名单匹配',
+            'blacklist_dir': '黑名单目录',
+            'empty_dir': '空目录',
+            'non_media': '非影视文件',
+            'ai_delete': 'AI判定删除'
+        };
+
+        var summaryHtml = '<div class="sc-preview-stat"><span class="sc-preview-stat-num">' + total + '</span><span class="sc-preview-stat-label">项将清理</span></div>';
+        summaryHtml += '<div class="sc-preview-stat"><span class="sc-preview-stat-num">' + totalSize.toFixed(1) + '</span><span class="sc-preview-stat-label">MB</span></div>';
+        var catKeys = Object.keys(categories);
+        for (var j = 0; j < catKeys.length; j++) {
+            var c = categories[catKeys[j]];
+            summaryHtml += '<div class="sc-preview-stat"><span class="sc-preview-stat-num">' + c.count + '</span><span class="sc-preview-stat-label">' + (catLabels[catKeys[j]] || catKeys[j]) + '</span></div>';
+        }
+        summaryEl.innerHTML = summaryHtml;
+
+        var sourceDir = currentConfig.source_dir || '';
+
+        var tree = buildDirTree(items, sourceDir);
+        var rootName = sourceDir ? sourceDir.split('/').filter(function(s) { return s; }).pop() || sourceDir : '源目录';
+        treeEl.innerHTML = '<div class="sc-tree-line sc-tree-root"><span class="sc-tree-folder">📂 ' + escapeHtml(rootName) + '</span></div>' + renderDirTree(tree, '');
+
+        document.getElementById('sc-preview-modal').style.display = 'flex';
     } else {
         resultEl.className = 'test-result error';
         resultEl.textContent = '✗ ' + (result.message || '预览失败');
     }
 }
+
+function buildDirTree(items, sourceDir) {
+    var root = {name: '', children: {}, items: []};
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var path = item.path || '';
+        var relPath = sourceDir && path.startsWith(sourceDir) ? path.substring(sourceDir.length) : path;
+        relPath = relPath.replace(/^\/+/, '');
+        var parts = relPath.split('/');
+
+        var node = root;
+        for (var p = 0; p < parts.length - 1; p++) {
+            if (!node.children[parts[p]]) {
+                node.children[parts[p]] = {name: parts[p], children: {}, items: []};
+            }
+            node = node.children[parts[p]];
+        }
+        node.items.push({
+            name: parts[parts.length - 1],
+            category: item.category,
+            reason: item.reason,
+            size_mb: item.size_mb,
+            source: item.source
+        });
+    }
+    return root;
+}
+
+var _scCategoryIcons = {
+    'junk_video': '🎬',
+    'delete_extension': '📄',
+    'blacklist_pattern': '🚫',
+    'blacklist_dir': '📁',
+    'empty_dir': '📂',
+    'non_media': '📎',
+    'ai_delete': '🤖'
+};
+
+function renderDirTree(node, prefix) {
+    var html = '';
+    var childKeys = Object.keys(node.children).sort();
+    var itemIdx = 0;
+
+    for (var c = 0; c < childKeys.length; c++) {
+        var key = childKeys[c];
+        var child = node.children[key];
+        var isLastDir = (c === childKeys.length - 1) && (node.items.length === 0);
+        var connector = isLastDir ? '└── ' : '├── ';
+        var childPrefix = isLastDir ? '    ' : '│   ';
+
+        html += '<div class="sc-tree-line">';
+        html += '<span class="sc-tree-indent">' + escapeHtml(prefix) + '</span>';
+        html += '<span class="sc-tree-connector">' + connector + '</span>';
+        html += '<span class="sc-tree-folder">📁 ' + escapeHtml(key) + '</span>';
+        html += '</div>';
+
+        html += renderDirTree(child, prefix + childPrefix);
+    }
+
+    for (var i = 0; i < node.items.length; i++) {
+        var item = node.items[i];
+        var isLast = (i === node.items.length - 1) && true;
+        var conn = isLast ? '└── ' : '├── ';
+        var icon = _scCategoryIcons[item.category] || '📄';
+
+        html += '<div class="sc-tree-line" data-category="' + escapeHtml(item.category) + '">';
+        html += '<span class="sc-tree-indent">' + escapeHtml(prefix) + '</span>';
+        html += '<span class="sc-tree-connector">' + conn + '</span>';
+        html += '<span class="sc-tree-icon">' + icon + '</span>';
+        html += '<span class="sc-tree-file">' + escapeHtml(item.name) + '</span>';
+        if (item.size_mb > 0) {
+            html += '<span class="sc-tree-size">' + item.size_mb.toFixed(1) + 'MB</span>';
+        }
+        html += '<span class="sc-tree-reason">' + escapeHtml(item.reason || '') + '</span>';
+        html += '</div>';
+    }
+
+    return html;
+}
+

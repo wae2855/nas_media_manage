@@ -10,10 +10,7 @@ from media_importer.core.safety import move_to_recycle, move_dir_to_recycle
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".ts", ".mov", ".wmv", ".m2ts", ".flv", ".webm", ".m4v"}
-DEFAULT_SUBTITLE_EXTENSIONS = {".srt", ".ass", ".ssa", ".sub", ".idx", ".smi", ".vtt", ".sup"}
-
-AI_SYSTEM_PROMPT = """你是 NAS 影视入库系统的源目录清理助手。你的任务是分析源目录中的文件，判断哪些是垃圾文件应该删除，哪些是影视相关文件应该保留。
+AI_SYSTEM_PROMPT = """你是"影音库AI智能整理"系统的源目录清理助手。你的任务是分析源目录中的文件，判断哪些是垃圾文件应该删除，哪些是影视相关文件应该保留。
 
 【分析原则】
 1. 整体视角：分析整个目录的文件构成，而非孤立判断单个文件
@@ -61,15 +58,16 @@ class SourceCleaner:
         )
         self.blacklist_patterns = self.config.get("blacklist_patterns", [])
         self.cleanup_empty_dirs = self.config.get("cleanup_empty_dirs", True)
-        self.confirm_before_cleanup = self.config.get("confirm_before_cleanup", True)
         self.ai_prompt = self.config.get("ai_prompt", AI_SYSTEM_PROMPT)
 
         self.video_extensions = set(
-            ext.lower() for ext in config.get("video_extensions", [])
-        ) or DEFAULT_VIDEO_EXTENSIONS
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+            for ext in config.get("video_extensions", [])
+        )
         self.subtitle_extensions = set(
-            ext.lower() for ext in config.get("subtitle_extensions", [])
-        ) or DEFAULT_SUBTITLE_EXTENSIONS
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+            for ext in config.get("subtitle_extensions", [])
+        )
         self.media_extensions = self.video_extensions | self.subtitle_extensions
 
     def preview(self, task_paths: set = None) -> list:
@@ -90,11 +88,8 @@ class SourceCleaner:
 
         return merged
 
-    def execute(self, task_paths: set = None, confirmed: bool = False,
+    def execute(self, task_paths: set = None,
                 merge_strategy: str = None) -> dict:
-        if self.confirm_before_cleanup and not confirmed:
-            return {"status": "need_confirm", "items": self.preview(task_paths)}
-
         if merge_strategy:
             self.merge_strategy = merge_strategy
 
@@ -240,7 +235,7 @@ class SourceCleaner:
         if self.cleanup_mode == "media_and_related":
             if self._is_companion_file(fname, ext, video_stems):
                 return "", ""
-            return "", ""
+            return "non_media", f"非影视相关文件(media_and_related模式): {ext}"
 
         return "", ""
 

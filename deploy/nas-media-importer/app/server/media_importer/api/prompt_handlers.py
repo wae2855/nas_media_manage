@@ -53,6 +53,10 @@ class PromptHandlersMixin:
 
     def _load_tmdb_prompts_for_ui(self) -> dict:
         try:
+            from media_importer.scraper.llm_scraper import LLMScraper
+
+            default_prompt = LLMScraper._get_default_provider_prompt('tmdb')
+
             config_path = globals._config.get("_config_path") if globals._config else None
             if config_path:
                 prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
@@ -76,12 +80,7 @@ class PromptHandlersMixin:
                         using_custom = bool(sp)
 
             if not sp:
-                from media_importer.scraper.llm_scraper import LLMScraper
-                ds = LLMScraper.TMDB_CONTEXT_PROMPT
-                SEP = "【维度判断】\n当前需要判断的维度："
-                if ds.endswith(SEP):
-                    ds = ds[:-len(SEP)]
-                sp = ds.strip()
+                sp = default_prompt
                 using_custom = False
 
             return {"system_prompt": sp, "using_custom": using_custom}
@@ -151,62 +150,10 @@ class PromptHandlersMixin:
             json_response(self, 500, message="恢复默认提示词失败: " + str(e))
 
     def _config_save_tmdb_prompts(self, body: dict):
-        try:
-            if not body:
-                json_response(self, 400, message="Empty body")
-                return
-
-            system_prompt = body.get("system_prompt", "").strip()
-
-            config_path = globals._config.get("_config_path") if globals._config else None
-            if config_path:
-                prompts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config_path))), "config", "tmdb_prompts.md")
-            else:
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                prompts_file = os.path.join(base_dir, "config", "tmdb_prompts.md")
-
-            head_comment = """# ============================================================
-# LLM+TMDB 刮削提示词配置
-# ============================================================
-# 当 TMDb API 命中元数据后，使用此提示词让 AI 整理/校验 TMDb 数据
-# 程序会自动追加维度列表和 JSON Schema，此文件只需编写上半部
-# 如需恢复出厂默认，点击 WebUI 中的 "重置为默认" 即可
-
-"""
-            from ruamel.yaml import YAML
-            from ruamel.yaml.scalarstring import LiteralScalarString
-
-            yaml = YAML()
-            yaml.preserve_quotes = True
-            yaml.width = 120
-
-            doc = {}
-            if system_prompt:
-                doc["system_prompt"] = LiteralScalarString(system_prompt)
-
-            with open(prompts_file, "w", encoding="utf-8") as f:
-                f.write(head_comment)
-                yaml.dump(doc, f)
-
-            json_response(self, 200, message="LLM+TMDB 提示词已保存，重启服务后生效")
-        except Exception as e:
-            json_response(self, 500, message="保存 LLM+TMDB 提示词失败: " + str(e))
+        self._provider_prompts_save(body, 'tmdb')
 
     def _config_reset_tmdb_prompts(self):
-        try:
-            config_path = globals._config.get("_config_path") if globals._config else None
-            if config_path:
-                prompts_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config_path))), "config", "tmdb_prompts.md")
-            else:
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                prompts_file = os.path.join(base_dir, "config", "tmdb_prompts.md")
-
-            if os.path.isfile(prompts_file):
-                os.remove(prompts_file)
-
-            json_response(self, 200, message="已恢复出厂默认 LLM+TMDB 提示词，重启服务后生效")
-        except Exception as e:
-            json_response(self, 500, message="恢复 LLM+TMDB 默认提示词失败: " + str(e))
+        self._provider_prompts_reset({}, 'tmdb')
 
     def _skill(self):
         skill_path = os.path.join(

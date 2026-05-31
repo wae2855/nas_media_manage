@@ -3,12 +3,13 @@ import os
 import sys
 import time
 import shutil
-from media_importer.core.safety import validate_file_ext, check_read_permission, check_write_permission, ALLOWED_MEDIA_EXTS
+from media_importer.core.safety import validate_file_ext, check_read_permission, check_write_permission
 
 
 class FileCopier:
-    def __init__(self, temp_dir: str):
+    def __init__(self, temp_dir: str, media_extensions: set = None):
         self.temp_dir = temp_dir
+        self.media_extensions = media_extensions
         self._available = True
         try:
             if temp_dir:
@@ -43,7 +44,7 @@ class FileCopier:
         if not ok:
             raise IOError(f"源文件不可读: {msg}")
 
-        ok, msg = validate_file_ext(src, ALLOWED_MEDIA_EXTS)
+        ok, msg = validate_file_ext(src, self.media_extensions)
         if not ok:
             raise IOError(f"源文件类型不允许: {msg}")
 

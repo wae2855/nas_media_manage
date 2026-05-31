@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NAS影视整理入库</title>
-    <link rel="stylesheet" href="css/base.css?v=35">
-    <link rel="stylesheet" href="css/layout.css?v=35">
-    <link rel="stylesheet" href="css/components.css?v=35">
-    <link rel="stylesheet" href="css/config.css?v=35">
-    <link rel="stylesheet" href="css/tasks.css?v=35">
-    <link rel="stylesheet" href="css/dimensions.css?v=35">
+    <title>影音库AI智能整理</title>
+    <link rel="stylesheet" href="css/base.css?v=43">
+    <link rel="stylesheet" href="css/themes.css?v=37">
+    <link rel="stylesheet" href="css/layout.css?v=38">
+    <link rel="stylesheet" href="css/components.css?v=37">
+    <link rel="stylesheet" href="css/config.css?v=41">
+    <link rel="stylesheet" href="css/tasks.css?v=37">
+    <link rel="stylesheet" href="css/dimensions.css?v=37">
 </head>
 <body>
     <div class="container">
@@ -18,7 +19,7 @@
                 <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                 </svg>
-                <h1>NAS影视整理入库</h1>
+                <h1>影音库AI智能整理</h1>
             </div>
             <div class="header-right">
                 <button id="api-key-btn" class="header-icon-btn" onclick="showApiKeyModal()" title="API Key 设置" style="display:none;">
@@ -61,61 +62,33 @@
                 回收站
             </button>
         </nav>
-                <nav class="config-sub-tabs collapsed-section" id="config-sub-tab-bar">
-                    <button id="cfg-subtab-dimensions" class="config-sub-tab-btn active" onclick="switchConfigSubTab('dimensions')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="7" height="7"/>
-                            <rect x="14" y="3" width="7" height="7"/>
-                            <rect x="3" y="14" width="7" height="7"/>
-                            <rect x="14" y="14" width="7" height="7"/>
-                        </svg>
-                        影视分类配置
-                    </button>
-                    <button id="cfg-subtab-import" class="config-sub-tab-btn" onclick="switchConfigSubTab('import')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        入库设置
-                    </button>
-                    <button id="cfg-subtab-llm" class="config-sub-tab-btn" onclick="switchConfigSubTab('llm')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                        </svg>
-                        AI 刮削
-                    </button>
-                    <button id="cfg-subtab-notify" class="config-sub-tab-btn" onclick="switchConfigSubTab('notify')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                        </svg>
-                        通知与安全
-                    </button>
-                    <button id="cfg-subtab-system" class="config-sub-tab-btn" onclick="switchConfigSubTab('system')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                        </svg>
-                        系统设置
-                    </button>
-                    <button id="cfg-subtab-confidence" class="config-sub-tab-btn" onclick="switchConfigSubTab('confidence')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 20V10"/>
-                            <path d="M18 20V4"/>
-                            <path d="M6 20v-4"/>
-                        </svg>
-                        置信度配置
-                    </button>
-                    <button class="config-sub-tab-action" onclick="showSystemScrapeModal()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                        </svg>
-                        刮削与置信度计算
-                    </button>
-                </nav>
+
 
         <main class="main-content">
             <!-- 概览面板 -->
             <div id="overview-panel" class="panel active">
+                <div class="welcome-banner" id="welcome-banner">
+                    <div class="welcome-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                    </div>
+                    <div class="welcome-content">
+                        <h2>欢迎使用 影音库AI智能整理</h2>
+                        <p>自动识别 · 智能刮削 · 规整入库</p>
+                    </div>
+                    <div class="welcome-actions">
+                        <button class="btn btn-primary btn-sm" onclick="switchTab('config')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            开始配置
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="switchTab('tasks')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            查看任务
+                        </button>
+                    </div>
+                </div>
+
                 <div class="grid-cards">
                     <div class="card card-clickable" id="card-pending" onclick="switchToTaskFilter('pending')">
                         <div class="card-icon pending">
@@ -126,7 +99,8 @@
                         </div>
                         <div class="card-content">
                             <div class="card-value" id="val-pending">0</div>
-                            <div class="card-label">待处理（当前队列）</div>
+                            <div class="card-label">待处理</div>
+                            <div class="card-hint">当前队列</div>
                         </div>
                     </div>
                     <div class="card card-clickable" id="card-success" onclick="switchToTaskFilter('completed')">
@@ -138,7 +112,8 @@
                         </div>
                         <div class="card-content">
                             <div class="card-value" id="val-success">0</div>
-                            <div class="card-label">完成（自任务文件创建以来）</div>
+                            <div class="card-label">已完成</div>
+                            <div class="card-hint">累计入库</div>
                         </div>
                     </div>
                     <div class="card card-clickable" id="card-failed" onclick="switchToTaskFilter('failed')">
@@ -151,7 +126,8 @@
                         </div>
                         <div class="card-content">
                             <div class="card-value" id="val-failed">0</div>
-                            <div class="card-label">失败（自任务文件创建以来）</div>
+                            <div class="card-label">失败</div>
+                            <div class="card-hint">需要关注</div>
                         </div>
                     </div>
                     <div class="card" id="card-disk">
@@ -163,19 +139,94 @@
                         <div class="card-content">
                             <div class="card-value" id="val-disk">--</div>
                             <div class="card-label">磁盘空间</div>
+                            <div class="card-hint">存储状态</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2 class="section-title" onclick="toggleFlowDiagram()" style="cursor:pointer">
+                    <h2 class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        系统健康
+                    </h2>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <span class="status-label">源目录</span>
+                            <span id="status-source" class="status-value status-unknown">--</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">中转目录</span>
+                            <span id="status-temp" class="status-value status-unknown">--</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">LLM API</span>
+                            <span id="status-llm" class="status-value status-unknown">--</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Hermes</span>
+                            <span id="status-hermes" class="status-value status-unknown">--</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">日志路径</span>
+                            <span id="val-log-dir" class="status-value" style="font-size:12px;word-break:break-all;">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2 class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                        </svg>
+                        快捷操作
+                    </h2>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="runBatch()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <polyline points="17 20 17 14 23 14"/>
+                                <path d="M20.49 9H14a5 5 0 0 0-5 5v1m14-10V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-5.5"/>
+                            </svg>
+                            立即扫描
+                        </button>
+                        <button class="btn btn-secondary" onclick="pauseQueue()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="6" y="4" width="4" height="16"/>
+                                <rect x="14" y="4" width="4" height="16"/>
+                            </svg>
+                            暂停队列
+                        </button>
+                        <button class="btn btn-secondary" onclick="retryAllFailed()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                                <path d="M3 3v5h5"/>
+                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                                <path d="M16 21h5v-5"/>
+                            </svg>
+                            重试失败
+                        </button>
+                        <button class="btn btn-warning" onclick="restartService()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 4v6h6"/>
+                                <path d="M3.51 15a9 9 0 0 0 2.13-9.36L1 10"/>
+                            </svg>
+                            重启服务
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section collapsible-section">
+                    <h2 class="section-title collapsible-toggle" onclick="toggleOverviewSection(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                         </svg>
                         文件流转全景
-                        <span class="section-toggle" id="flow-toggle">▶</span>
+                        <span class="section-toggle">▶</span>
                     </h2>
-                    <div id="flow-diagram-container" class="flow-diagram-wrapper" style="display:none">
+                    <div class="collapsible-body" style="display:none">
+                    <div id="flow-diagram-container" class="flow-diagram-wrapper">
                         <svg viewBox="0 0 860 1100" class="flow-diagram" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                                 <linearGradient id="fg-scan" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#64748B" stop-opacity="0.3"/><stop offset="100%" stop-color="#64748B" stop-opacity="0.1"/></linearGradient>
@@ -317,101 +368,151 @@
                             <text x="710" y="1076" text-anchor="middle" fill="#93C5FD" font-size="10">正在执行 Pipeline 流程</text>
                         </svg>
                     </div>
-                </div>
-
-                <div class="section">
-                    <h2 class="section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        </svg>
-                        运行状态
-                    </h2>
-                    <div class="status-grid">
-                        <div class="status-item">
-                            <span class="status-label">源目录</span>
-                            <span id="status-source" class="status-value status-unknown">--</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">中转目录</span>
-                            <span id="status-temp" class="status-value status-unknown">--</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">LLM API</span>
-                            <span id="status-llm" class="status-value status-unknown">--</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">Hermes</span>
-                            <span id="status-hermes" class="status-value status-unknown">--</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">日志路径</span>
-                            <span id="val-log-dir" class="status-value" style="font-size:12px;word-break:break-all;">--</span>
-                        </div>
                     </div>
                 </div>
 
-                <div class="section">
-                    <h2 class="section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                        </svg>
-                        快捷操作
-                    </h2>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="runBatch()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="23 4 23 10 17 10"/>
-                                <polyline points="17 20 17 14 23 14"/>
-                                <path d="M20.49 9H14a5 5 0 0 0-5 5v1m14-10V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-5.5"/>
-                            </svg>
-                            立即扫描
-                        </button>
-                        <button class="btn btn-secondary" onclick="pauseQueue()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="6" y="4" width="4" height="16"/>
-                                <rect x="14" y="4" width="4" height="16"/>
-                            </svg>
-                            暂停队列
-                        </button>
-                        <button class="btn btn-secondary" onclick="retryAllFailed()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                                <path d="M3 3v5h5"/>
-                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                                <path d="M16 21h5v-5"/>
-                            </svg>
-                            重试失败
-                        </button>
-                        <button class="btn btn-warning" onclick="restartService()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 4v6h6"/>
-                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-                            </svg>
-                            重启服务
-                        </button>
-                    </div>
-                </div>
-
-                <div class="section security-notice">
-                    <h2 class="section-title">
+                <div class="section collapsible-section">
+                    <h2 class="section-title collapsible-toggle" onclick="toggleOverviewSection(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                         </svg>
                         安全提醒
+                        <span class="section-toggle">▶</span>
                     </h2>
-                    <div class="notice-content">
-                        本程序如需与 Hermes 服务通信，为保障 NAS 数据安全，建议采取以下措施：<br>
-                        1. 通过 WireGuard 等工具组建内网，或直接将 Hermes 部署在 NAS 服务器上<br>
-                        2. 在配置文件中设置 <code>server.api_key</code> 启用 API 认证<br>
-                        3. 避免将 API 端口直接暴露到公网，防止未授权访问导致数据损失
+                    <div class="collapsible-body" style="display:none">
+                        <div class="notice-content">
+                            本程序如需与 Hermes 服务通信，为保障 NAS 数据安全，建议采取以下措施：<br>
+                            1. 通过 WireGuard 等工具组建内网，或直接将 Hermes 部署在 NAS 服务器上<br>
+                            2. 在配置文件中设置 <code>server.api_key</code> 启用 API 认证<br>
+                            3. 避免将 API 端口直接暴露到公网，防止未授权访问导致数据损失
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- 配置面板 -->
             <div id="config-panel" class="panel">
+                <div id="config-breadcrumb" class="config-breadcrumb" style="display:none;">
+                    <button class="back-btn" onclick="navBack()">← 返回</button>
+                    <span class="config-breadcrumb-item" data-index="0" onclick="navToBreadcrumb(0)">配置</span>
+                </div>
+                <div id="config-cards-home" class="config-nav-view">
+                    <div class="config-cards-wrapper" id="config-cards-wrapper">
+                        <div class="config-flex-spacer"></div>
+                        <div class="config-cards-content">
+                            <div class="config-cards-inner">
+                                <div class="config-step-row">
+                                    <div class="config-nav-card" data-nav-target="dir-sub" onclick="navTo('dir-sub')">
+                                        <div class="card-icon">📁</div>
+                                        <div class="card-title">目录配置</div>
+                                        <div class="card-desc">源目录、中转目录、入库规则</div>
+                                    </div>
+                                    <div class="step-arrow">›</div>
+                                    <div class="config-nav-card" data-nav-target="metadata-providers" onclick="navTo('metadata-providers')">
+                                        <div class="card-icon">🎬</div>
+                                        <div class="card-title">影视刮削配置</div>
+                                        <div class="card-desc">元数据源、刮削策略</div>
+                                    </div>
+                                    <div class="step-arrow">›</div>
+                                    <div class="config-nav-card" data-nav-target="llm-config" onclick="navTo('llm-config')">
+                                        <div class="card-icon">🤖</div>
+                                        <div class="card-title">AI配置</div>
+                                        <div class="card-desc">LLM模型、API参数</div>
+                                    </div>
+                                    <div class="step-arrow">›</div>
+                                    <div class="config-nav-card" data-nav-target="file-watcher" onclick="navTo('file-watcher')">
+                                        <div class="card-icon">⏰</div>
+                                        <div class="card-title">定时任务</div>
+                                        <div class="card-desc">轮询监控、自动扫描</div>
+                                    </div>
+                                </div>
+                                <div class="config-advanced-toggle" onclick="toggleAdvancedConfig()">
+                                    <span class="toggle-text">高级配置</span>
+                                    <span class="toggle-arrow">
+                                        <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M5 10 L50 40 L95 10" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                                        </svg>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="config-flex-spacer"></div>
+                    </div>
+                    <div class="config-advanced-container" id="advanced-config-container">
+                        <div class="config-card-grid advanced-row">
+                            <div class="config-nav-card" data-nav-target="import-options" onclick="navTo('import-options')">
+                                <div class="card-icon">📝</div>
+                                <div class="card-title">入库名称规范</div>
+                                <div class="card-desc">文件名模板、重名策略</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="dimensions" onclick="navTo('dimensions')">
+                                <div class="card-icon">🏷️</div>
+                                <div class="card-title">影视分类维度</div>
+                                <div class="card-desc">分类规则、维度配置</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="llm-prompt" onclick="navTo('llm-prompt')">
+                                <div class="card-icon">💬</div>
+                                <div class="card-title">AI刮削提示词</div>
+                                <div class="card-desc">自定义提示词模板</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="confidence" onclick="navTo('confidence')">
+                                <div class="card-icon">📊</div>
+                                <div class="card-title">置信度计算配置</div>
+                                <div class="card-desc">阈值、权重、公式</div>
+                            </div>
+                        </div>
+                        <div class="config-card-grid advanced-row second-row">
+                            <div class="config-nav-card" data-nav-target="server" onclick="navTo('server')">
+                                <div class="card-icon">🔒</div>
+                                <div class="card-title">安全配置</div>
+                                <div class="card-desc">API认证、端口设置</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="hermes" onclick="navTo('hermes')">
+                                <div class="card-icon">📡</div>
+                                <div class="card-title">Hermes通知</div>
+                                <div class="card-desc">Webhook、事件通知</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="advanced" onclick="navTo('advanced')">
+                                <div class="card-icon">⚙️</div>
+                                <div class="card-title">系统设置</div>
+                                <div class="card-desc">日志、并发、扩展名配置</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="config-dir-sub-cards" class="config-nav-view">
+                    <div class="config-card-grid basic-row" style="grid-template-columns: repeat(3, 1fr);">
+                        <div class="config-nav-card" data-nav-target="source" onclick="navTo('source')">
+                            <div class="card-icon">📂</div>
+                            <div class="card-title">源目录</div>
+                            <div class="card-desc">扫描路径、递归深度</div>
+                        </div>
+                        <div class="card-arrow">➜</div>
+                        <div class="config-nav-card" data-nav-target="temp" onclick="navTo('temp')">
+                            <div class="card-icon">🔄</div>
+                            <div class="card-title">中转目录</div>
+                            <div class="card-desc">临时存储、权限检查</div>
+                        </div>
+                        <div class="card-arrow">➜</div>
+                        <div class="config-nav-card" data-nav-target="path-rules" onclick="navTo('path-rules')">
+                            <div class="card-icon">📋</div>
+                            <div class="card-title">入库规则</div>
+                            <div class="card-desc">路径模板、兜底目录</div>
+                        </div>
+                    </div>
+                    <div class="card-arrow-down" style="padding-left:calc(33.3% + 48px);">⬇</div>
+                    <div class="config-card-grid" style="grid-template-columns: repeat(1, 200px); padding-top:0;">
+                        <div class="config-nav-card" data-nav-target="recycle" onclick="navTo('recycle')">
+                            <div class="card-icon">🗑️</div>
+                            <div class="card-title">回收站目录</div>
+                            <div class="card-desc">回收路径、保留天数</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="cfg-sections-host">
-                <div class="config-section" data-subtab="system" data-section="file_watcher">
+                <div class="config-section" data-section="file_watcher">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
@@ -444,7 +545,7 @@
                     </div>
                 </div>
 
-                <div class="config-section" data-subtab="notify" data-section="server">
+                <div class="config-section" data-section="server">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -474,15 +575,18 @@
                     </div>
                 </div>
 
-                <div class="config-section" data-subtab="import" data-section="basic">
+                <div class="config-section config-priority-required" data-section="basic">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                         </svg>
                         基础配置
+                        <span class="priority-badge required">必填</span>
                     </h3>
-                    <div class="form-group">
-                        <label class="form-label">源目录 <span class="required-mark">*</span></label>
+                    <div class="form-group" data-view-group="source">
+                        <label class="form-label">源目录 <span class="required-mark">*</span>
+                            <span class="help-tip">?<span class="help-tip-content">存放待处理视频文件的目录。系统会自动扫描此目录下的视频文件并开始处理流程。</span></span>
+                        </label>
                         <div class="input-with-action">
                             <input type="text" id="cfg-source_dir" class="form-input" placeholder="/vol1/网盘下载">
                             <button type="button" class="btn btn-secondary btn-sm" onclick="testPathPermission('cfg-source_dir', false)">
@@ -497,7 +601,7 @@
                             <strong>注意：</strong>如果源目录是飞牛挂载的网盘目录，文件刷新时间可能较久，建议改用Alist网盘来实现短时刷新。
                         </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="source">
                         <label class="form-label">递归扫描源目录</label>
                         <div class="toggle-switch">
                             <input type="checkbox" id="cfg-source_dir_scan-recursive">
@@ -505,13 +609,25 @@
                         </div>
                         <div class="form-hint">启用后将递归扫描源目录下的子目录，发现更深层的媒体文件</div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="source">
                         <label class="form-label">最大递归深度</label>
                         <input type="number" id="cfg-source_dir_scan-max_depth" class="form-input input-medium" min="1" max="20" value="5">
                         <div class="form-hint">源目录递归扫描的最大深度，建议 3-5 层</div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">中转目录</label>
+                    <div class="config-entry-card" data-view-group="source" onclick="navTo('source-cleaner')">
+                        <div class="entry-info">
+                            <span class="entry-icon">🧹</span>
+                            <div>
+                                <div class="entry-label">源文件智能清理</div>
+                                <div class="entry-desc">配置源目录的自动清理策略</div>
+                            </div>
+                        </div>
+                        <span class="entry-arrow">→</span>
+                    </div>
+                    <div class="form-group" data-view-group="temp">
+                        <label class="form-label">中转目录
+                            <span class="help-tip">?<span class="help-tip-content">处理过程中的临时存储位置。建议预留充足空间，与源目录在不同磁盘可提升性能。</span></span>
+                        </label>
                         <div class="input-with-action">
                             <input type="text" id="cfg-temp_dir" class="form-input" placeholder="/vol3/@appdata/nas-media-importer/tmp">
                             <button type="button" class="btn btn-secondary btn-sm" onclick="testPathPermission('cfg-temp_dir', true)">
@@ -526,7 +642,7 @@
                             <span class="form-hint-warning">⚠️ 中转目录不能与源目录或回收站目录相同，否则会导致数据丢失！</span>
                         </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="recycle">
                         <label class="form-label">回收站路径 <span class="required-mark">*</span></label>
                         <div class="input-with-action">
                             <input type="text" id="cfg-source_policy-recycle_dir" class="form-input" placeholder="/vol3/@appdata/nas-media-importer/data/recycle" required>
@@ -542,7 +658,7 @@
                             <span class="form-hint-warning">⚠️ 回收站不能与源目录或中转目录相同，否则会导致数据丢失！</span>
                         </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="recycle">
                         <label class="form-label">任务完成后清理源文件</label>
                         <div class="toggle-switch">
                             <input type="checkbox" id="cfg-source_policy-cleanup_source_after_done">
@@ -550,7 +666,7 @@
                         </div>
                         <div class="form-hint">任务完成后清理源文件（仅清理创建任务的视频和字幕，其他文件由源目录清理器处理）</div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="recycle">
                         <label class="form-label">回收站文件保留天数</label>
                         <input type="number" id="cfg-source_policy-recycle_retention_days" class="form-input input-medium" min="0" value="0">
                         <div class="form-hint">回收站文件保留天数（超期永久删除，0=永不过期）</div>
@@ -567,7 +683,7 @@
                         </div>
                 </div>
 
-                <div class="config-section" data-subtab="import" data-section="source_cleaner" id="source-cleaner-config-section">
+                <div class="config-section" data-section="source_cleaner" id="source-cleaner-config-section">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
@@ -583,20 +699,21 @@
                         </div>
                         <div class="form-hint">启用后自动清理源目录中非影视文件，保持源目录整洁</div>
                     </div>
-                    <div id="source-cleaner-fields">
+                    <div id="source-cleaner-fields" style="display:none;">
                         <div class="form-group">
                             <label class="form-label">清理模式</label>
-                            <div class="radio-group">
-                                <label class="radio-label">
+                            <div class="radio-group-vertical">
+                                <label class="radio-label-vertical">
                                     <input type="radio" name="cfg-source_cleaner-cleanup_mode" value="media_only" checked>
-                                    <span class="radio-text">仅保留影视+字幕（删除其他所有文件）</span>
+                                    <span class="radio-title">仅保留影视+字幕</span>
+                                    <span class="radio-desc-inline">— 删除其他所有文件</span>
                                 </label>
-                                <label class="radio-label">
+                                <label class="radio-label-vertical">
                                     <input type="radio" name="cfg-source_cleaner-cleanup_mode" value="media_and_related">
-                                    <span class="radio-text">保留影视+字幕+相关文件（仅删除垃圾文件）</span>
+                                    <span class="radio-title">保留影视+字幕+相关文件</span>
+                                    <span class="radio-desc-inline">— 仅删除垃圾文件</span>
                                 </label>
                             </div>
-                            <div class="form-hint">media_only 模式仅保留视频和字幕文件；media_and_related 模式额外保留 NFO、海报等影视相关文件</div>
                         </div>
                         <div class="form-group">
                             <label class="checkbox-label">
@@ -604,6 +721,12 @@
                                 <span class="checkbox-text">AI辅助判断</span>
                             </label>
                             <div class="form-hint">规则+AI联合，可识别规则无法覆盖的垃圾文件</div>
+                            <div id="sc-ai-prompt-row" style="display:none;margin-top:8px;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="showSCAIPromptModal()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                                    AI清理提示词
+                                </button>
+                            </div>
                         </div>
                         <div class="form-group" id="source-cleaner-merge-strategy-group" style="display:none;">
                             <label class="form-label">合并策略</label>
@@ -613,62 +736,84 @@
                             </select>
                             <div class="form-hint">交集模式更安全，仅删除规则和AI都认为是垃圾的文件；并集模式更激进，任一判定即删除</div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">垃圾视频大小阈值(MB)</label>
-                            <input type="number" id="cfg-source_cleaner-junk_video_max_size_mb" class="form-input input-medium" min="0" value="0">
-                            <div class="form-hint">垃圾视频大小阈值(MB，0=不检测)</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">指定删除的后缀名</label>
-                            <input type="text" id="cfg-source_cleaner-delete_extensions" class="form-input" placeholder=".url,.log,.txt">
-                            <div class="form-hint">指定删除的后缀名（逗号分隔）</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">指定保护的后缀名</label>
-                            <input type="text" id="cfg-source_cleaner-protect_extensions" class="form-input" placeholder=".srt,.ass,.ssa">
-                            <div class="form-hint">指定保护的后缀名（逗号分隔）</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">黑名单模式</label>
-                            <input type="text" id="cfg-source_cleaner-blacklist_patterns" class="form-input" placeholder="sample,trailer,预告">
-                            <div class="form-hint">黑名单模式（逗号分隔）</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">清理空目录</label>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="cfg-source_cleaner-cleanup_empty_dirs">
-                                <label for="cfg-source_cleaner-cleanup_empty_dirs"></label>
+
+                        <!-- 后缀名/保护/黑名单 页签式配置 -->
+                        <div class="sc-tabs">
+                            <div class="sc-tab-nav">
+                                <button class="sc-tab-btn active" data-sc-tab="delete" onclick="switchSCTab('delete')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                                    指定删除的后缀名
+                                </button>
+                                <button class="sc-tab-btn" data-sc-tab="protect" onclick="switchSCTab('protect')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                    指定保护的后缀名
+                                </button>
+                                <button class="sc-tab-btn" data-sc-tab="blacklist" onclick="switchSCTab('blacklist')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                    黑名单模式
+                                </button>
+                            </div>
+                            <div class="sc-tab-panels">
+                                <div class="sc-tab-panel active" data-sc-panel="delete">
+                                    <textarea id="cfg-source_cleaner-delete_extensions" class="sc-textarea" rows="4" placeholder=".url&#10;.log&#10;.txt&#10;每行一个，或逗号分隔"></textarea>
+                                    <div class="form-hint">指定要删除的文件后缀名（每行一个或逗号分隔），如 .url、.log、.txt</div>
+                                </div>
+                                <div class="sc-tab-panel" data-sc-panel="protect">
+                                    <textarea id="cfg-source_cleaner-protect_extensions" class="sc-textarea" rows="4" placeholder=".srt&#10;.ass&#10;.ssa&#10;每行一个，或逗号分隔"></textarea>
+                                    <div class="form-hint">指定要保护的文件后缀名（每行一个或逗号分隔），如 .srt、.ass、.ssa</div>
+                                </div>
+                                <div class="sc-tab-panel" data-sc-panel="blacklist">
+                                    <textarea id="cfg-source_cleaner-blacklist_patterns" class="sc-textarea" rows="4" placeholder="sample&#10;trailer&#10;预告&#10;每行一个，或逗号分隔"></textarea>
+                                    <div class="form-hint">文件名包含这些关键词的文件将被删除（每行一个或逗号分隔）</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">清理前需确认</label>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="cfg-source_cleaner-confirm_before_cleanup">
-                                <label for="cfg-source_cleaner-confirm_before_cleanup"></label>
+
+                        <!-- 高级配置 -->
+                        <div class="sc-advanced-toggle" onclick="toggleSCAdvanced()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                            </svg>
+                            <span>高级配置</span>
+                            <span class="sc-advanced-arrow">▶</span>
+                        </div>
+                        <div id="sc-advanced-body" class="sc-advanced-body collapsed-section">
+                            <div class="form-group">
+                                <label class="form-label">垃圾视频大小阈值(MB)</label>
+                                <input type="number" id="cfg-source_cleaner-junk_video_max_size_mb" class="form-input input-medium" min="0" value="0">
+                                <div class="form-hint">小于此值的视频文件将被判定为垃圾视频，0=不检测</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">清理空目录</label>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="cfg-source_cleaner-cleanup_empty_dirs">
+                                    <label for="cfg-source_cleaner-cleanup_empty_dirs"></label>
+                                </div>
+                                <div class="form-hint">清理完成后自动删除空目录</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">执行时间(cron)</label>
+                                <input type="text" id="cfg-source_cleaner-schedule" class="form-input" placeholder="0 3 * * *">
+                                <div class="form-hint">定时执行清理的 cron 表达式，如 0 3 * * * 表示每天凌晨3点，留空则不自动执行</div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">执行时间(cron)</label>
-                            <input type="text" id="cfg-source_cleaner-schedule" class="form-input" placeholder="0 3 * * *">
-                            <div class="form-hint">执行时间(cron)，如 0 3 * * * 表示每天凌晨3点</div>
-                        </div>
-                        <div class="form-group">
+
+                        <div class="sc-action-row">
                             <button type="button" class="btn btn-secondary btn-sm" onclick="previewCleanerResult()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                 预览清理结果
                             </button>
                             <span id="cleaner-preview-result" class="test-result" style="display:none;"></span>
+                            <button class="btn btn-primary btn-sm" onclick="saveSection('source_cleaner')" style="margin-left:auto;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                保存
+                            </button>
                         </div>
-                    </div>
-                    <div class="section-actions">
-                        <button class="btn btn-primary btn-sm" onclick="saveSection('source_cleaner')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                            保存
-                        </button>
                     </div>
                 </div>
 
-                <div class="config-section" data-subtab="import" data-section="path_rules">
+                <div class="config-section" data-section="path_rules">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -760,7 +905,7 @@
                     </div>
                 </div>
 
-                <div class="config-section" data-subtab="import" data-section="import_options">
+                <div class="config-section" data-section="import_options">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
@@ -809,12 +954,13 @@
                 </div>
 
 
-                <div class="config-section" data-subtab="llm" data-section="metadata.providers">
+                <div class="config-section config-priority-recommended" data-section="metadata.providers">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 2v20M2 12h20"/>
                         </svg>
                         元数据源配置
+                        <span class="priority-badge recommended">推荐</span>
                     </h3>
                     <div id="provider-configs-container">
                         <div style="padding:12px;color:var(--text-secondary);font-size:13px;">加载中...</div>
@@ -822,44 +968,45 @@
                 </div>
 
 
-                <div class="config-section" data-subtab="llm" data-section="llm">
+                <div class="config-section config-priority-recommended" data-section="llm">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                             <circle cx="12" cy="7" r="4"/>
                         </svg>
                         LLM 配置
+                        <span class="priority-badge recommended">推荐</span>
                     </h3>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <label class="form-label">提供商</label>
                         <select id="cfg-llm_provider" class="form-select">
                             <option value="openai">OpenAI</option>
                             <option value="azure">Azure OpenAI</option>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <label class="form-label">API Key</label>
                         <input type="password" id="cfg-llm_api_key" class="form-input" placeholder="sk-...">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <label class="form-label">API 地址</label>
                         <input type="text" id="cfg-llm_base_url" class="form-input" placeholder="https://api.openai.com/v1">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <label class="form-label">模型名称</label>
                         <input type="text" id="cfg-llm_model" class="form-input" placeholder="gpt-3.5-turbo">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <label class="form-label">备选模型</label>
                         <input type="text" id="cfg-llm_fallback_model" class="form-input" placeholder="主模型失败时降级使用">
                         <div class="form-hint">主模型失败时降级使用的备选模型</div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <label class="form-label">快速模型</label>
                         <input type="text" id="cfg-llm_fast_model" class="form-input" placeholder="留空则使用备选模型">
                         <div class="form-hint">标题清洗和Provider结果整理用的快速模型，留空则使用备选模型</div>
                     </div>
-                    <div class="form-row form-row-5col">
+                    <div class="form-row form-row-5col" data-view-group="llm-config">
                         <div class="form-group">
                             <label class="form-label">超时时间（秒）</label>
                             <input type="number" id="cfg-llm_timeout" class="form-input" min="5" max="120" value="30">
@@ -888,7 +1035,7 @@
                             <div class="form-hint">HTTPS 证书有效时开启；HTTP 或自签证书环境请关闭</div>
                         </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-view-group="llm-config">
                         <button class="btn btn-secondary" id="btn-test-llm" onclick="testLLM()">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
@@ -897,7 +1044,7 @@
                         </button>
                         <span id="llm-test-result" class="test-result" style="display:none;"></span>
                     </div>
-                    <div class="section-actions">
+                    <div class="section-actions" data-view-group="llm-config">
                         <button class="btn btn-primary btn-sm" onclick="saveSection('llm')">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                             保存
@@ -907,7 +1054,7 @@
                             测试连通性
                         </button>
                     </div>
-                    <div class="prompt-section">
+                    <div class="prompt-section" data-view-group="llm-prompt">
                         <button class="prompt-toggle-btn expanded" id="btn-toggle-prompts" onclick="togglePromptSection()">
                             <div class="prompt-toggle-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -979,7 +1126,7 @@
                     </div>
                 </div>
 
-                <div class="config-section" id="hermes-config-section" data-subtab="notify" data-section="hermes">
+                <div class="config-section" id="hermes-config-section" data-section="hermes">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -1056,7 +1203,7 @@
                     </div>
                 </div>
 
-                <div class="config-section config-section-advanced" data-subtab="system" data-section="advanced">
+                <div class="config-section config-section-advanced" data-section="advanced">
                     <h3 class="config-section-title collapsible" onclick="toggleAdvancedSection(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -1090,6 +1237,16 @@
                             <input type="number" id="cfg-task_queue-max_concurrent" class="form-input input-medium" min="1" max="5" value="1">
                             <div class="form-help">同时处理的最大任务数量，建议 1-2。</div>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">视频识别后缀名</label>
+                            <textarea id="cfg-video_extensions" class="form-textarea" rows="3" placeholder="每行一个后缀名，如 .mkv"></textarea>
+                            <div class="form-hint">每行一个后缀名，自动补"."前缀。留空则不识别任何视频文件</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">字幕识别后缀名</label>
+                            <textarea id="cfg-subtitle_extensions" class="form-textarea" rows="3" placeholder="每行一个后缀名，如 .srt"></textarea>
+                            <div class="form-hint">每行一个后缀名，自动补"."前缀。留空则不识别任何字幕文件</div>
+                        </div>
                         <div class="section-actions">
                             <button class="btn btn-primary btn-sm" onclick="saveSection('advanced')">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -1099,7 +1256,7 @@
                     </div>
                 </div>
 
-                <div class="config-section" data-subtab="confidence" data-section="confidence">
+                <div class="config-section" data-section="confidence">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 20V10"/>
@@ -1394,7 +1551,7 @@
                     </div>
                 </div>
 
-                <div class="config-section" data-subtab="dimensions" data-section="dimensions">
+                <div class="config-section" data-section="dimensions">
                     <h3 class="config-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="3" width="7" height="7"/>
@@ -1706,6 +1863,94 @@
                 </div>
             </div>
 
+            <!-- 首次使用向导 -->
+            <div id="onboarding-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-dialog onboarding-dialog">
+                    <div class="onboarding-progress">
+                        <div class="onboarding-progress-bar" id="onboarding-progress-bar" style="width:25%"></div>
+                    </div>
+                    <div class="onboarding-step" id="onboarding-step-1">
+                        <div class="onboarding-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        </div>
+                        <h2 class="onboarding-title">欢迎使用 影音库AI智能整理</h2>
+                        <p class="onboarding-desc">这个工具可以帮你自动整理 NAS 上的影视文件</p>
+                        <div class="onboarding-features">
+                            <div class="onboarding-feature">
+                                <span class="onboarding-feature-icon">🎬</span>
+                                <span>自动识别视频文件</span>
+                            </div>
+                            <div class="onboarding-feature">
+                                <span class="onboarding-feature-icon">🤖</span>
+                                <span>AI 智能匹配元数据</span>
+                            </div>
+                            <div class="onboarding-feature">
+                                <span class="onboarding-feature-icon">📁</span>
+                                <span>按规则分类入库</span>
+                            </div>
+                        </div>
+                        <p class="onboarding-time">预计配置时间：2 分钟</p>
+                    </div>
+                    <div class="onboarding-step" id="onboarding-step-2" style="display:none">
+                        <div class="onboarding-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <h2 class="onboarding-title">设置文件目录</h2>
+                        <p class="onboarding-desc">告诉系统你的文件在哪里</p>
+                        <div class="onboarding-form">
+                            <div class="form-group">
+                                <label class="form-label">源目录 <span class="required-mark">*</span></label>
+                                <input type="text" id="onboard-source_dir" class="form-input" placeholder="/vol1/网盘下载">
+                                <div class="form-help">存放待处理视频文件的目录</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">中转目录</label>
+                                <input type="text" id="onboard-temp_dir" class="form-input" placeholder="/vol3/@appdata/nas-media-importer/tmp">
+                                <div class="form-help">处理过程中的临时存储位置</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="onboarding-step" id="onboarding-step-3" style="display:none">
+                        <div class="onboarding-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        </div>
+                        <h2 class="onboarding-title">配置 AI 刮削</h2>
+                        <p class="onboarding-desc">AI 帮你自动识别影视信息</p>
+                        <div class="onboarding-form">
+                            <div class="form-group">
+                                <label class="form-label">LLM 服务商</label>
+                                <select id="onboard-llm_provider" class="form-select">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="zhipu">智谱 AI</option>
+                                    <option value="ollama">Ollama (本地)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">API Key</label>
+                                <input type="password" id="onboard-llm_api_key" class="form-input" placeholder="sk-...">
+                                <div class="form-help">使用 Ollama 本地部署时无需填写</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="onboarding-step" id="onboarding-step-4" style="display:none">
+                        <div class="onboarding-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                        <h2 class="onboarding-title">配置完成！</h2>
+                        <p class="onboarding-desc">你的系统已经准备就绪</p>
+                        <div class="onboarding-done-tips">
+                            <div class="onboarding-done-tip">把视频文件放入源目录即可自动处理</div>
+                            <div class="onboarding-done-tip">也可以在首页点击"立即扫描"手动触发</div>
+                        </div>
+                    </div>
+                    <div class="onboarding-footer">
+                        <button class="btn btn-secondary" id="onboarding-skip" onclick="closeModal('onboarding-modal')">跳过</button>
+                        <button class="btn btn-primary" id="onboarding-next" onclick="nextOnboardingStep()">开始配置</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- 恢复确认弹窗 -->
             <div id="recycle-restore-modal" class="modal-overlay" style="display:none;">
                 <div class="modal-dialog modal-lg">
@@ -1737,6 +1982,50 @@
                     </div>
                 </div>
             </div>
+
+            <!-- AI清理提示词弹窗 -->
+            <div id="sc-ai-prompt-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-header">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="vertical-align:-3px;margin-right:6px;color:var(--primary-color);"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                            AI清理提示词
+                        </h3>
+                        <button class="modal-close" onclick="closeModal('sc-ai-prompt-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-hint" style="margin-bottom:12px;">自定义AI清理分析时使用的系统提示词。AI会以此提示词为指导，对源目录中的文件进行整体分析，判断哪些是垃圾文件。留空则使用默认提示词。</div>
+                        <textarea id="cfg-source_cleaner-ai_prompt" class="prompt-textarea" style="min-height:320px;" placeholder="留空使用默认提示词..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="resetSCAIPrompt()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                            恢复默认
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeModal('sc-ai-prompt-modal')">取消</button>
+                        <button class="btn btn-primary" onclick="saveSCAIPrompt()">确定</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sc-preview-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-dialog modal-lg" style="max-width:860px;">
+                    <div class="modal-header">
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="vertical-align:-3px;margin-right:6px;color:var(--primary-color);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            预览清理结果
+                        </h3>
+                        <button class="modal-close" onclick="closeModal('sc-preview-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body" style="padding:0;">
+                        <div id="sc-preview-summary" class="sc-preview-summary"></div>
+                        <div id="sc-preview-tree" class="sc-preview-tree"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="closeModal('sc-preview-modal')">关闭</button>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <!-- Toast 通知 -->
@@ -1746,14 +2035,15 @@
         </div>
     </div>
 
-    <script src="js/api.js?v=35"></script>
-    <script src="js/tmdb-dict.js?v=35"></script>
-    <script src="js/config.js?v=35"></script>
-    <script src="js/dimensions.js?v=35"></script>
-    <script src="js/tasks.js?v=35"></script>
-    <script src="js/path-rules.js?v=35"></script>
-    <script src="js/prompts.js?v=35"></script>
-    <script src="js/confidence-detail.js?v=35"></script>
-    <script src="js/app.js?v=35"></script>
+    <script src="js/api.js?v=36"></script>
+    <script src="js/theme.js?v=36"></script>
+    <script src="js/tmdb-dict.js?v=36"></script>
+    <script src="js/config.js?v=36"></script>
+    <script src="js/dimensions.js?v=36"></script>
+    <script src="js/tasks.js?v=36"></script>
+    <script src="js/path-rules.js?v=36"></script>
+    <script src="js/prompts.js?v=36"></script>
+    <script src="js/confidence-detail.js?v=36"></script>
+    <script src="js/app.js?v=36"></script>
 </body>
 </html>

@@ -101,7 +101,7 @@ def test_hermes_webhook(base_url: str, route_name: str, secret: str, timeout: in
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "video_file": "",
             "status": "TEST",
-            "extra_info": "这是一条来自NAS影视入库系统的测试消息，验证Hermes Webhook连通性",
+            "extra_info": "这是一条来自影音库AI智能整理的测试消息，验证Hermes Webhook连通性",
             "task": {},
             "test": True,
             "source": "config_validation"

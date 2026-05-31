@@ -446,8 +446,13 @@ function toggleVarReference() {
     var ref = document.getElementById('var-reference');
     var btn = document.getElementById('var-ref-toggle');
     if (!ref || !btn) return;
-    var isHidden = ref.style.display === 'none';
-    ref.style.display = isHidden ? 'block' : 'none';
+    var isHidden = ref.classList.contains('collapsed-section') || ref.style.display === 'none';
+    if (isHidden) {
+        ref.style.display = '';
+        ref.classList.remove('collapsed-section');
+    } else {
+        ref.classList.add('collapsed-section');
+    }
     btn.classList.toggle('expanded', isHidden);
     if (isHidden) renderDimensionVars();
 }

@@ -243,7 +243,7 @@
 }
 
 .task-action-btn:hover {
-    background: var(--bg-secondary);
+    background: var(--bg-surface);
     color: var(--text-primary);
 }
 
@@ -1018,7 +1018,7 @@
 
 .delete-confirm-options {
     padding: 12px;
-    background: var(--bg-secondary);
+    background: var(--bg-surface);
     border-radius: 8px;
     margin-bottom: 0;
 }
@@ -1115,8 +1115,8 @@
 .scrape-trace-extra {
     margin-top: 6px;
     padding: 8px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
     border-radius: 6px;
 }
 
@@ -1134,7 +1134,7 @@
     justify-content: center;
 }
 .conf-detail-modal {
-    background: var(--bg-primary, #fff);
+    background: var(--bg-base, #fff);
     border-radius: 12px;
     max-width: 800px;
     width: 95%;
@@ -1219,8 +1219,8 @@
     letter-spacing: 0.5px;
 }
 .conf-detail-card {
-    background: var(--bg-secondary, #f9fafb);
-    border: 1px solid var(--border-color, #e5e7eb);
+    background: var(--bg-surface, #f9fafb);
+    border: 1px solid var(--border-subtle, #e5e7eb);
     border-radius: 8px;
     padding: 10px 12px;
     font-size: 13px;
@@ -1250,8 +1250,8 @@
 .conf-dim-table th {
     text-align: left;
     padding: 4px 8px;
-    background: var(--bg-primary, #fff);
-    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    background: var(--bg-base, #fff);
+    border-bottom: 1px solid var(--border-subtle, #e5e7eb);
     color: var(--text-secondary, #6b7280);
     font-weight: 600;
 }

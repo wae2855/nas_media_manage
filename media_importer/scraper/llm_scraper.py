@@ -4,8 +4,9 @@ import re
 import time
 import urllib.request
 import ssl
-import os
 from typing import List, Dict, Any, Optional
+
+from .llm_prompts import LLMPromptBuilder
 
 
 class LLMScrapeError(Exception):
@@ -13,69 +14,7 @@ class LLMScrapeError(Exception):
 
 
 class LLMScraper:
-    DEFAULT_SYSTEM_PROMPT = """你是一个专业的影视信息刮削助手。
-请根据提供的视频文件名和字幕文件名，提取影视元数据信息。
-
-重要原则：
-1. 先根据文件名提取可确定的元数据（标题、分辨率、季/集编号等）。
-2. 对于文件名中缺失但你可以通过对这部作品的了解推断出的信息（如年份、类型等），
-   请大胆填写，不要留空。例如：看到 Breaking Bad S01E02，你应该知道这是
-   《绝命毒师》第一季第二集，首播年份为2008年，类型为tv，不是纪录片。
-3. 只有当你完全无法判断时，才将字段设为 null。
-4. confidence 评分应基于信息完整性：能确定标题+类型+年份的应 ≥0.9，
-   确定标题+类型但年份不确定的应 0.8-0.85，信息严重不足的才给低分。
-
-【数据源优先级 - 非常重要】
-刮削时请优先参考以下权威数据源（按优先级从高到低）：
-1. 豆瓣 (douban.com) - 中文影视信息最全面权威，优先参考中文译名、评分、分类
-2. TMDB (themoviedb.org) - 全球影视元数据标准，辅助验证
-3. IMDb (imdb.com) - 英语影视信息参考
-4. 维基百科 - 辅助验证年代、分类等基础信息
-5. 其他粉丝站点 - 仅供小众作品参考
-
-注意事项：
-- 对于中文影视，优先以豆瓣信息为准
-- 若各数据源信息不一致，优先信任官方数据
-- 对于年代久远或小众作品，可参考粉丝站点
-- AI可能产生"幻觉"，请交叉验证关键信息
-
-【正确与错误刮削示例】
-文件名示例：
-  文件: "Wuthering.Heights.2024.1080p.BluRay.x264.mkv"
-  ✅ 正确: title_cn="呼啸山庄", title_en="Wuthering Heights", year=2024
-  ❌ 错误: title_cn="简风暴", title_en="Wuthering Heights", year=2024
-
-文件名示例：
-  文件: "besthd-virgin.territory.2023.1080p.mkv"
-  ✅ 正确: title_cn="七日谈"
-  ❌ 错误: title_cn="童贞领地"
-
-文件名示例：
-  文件: "Breaking.Bad.S01E01.1080p.mkv"
-  ✅ 正确: title_cn="绝命毒师", title_en="Breaking Bad", year=2008, season=1, episode=1
-  ❌ 错误: title_cn="绝命制毒", year=2009
-
-文件名示例：
-  文件: "Spirited.Away.2001.720p.mkv"
-  ✅ 正确: title_cn="千与千寻", title_en="Spirited Away", year=2001
-  ❌ 错误: title_cn="神秘失踪"
-
-【标题翻译规则 - 非常重要】
-- 对于已知的影视作品，请使用官方中文译名，不要直译英文标题
-- 常见经典作品的正确译名：
-  * Wuthering Heights → 呼啸山庄（不是"简风暴"或"呼啸的山丘"）
-  * besthd-virgin.territory → 七日谈（成人系列频道，非直译"童贞领地"）
-  * Spirited Away → 千与千寻（不是"神秘失踪"）
-  * Inception → 盗梦空间（不是"奠基"）
-  * Interstellar → 星际穿越（不是"星际"）
-  * 各种成人影视/系列请使用其公认的中文名称
-- 如果不确定某个标题的官方译名，可以：
-  1. 尝试搜索对应的中文名称
-  2. 使用常见的意译名称
-  3. 切勿机械直译导致歧义
-
-【维度判断】
-当前需要判断的维度："""
+    DEFAULT_SYSTEM_PROMPT = LLMPromptBuilder.DEFAULT_SYSTEM_PROMPT
 
     def __init__(self, config: dict):
         llm_config = config.get('llm', {})
@@ -92,7 +31,7 @@ class LLMScraper:
         self.fast_model = llm_config.get('fast_model') or self.fallback_model or self.model
         self.fast_base_url = llm_config.get('fast_base_url') or self.base_url
         self.fast_api_key = llm_config.get('fast_api_key') or self.api_key
-        self.dimensions = [
+        default_dimensions = [
             {'name': 'media_type', 'label': '影视类型', 'values': ['movie', 'tv'], 'ai_prompt': '请判断这是电影（movie）还是电视剧（tv）。判断依据：如果文件名中包含季集编号（如S01E01、S2E03等格式），则为电视剧（tv）；如果是完整独立的影视故事，则为电影（movie）。电视电影/网络电影仍归为movie。'},
             {'name': 'documentary', 'label': '是否纪录片', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为纪录片（true/false）。纪录片是以真实事件、人物、历史、社会等为主题的非虚构影视作品，包括自然纪录片（如《地球脉动》）、历史纪录片、社会纪录片、科学纪录片等。TMDB genres 包含 Documentary (id=99) 则为 true；如 TMDB 未标注，请根据标题和简介判断。真人出演+虚构剧情的作品（如《辛德勒的名单》）应选 false。'},
             {'name': 'restricted_level', 'label': '限制级分类', 'values': ['0-6', '7-12', '13-16', '17+'], 'ai_prompt': '请判断该影视内容的年龄分级，从以下选项中选择最匹配的一个：0-6（幼儿/儿童）、7-12（家庭向）、13-16（青少年向）、17+（成人内容）。优先使用 TMDB release_dates 中的官方分级；如 TMDB 未提供，请联网搜索后判断。'},
@@ -102,248 +41,30 @@ class LLMScraper:
             {'name': 'broad_genre', 'label': '题材类型', 'values': ['horror_mystery', 'scifi_fantasy', 'war', 'action_adventure', 'comedy', 'drama_romance', 'documentary', 'music', 'kids', 'tv_show', 'other'], 'ai_prompt': '请判断该影视作品的主要类型，从以下选项中选择风格最鲜明突出的一个：horror_mystery（恐怖/悬疑）、scifi_fantasy（科幻/奇幻）、war（战争/军事）、action_adventure（动作/冒险）、comedy（喜剧）、drama_romance（剧情/情感）、documentary（纪录/纪实）、music（音乐/演出）、kids（儿童/家庭）、tv_show（电视节目）、other（其他）。'},
         ]
 
-        self.custom_system_prompt = llm_config.get('system_prompt', '')
+        custom_system_prompt = llm_config.get('system_prompt', '')
 
-        self._load_prompts_from_file()
-
-        self._provider_prompts = {}
-        self._load_provider_prompts_from_files()
+        self.prompt_builder = LLMPromptBuilder(
+            dimensions=default_dimensions,
+            custom_system_prompt=custom_system_prompt,
+        )
 
     def load_dimensions_from_db(self, conn):
         from .dimension_manager import get_dimensions_for_scrape
         db_dims = get_dimensions_for_scrape(conn)
         if db_dims:
-            self.dimensions = db_dims
+            self.prompt_builder.load_dimensions(db_dims)
 
     @staticmethod
     def _get_default_prompts() -> dict:
-        """返回默认提示词（供 API 层调用，不含分隔线）"""
-        sep = "\n【维度判断】\n当前需要判断的维度：\n"
-        return {
-            "system": LLMScraper.DEFAULT_SYSTEM_PROMPT,
-            "sep": sep
-        }
+        return LLMPromptBuilder._get_default_prompts()
 
     @staticmethod
     def _get_default_provider_prompt(provider_type='tmdb') -> str:
-        from media_importer.scraper.providers import get_provider_class
-        cls = get_provider_class(provider_type)
-        if cls:
-            template = cls.get_context_template()
-            if template:
-                return template.strip()
-        from media_importer.scraper.providers.base import MetadataProvider
-        return MetadataProvider.get_context_template().strip()
+        return LLMPromptBuilder._get_default_provider_prompt(provider_type)
 
     @staticmethod
     def _get_default_tmdb_prompt() -> str:
-        return LLMScraper._get_default_provider_prompt('tmdb')
-
-    def _load_prompts_from_file(self):
-        """
-        从配置文件加载用户自定义提示词（仅上半部）
-        优先级：scraper_prompts.md > scraper_prompts.example.md > 代码内置默认值
-        """
-        possible_paths = [
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'scraper_prompts.md'),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', 'scraper_prompts.md'),
-            '/vol3/@appdata/nas-media-importer/config/scraper_prompts.md',
-        ]
-        example_paths = [
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'scraper_prompts.example.md'),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', 'scraper_prompts.example.md'),
-            '/vol3/@appdata/nas-media-importer/config/scraper_prompts.example.md',
-        ]
-
-        SEP = "【维度判断】\n当前需要判断的维度："
-
-        prompts_file = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                prompts_file = path
-                break
-
-        if prompts_file is None:
-            for path in example_paths:
-                if os.path.exists(path):
-                    prompts_file = path
-                    break
-
-        if prompts_file is None:
-            return
-
-        try:
-            import yaml
-            with open(prompts_file, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
-
-            if data and isinstance(data, dict):
-                sp = (data.get('system_prompt') or '').strip()
-
-                if SEP in sp:
-                    sp = sp.split(SEP)[0].strip()
-
-                if sp:
-                    self.custom_system_prompt = sp
-        except Exception:
-            pass
-
-    def _load_provider_prompts_from_files(self):
-        from media_importer.scraper.providers import get_all_provider_types
-        for ptype in get_all_provider_types():
-            self._provider_prompts[ptype] = self._load_prompt_file(f"{ptype}_prompts.md")
-
-    def _load_prompt_file(self, filename):
-        possible_paths = [
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', filename),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', filename),
-            f'/vol3/@appdata/nas-media-importer/config/{filename}',
-        ]
-        SEP = "【维度判断】\n当前需要判断的维度："
-
-        prompts_file = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                prompts_file = path
-                break
-
-        if prompts_file is None:
-            return ''
-
-        try:
-            import yaml
-            with open(prompts_file, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
-
-            if data and isinstance(data, dict):
-                sp = (data.get('system_prompt') or '').strip()
-
-                if SEP in sp:
-                    sp = sp.split(SEP)[0].strip()
-
-                return sp
-        except Exception:
-            pass
-
-        return ''
-
-    def _load_tmdb_prompts_from_file(self):
-        self._load_provider_prompts_from_files()
-
-    def _build_system_prompt(self, exclude_dims: set = None) -> str:
-        SEP = "【维度判断】\n当前需要判断的维度："
-
-        if self.custom_system_prompt:
-            base = self.custom_system_prompt
-        else:
-            base = self.DEFAULT_SYSTEM_PROMPT
-
-        if base.endswith(SEP):
-            base = base[:-len(SEP)]
-
-        prompt_parts = [base, "", SEP, ""]
-
-        dims = [d for d in self.dimensions if d.get('name') not in (exclude_dims or set())]
-        for i, dim in enumerate(dims, 1):
-            name = dim.get('name', '')
-            label = dim.get('label', name)
-            values = dim.get('values', [])
-            values_str = ', '.join(str(v) for v in values) if values else ''
-            ai_hint = dim.get('ai_prompt', '')
-            if ai_hint:
-                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}] — {ai_hint}")
-            else:
-                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
-
-        prompt_parts.append("")
-        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
-
-        json_schema = self._build_json_schema(exclude_dims)
-        prompt_parts.append(json.dumps(json_schema, ensure_ascii=False, indent=2))
-
-        return '\n'.join(prompt_parts)
-
-    def _build_system_prompt_with_provider(self, exclude_dims=None, provider_name=None) -> str:
-        SEP = "【维度判断】\n当前需要判断的维度："
-
-        base = ''
-        provider_type = None
-
-        if provider_name:
-            from media_importer.scraper.providers import get_all_registered_providers
-            for ptype, cls in get_all_registered_providers().items():
-                if cls.display_name == provider_name or ptype == provider_name:
-                    provider_type = ptype
-                    break
-
-        if provider_type:
-            base = self._provider_prompts.get(provider_type, '')
-
-        if not base and provider_type:
-            from media_importer.scraper.providers import get_provider_class
-            cls = get_provider_class(provider_type)
-            if cls:
-                base = cls.get_context_template()
-
-        if not base:
-            from media_importer.scraper.providers.base import MetadataProvider
-            base = MetadataProvider.get_context_template()
-
-        if base.endswith(SEP):
-            base = base[:-len(SEP)]
-
-        prompt_parts = [base, "", SEP, ""]
-
-        dims = [d for d in self.dimensions if d.get('name') not in (exclude_dims or set())]
-        for i, dim in enumerate(dims, 1):
-            name = dim.get('name', '')
-            label = dim.get('label', name)
-            values = dim.get('values', [])
-            values_str = ', '.join(str(v) for v in values) if values else ''
-            ai_hint = dim.get('ai_prompt', '')
-            if ai_hint:
-                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}] — {ai_hint}")
-            else:
-                prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
-
-        prompt_parts.append("")
-        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
-
-        json_schema = self._build_json_schema(exclude_dims)
-        prompt_parts.append(json.dumps(json_schema, ensure_ascii=False, indent=2))
-
-        return '\n'.join(prompt_parts)
-
-    def _build_system_prompt_with_context(self, exclude_dims: set = None) -> str:
-        return self._build_system_prompt_with_provider(exclude_dims=exclude_dims)
-
-    def _build_json_schema(self, exclude_dims: set = None) -> Dict[str, Any]:
-        dimensions_schema = {}
-        for dim in self.dimensions:
-            name = dim.get('name')
-            if exclude_dims and name in exclude_dims:
-                continue
-            values = dim.get('values', [])
-            if values:
-                dimensions_schema[name] = f"{'|'.join(str(v) for v in values)}|null"
-            else:
-                dimensions_schema[name] = "string|null"
-
-        schema = {
-            "title_cn": "string|null",
-            "title_en": "string|null",
-            "year": "int|null",
-            "resolution": "string|null",
-            "quality": "string|null",
-            "language": "string|null",
-            "type": "movie|tv",
-            "season": "int|null",
-            "episode": "int|null",
-            "dimensions": dimensions_schema,
-            "confidence": "float"
-        }
-
-        return schema
+        return LLMPromptBuilder._get_default_tmdb_prompt()
 
     def _call_api(self, system_prompt: str, user_content: str, model: str) -> str:
         return self._do_call(system_prompt, user_content, model,
@@ -423,7 +144,7 @@ class LLMScraper:
             if 'dimensions' not in result:
                 result['dimensions'] = {}
 
-            known_dim_names = {d['name'] for d in self.dimensions if d.get('name')}
+            known_dim_names = {d['name'] for d in self.prompt_builder.dimensions if d.get('name')}
             if known_dim_names and isinstance(result['dimensions'], dict):
                 result['dimensions'] = {
                     k: v for k, v in result['dimensions'].items()
@@ -504,7 +225,7 @@ class LLMScraper:
             user_content_parts.append("字幕文件: 无")
 
         user_content = '\n'.join(user_content_parts)
-        system_prompt = self._build_system_prompt()
+        system_prompt = self.prompt_builder._build_system_prompt()
 
         return self._retry_with_fallback(system_prompt, user_content)
 
@@ -535,7 +256,7 @@ class LLMScraper:
         user_content_parts.append(provider_context)
 
         user_content = '\n'.join(user_content_parts)
-        system_prompt = self._build_system_prompt_with_provider(exclude_dims=exclude_dims, provider_name=provider_name)
+        system_prompt = self.prompt_builder._build_system_prompt_with_provider(exclude_dims=exclude_dims, provider_name=provider_name)
 
         result = self._retry_with_fallback(system_prompt, user_content, use_fast=True)
 
@@ -549,7 +270,7 @@ class LLMScraper:
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
         user_content = f"剧名:\n{series_name}"
-        system_prompt = self._build_series_prompt()
+        system_prompt = self.prompt_builder._build_series_prompt()
 
         return self._retry_with_fallback(system_prompt, user_content)
 
@@ -561,118 +282,6 @@ class LLMScraper:
             provider_context
         ]
         user_content = '\n'.join(user_content_parts)
-        system_prompt = self._build_series_prompt_with_provider(provider_name=provider_name)
+        system_prompt = self.prompt_builder._build_series_prompt_with_provider(provider_name=provider_name)
 
         return self._retry_with_fallback(system_prompt, user_content)
-
-    def _build_series_prompt(self) -> str:
-        """电视剧系列刮削提示词：复用同一份用户提示词，仅 JSON Schema 不同"""
-        SEP = "【维度判断】\n当前需要判断的维度："
-
-        if self.custom_system_prompt:
-            base = self.custom_system_prompt
-        else:
-            base = self.DEFAULT_SYSTEM_PROMPT
-
-        if base.endswith(SEP):
-            base = base[:-len(SEP)]
-
-        prompt_parts = [base, "", SEP, ""]
-
-        for i, dim in enumerate(self.dimensions, 1):
-            name = dim.get('name', '')
-            label = dim.get('label', name)
-            values = dim.get('values', [])
-            values_str = ', '.join(str(v) for v in values) if values else ''
-            prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
-
-        prompt_parts.append("")
-        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
-
-        dimensions_schema = {}
-        for dim in self.dimensions:
-            name = dim.get('name')
-            values = dim.get('values', [])
-            if values:
-                dimensions_schema[name] = f"{'|'.join(str(v) for v in values)}|null"
-            else:
-                dimensions_schema[name] = "string|null"
-
-        schema = {
-            "title_cn": "string|null",
-            "title_en": "string|null",
-            "year": "int|null",
-            "type": "tv",
-            "dimensions": dimensions_schema,
-            "confidence": "float"
-        }
-
-        prompt_parts.append(json.dumps(schema, ensure_ascii=False, indent=2))
-
-        return '\n'.join(prompt_parts)
-
-    def _build_series_prompt_with_provider(self, provider_name=None) -> str:
-        SEP = "【维度判断】\n当前需要判断的维度："
-
-        base = ''
-        provider_type = None
-
-        if provider_name:
-            from media_importer.scraper.providers import get_all_registered_providers
-            for ptype, cls in get_all_registered_providers().items():
-                if cls.display_name == provider_name or ptype == provider_name:
-                    provider_type = ptype
-                    break
-
-        if provider_type:
-            base = self._provider_prompts.get(provider_type, '')
-
-        if not base and provider_type:
-            from media_importer.scraper.providers import get_provider_class
-            cls = get_provider_class(provider_type)
-            if cls:
-                base = cls.get_context_template()
-
-        if not base:
-            from media_importer.scraper.providers.base import MetadataProvider
-            base = MetadataProvider.get_context_template()
-
-        if base.endswith(SEP):
-            base = base[:-len(SEP)]
-
-        prompt_parts = [base, "", SEP, ""]
-
-        for i, dim in enumerate(self.dimensions, 1):
-            name = dim.get('name', '')
-            label = dim.get('label', name)
-            values = dim.get('values', [])
-            values_str = ', '.join(str(v) for v in values) if values else ''
-            prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
-
-        prompt_parts.append("")
-        prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
-
-        dimensions_schema = {}
-        for dim in self.dimensions:
-            name = dim.get('name')
-            values = dim.get('values', [])
-            if values:
-                dimensions_schema[name] = f"{'|'.join(str(v) for v in values)}|null"
-            else:
-                dimensions_schema[name] = "string|null"
-
-        schema = {
-            "title_cn": "string|null",
-            "title_en": "string|null",
-            "year": "int|null",
-            "type": "tv",
-            "dimensions": dimensions_schema,
-            "confidence": "float"
-        }
-
-        prompt_parts.append(json.dumps(schema, ensure_ascii=False, indent=2))
-
-        return '\n'.join(prompt_parts)
-
-    def _build_series_prompt_with_context(self) -> str:
-        return self._build_series_prompt_with_provider()

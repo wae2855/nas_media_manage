@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>影音库AI智能整理</title>
-    <link rel="stylesheet" href="css/base.css?v=39">
+    <link rel="stylesheet" href="css/base.css?v=43">
     <link rel="stylesheet" href="css/themes.css?v=37">
-    <link rel="stylesheet" href="css/layout.css?v=37">
+    <link rel="stylesheet" href="css/layout.css?v=38">
     <link rel="stylesheet" href="css/components.css?v=37">
-    <link rel="stylesheet" href="css/config.css?v=37">
+    <link rel="stylesheet" href="css/config.css?v=41">
     <link rel="stylesheet" href="css/tasks.css?v=37">
     <link rel="stylesheet" href="css/dimensions.css?v=37">
 </head>
@@ -393,75 +393,90 @@
             <!-- 配置面板 -->
             <div id="config-panel" class="panel">
                 <div id="config-breadcrumb" class="config-breadcrumb" style="display:none;">
-                    <button class="back-btn" onclick="navBack()" style="display:none;">← 返回</button>
-                    <span class="config-breadcrumb-item current" data-index="0">配置</span>
+                    <button class="back-btn" onclick="navBack()">← 返回</button>
+                    <span class="config-breadcrumb-item" data-index="0" onclick="navToBreadcrumb(0)">配置</span>
                 </div>
                 <div id="config-cards-home" class="config-nav-view">
-                    <div class="config-card-grid basic-row">
-                        <div class="config-nav-card" data-nav-target="dir-sub" onclick="navTo('dir-sub')">
-                            <div class="card-icon">📁</div>
-                            <div class="card-title">目录配置</div>
-                            <div class="card-desc">源目录、中转目录、入库规则</div>
+                    <div class="config-cards-wrapper" id="config-cards-wrapper">
+                        <div class="config-flex-spacer"></div>
+                        <div class="config-cards-content">
+                            <div class="config-cards-inner">
+                                <div class="config-step-row">
+                                    <div class="config-nav-card" data-nav-target="dir-sub" onclick="navTo('dir-sub')">
+                                        <div class="card-icon">📁</div>
+                                        <div class="card-title">目录配置</div>
+                                        <div class="card-desc">源目录、中转目录、入库规则</div>
+                                    </div>
+                                    <div class="step-arrow">›</div>
+                                    <div class="config-nav-card" data-nav-target="metadata-providers" onclick="navTo('metadata-providers')">
+                                        <div class="card-icon">🎬</div>
+                                        <div class="card-title">影视刮削配置</div>
+                                        <div class="card-desc">元数据源、刮削策略</div>
+                                    </div>
+                                    <div class="step-arrow">›</div>
+                                    <div class="config-nav-card" data-nav-target="llm-config" onclick="navTo('llm-config')">
+                                        <div class="card-icon">🤖</div>
+                                        <div class="card-title">AI配置</div>
+                                        <div class="card-desc">LLM模型、API参数</div>
+                                    </div>
+                                    <div class="step-arrow">›</div>
+                                    <div class="config-nav-card" data-nav-target="file-watcher" onclick="navTo('file-watcher')">
+                                        <div class="card-icon">⏰</div>
+                                        <div class="card-title">定时任务</div>
+                                        <div class="card-desc">轮询监控、自动扫描</div>
+                                    </div>
+                                </div>
+                                <div class="config-advanced-toggle" onclick="toggleAdvancedConfig()">
+                                    <span class="toggle-text">高级配置</span>
+                                    <span class="toggle-arrow">
+                                        <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M5 10 L50 40 L95 10" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                                        </svg>
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-arrow">➜</div>
-                        <div class="config-nav-card" data-nav-target="metadata-providers" onclick="navTo('metadata-providers')">
-                            <div class="card-icon">🎬</div>
-                            <div class="card-title">影视刮削配置</div>
-                            <div class="card-desc">元数据源、刮削策略</div>
-                        </div>
-                        <div class="card-arrow">➜</div>
-                        <div class="config-nav-card" data-nav-target="llm-config" onclick="navTo('llm-config')">
-                            <div class="card-icon">🤖</div>
-                            <div class="card-title">AI配置</div>
-                            <div class="card-desc">LLM模型、API参数</div>
-                        </div>
-                        <div class="card-arrow">➜</div>
-                        <div class="config-nav-card" data-nav-target="file-watcher" onclick="navTo('file-watcher')">
-                            <div class="card-icon">⏰</div>
-                            <div class="card-title">定时任务</div>
-                            <div class="card-desc">轮询监控、自动扫描</div>
-                        </div>
+                        <div class="config-flex-spacer"></div>
                     </div>
-                    <div class="config-advanced-divider">
-                        <span class="divider-arrow">⬇</span> 高级配置
-                    </div>
-                    <div class="config-card-grid advanced-row">
-                        <div class="config-nav-card" data-nav-target="import-options" onclick="navTo('import-options')">
-                            <div class="card-icon">📝</div>
-                            <div class="card-title">入库名称规范</div>
-                            <div class="card-desc">文件名模板、重名策略</div>
+                    <div class="config-advanced-container" id="advanced-config-container">
+                        <div class="config-card-grid advanced-row">
+                            <div class="config-nav-card" data-nav-target="import-options" onclick="navTo('import-options')">
+                                <div class="card-icon">📝</div>
+                                <div class="card-title">入库名称规范</div>
+                                <div class="card-desc">文件名模板、重名策略</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="dimensions" onclick="navTo('dimensions')">
+                                <div class="card-icon">🏷️</div>
+                                <div class="card-title">影视分类维度</div>
+                                <div class="card-desc">分类规则、维度配置</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="llm-prompt" onclick="navTo('llm-prompt')">
+                                <div class="card-icon">💬</div>
+                                <div class="card-title">AI刮削提示词</div>
+                                <div class="card-desc">自定义提示词模板</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="confidence" onclick="navTo('confidence')">
+                                <div class="card-icon">📊</div>
+                                <div class="card-title">置信度计算配置</div>
+                                <div class="card-desc">阈值、权重、公式</div>
+                            </div>
                         </div>
-                        <div class="config-nav-card" data-nav-target="dimensions" onclick="navTo('dimensions')">
-                            <div class="card-icon">🏷️</div>
-                            <div class="card-title">影视分类维度</div>
-                            <div class="card-desc">分类规则、维度配置</div>
-                        </div>
-                        <div class="config-nav-card" data-nav-target="llm-prompt" onclick="navTo('llm-prompt')">
-                            <div class="card-icon">💬</div>
-                            <div class="card-title">AI刮削提示词</div>
-                            <div class="card-desc">自定义提示词模板</div>
-                        </div>
-                        <div class="config-nav-card" data-nav-target="confidence" onclick="navTo('confidence')">
-                            <div class="card-icon">📊</div>
-                            <div class="card-title">置信度计算配置</div>
-                            <div class="card-desc">阈值、权重、公式</div>
-                        </div>
-                    </div>
-                    <div class="config-card-grid advanced-row" style="padding-top:0;">
-                        <div class="config-nav-card" data-nav-target="server" onclick="navTo('server')">
-                            <div class="card-icon">🔒</div>
-                            <div class="card-title">安全配置</div>
-                            <div class="card-desc">API认证、端口设置</div>
-                        </div>
-                        <div class="config-nav-card" data-nav-target="hermes" onclick="navTo('hermes')">
-                            <div class="card-icon">📡</div>
-                            <div class="card-title">Hermes通知</div>
-                            <div class="card-desc">Webhook、事件通知</div>
-                        </div>
-                        <div class="config-nav-card" data-nav-target="advanced" onclick="navTo('advanced')">
-                            <div class="card-icon">⚙️</div>
-                            <div class="card-title">系统设置</div>
-                            <div class="card-desc">日志、并发、扩展名配置</div>
+                        <div class="config-card-grid advanced-row second-row">
+                            <div class="config-nav-card" data-nav-target="server" onclick="navTo('server')">
+                                <div class="card-icon">🔒</div>
+                                <div class="card-title">安全配置</div>
+                                <div class="card-desc">API认证、端口设置</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="hermes" onclick="navTo('hermes')">
+                                <div class="card-icon">📡</div>
+                                <div class="card-title">Hermes通知</div>
+                                <div class="card-desc">Webhook、事件通知</div>
+                            </div>
+                            <div class="config-nav-card" data-nav-target="advanced" onclick="navTo('advanced')">
+                                <div class="card-icon">⚙️</div>
+                                <div class="card-title">系统设置</div>
+                                <div class="card-desc">日志、并发、扩展名配置</div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -51,8 +51,8 @@ function showConfidenceDetailModal(traceData, filename) {
     }
     if (!trace || typeof trace !== 'object') return;
 
-    var mode = trace.mode || 'tmdb_ai';
-    var isTmdbAi = mode === 'tmdb_ai';
+    var mode = trace.mode || 'provider_ai';
+    var isProviderAi = mode === 'provider_ai' || mode === 'tmdb_ai';
     var cc = trace.confidence_calc;
     var finalConf = trace.final_confidence;
     if (finalConf === undefined && cc) {
@@ -107,13 +107,15 @@ function showConfidenceDetailModal(traceData, filename) {
         });
     }
 
-    if (isTmdbAi) {
-        var ts = trace.tmdb_search;
+    if (isProviderAi) {
+        var ts = trace.provider_search || trace.tmdb_search;
         if (ts) {
+            var providerName = trace.provider_type || 'TMDb';
+            var providerLabel = providerName === 'tmdb' ? 'TMDb' : providerName.toUpperCase();
             var fallbackBadge = ts.fallback_used ? ' <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(246,193,119,0.12);color:#F59E0B;font-weight:600">回退</span>' : '';
             steps.push({
-                title: 'TMDB 搜索',
-                tag: 'TMDB',
+                title: providerLabel + ' 搜索',
+                tag: providerLabel,
                 color: '#8B5CF6',
                 html: '<div class="conf-detail-card">' +
                     '<div class="conf-kv"><span class="conf-k">搜索词</span><span class="conf-v">' + escapeHtml(ts.query || '-') + (fc && fc.year ? ' + year=' + fc.year : '') + '</span></div>' +
@@ -132,14 +134,14 @@ function showConfidenceDetailModal(traceData, filename) {
                 color: '#A78BFA',
                 html: '<div class="conf-detail-card">' +
                     '<div class="conf-kv"><span class="conf-k">匹配级别</span><span class="conf-v" style="color:#06B6D4;font-weight:600">' + escapeHtml(sc.T_reason || '') + '</span></div>' +
-                    (ts && ts.year_match !== undefined ? '<div class="conf-kv"><span class="conf-k">年份比较</span><span class="conf-v">' + (ts.year_match === true ? '文件名年份 = TMDB年份 ✓' : ts.year_match === false ? '文件名年份 ≠ TMDB年份 ✗' : '无年份信息') + '</span></div>' : '') +
+                    (ts && ts.year_match !== undefined ? '<div class="conf-kv"><span class="conf-k">年份比较</span><span class="conf-v">' + (ts.year_match === true ? '文件名年份 = 元数据年份 ✓' : ts.year_match === false ? '文件名年份 ≠ 元数据年份 ✗' : '无年份信息') + '</span></div>' : '') +
                     '<div class="conf-kv"><span class="conf-k">T 值</span><span class="conf-v" style="color:' + _confColor(sc.T || 0) + ';font-weight:600">' + (sc.T !== undefined ? sc.T.toFixed(3) : '-') + '</span></div>' +
                     '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.4">T值含义：1.0=精确匹配+年份一致(L1)，0.9=精确匹配+有季号(L2)，0.7=精确匹配无年份(L3)，0.4=精确匹配年份不同(L4)，&lt;0.7=模糊匹配(L5/L6)</div>' +
                 '</div>'
             });
 
             var rHtml = '<div class="conf-detail-card">' +
-                '<div class="conf-kv"><span class="conf-k">TMDB搜索结果数 N</span><span class="conf-v">' + (sc.total_results !== undefined ? sc.total_results : '-') + '</span></div>' +
+                '<div class="conf-kv"><span class="conf-k">元数据搜索结果数 N</span><span class="conf-v">' + (sc.total_results !== undefined ? sc.total_results : '-') + '</span></div>' +
                 '<div class="conf-kv"><span class="conf-k">R 基础公式</span><span class="conf-v">' + escapeHtml(sc.R_formula || '') + '</span></div>';
             if (sc.R_base !== undefined) {
                 rHtml += '<div class="conf-kv"><span class="conf-k">R 基础值(按结果数)</span><span class="conf-v" style="color:var(--text-secondary)">' + sc.R_base.toFixed(4) + '</span></div>';
@@ -170,6 +172,36 @@ function showConfidenceDetailModal(traceData, filename) {
             });
         }
     } else {
+        var pfr = trace.provider_fallback_reasons;
+        if (pfr && pfr.length > 0) {
+            var fallbackHtml = '<div class="conf-detail-card">';
+            fallbackHtml += '<div style="font-size:12px;font-weight:600;color:#F59E0B;margin-bottom:6px">⚠ 元数据源降级说明</div>';
+            for (var fi = 0; fi < pfr.length; fi++) {
+                var fp = pfr[fi];
+                var fpIcon = '';
+                var fpIconColor = '#94A3B8';
+                if (fp.status === 'error') { fpIcon = '✗'; fpIconColor = '#EF4444'; }
+                else if (fp.status === 'no_results') { fpIcon = '∅'; fpIconColor = '#F59E0B'; }
+                else if (fp.status === 'below_threshold') { fpIcon = '↓'; fpIconColor = '#F59E0B'; }
+                else if (fp.status === 'details_error') { fpIcon = '⚠'; fpIconColor = '#EF4444'; }
+                else if (fp.status === 'not_configured') { fpIcon = '—'; fpIconColor = '#94A3B8'; }
+                else { fpIcon = '?'; fpIconColor = '#94A3B8'; }
+                var fpName = fp.display_name || fp.provider_type || '未知';
+                fallbackHtml += '<div class="conf-kv">' +
+                    '<span class="conf-k"><span style="color:' + fpIconColor + ';font-weight:700;margin-right:4px">' + fpIcon + '</span>' + escapeHtml(fpName) + '</span>' +
+                    '<span class="conf-v" style="color:var(--text-secondary)">' + escapeHtml(fp.reason || '未知原因') + '</span>' +
+                '</div>';
+            }
+            fallbackHtml += '<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;background:rgba(245,158,11,0.08);padding:4px 8px;border-radius:4px">所有元数据源均不可用，已降级为纯 AI 刮削模式</div>';
+            fallbackHtml += '</div>';
+            steps.push({
+                title: 'Provider 降级说明',
+                tag: 'WARN',
+                color: '#F59E0B',
+                html: fallbackHtml
+            });
+        }
+
         if (cc && cc.ai_cap) {
             var aiCap = cc.ai_cap;
             steps.push({
@@ -271,10 +303,10 @@ function showConfidenceDetailModal(traceData, filename) {
 
         var calcFlowHtml = '<div class="conf-detail-card"><div class="conf-calc-flow">';
 
-        if (isTmdbAi && searchConfVal > 0) {
+        if (isProviderAi && searchConfVal > 0) {
             calcFlowHtml += '<span class="conf-calc-num" title="搜索置信度">' + searchConfVal.toFixed(4) + '</span>';
             calcFlowHtml += '<span class="conf-calc-op" title="乘以">×</span>';
-        } else if (!isTmdbAi && aiCapVal > 0) {
+        } else if (!isProviderAi && aiCapVal > 0) {
             calcFlowHtml += '<span class="conf-calc-num" title="AI置信度上限">AI上限 ' + aiCapVal.toFixed(4) + '</span>';
             calcFlowHtml += '<span class="conf-calc-op" title="乘以">×</span>';
         }

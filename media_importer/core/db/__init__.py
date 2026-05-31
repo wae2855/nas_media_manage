@@ -15,7 +15,7 @@ from .connection import (
     _sqlite_conn_lock,
     logger,
 )
-from .dimension_repo import (
+from .migrations import (
     _seed_dimensions,
     _migrate_dimensions,
     _migrate_region,
@@ -23,6 +23,8 @@ from .dimension_repo import (
     _migrate_restricted_level,
     _migrate_source_type,
     _migrate_tmdb_field,
+)
+from .dimension_repo import (
     get_all_dimensions,
     get_enabled_dimensions,
     get_dimension,

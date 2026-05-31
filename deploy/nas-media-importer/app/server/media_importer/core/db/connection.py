@@ -28,13 +28,15 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.execute(CREATE_TASKS_TABLE)
     conn.execute(CREATE_SUBTITLES_TABLE)
     conn.execute(CREATE_DIMENSIONS_TABLE)
+    _migrate_schema(conn)
     for idx_sql in CREATE_TASKS_INDEXES:
         conn.execute(idx_sql)
     for idx_sql in CREATE_SUBTITLES_INDEXES:
         conn.execute(idx_sql)
-    _migrate_schema(conn)
-    from .dimension_repo import _seed_dimensions
+    from .migrations import _seed_dimensions
     _seed_dimensions(conn)
+    from .cleaner_repo import init_cleaner_tables
+    init_cleaner_tables(conn)
     conn.commit()
     return conn
 
@@ -62,6 +64,16 @@ def _migrate_schema(conn: sqlite3.Connection):
             conn.execute("ALTER TABLE tasks ADD COLUMN import_video_path TEXT DEFAULT ''")
         if "scrape_trace" not in existing:
             conn.execute("ALTER TABLE tasks ADD COLUMN scrape_trace TEXT DEFAULT ''")
+        if "provider_type" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN provider_type TEXT DEFAULT ''")
+        if "provider_id" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN provider_id TEXT DEFAULT ''")
+        if "source_fingerprint" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN source_fingerprint TEXT DEFAULT ''")
+        if "source_file_size" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN source_file_size INTEGER DEFAULT 0")
+        if "source_mtime" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN source_mtime TEXT DEFAULT ''")
         conn.execute("UPDATE tasks SET status='FAILED' WHERE status IN ('NEEDS_REVIEW', 'ROLLBACK')")
         conn.execute("UPDATE tasks SET status='SKIPPED' WHERE status='DUPLICATE_REVIEW'")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='FAILED' AND import_success=0")

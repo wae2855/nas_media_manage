@@ -6,13 +6,6 @@ from typing import List, Optional, Tuple
 
 
 class FileScanner:
-    VIDEO_EXTENSIONS = (
-        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm",
-        ".m4v", ".m2ts", ".ts", ".iso", ".bdmv",
-    )
-    SUBTITLE_EXTENSIONS = (
-        ".srt", ".ass", ".ssa", ".sub", ".idx", ".smi",
-    )
 
     def __init__(self, config: dict, task_manager=None):
         self.config = config
@@ -22,12 +15,10 @@ class FileScanner:
         self.sort_by = config.get("sort_by", "filename")
         self.sort_reverse = config.get("sort_reverse", False)
         self.group_delay_sec = config.get("group_delay_sec", 0)
-        self.video_extensions = tuple(
-            config.get("video_extensions", self.__class__.VIDEO_EXTENSIONS)
-        )
-        self.subtitle_extensions = tuple(
-            config.get("subtitle_extensions", self.__class__.SUBTITLE_EXTENSIONS)
-        )
+        video_list = config.get("video_extensions", [])
+        sub_list = config.get("subtitle_extensions", [])
+        self.video_extensions = tuple(ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in video_list)
+        self.subtitle_extensions = tuple(ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in sub_list)
 
     def scan_path(self, directory: str) -> List[dict]:
         if not os.path.isdir(directory):
@@ -119,7 +110,15 @@ class FileScanner:
             return groups
         filtered = []
         for g in groups:
-            dedup = self.task_manager.check_source_duplicate(g["video_path"])
+            fingerprint = ""
+            if os.path.isfile(g["video_path"]):
+                from media_importer.core.safety import make_fingerprint
+                fingerprint = make_fingerprint(g["video_path"])
+
+            dedup = self.task_manager.check_source_duplicate(
+                g["video_path"], source_fingerprint=fingerprint
+            )
+
             if dedup["action"] == "SKIP":
                 if dedup.get("task_id"):
                     self.task_manager.update_task({
@@ -129,6 +128,42 @@ class FileScanner:
                         ),
                     })
                 continue
+
+            if dedup["action"] == "RENAME_DETECTED":
+                if dedup.get("task_id"):
+                    self.task_manager.update_task({
+                        "task_id": dedup["task_id"],
+                        "source_path": g["video_path"],
+                        "source_filename": os.path.basename(g["video_path"]),
+                        "source_fingerprint": fingerprint,
+                        "last_seen_at": time.strftime(
+                            "%Y-%m-%dT%H:%M:%S", time.localtime()
+                        ),
+                    })
+                continue
+
+            if dedup["action"] == "UPDATE_MTIME":
+                if dedup.get("task_id"):
+                    self.task_manager.update_task({
+                        "task_id": dedup["task_id"],
+                        "source_fingerprint": fingerprint,
+                        "source_mtime": time.strftime(
+                            "%Y-%m-%dT%H:%M:%S", time.localtime()
+                        ),
+                        "last_seen_at": time.strftime(
+                            "%Y-%m-%dT%H:%M:%S", time.localtime()
+                        ),
+                    })
+                continue
+
+            g["source_fingerprint"] = fingerprint
+            g["source_file_size"] = os.path.getsize(g["video_path"]) if os.path.isfile(g["video_path"]) else 0
+            g["source_mtime"] = time.strftime(
+                "%Y-%m-%dT%H:%M:%S", time.localtime(
+                    os.path.getmtime(g["video_path"])
+                )
+            ) if os.path.isfile(g["video_path"]) else ""
+
             filtered.append(g)
         return filtered
 

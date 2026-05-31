@@ -2,7 +2,7 @@ var _dimensionsData = [];
 var _expandedDim = null;
 var _openGenrePicker = null;
 var _genreAdding = null;
-var _cachedTmdbGenres = null;
+var _cachedProviderGenres = null;
 
 var _FALLBACK_GENRE_MAP = {
     28: '动作 (Action)', 12: '冒险 (Adventure)', 16: '动画 (Animation)',
@@ -39,8 +39,8 @@ function _genreIdToLabel(ids) {
 }
 
 function _getGenreNameById(id) {
-    if (_cachedTmdbGenres && _cachedTmdbGenres._idMap && _cachedTmdbGenres._idMap[id]) {
-        return _cachedTmdbGenres._idMap[id];
+    if (_cachedProviderGenres && _cachedProviderGenres._idMap && _cachedProviderGenres._idMap[id]) {
+        return _cachedProviderGenres._idMap[id];
     }
     if (_FALLBACK_GENRE_MAP[id]) {
         return _FALLBACK_GENRE_MAP[id];
@@ -48,29 +48,31 @@ function _getGenreNameById(id) {
     return '#' + id;
 }
 
-async function loadTmdbGenres() {
-    if (_cachedTmdbGenres && _cachedTmdbGenres._loaded) return _cachedTmdbGenres;
+async function loadProviderGenres(providerType) {
+    providerType = providerType || 'tmdb';
+    if (_cachedProviderGenres && _cachedProviderGenres._loaded && _cachedProviderGenres._providerType === providerType) return _cachedProviderGenres;
     try {
-        var result = await apiRequest('GET', '/tmdb/genres');
+        var result = await apiRequest('GET', '/providers/' + providerType + '/genres');
         if (result.code === 200 && result.data) {
-            _cachedTmdbGenres = result.data;
-            _cachedTmdbGenres._idMap = {};
-            _cachedTmdbGenres._loaded = true;
-            (_cachedTmdbGenres.combined || []).forEach(function(g) {
-                _cachedTmdbGenres._idMap[g.id] = g.name;
+            _cachedProviderGenres = result.data;
+            _cachedProviderGenres._idMap = {};
+            _cachedProviderGenres._loaded = true;
+            _cachedProviderGenres._providerType = providerType;
+            (_cachedProviderGenres.combined || []).forEach(function(g) {
+                _cachedProviderGenres._idMap[g.id] = g.name;
             });
-            return _cachedTmdbGenres;
+            return _cachedProviderGenres;
         }
     } catch(e) {
-        console.warn('loadTmdbGenres failed:', e);
+        console.warn('loadProviderGenres failed:', e);
     }
-    _cachedTmdbGenres = { movie: [], tv: [], combined: [], _idMap: {}, _loaded: false };
-    return _cachedTmdbGenres;
+    _cachedProviderGenres = { movie: [], tv: [], combined: [], _idMap: {}, _loaded: false, _providerType: providerType };
+    return _cachedProviderGenres;
 }
 
 function _startBackgroundGenreLoad() {
-    if (_cachedTmdbGenres && _cachedTmdbGenres._loaded) return;
-    loadTmdbGenres().then(function() {
+    if (_cachedProviderGenres && _cachedProviderGenres._loaded) return;
+    loadProviderGenres().then(function() {
         _refreshGenreDisplay();
     });
 }
@@ -84,12 +86,12 @@ function _refreshGenreDisplay() {
         var ids = (input.value || '').split(',').filter(Boolean).map(Number);
         el.textContent = ids.length
             ? ids.map(function(id) { return _getGenreNameById(id); }).join(', ')
-            : '点击选择 TMDB 类型...';
+            : '点击选择 Provider 类型...';
     });
 }
 
 function getSourceLabel(sourceType) {
-    var labels = {'ai': 'AI 判断', 'ai+tmdb': 'AI + TMDB', 'file': '文件推导'};
+    var labels = {'ai': 'AI 判断', 'ai+provider': 'AI + Provider', 'file': '文件推导'};
     return labels[sourceType] || sourceType;
 }
 
@@ -163,28 +165,46 @@ function _renderDimBody(dim) {
         }).join('');
 
         var mappingHtml = '';
-        if (dim.source_type === 'ai+tmdb' && dim.tmdb_field === 'genres' && dim.name !== 'documentary' && dim.name !== 'animation') {
+        var hasGenreMapping = false;
+        var hasRegionMapping = false;
+        var hasLangMapping = false;
+        if (dim.source_type === 'ai+provider') {
+            var pm = dim.provider_mappings;
+            if (typeof pm === 'string') { try { pm = JSON.parse(pm); } catch(e) { pm = null; } }
+            if (pm && typeof pm === 'object') {
+                for (var pmKey in pm) {
+                    if (pm[pmKey] && pm[pmKey].field === 'genres') hasGenreMapping = true;
+                    if (pm[pmKey] && pm[pmKey].field === 'origin_country') hasRegionMapping = true;
+                    if (pm[pmKey] && pm[pmKey].field === 'original_language') hasLangMapping = true;
+                }
+            }
+            if (dim.tmdb_field === 'genres') hasGenreMapping = true;
+            if (dim.tmdb_field === 'origin_country') hasRegionMapping = true;
+            if (dim.tmdb_field === 'original_language') hasLangMapping = true;
+        }
+
+        if (dim.source_type === 'ai+provider' && hasGenreMapping && dim.name !== 'documentary' && dim.name !== 'animation') {
             mappingHtml = _renderGenreEditable(dim.name, valueList);
-        } else if (dim.source_type === 'ai+tmdb') {
-            if (dim.tmdb_field === 'origin_country') mappingHtml = _renderRegionMapping(valueList);
-            else if (dim.tmdb_field === 'original_language') mappingHtml = _renderLangMapping(valueList);
+        } else if (dim.source_type === 'ai+provider') {
+            if (hasRegionMapping) mappingHtml = _renderRegionMapping(valueList);
+            else if (hasLangMapping) mappingHtml = _renderLangMapping(valueList);
         }
 
         var autoRuleHtml = '';
         if (dim.name === 'documentary') {
             autoRuleHtml = '<div class="dim-auto-rule-info">' +
                 '<div class="dim-auto-rule-title">⚙ 自动判定规则</div>' +
-                '<div class="dim-auto-rule-desc">从 TMDB 获取影视的 genres 列表，若包含 <strong>Genre(99) = Documentary</strong> 则判定为纪录片（true），否则为非纪录片（false）。无需手动配置映射。</div>' +
+                '<div class="dim-auto-rule-desc">从 Provider 获取影视的 genres 列表，若包含 <strong>Genre(99) = Documentary</strong> 则判定为纪录片（true），否则为非纪录片（false）。无需手动配置映射。</div>' +
             '</div>';
         } else if (dim.name === 'animation') {
             autoRuleHtml = '<div class="dim-auto-rule-info">' +
                 '<div class="dim-auto-rule-title">⚙ 自动判定规则</div>' +
-                '<div class="dim-auto-rule-desc">从 TMDB 获取影视的 genres 列表，若包含 <strong>Genre(16) = Animation</strong> 则判定为动漫（true），否则不做判定。无需手动配置映射。</div>' +
+                '<div class="dim-auto-rule-desc">从 Provider 获取影视的 genres 列表，若包含 <strong>Genre(16) = Animation</strong> 则判定为动漫（true），否则不做判定。无需手动配置映射。</div>' +
             '</div>';
         } else if (dim.name === 'restricted_level') {
             autoRuleHtml = '<div class="dim-auto-rule-info">' +
                 '<div class="dim-auto-rule-title">⚙ 自动判定规则</div>' +
-                '<div class="dim-auto-rule-desc">从 TMDB 获取 <strong>release_dates</strong> 字段中的分级认证（certification），按国家优先级（US → GB → 其他）匹配 MPAA 分级标准映射到年龄区间：G/U → 0-6、PG → 7-12、PG-13/12A → 13-16、R/NC-17 → 17+。若 TMDB 无分级数据，则由 AI 根据内容辅助判断。</div>' +
+                '<div class="dim-auto-rule-desc">从 Provider 获取 <strong>release_dates</strong> 字段中的分级认证（certification），按国家优先级（US → GB → 其他）匹配 MPAA 分级标准映射到年龄区间：G/U → 0-6、PG → 7-12、PG-13/12A → 13-16、R/NC-17 → 17+。若 Provider 无分级数据，则由 AI 根据内容辅助判断。</div>' +
             '</div>';
         }
 
@@ -218,7 +238,7 @@ function _renderDimBody(dim) {
             autoRuleHtml +
             '<div class="dim-edit-actions">' +
                 '<button class="btn btn-primary btn-sm" onclick="saveDimensionEdit(\'' + dim.name + '\')">保存</button>' +
-                (dim.tmdb_field === 'genres' && dim.name !== 'documentary' && dim.name !== 'animation' ? '<button class="btn btn-warning btn-sm" onclick="resetDimension(\'' + dim.name + '\')">恢复默认</button>' : '') +
+                (hasGenreMapping && dim.name !== 'documentary' && dim.name !== 'animation' ? '<button class="btn btn-warning btn-sm" onclick="resetDimension(\'' + dim.name + '\')">恢复默认</button>' : '') +
                 '<button class="btn btn-secondary btn-sm" onclick="toggleDimCard(\'' + dim.name + '\')">收起</button>' +
             '</div>' +
         '</div>';
@@ -246,7 +266,7 @@ function _renderRegionMapping(valueList) {
     return '<div class="dim-mapping-section">' +
         '<div class="dim-mapping-header-row">' +
             '<span class="dim-mapping-col-label">入库标签值</span>' +
-            '<span class="dim-mapping-col-label">TMDB获取值</span>' +
+            '<span class="dim-mapping-col-label">Provider获取值</span>' +
         '</div>' +
         rows +
         '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">地区映射基于 ISO 3166-1 代码（origin_country），无需手动编辑</div>' +
@@ -304,12 +324,12 @@ function _renderGenreEditable(dimName, valueList) {
                 '<h5>类型映射规则</h5>' +
                 '<span class="dim-help-trigger" onclick="event.stopPropagation();toggleGenreHelp()" title="映射说明">?</span>' +
             '</div>' +
-            '<span class="dim-mapping-hint">每行定义一个题材类型，选择它包含的 TMDB 原始类型；拖拽 ≡ 调整优先级</span>' +
+            '<span class="dim-mapping-hint">每行定义一个题材类型，选择它包含的 Provider 原始类型；拖拽 ≡ 调整优先级</span>' +
         '</div>' +
         '<div class="dim-help-panel" id="dim-genre-help" style="display:none;">' +
             '<div class="dim-help-content">' +
                 '<strong>这是什么？</strong>' +
-                '<p>系统从 TMDB 获取影视的原始类型标签（如"恐怖""喜剧"），<br>' +
+                '<p>系统从 Provider 获取影视的原始类型标签（如"恐怖""喜剧"），<br>' +
                 '通过这张映射表归并为你自定义的大类（如"恐怖/悬疑""剧情/情感"）。</p>' +
                 '<p><strong>优先级：</strong>一部影视可能同时匹配多个大类，排在前面的优先。<br>' +
                 '<strong>举例：</strong>《僵尸肖恩》同时是恐怖和喜剧，若"恐怖/悬疑"排在前面则归入该类。</p>' +
@@ -321,7 +341,7 @@ function _renderGenreEditable(dimName, valueList) {
                     '<th class="dim-genre-th-drag"></th>' +
                     '<th class="dim-genre-th-priority"></th>' +
                     '<th class="dim-genre-th-label">入库标签值</th>' +
-                    '<th class="dim-genre-th-picker">TMDB影视分类</th>' +
+                    '<th class="dim-genre-th-picker">Provider影视分类</th>' +
                     '<th class="dim-genre-th-preview">预览</th>' +
                     '<th class="dim-genre-th-action"></th>' +
                 '</tr>' +
@@ -337,7 +357,7 @@ function _renderGenreEditable(dimName, valueList) {
 function _renderGenrePickerTrigger(dimName, idx, selectedIds) {
     var displayText = selectedIds.length
         ? selectedIds.map(function(id) { return _getGenreNameById(id); }).join(', ')
-        : '点击选择 TMDB 类型...';
+        : '点击选择 Provider 类型...';
 
     return '<div class="dim-genre-picker-trigger" onclick="event.stopPropagation();toggleGenrePicker(\'' + dimName + '\',' + idx + ')">' +
         '<span class="dim-genre-picker-text">' + _escapeHtml(displayText) + '</span>' +
@@ -348,8 +368,8 @@ function _renderGenrePickerTrigger(dimName, idx, selectedIds) {
 
 function _buildGenrePickerContent(idx, selectedIds) {
     var html = '';
-    var combined = (_cachedTmdbGenres && _cachedTmdbGenres.combined && _cachedTmdbGenres.combined.length > 0)
-        ? _cachedTmdbGenres.combined
+    var combined = (_cachedProviderGenres && _cachedProviderGenres.combined && _cachedProviderGenres.combined.length > 0)
+        ? _cachedProviderGenres.combined
         : null;
 
     if (combined) {
@@ -456,7 +476,7 @@ function toggleGenrePicker(dimName, idx) {
             if (textEl) {
                 textEl.textContent = newIds.length
                     ? newIds.map(function(id) { return _getGenreNameById(id); }).join(', ')
-                    : '点击选择 TMDB 类型...';
+                    : '点击选择 Provider 类型...';
             }
             if (previewEl) {
                 previewEl.textContent = newIds.length
@@ -878,7 +898,7 @@ function _renderLangMapping(valueList) {
     return '<div class="dim-mapping-section">' +
         '<div class="dim-mapping-header-row">' +
             '<span class="dim-mapping-col-label">入库标签值</span>' +
-            '<span class="dim-mapping-col-label">TMDB获取值</span>' +
+            '<span class="dim-mapping-col-label">Provider获取值</span>' +
         '</div>' +
         rows +
         '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">语言映射基于 ISO 639-1 代码（original_language），无需手动编辑</div>' +
@@ -894,7 +914,19 @@ async function saveDimensionEdit(name) {
     var data = {};
     if (colorEl) data.color = colorEl.value;
 
-    if (dim.tmdb_field === 'genres') {
+    var _hasGenreMapping = false;
+    if (dim.source_type === 'ai+provider') {
+        var _pm = dim.provider_mappings;
+        if (typeof _pm === 'string') { try { _pm = JSON.parse(_pm); } catch(e) { _pm = null; } }
+        if (_pm && typeof _pm === 'object') {
+            for (var _pmKey in _pm) {
+                if (_pm[_pmKey] && _pm[_pmKey].field === 'genres') { _hasGenreMapping = true; break; }
+            }
+        }
+        if (dim.tmdb_field === 'genres') _hasGenreMapping = true;
+    }
+
+    if (_hasGenreMapping) {
         var autoPrompt = _generateGenrePrompt();
         if (autoPrompt && promptEl) promptEl.value = autoPrompt;
         if (promptEl) data.ai_prompt = promptEl.value;

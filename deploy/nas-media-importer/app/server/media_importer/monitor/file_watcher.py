@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import os
 import threading
+import logging
 from media_importer.storage.file_scanner import scan_source_dir
+from media_importer.core.safety import recycle_cleanup
 
 
 class FileWatcher:
@@ -97,6 +99,13 @@ class FileWatcher:
             removed = self._known_files - current_files
             if removed:
                 self._known_files = current_files
+
+        recycle_dir = self.config.get("source_policy", {}).get("recycle_dir", "")
+        retention_days = self.config.get("source_policy", {}).get("recycle_retention_days", 0)
+        if recycle_dir and retention_days > 0:
+            deleted = recycle_cleanup(recycle_dir, retention_days)
+            if deleted:
+                self._log("info", f"回收站过期清理: 删除 {len(deleted)} 个文件")
 
     @property
     def status(self) -> dict:

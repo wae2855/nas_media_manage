@@ -1,5 +1,4 @@
 import os
-import shutil
 import threading
 
 from media_importer.core.db import (
@@ -13,6 +12,7 @@ from media_importer.core.db import (
     VALID_STATUSES,
 )
 from media_importer.core.task_manager import TaskManager
+from media_importer.core.safety import move_to_recycle
 from media_importer.api import globals
 from .utils import json_response
 
@@ -70,65 +70,78 @@ class TaskHandlersMixin:
                 pass
 
         if delete_files:
-            files_to_delete = []
-            files_to_check = []
-
-            if file_location == "import":
-                ivp = task.get("import_video_path", "")
-                if ivp:
-                    files_to_check.append(ivp)
-                for sub in (task.get("subtitle_files") or []):
-                    sub_str = str(sub) if sub else ""
-                    if sub_str:
-                        files_to_check.append(sub_str)
-            elif file_location == "recycle":
-                sp = task.get("source_path", "")
-                if sp:
-                    files_to_check.append(sp)
-                for sub in (task.get("subtitle_files") or []):
-                    sub_str = str(sub) if sub else ""
-                    if sub_str:
-                        files_to_check.append(sub_str)
-            elif file_location == "source":
-                sp = task.get("source_path", "")
-                if sp:
-                    files_to_check.append(sp)
-                for sub in (task.get("subtitle_files") or []):
-                    sub_str = str(sub) if sub else ""
-                    if sub_str:
-                        files_to_check.append(sub_str)
-
-            for f in files_to_check:
-                if os.path.exists(f):
-                    files_to_delete.append(f)
-                else:
-                    missing_files.append(os.path.basename(f))
-
             source_policy = globals._config.get("source_policy", {}) if globals._config else {}
+            recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
+            source_dir = globals._config.get("source_dir", "") if globals._config else ""
             import_dirs = []
             for rule in (globals._config.get("path_rules", []) if globals._config else []):
                 tpl = rule.get("template", "")
                 if tpl:
                     import_dirs.append(tpl)
 
-            allowed_dirs = [
-                globals._config.get("source_dir", "") if globals._config else "",
-                globals._config.get("temp_dir", "") if globals._config else "",
-                source_policy.get("recycle_dir", ""),
-            ] + import_dirs
+            recycled_files = []
 
-            for f in files_to_delete:
-                try:
-                    f_abs = os.path.abspath(f)
-                    allowed = any(
-                        d and f_abs.startswith(os.path.abspath(d) + os.sep)
-                        for d in allowed_dirs
-                    )
-                    if allowed and os.path.exists(f):
-                        os.remove(f)
-                        deleted_files.append(os.path.basename(f))
-                except OSError:
-                    pass
+            if file_location == "source":
+                sp = task.get("source_path", "")
+                if sp:
+                    if os.path.exists(sp):
+                        ok, _, _ = move_to_recycle(
+                            sp, recycle_dir, reason="task_delete",
+                            task_id=task_id, source_dir=source_dir,
+                            import_roots=import_dirs)
+                        if ok:
+                            recycled_files.append(os.path.basename(sp))
+                        else:
+                            missing_files.append(os.path.basename(sp))
+                    else:
+                        missing_files.append(os.path.basename(sp))
+                for sub in (task.get("subtitle_files") or []):
+                    sub_str = str(sub) if sub else ""
+                    if sub_str:
+                        if os.path.exists(sub_str):
+                            ok, _, _ = move_to_recycle(
+                                sub_str, recycle_dir, reason="task_delete",
+                                task_id=task_id, source_dir=source_dir,
+                                import_roots=import_dirs)
+                            if ok:
+                                recycled_files.append(os.path.basename(sub_str))
+                        else:
+                            missing_files.append(os.path.basename(sub_str))
+
+            elif file_location == "temp":
+                pass
+
+            elif file_location == "import":
+                ivp = task.get("import_video_path", "")
+                if ivp:
+                    if os.path.exists(ivp):
+                        ok, _, _ = move_to_recycle(
+                            ivp, recycle_dir, reason="task_delete",
+                            task_id=task_id, source_dir=source_dir,
+                            import_roots=import_dirs)
+                        if ok:
+                            recycled_files.append(os.path.basename(ivp))
+                        else:
+                            missing_files.append(os.path.basename(ivp))
+                    else:
+                        missing_files.append(os.path.basename(ivp))
+                for sub in (task.get("subtitle_files") or []):
+                    sub_str = str(sub) if sub else ""
+                    if sub_str:
+                        if os.path.exists(sub_str):
+                            ok, _, _ = move_to_recycle(
+                                sub_str, recycle_dir, reason="task_delete",
+                                task_id=task_id, source_dir=source_dir,
+                                import_roots=import_dirs)
+                            if ok:
+                                recycled_files.append(os.path.basename(sub_str))
+                        else:
+                            missing_files.append(os.path.basename(sub_str))
+
+            elif file_location == "recycle":
+                pass
+
+            deleted_files.extend(recycled_files)
 
         db_delete_task(globals._global_task_manager.conn, task_id)
 
@@ -258,71 +271,54 @@ class TaskHandlersMixin:
             json_response(self, 400, message=f"当前状态不可忽略: {current_status}")
             return
         source_policy = globals._config.get("source_policy", {}) if globals._config else {}
-        recycle_dir = source_policy.get("recycle_dir", "")
+        recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
+        cleanup = source_policy.get("cleanup_source_after_done", True)
         file_location = task.get("file_location", "source")
 
         if file_location == "temp":
             temp_video = task.get("video_path", "")
-            if recycle_dir and temp_video and os.path.exists(temp_video):
-                os.makedirs(recycle_dir, exist_ok=True)
-                dest_video = TaskManager._resolve_dest_path(
-                    recycle_dir, os.path.basename(temp_video))
+            temp_dir = globals._config.get('temp_dir', '') if globals._config else ''
+            if temp_video and temp_dir and str(temp_video).startswith(temp_dir) and os.path.exists(temp_video):
                 try:
-                    shutil.move(temp_video, dest_video)
-                except (OSError, shutil.Error):
-                    dest_video = temp_video
-                subtitle_paths = task.get("subtitle_files", [])
-                new_sub_paths = {}
-                for sub in subtitle_paths:
-                    if sub and os.path.exists(sub):
-                        dest_sub = TaskManager._resolve_dest_path(
-                            recycle_dir, os.path.basename(sub))
-                        try:
-                            shutil.move(sub, dest_sub)
-                            new_sub_paths[os.path.basename(sub)] = dest_sub
-                        except (OSError, shutil.Error):
-                            pass
-                if new_sub_paths:
-                    subs = db_get_subtitles(globals._global_task_manager.conn, task_id)
-                    for sub in subs:
-                        sub_basename = os.path.basename(
-                            sub.get("source_path", "") or sub.get("target_path", ""))
-                        if sub_basename in new_sub_paths:
-                            db_update_subtitle(
-                                globals._global_task_manager.conn, sub["id"],
-                                target_path=new_sub_paths[sub_basename])
-                db_update_task(globals._global_task_manager.conn, task_id,
-                               status="SKIPPED",
-                               skip_reason="用户忽略",
-                               source_path=dest_video,
-                               source_filename=os.path.basename(dest_video),
-                               file_location="recycle",
-                               video_path="")
-            else:
-                temp_dir = globals._config.get('temp_dir', '') if globals._config else ''
-                if temp_video and temp_dir and str(temp_video).startswith(temp_dir) and os.path.exists(temp_video):
+                    os.remove(temp_video)
+                except OSError:
+                    pass
+            for sub in (task.get("subtitle_files") or []):
+                sub_str = str(sub) if sub else ""
+                if sub_str and temp_dir and sub_str.startswith(temp_dir) and os.path.exists(sub_str):
                     try:
-                        os.remove(temp_video)
+                        os.remove(sub_str)
                     except OSError:
                         pass
-                    for sub in (task.get("subtitle_files") or []):
-                        sub_str = str(sub) if sub else ""
-                        if sub_str and os.path.exists(sub_str) and temp_dir in sub_str:
-                            try:
-                                os.remove(sub_str)
-                            except OSError:
-                                pass
-                db_update_subtitles_by_task(
-                    globals._global_task_manager.conn, task_id,
-                    status="FAILED", target_path="")
+            db_update_subtitles_by_task(
+                globals._global_task_manager.conn, task_id,
+                status="FAILED", target_path="")
+
+            source_path = task.get("source_path", "")
+            subtitle_paths = task.get("subtitle_files", [])
+            if cleanup and recycle_dir and source_path and os.path.exists(source_path):
+                globals._global_task_manager.move_to_recycle_bin(
+                    task_id=task_id,
+                    source_path=source_path,
+                    subtitle_paths=subtitle_paths if isinstance(subtitle_paths, list) else [],
+                    recycle_dir=recycle_dir,
+                )
                 db_update_task(globals._global_task_manager.conn, task_id,
                                status="SKIPPED",
                                skip_reason="用户忽略",
-                               file_location="source")
+                               file_location="recycle",
+                               video_path="",
+                               error_message=f"已移入回收站: {recycle_dir}")
+            else:
+                db_update_task(globals._global_task_manager.conn, task_id,
+                               status="SKIPPED",
+                               skip_reason="用户忽略",
+                               file_location="source",
+                               video_path="")
         else:
             source_path = task.get("source_path", "")
             subtitle_paths = task.get("subtitle_files", [])
-            if recycle_dir and source_path and os.path.exists(source_path):
+            if cleanup and recycle_dir and source_path and os.path.exists(source_path):
                 globals._global_task_manager.move_to_recycle_bin(
                     task_id=task_id,
                     source_path=source_path,
@@ -438,7 +434,7 @@ class TaskHandlersMixin:
             json_response(self, 400, message="Missing 'path' field")
             return
 
-        from media_importer.core.safety import validate_path_safety, validate_file_ext, ALLOWED_MEDIA_EXTS
+        from media_importer.core.safety import validate_path_safety, validate_file_ext
 
         source_dir = globals._config.get("source_dir", "") if globals._config else ""
         allowed_dirs = [source_dir] if source_dir else []
@@ -448,7 +444,13 @@ class TaskHandlersMixin:
             json_response(self, 400, message=f"路径校验失败: {msg}")
             return
 
-        ok, msg = validate_file_ext(file_path, ALLOWED_MEDIA_EXTS)
+        video_exts = globals._config.get("video_extensions", []) if globals._config else []
+        sub_exts = globals._config.get("subtitle_extensions", []) if globals._config else []
+        media_exts = set(
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+            for ext in video_exts + sub_exts
+        )
+        ok, msg = validate_file_ext(file_path, media_exts)
         if not ok:
             json_response(self, 400, message=f"文件类型校验失败: {msg}")
             return

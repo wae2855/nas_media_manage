@@ -22,6 +22,8 @@ from .utils import json_response, read_json_body, ThreadingHTTPServer, format_ta
 from .static_server import StaticServerMixin
 from .task_handlers import TaskHandlersMixin
 from .config_handlers import ConfigHandlersMixin
+from .connectivity_handlers import ConnectivityHandlersMixin
+from .tmdb_handlers import TMDbHandlersMixin
 from .dimension_handlers import DimensionHandlersMixin
 from .prompt_handlers import PromptHandlersMixin
 from .provider_handlers import ProviderHandlersMixin
@@ -34,6 +36,8 @@ class APIHandler(
     StaticServerMixin,
     TaskHandlersMixin,
     ConfigHandlersMixin,
+    ConnectivityHandlersMixin,
+    TMDbHandlersMixin,
     DimensionHandlersMixin,
     PromptHandlersMixin,
     ProviderHandlersMixin,

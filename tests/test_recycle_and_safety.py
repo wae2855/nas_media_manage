@@ -11,8 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.core.safety import (
     move_to_recycle, move_to_recycle_with_companions,
-    make_fingerprint, _recycle_subpath, _determine_source_zone,
-    safe_delete, validate_path_safety,
+    make_fingerprint, safe_delete, validate_path_safety,
+)
+from media_importer.core.recycle.manager import (
+    _recycle_subpath, _determine_source_zone,
 )
 from media_importer.core.db.connection import init_db
 from media_importer.core.db.task_repo import (

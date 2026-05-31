@@ -2,6 +2,71 @@ let currentConfig = {};
 
 var _currentConfigSubTab = 'import';
 
+var _advancedConfigExpanded = false;
+
+function toggleAdvancedConfig() {
+    var toggle = document.querySelector('.config-advanced-toggle');
+    var container = document.getElementById('advanced-config-container');
+    var wrapper = document.getElementById('config-cards-wrapper');
+    
+    _advancedConfigExpanded = !_advancedConfigExpanded;
+    
+    if (_advancedConfigExpanded) {
+        toggle.classList.add('expanded');
+        
+        if (wrapper) {
+            wrapper.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 1, 1), opacity 0.4s ease-out';
+            wrapper.style.transform = 'translateY(-100px) scale(0.95)';
+            wrapper.style.opacity = '0';
+            setTimeout(() => {
+                wrapper.style.display = 'none';
+            }, 450);
+        }
+        
+        container.style.transform = 'translateY(400px)';
+        container.style.opacity = '0';
+        
+        setTimeout(() => {
+            container.classList.add('open');
+            container.classList.add('reveal');
+            requestAnimationFrame(() => {
+                container.style.transition = 'transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease-out';
+                container.style.transform = '';
+                container.style.opacity = '';
+            });
+        }, 200);
+    } else {
+        container.classList.remove('open');
+        container.classList.remove('reveal');
+        container.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 1, 1), opacity 0.4s ease-out';
+        container.style.transform = 'translateY(400px)';
+        container.style.opacity = '0';
+        
+        setTimeout(() => {
+            container.style.transform = '';
+        }, 500);
+        
+        if (wrapper) {
+            wrapper.style.display = '';
+            wrapper.style.transform = 'translateY(100px) scale(0.95)';
+            wrapper.style.opacity = '0';
+            
+            setTimeout(() => {
+                requestAnimationFrame(() => {
+                    wrapper.style.transition = 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease-out';
+                    wrapper.style.transform = '';
+                    wrapper.style.opacity = '';
+                });
+            }, 100);
+        }
+        
+        setTimeout(() => {
+            toggle.classList.remove('expanded');
+            container.style.opacity = '';
+        }, 500);
+    }
+}
+
 var _navStack = [{ view: 'home', breadcrumb: '配置' }];
 
 var _viewConfig = {
