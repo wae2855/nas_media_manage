@@ -2,6 +2,7 @@
 
 ## Code
 
+- `media_importer/pipeline/context.py`
 - `media_importer/pipeline/runner.py`
 - `media_importer/pipeline/steps.py`
 - `media_importer/pipeline/steps_file.py`
@@ -15,7 +16,7 @@
 
 ## Direction
 
-后续将引入 `TaskContext`、`TaskLifecycle` 和 pipeline services，减少 step 内混合业务策略和基础设施调用。
+已引入 `TaskContext`，并开始通过 `TaskLifecycle` 集中任务状态流转。后续将继续抽取 pipeline services，减少 step 内混合业务策略和基础设施调用。
 
 ## Tests
 

@@ -4,6 +4,7 @@ import shutil
 import threading
 from datetime import datetime
 
+from .task_lifecycle import reset_for_retry
 from .db import (
     init_db, create_task as db_create_task,
     get_task as db_get_task,
@@ -124,22 +125,7 @@ class TaskManager:
         task = db_get_task(self.conn, task_id)
         if not task or task.get("status") not in ("FAILED", "SKIPPED"):
             return None
-        db_update_task(
-            self.conn, task_id,
-            status="PENDING",
-            retry_count=task.get("retry_count", 0) + 1,
-            error_code=0,
-            error_message="",
-            current_step=0,
-            step_name="",
-            percentage=0,
-            video_path="",
-            import_video_path="",
-            import_path="",
-            final_filename="",
-            classify_result="",
-            file_location="source",
-        )
+        db_update_task(self.conn, task_id, **reset_for_retry(task))
         return db_get_task(self.conn, task_id)
 
     def retry_all_failed(self) -> list:
@@ -147,22 +133,7 @@ class TaskManager:
         retried = []
         for task in rows:
             if task["status"] in ("FAILED", "SKIPPED"):
-                db_update_task(
-                    self.conn, task["task_id"],
-                    status="PENDING",
-                    retry_count=task.get("retry_count", 0) + 1,
-                    error_code=0,
-                    error_message="",
-                    current_step=0,
-                    step_name="",
-                    percentage=0,
-                    video_path="",
-                    import_video_path="",
-                    import_path="",
-                    final_filename="",
-                    classify_result="",
-                    file_location="source",
-                )
+                db_update_task(self.conn, task["task_id"], **reset_for_retry(task))
                 retried.append(task)
         return retried
 

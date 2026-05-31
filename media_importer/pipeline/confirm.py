@@ -1,7 +1,16 @@
 import os
-from datetime import datetime
 from media_importer.core.db import update_task as db_update_task, update_subtitles_by_task as db_update_subs
+from media_importer.core.task_lifecycle import (
+    FILE_LOCATION_RECYCLE,
+    FILE_LOCATION_SOURCE,
+    mark_confirmed,
+    mark_failed,
+    mark_imported,
+    mark_processing_step,
+    mark_skipped,
+)
 from media_importer.storage.classifier import classify, render_template
+from .context import TaskContext
 from .utils import PipelineError, PipelineSkipError
 
 
@@ -10,17 +19,14 @@ class ConfirmMixin:
         task = self.task_manager.get_task(task_id)
         if not task or task.get("status") != "CONFIRMING":
             raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN')}")
+        ctx = TaskContext(task)
         tid = task_id
         original_source_video = task.get("source_path", "")
         subtitle_source_files = task.get("subtitle_source_files", [])
         original_source_subs = subtitle_source_files or task.get("subtitle_files", [])
         temp_video_path_for_cleanup = task.get("video_path", "")
 
-        task["confirm_status"] = "CONFIRMED"
-        task["confirmed_at"] = datetime.now().isoformat()
-        db_update_task(self.task_manager.conn, tid,
-                       confirm_status="CONFIRMED",
-                       confirmed_at=task["confirmed_at"])
+        db_update_task(self.task_manager.conn, tid, **mark_confirmed(ctx))
 
         db_update_subs(self.task_manager.conn, tid,
                        confirm_status="CONFIRMED")
@@ -30,13 +36,7 @@ class ConfirmMixin:
             self._step_notify(task)
             self._step_record(task)
 
-            task["status"] = "SUCCESS"
-            task["completed_at"] = datetime.now().isoformat()
-            task["import_success"] = 1
-            db_update_task(self.task_manager.conn, tid,
-                           status="SUCCESS", completed_at=task["completed_at"],
-                           import_success=1, file_location="import",
-                           import_video_path=task.get("import_video_path", ""))
+            db_update_task(self.task_manager.conn, tid, **mark_imported(ctx))
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")
@@ -44,14 +44,13 @@ class ConfirmMixin:
             return True
         except Exception as e:
             error_msg = str(e)
-            task["status"] = "FAILED"
-            task["error_message"] = error_msg
-            task["completed_at"] = datetime.now().isoformat()
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
             db_update_task(self.task_manager.conn, tid,
-                           status="FAILED", error_message=error_msg,
-                           completed_at=task["completed_at"],
-                           file_location="source")
+                           **mark_failed(
+                               ctx, error_msg,
+                               file_location=FILE_LOCATION_SOURCE,
+                               video_path=None,
+                           ))
             self._log("error", f"确认入库失败: {task.get('source_filename', '')} - {e}", task)
             return False
 
@@ -59,6 +58,7 @@ class ConfirmMixin:
         task = self.task_manager.get_task(task_id)
         if not task:
             raise PipelineError(f"任务不存在: {task_id}")
+        ctx = TaskContext(task)
         tid = task_id
         temp_video_path_for_cleanup = task.get("video_path", "")
 
@@ -100,14 +100,15 @@ class ConfirmMixin:
 
         task["import_path"] = import_path
         task["classify_result"] = import_path
-        task["status"] = "PROCESSING"
+        fields = mark_processing_step(
+            ctx, current_step=5, step_name="classify", percentage=50
+        )
+        fields.update({
+            "import_path": import_path,
+            "classify_result": import_path,
+        })
         db_update_task(self.task_manager.conn, tid,
-                       import_path=import_path,
-                       classify_result=import_path,
-                       status="PROCESSING",
-                       current_step=5,
-                       step_name="classify",
-                       percentage=50)
+                       **fields)
         self._log("info", f"任务重新分类完成: {import_path}，继续后续流程", task, "classify")
 
         try:
@@ -120,21 +121,12 @@ class ConfirmMixin:
             self._step_notify(task)
             self._step_record(task)
 
-            task["status"] = "SUCCESS"
-            task["completed_at"] = datetime.now().isoformat()
-            task["import_success"] = 1
-            db_update_task(self.task_manager.conn, tid,
-                           status="SUCCESS", completed_at=task["completed_at"],
-                           import_success=1, file_location="import",
-                           import_video_path=task.get("import_video_path", ""))
+            db_update_task(self.task_manager.conn, tid, **mark_imported(ctx))
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")
             self._log("info", f"重新分类入库成功: {task.get('source_filename', '')}", task)
         except PipelineSkipError as e:
-            task["status"] = "SKIPPED"
-            task["skip_reason"] = str(e)
-            task["completed_at"] = datetime.now().isoformat()
             source_policy = self.config.get("source_policy", {})
             recycle_dir = source_policy.get("recycle_dir", "")
             source_dir = self.config.get('source_dir', '')
@@ -148,30 +140,31 @@ class ConfirmMixin:
                     recycle_dir=recycle_dir,
                 )
                 db_update_task(self.task_manager.conn, tid,
-                               status="SKIPPED", skip_reason=str(e),
-                               completed_at=task["completed_at"],
-                               file_location="recycle", video_path="")
+                               **mark_skipped(
+                                   ctx, str(e),
+                                   file_location=FILE_LOCATION_RECYCLE,
+                               ))
             elif source_path and source_path.startswith(recycle_dir):
                 db_update_task(self.task_manager.conn, tid,
-                               status="SKIPPED", skip_reason=str(e),
-                               completed_at=task["completed_at"],
-                               file_location="recycle", video_path="")
+                               **mark_skipped(
+                                   ctx, str(e),
+                                   file_location=FILE_LOCATION_RECYCLE,
+                               ))
             else:
                 db_update_task(self.task_manager.conn, tid,
-                               status="SKIPPED", skip_reason=str(e),
-                               completed_at=task["completed_at"],
-                               file_location="source", video_path="")
+                               **mark_skipped(
+                                   ctx, str(e),
+                                   file_location=FILE_LOCATION_SOURCE,
+                               ))
             self._log("info", f"重新分类后跳过: {task.get('source_filename', '')} - {e}", task)
         except Exception as e:
             error_msg = str(e)
-            task["status"] = "FAILED"
-            task["error_message"] = error_msg
-            task["completed_at"] = datetime.now().isoformat()
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
             db_update_task(self.task_manager.conn, tid,
-                           status="FAILED", error_message=error_msg,
-                           completed_at=task["completed_at"],
-                           file_location="source", video_path="")
+                           **mark_failed(
+                               ctx, error_msg,
+                               file_location=FILE_LOCATION_SOURCE,
+                           ))
             self._log("error", f"重新分类入库失败: {task.get('source_filename', '')} - {e}", task)
 
         return self.task_manager.get_task(tid)

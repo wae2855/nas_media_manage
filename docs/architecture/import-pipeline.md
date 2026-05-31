@@ -16,14 +16,14 @@ scan -> copy -> scrape -> validate -> classify -> dedup -> rename -> import -> n
 
 ## Direction
 
-后续 pipeline 会逐步引入：
+pipeline 已开始逐步引入：
 
-- `TaskContext`
-- `TaskLifecycle`
+- `TaskContext`: `media_importer/pipeline/context.py`
+- `TaskLifecycle`: `media_importer/core/task_lifecycle.py`
 - `ClassificationService`
 - `DedupService`
 - `ImportService`
 - `SourceCleanupService`
 - `ReviewDecisionService`
 
-本文件在服务化重构完成后再补全详细事实。
+当前 `TaskContext` 和 `TaskLifecycle` 已接入 runner、confirm 和 retry 逻辑。服务化重构完成后再补全详细事实。

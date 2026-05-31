@@ -25,4 +25,17 @@
 
 ## Direction
 
-后续会新增 `core/task_lifecycle.py`，集中状态转换和文件位置规则。当前文档暂不深写所有转换细节，避免在即将重构前固化散落逻辑。
+已新增 `media_importer/core/task_lifecycle.py`，用于集中状态转换和文件位置规则。
+
+当前已集中：
+
+- processing 开始；
+- temp ready；
+- confirming；
+- needs review；
+- failed；
+- skipped；
+- imported；
+- retry reset。
+
+当前仍保持兼容：pipeline step 继续接收原始 task dict，后续服务化重构再逐步扩大使用范围。

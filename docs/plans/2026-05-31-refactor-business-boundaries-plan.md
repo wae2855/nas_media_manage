@@ -2,7 +2,7 @@
 title: "refactor: 业务边界显式化重构"
 type: plan
 date: 2026-05-31
-status: pending
+status: in_progress
 brainstorm: docs/方案/任务状态模型与文件流转重构.md
 confidence: medium
 ---
@@ -87,12 +87,19 @@ media_importer/
 
 目标：确认当前坏测试边界，避免把既有失败误判成重构回归。
 
-- [ ] 记录当前 git 状态和相关文件变更范围。
-- [ ] 阅读 `.pytest_cache/v/cache/lastfailed`，确认已知失败。
-- [ ] 跑非 UI 单元测试基线：
+- [x] 记录当前 git 状态和相关文件变更范围。
+- [x] 阅读 `.pytest_cache/v/cache/lastfailed`，确认已知失败。
+- [x] 跑非 UI 单元测试基线：
   - `pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py`
-- [ ] 若全量非 UI 测试过大，至少跑：
+- [x] 若全量非 UI 测试过大，至少跑：
   - `pytest tests/test_task_operations.py tests/test_full_flow.py tests/test_e2e_file_processing.py tests/test_recycle_and_safety.py`
+
+执行记录：
+
+- `pytest` 命令不存在，改用 `python3 -m pytest`。
+- `python3 -m pytest tests/test_task_context_lifecycle.py tests/test_task_operations.py tests/test_sqlite_refactor.py` 中 `tests/test_sqlite_refactor.py` 的 13 个失败与 `.pytest_cache/v/cache/lastfailed` 一致。
+- `python3 -m pytest tests/test_task_context_lifecycle.py tests/test_task_operations.py` 通过：54 passed。
+- 已知失败清单记录在 `docs/testing/known-failures.md`。
 
 退出标准：记录可接受的基线失败；后续阶段只对新增失败负责。
 
@@ -100,8 +107,8 @@ media_importer/
 
 目标：降低 pipeline 内部任务字段的搜索成本，但不要求一次性替换所有 `dict`。
 
-- [ ] 新建 `pipeline/context.py`。
-- [ ] 定义 `TaskContext`，内部持有原始 `dict`，提供：
+- [x] 新建 `pipeline/context.py`。
+- [x] 定义 `TaskContext`，内部持有原始 `dict`，提供：
   - `task_id`
   - `source_path`
   - `current_video_path`
@@ -113,9 +120,9 @@ media_importer/
   - `mark_scraped(result)`
   - `to_update_fields(...)`
   - `raw` 兼容入口
-- [ ] 在 `PipelineRunner.process_one()` 入口创建 context，但保留旧 step 接收 `dict`。
-- [ ] 先在 runner 的状态判断和清理路径中使用 context，避免大范围改 step。
-- [ ] 为 context 添加单元测试，验证对现有任务 dict 字段的读写兼容。
+- [x] 在 `PipelineRunner.process_one()` 入口创建 context，但保留旧 step 接收 `dict`。
+- [x] 先在 runner 的状态判断和清理路径中使用 context，避免大范围改 step。
+- [x] 为 context 添加单元测试，验证对现有任务 dict 字段的读写兼容。
 
 退出标准：`PipelineRunner` 能通过 context 表达主路径关键字段；旧 step 不需要大改；现有测试不新增失败。
 
@@ -123,9 +130,9 @@ media_importer/
 
 目标：把 `status`、`confirm_status`、`file_location`、完成时间、错误字段的组合规则收敛。
 
-- [ ] 新建 `core/task_lifecycle.py`。
-- [ ] 定义状态和文件位置常量，复用现有 DB 合法状态，不改变 schema。
-- [ ] 定义状态转换函数：
+- [x] 新建 `core/task_lifecycle.py`。
+- [x] 定义状态和文件位置常量，复用现有 DB 合法状态，不改变 schema。
+- [x] 定义状态转换函数：
   - `start_processing(ctx)`
   - `mark_temp_ready(ctx)`
   - `mark_confirming(ctx, reason)`
@@ -134,10 +141,10 @@ media_importer/
   - `mark_skipped(ctx, reason)`
   - `mark_imported(ctx, import_path)`
   - `reset_for_retry(task)`
-- [ ] 在 `runner.py` 替换直接 `db_update_task(... status=..., file_location=...)` 的高风险重复片段。
-- [ ] 在 `confirm.py` 替换确认、忽略、重分类后的状态更新片段。
-- [ ] 在 `task_manager.retry_task()` / `retry_all_failed()` 使用 lifecycle 的 retry 字段规则。
-- [ ] 添加状态转换单元测试，覆盖 PENDING、PROCESSING、CONFIRMING、FAILED、SKIPPED、SUCCESS 与 `file_location` 组合。
+- [x] 在 `runner.py` 替换直接 `db_update_task(... status=..., file_location=...)` 的高风险重复片段。
+- [x] 在 `confirm.py` 替换确认、忽略、重分类后的状态更新片段。
+- [x] 在 `task_manager.retry_task()` / `retry_all_failed()` 使用 lifecycle 的 retry 字段规则。
+- [x] 添加状态转换单元测试，覆盖 PENDING、PROCESSING、CONFIRMING、FAILED、SKIPPED、SUCCESS 与 `file_location` 组合。
 
 退出标准：新增状态或调整文件位置规则时，主要修改点集中在 `task_lifecycle.py` 和测试。
 
@@ -207,7 +214,7 @@ media_importer/
 目标：让未来 AI 和人按新边界接手。
 
 - [ ] 更新 `docs/系统架构总览.md` 的模块依赖和核心数据流。
-- [ ] 更新 `docs/架构/流水线处理.md`，补充 `TaskContext`、`TaskLifecycle`、services 边界。
+- [x] 更新 `docs/architecture/import-pipeline.md` 和 `docs/architecture/task-lifecycle.md`，补充 `TaskContext`、`TaskLifecycle`、services 边界。
 - [ ] 更新 `docs/架构/任务管理.md`，集中描述状态转换和 `file_location` 规则。
 - [ ] 若 API route table 落地，更新 `docs/规范/接口规范.md` 的新增端点维护规则。
 - [ ] 回写本计划的完成状态和实施偏差。

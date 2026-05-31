@@ -1,0 +1,157 @@
+from datetime import datetime
+
+
+STATUS_PENDING = "PENDING"
+STATUS_PROCESSING = "PROCESSING"
+STATUS_CONFIRMING = "CONFIRMING"
+STATUS_NEEDS_REVIEW = "NEEDS_REVIEW"
+STATUS_FAILED = "FAILED"
+STATUS_SKIPPED = "SKIPPED"
+STATUS_SUCCESS = "SUCCESS"
+
+CONFIRM_NONE = "NONE"
+CONFIRM_PENDING = "PENDING"
+CONFIRM_CONFIRMED = "CONFIRMED"
+
+FILE_LOCATION_SOURCE = "source"
+FILE_LOCATION_TEMP = "temp"
+FILE_LOCATION_IMPORT = "import"
+FILE_LOCATION_RECYCLE = "recycle"
+
+_NO_FIELD = object()
+
+
+def _now() -> str:
+    return datetime.now().isoformat()
+
+
+def _raw(task):
+    return getattr(task, "raw", task)
+
+
+def _apply(task, **fields) -> dict:
+    data = _raw(task)
+    update_fields = {}
+    for key, value in fields.items():
+        if value is _NO_FIELD:
+            continue
+        data[key] = value
+        update_fields[key] = value
+    return update_fields
+
+
+def current_video_path(task) -> str:
+    data = _raw(task)
+    return data.get("video_path") or data.get("source_path", "")
+
+
+def start_processing(task, *, started_at: str = None) -> dict:
+    return _apply(
+        task,
+        status=STATUS_PROCESSING,
+        started_at=started_at or _now(),
+    )
+
+
+def mark_processing_step(task, *, current_step: int, step_name: str,
+                         percentage: int) -> dict:
+    return _apply(
+        task,
+        status=STATUS_PROCESSING,
+        current_step=current_step,
+        step_name=step_name,
+        percentage=percentage,
+    )
+
+
+def mark_temp_ready(task, *, video_path: str = None) -> dict:
+    return _apply(
+        task,
+        file_location=FILE_LOCATION_TEMP,
+        video_path=video_path if video_path is not None else current_video_path(task),
+    )
+
+
+def mark_confirmed(task, *, confirmed_at: str = None) -> dict:
+    return _apply(
+        task,
+        confirm_status=CONFIRM_CONFIRMED,
+        confirmed_at=confirmed_at or _now(),
+    )
+
+
+def mark_confirming(task, reason=_NO_FIELD, *, video_path: str = None) -> dict:
+    return _apply(
+        task,
+        status=STATUS_CONFIRMING,
+        confirm_status=CONFIRM_PENDING,
+        video_path=video_path if video_path is not None else current_video_path(task),
+        file_location=FILE_LOCATION_TEMP,
+        error_message=reason,
+    )
+
+
+def mark_needs_review(task, reason: str, *, video_path: str = None) -> dict:
+    return _apply(
+        task,
+        status=STATUS_NEEDS_REVIEW,
+        error_message=reason,
+        video_path=video_path if video_path is not None else current_video_path(task),
+        file_location=FILE_LOCATION_TEMP,
+    )
+
+
+def mark_failed(task, error_message: str, *, file_location: str = FILE_LOCATION_SOURCE,
+                video_path="", completed: bool = True) -> dict:
+    return _apply(
+        task,
+        status=STATUS_FAILED,
+        error_message=error_message,
+        completed_at=_now() if completed else _NO_FIELD,
+        file_location=file_location,
+        video_path=_NO_FIELD if video_path is None else video_path,
+    )
+
+
+def mark_skipped(task, reason: str, *, file_location: str = FILE_LOCATION_SOURCE,
+                 video_path="") -> dict:
+    return _apply(
+        task,
+        status=STATUS_SKIPPED,
+        skip_reason=reason,
+        completed_at=_now(),
+        file_location=file_location,
+        video_path=_NO_FIELD if video_path is None else video_path,
+    )
+
+
+def mark_imported(task, *, import_video_path: str = None) -> dict:
+    return _apply(
+        task,
+        status=STATUS_SUCCESS,
+        completed_at=_now(),
+        import_success=1,
+        file_location=FILE_LOCATION_IMPORT,
+        import_video_path=import_video_path
+        if import_video_path is not None else _raw(task).get("import_video_path", ""),
+    )
+
+
+def reset_for_retry(task) -> dict:
+    data = _raw(task)
+    return _apply(
+        task,
+        status=STATUS_PENDING,
+        retry_count=data.get("retry_count", 0) + 1,
+        error_code=0,
+        error_message="",
+        current_step=0,
+        step_name="",
+        percentage=0,
+        video_path="",
+        import_video_path="",
+        import_path="",
+        final_filename="",
+        classify_result="",
+        file_location=FILE_LOCATION_SOURCE,
+    )

@@ -1,17 +1,28 @@
 import os
 import time
 import threading
-from datetime import datetime
 from media_importer.core.db import (
     update_task as db_update_task,
     get_subtitles_by_task as db_get_subtitles,
     count_subtitles_by_task as db_count_subs,
+)
+from media_importer.core.task_lifecycle import (
+    FILE_LOCATION_SOURCE,
+    FILE_LOCATION_TEMP,
+    mark_confirming,
+    mark_failed,
+    mark_imported,
+    mark_needs_review,
+    mark_skipped,
+    mark_temp_ready,
+    start_processing,
 )
 from media_importer.storage.file_scanner import FileScanner
 from media_importer.storage.file_copier import FileCopier
 from media_importer.scraper.metadata_scraper import MetadataScraper
 from media_importer.storage.file_mover import delete_source_files
 from media_importer.notify.hooks import HookRunner
+from .context import TaskContext
 from .utils import PipelineSkipError
 from .steps import StepsMixin
 from .confirm import ConfirmMixin
@@ -116,57 +127,46 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         return tasks
 
     def process_one(self, task: dict) -> bool:
-        original_source_video = task.get("source_path") or task.get("video_path", "")
-        original_source_subs = list(task.get("subtitle_files", []))
+        ctx = TaskContext(task)
+        original_source_video = ctx.source_path or ctx.current_video_path
+        original_source_subs = list(ctx.subtitle_files)
         temp_video_path_for_cleanup = None
 
-        tid = task.get("task_id", "")
+        tid = ctx.task_id
 
-        task["status"] = "PROCESSING"
-        task["started_at"] = datetime.now().isoformat()
-        db_update_task(self.task_manager.conn, tid,
-                       status="PROCESSING", started_at=task["started_at"])
+        db_update_task(self.task_manager.conn, tid, **start_processing(ctx))
 
         try:
             self.hooks.run_before_process(task)
             self._step_copy(task)
-            temp_video_path_for_cleanup = task.get("video_path", "")
-            db_update_task(self.task_manager.conn, tid,
-                           file_location="temp", video_path=task.get("video_path", ""))
+            temp_video_path_for_cleanup = ctx.current_video_path
+            db_update_task(self.task_manager.conn, tid, **mark_temp_ready(ctx))
             self._step_scrape(task)
             self._step_validate(task)
 
             if task.get("_force_fail"):
                 fail_reason = task.get("_fail_reason", "未知失败原因")
-                task["status"] = "FAILED"
-                task["error_message"] = fail_reason
                 db_update_task(self.task_manager.conn, tid,
-                               status="FAILED", error_message=fail_reason,
-                               video_path=task.get("video_path", ""),
-                               file_location="temp")
+                               **mark_failed(
+                                   ctx, fail_reason,
+                                   file_location=FILE_LOCATION_TEMP,
+                                   video_path=ctx.current_video_path,
+                                   completed=False,
+                               ))
                 self._log("error", fail_reason, task)
                 return False
 
             if task.get("_needs_review"):
                 skip_reason = task.get("skip_reason", "需人工审核")
-                task["status"] = "NEEDS_REVIEW"
-                task["error_message"] = skip_reason
                 db_update_task(self.task_manager.conn, tid,
-                               status="NEEDS_REVIEW", error_message=skip_reason,
-                               video_path=task.get("video_path", ""),
-                               file_location="temp")
+                               **mark_needs_review(ctx, skip_reason))
                 self._log("warn", f"任务需人工审核: {skip_reason}", task)
                 return False
 
             if task.get("_needs_confirm"):
                 confirm_reason = task.get("_confirm_reason", "刮削信息不足")
-                task["confirm_status"] = "PENDING"
-                task["status"] = "CONFIRMING"
                 db_update_task(self.task_manager.conn, tid,
-                               confirm_status="PENDING", status="CONFIRMING",
-                               video_path=task.get("video_path", ""),
-                               file_location="temp",
-                               error_message=confirm_reason)
+                               **mark_confirming(ctx, confirm_reason))
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')} - {confirm_reason}", task)
                 self.hooks.run_after_success(task)
                 if self.metrics:
@@ -179,12 +179,8 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             review_enabled = manual_review.get("enabled", False)
 
             if review_enabled:
-                task["confirm_status"] = "PENDING"
-                task["status"] = "CONFIRMING"
                 db_update_task(self.task_manager.conn, tid,
-                               confirm_status="PENDING", status="CONFIRMING",
-                               video_path=task.get("video_path", ""),
-                               file_location="temp")
+                               **mark_confirming(ctx))
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')}", task)
                 self.hooks.run_after_success(task)
                 if self.metrics:
@@ -197,13 +193,8 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             self._step_notify(task)
             self._step_record(task)
 
-            task["status"] = "SUCCESS"
-            task["completed_at"] = datetime.now().isoformat()
-            task["import_success"] = 1
             db_update_task(self.task_manager.conn, tid,
-                           status="SUCCESS", completed_at=task["completed_at"],
-                           import_success=1, file_location="import",
-                           import_video_path=task.get("import_video_path", ""))
+                           **mark_imported(ctx))
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")
@@ -211,17 +202,11 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             return True
 
         except PipelineSkipError as e:
-            task["status"] = "SKIPPED"
-            task["skip_reason"] = str(e)
-            task["completed_at"] = datetime.now().isoformat()
+            fields = mark_skipped(ctx, str(e), file_location=FILE_LOCATION_SOURCE)
             self._log("info", f"任务跳过: {task.get('source_filename', '')} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
 
-            db_update_task(self.task_manager.conn, tid,
-                           status="SKIPPED", skip_reason=str(e),
-                           completed_at=task["completed_at"],
-                           file_location="source",
-                           video_path="")
+            db_update_task(self.task_manager.conn, tid, **fields)
 
             if self.metrics:
                 self.metrics.record_task_complete("skipped")
@@ -229,17 +214,11 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
         except Exception as e:
             error_msg = str(e)
-            task["status"] = "FAILED"
-            task["error_message"] = error_msg
-            task["completed_at"] = datetime.now().isoformat()
+            fields = mark_failed(ctx, error_msg, file_location=FILE_LOCATION_SOURCE)
             self._log("error", f"任务失败: {task.get('source_filename', '')} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
 
-            db_update_task(self.task_manager.conn, tid,
-                           status="FAILED", error_message=error_msg,
-                           completed_at=task["completed_at"],
-                           file_location="source",
-                           video_path="")
+            db_update_task(self.task_manager.conn, tid, **fields)
 
             self.hooks.run_after_failure(task)
             if self.metrics:

@@ -73,10 +73,16 @@ confidence: medium
 
 目标：把当前状态固定下来，后续任何重构都有明确基线。
 
-- [ ] 提交当前代码和文档为 baseline。
-- [ ] 记录当前分支、提交号、未提交内容数量。
-- [ ] 记录当前已知异常文件名或历史遗留文件。
-- [ ] 跑非 UI 测试基线，记录已知失败，不把旧失败算作重构回归。
+- [x] 提交当前代码和文档为 baseline。
+- [x] 记录当前分支、提交号、未提交内容数量。
+- [x] 记录当前已知异常文件名或历史遗留文件。
+- [x] 跑非 UI 测试基线，记录已知失败，不把旧失败算作重构回归。
+
+执行记录：
+
+- 基线提交：`1426c17 docs: establish ai-ready documentation framework`
+- 当前分支：`main`
+- 已知失败记录：`docs/testing/known-failures.md`
 
 验收标准：
 
@@ -133,12 +139,12 @@ confidence: medium
 
 目标：先解决最核心的隐式状态问题。
 
-- [ ] 新增 `pipeline/context.py`，定义 `TaskContext` 薄包装。
-- [ ] 新增 `core/task_lifecycle.py`，集中表达状态和 `file_location` 的转换。
-- [ ] 替换 `runner.py` 中重复的 `status/file_location/confirm_status` 直接更新。
-- [ ] 替换 `confirm.py` 和 `task_manager.py` 中 retry、confirm、ignore 的状态更新。
-- [ ] 增加状态转换测试。
-- [ ] 更新 `docs/架构/任务管理.md` 和 `docs/架构/流水线处理.md`。
+- [x] 新增 `pipeline/context.py`，定义 `TaskContext` 薄包装。
+- [x] 新增 `core/task_lifecycle.py`，集中表达状态和 `file_location` 的转换。
+- [x] 替换 `runner.py` 中重复的 `status/file_location/confirm_status` 直接更新。
+- [x] 替换 `confirm.py` 和 `task_manager.py` 中 retry、confirm、ignore 的状态更新。
+- [x] 增加状态转换测试。
+- [x] 更新 `docs/architecture/task-lifecycle.md` 和 `docs/architecture/import-pipeline.md`。
 
 验收标准：
 
