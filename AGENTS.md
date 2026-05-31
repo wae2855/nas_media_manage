@@ -1,117 +1,146 @@
-# 影音库AI智能整理
+# 影音库AI智能整理 - AI Agent Guide
 
-## 项目概述
+本文件是 AI 执行入口，只保留最高优先级规则和导航。详细规范见 `docs/standards/`，开发流程见 `docs/workflows/`。
 
-自动扫描源目录视频文件，通过 AI+TMDB 刮削元数据，按规则分类入库。运行在飞牛 fnOS NAS 上，提供 Web UI 管理界面。
+## 0. Start Here
 
-**完整文档入口**：[docs/系统架构总览.md](docs/系统架构总览.md)
+| 目标 | 入口 |
+|------|------|
+| 文档总入口 | [docs/README.md](docs/README.md) |
+| 代码/文档/测试索引 | [docs/INDEX.md](docs/INDEX.md) |
+| AI 任务导航 | [docs/ai-map.md](docs/ai-map.md) |
+| 代码规范 | [docs/standards/coding.md](docs/standards/coding.md) |
+| 架构规范 | [docs/standards/architecture.md](docs/standards/architecture.md) |
+| 文档规范 | [docs/standards/documentation.md](docs/standards/documentation.md) |
+| 测试规范 | [docs/standards/testing.md](docs/standards/testing.md) |
+| 安全规范 | [docs/standards/safety.md](docs/standards/safety.md) |
+| 功能开发流程 | [docs/workflows/feature-development.md](docs/workflows/feature-development.md) |
+| 重构流程 | [docs/workflows/refactor-development.md](docs/workflows/refactor-development.md) |
 
-## 开发命令
+## 1. Project Summary
+
+自动扫描源目录视频文件，通过 AI + TMDB/Provider 刮削元数据，按规则分类入库。运行在飞牛 fnOS NAS 上，提供原生 Web UI 管理任务、配置、维度、提示词、回收站和源目录清理。
+
+技术栈：
+
+- Python 3
+- SQLite + JSON 字段
+- 原生 HTTP API
+- 原生 HTML/CSS/JS
+- YAML 配置 + 自动迁移
+
+## 2. Commands
 
 ```bash
 # 安装依赖
 pip install -r requirements.txt
 
-# 启动开发服务（端口默认 9855）
+# 启动开发服务，端口默认 9855
 PYTHONPATH="${PWD}" python3 -m media_importer.media_importer -c config/config.yaml serve -p 9855 --host 0.0.0.0
+
 # 或用封装脚本
 ./start.sh [config] [host] [port]
 
-# 运行全部测试（需要服务先启动，因为包含 Playwright 端到端测试）
+# 全部测试，包含需要本地服务的 UI 测试
 pytest tests/
 
-# 运行单个测试文件
+# 单个测试文件
 pytest tests/test_sqlite_refactor.py
 
-# 只跑非 UI 的单元测试（跳过 Playwright 测试）
+# 非 UI 测试
 pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
 ```
 
-- 没有 `pyproject.toml`，没有 lint/formatter/typecheck 工具配置。本项目使用 pytest，但没有 `conftest.py` 或 pytest 配置文件。
-- Playwright UI 测试需要 `playwright` 模块和浏览器二进制（`python3 -m playwright install chromium`）。Playwright 测试依赖本地运行的服务，端口 9855。
-- 许多测试已知存在失败（见 `.pytest_cache/v/cache/lastfailed`），修改前先确认哪些测试已坏。
+测试前注意：
 
-## 目录结构
+- 项目没有 `pyproject.toml`，没有统一 lint/formatter/typecheck 配置。
+- UI 测试依赖 Playwright 模块、浏览器二进制和本地运行服务。
+- 许多测试可能已有历史失败，改动前先看 `.pytest_cache/v/cache/lastfailed`。
 
-```
-nas_media_manage/
-├── media_importer/          # 后端 Python 包（唯一源码目录）
-│   ├── media_importer.py    # CLI 入口：scan / serve / process 子命令
-│   ├── core/                # db / config / recycle / logger / metrics / safety
-│   ├── scraper/             # providers / llm_scraper / confidence_engine / filename_cleaner / title_matcher / dimension_manager
-│   ├── storage/             # scanner / copier / mover / analyzer / dedup / classifier
-│   ├── pipeline/            # runner / steps / steps_scrape / steps_file / confirm
-│   ├── api/                 # HTTP API（handler.py 路由 + Mixin 组合）
-│   ├── notify/              # hermes_hook / hooks
-│   ├── monitor/             # file_watcher / permission_checker
-│   └── webui/               # 前端（index.html + js/ + css/，原生 JS，无构建）
-├── config/                  # 本地开发配置（config/config.yaml gitignored）
-├── deploy/                  # fnOS 部署目录，手动同步，AI 不自动执行
-│   └── nas-media-importer/  # 内含 media_importer 副本，与根目录独立
-├── docs/                    # 架构 / 规范 / 方案 / 计划
-├── tests/                   # 测试文件
-└── data/                    # SQLite 数据目录（gitignored）
+## 3. Source Layout
+
+```text
+media_importer/
+├── media_importer.py          # CLI 入口
+├── api/                       # HTTP API 和静态文件服务
+├── core/                      # 配置、DB、任务、安全、回收站、日志、指标
+├── pipeline/                  # 任务处理编排、确认、重分类
+├── scraper/                   # LLM、Provider、置信度、维度映射
+├── storage/                   # 文件扫描、复制、移动、分类、去重、源目录清理
+├── monitor/                   # 文件监控、权限检查
+├── notify/                    # Hermes 和 hook 通知
+└── webui/                     # 原生前端
 ```
 
-## 导入规范
+`deploy/` 内有部署副本，不是默认开发源。不要自动同步或修改 deploy，除非任务明确要求。
 
-- 跨子包导入：`from media_importer.core.db import ...`
-- 同子包内相对导入：`from .utils import ...`
-- `PYTHONPATH` 必须包含项目根目录，否则跨子包导入会失败
+## 4. Highest Priority Safety Rules
 
-## 代码风格
+- 删除或覆盖影视文件必须走回收站，禁止直接 `os.remove()` 删除源文件或入库文件。
+- 临时文件只在明确属于 `temp_dir` 或 `.tmp` / `.copying` 边界时可直接删除。
+- 文件操作必须限制在允许目录内，避免路径穿越和误删。
+- 敏感配置项返回前端前必须脱敏为 `***`。
+- 不要回滚用户已有改动；在 dirty worktree 中只处理本任务相关文件。
 
-- 不加注释，代码自解释
-- CSS 使用变量体系：`var(--text-primary)`，不硬编码颜色值
-- 前端 JS 按功能拆模块：api / config / tasks / path-rules / prompts / dimensions / app
+完整安全规则见 [docs/standards/safety.md](docs/standards/safety.md)。
 
-## 关键架构决策
+## 5. Change Impact Rules
 
-| 决策 | 选择 | 原因 |
-|------|------|------|
-| API 架构 | Mixin 组合模式 | 路由集中在 handler.py，逻辑分散在 Mixin |
-| 数据库 | SQLite + JSON 字段 | 轻量，刮削结果灵活存储 |
-| 前端 | 原生 JS + CSS 变量 | 无构建依赖，NAS 环境友好 |
-| 配置格式 | YAML + 自动迁移 | 人类可读，向后兼容 |
+| 改动类型 | 必须同步 |
+|----------|----------|
+| 新增 API | `docs/architecture/api.md`, `docs/modules/api.md`, `docs/standards/api.md`, `docs/INDEX.md` |
+| 新增配置项 | loader/migration/validator/API/frontend/docs/tests |
+| 修改任务状态 | DB constants/task manager/pipeline/API/frontend/docs/tests |
+| 修改文件删除/覆盖逻辑 | safety/recycle 文档和回收站测试 |
+| 新增 Provider | Provider 文档、配置、API、测试 |
+| 大架构重构 | plan + ADR + 相关 architecture/modules 文档 |
 
-## 安全规则（必须遵守）
+详细映射见 [docs/INDEX.md](docs/INDEX.md) 和 [docs/ai-map.md](docs/ai-map.md)。
 
-- 所有删除/覆盖影视文件必须通过 `move_to_recycle()` 移入回收站，禁止直接 `os.remove()`
-- 临时文件（`.tmp` / `.copying`）可直接删除
-- 源文件清理受 `cleanup_mode` 门控：read_only / smart_cleanup / full_cleanup
-- 敏感配置项（api_key / secret）返回前端时脱敏为 `***`
+## 6. Coding Rules
 
-## 配置变更
+- Python 文件建议不超过 500 行。
+- 文档建议不超过 500 行。
+- API handler 不承载复杂业务策略。
+- pipeline 长期目标是调用 services，而不是混合所有业务细节。
+- 同子包内相对导入；跨子包使用 `media_importer.xxx` 绝对导入。
+- 不添加无意义注释；复杂规则优先写入文档。
+- CSS 使用变量体系，不硬编码颜色。
+- 前端 JS 按功能模块拆分。
 
-- 配置键变更必须在 `core/config_migrations.py` 添加自动迁移逻辑
-- 新增配置项需同步：config_loader -> config_migrations -> config_validator -> config_handlers -> 前端
+完整规则见 [docs/standards/coding.md](docs/standards/coding.md)。
 
-## 任务状态变更
+## 7. Workflow Rules
 
-- 新增状态需全链路更新：constants.py -> task_manager.py -> pipeline/ -> api/ -> 前端
-- `file_location` 追踪文件当前位置，必须与状态保持一致
+新功能：
 
-## API 规范
+1. Brainstorm
+2. Proposal
+3. ADR if architecture decision is needed
+4. Plan
+5. Implementation
+6. Unit -> Integration -> UI/Regression tests
+7. Documentation update
+8. Review and commit
 
-- 路由注册在 `api/handler.py`，处理逻辑在对应 Mixin 中
-- 统一 JSON 响应格式：`{code, status, message, data}`
-- 新增端点需同步更新 `docs/规范/接口规范.md`
+重构：
 
-## 测试规范
+1. 确认 baseline commit
+2. 明确目标和非目标
+3. 分阶段保持可运行
+4. 结构重构和行为变更分开
+5. 每阶段同步文档和测试
 
-- 三层结构：单元测试（unittest）-> 集成测试（unittest + urllib）-> 前端测试（Playwright）
-- 命名：单元 `test_<模块>.py`，集成 `test_integration_<功能>.py`，前端 `test_frontend_<功能>.py`
-- 测试执行顺序：先单元 -> 再集成 -> 最后前端
+完整流程见 [docs/workflows/](docs/workflows/)。
 
-## 文档规范
+## 8. Current Refactor Direction
 
-- docs 目录分类型：架构/规范/方案/计划；文档命名用中文
-- 新功能开发必须先写方案到 `docs/方案/`，实施后回写文档
-- 方案文档标记状态：✅ 已实施 / 🔄 进行中 / 📋 待评审
-- 文档边界：各自有明确职责，不重复描述，通过链接引用
+当前大方向是 AI 友好架构重构：
 
-## 部署
+- 先建立文档导航、规范、工作流和 ADR。
+- 再做 `TaskContext`、`TaskLifecycle`。
+- 再抽 pipeline services。
+- 再做 config facade 和 API route table。
+- 最后补全详细架构事实文档。
 
-```bash
-python3 -m media_importer.media_importer -c <config> serve -p <port> --host <host>
-```
+路线图见 [docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md](docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md)。

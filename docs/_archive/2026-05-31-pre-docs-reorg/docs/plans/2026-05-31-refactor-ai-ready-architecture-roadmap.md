@@ -88,32 +88,16 @@ confidence: medium
 
 目标：先让 AI 和人知道“从哪里读、改哪里、怎么验证”。
 
-- [x] 重写根目录 `AGENTS.md`，从项目说明升级为 AI 操作手册。
-- [x] 建立文档入口、项目索引和 AI 导航：
-  - `docs/README.md`
-  - `docs/INDEX.md`
-  - `docs/ai-map.md`
-- [x] 建立新文档目录骨架：
-  - `product/`
-  - `architecture/`
-  - `modules/`
-  - `standards/`
-  - `workflows/`
-  - `decisions/`
-  - `testing/`
-  - `proposals/`
-- [x] 备份旧文档和旧 `AGENTS.md` 到 `_archive/`。
-- [x] 建立 `standards/`、`workflows/`、`decisions/`、`testing/` 的基础规则。
-- [ ] 后续按代码重构结果补全 architecture/modules 详细事实。
-- [ ] 原计划中的 `docs/架构/AI开发导航.md` 调整为 `docs/ai-map.md`：
+- [ ] 重写根目录 `AGENTS.md`，从项目说明升级为 AI 操作手册。
+- [ ] 新增或重组 `docs/架构/AI开发导航.md`：
   - 常见任务到代码入口映射；
   - 新增配置项清单；
   - 新增 API 清单；
   - 新增 pipeline step 清单；
   - 文件操作安全规则；
   - 测试选择指南。
-- [ ] 在代码架构重构稳定后，更新旧 `docs/系统架构总览.md` 或迁移为新 `docs/architecture/overview.md`。
-- [ ] 在代码架构重构稳定后，补全核心业务域详细事实：
+- [ ] 更新 `docs/系统架构总览.md`，减少重复描述，改为架构索引。
+- [ ] 给核心业务域建立入口文档：
   - 任务与状态；
   - 刮削与 Provider；
   - 入库流水线；
@@ -127,7 +111,6 @@ confidence: medium
 - AI 修改一个常见功能时，能从文档 2-3 次跳转定位到代码。
 - 文档明确“新增功能必须改哪些层”。
 - 文档不再只是说明现状，而是能指导操作。
-- 当前阶段遵循“框架先行，事实后补”，不在后续代码大重构前深写易漂移细节。
 
 ### Phase 2: 任务上下文与状态生命周期
 
