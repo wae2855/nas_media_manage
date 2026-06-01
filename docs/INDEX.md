@@ -11,6 +11,7 @@
 | `media_importer/core/` | 配置、任务、DB、日志、指标、安全基础设施 | [modules/core.md](modules/core.md) | [architecture/configuration.md](architecture/configuration.md) | core 单测 |
 | `media_importer/core/db/` | SQLite connection/repo/migrations | [modules/core-db.md](modules/core-db.md) | [architecture/data-flow.md](architecture/data-flow.md) | `tests/test_sqlite_refactor.py` |
 | `media_importer/core/recycle/` | 回收站移动、浏览、恢复、清理 | [modules/core-recycle.md](modules/core-recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_recycle_and_safety.py` |
+| `media_importer/domains/import_flow/` | 入库流程业务域兼容入口，re-export 已稳定实现 | [modules/import-flow-domain.md](modules/import-flow-domain.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_domain_import_flow_compatibility.py` |
 | `media_importer/pipeline/` | 扫描后任务处理、确认、重分类、入库编排 | [modules/pipeline.md](modules/pipeline.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_full_flow.py` |
 | `media_importer/scraper/` | LLM 刮削、Provider、置信度、维度映射 | [modules/scraper.md](modules/scraper.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_confidence_engine.py` |
 | `media_importer/scraper/providers/` | 元数据源 Provider 抽象与 TMDB 实现 | [modules/scraper-providers.md](modules/scraper-providers.md) | [architecture/scraping.md](architecture/scraping.md) | Provider/API 测试 |
@@ -29,6 +30,7 @@
 | 修改文件删除/覆盖逻辑 | `standards/safety.md`, `architecture/storage-filesystem.md`, 回收站测试 |
 | 新增 Provider | `modules/scraper-providers.md`, `architecture/scraping.md`, Provider 测试 |
 | 修改前端页面 | `modules/webui.md`, API 文档，UI 测试 |
+| 新增业务域兼容入口 | 对应 domain 模块文档、兼容测试、ADR/plan 状态 |
 | 大架构重构 | 新增 ADR，更新 roadmap/plan 和相关架构文档 |
 
 ## Active Plans

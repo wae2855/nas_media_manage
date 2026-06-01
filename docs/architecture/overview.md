@@ -19,6 +19,7 @@ core: config / db / recycle / safety / logger / metrics
 | 目录 | 层级 | 说明 |
 |------|------|------|
 | `media_importer/api/` | 入口层 | HTTP 路由、Mixin handler、静态文件服务 |
+| `media_importer/domains/` | 业务域入口 | 兼容 proof slice，当前 re-export 已稳定实现 |
 | `media_importer/pipeline/` | 编排层 | 任务处理主流程、确认、重分类 |
 | `media_importer/scraper/` | 业务能力 | LLM、Provider、置信度、维度映射 |
 | `media_importer/storage/` | 业务能力 | 文件扫描、复制、移动、分类、去重、源目录清理 |
@@ -40,6 +41,7 @@ core: config / db / recycle / safety / logger / metrics
 - API route table
 
 目录级 `domains/` 迁移采用兼容层 + proof slice 策略，不做一次性大迁移。旧 public imports 保持可用，详见 ADR-0002。
+当前 proof slice 是 `media_importer/domains/import_flow/`，它只 re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`，不移动业务实现。
 
 详见：
 

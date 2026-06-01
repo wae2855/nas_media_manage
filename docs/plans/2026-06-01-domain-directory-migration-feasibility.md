@@ -81,11 +81,19 @@ Related roadmap phase: Phase 6
 
 目标：验证新目录不会破坏旧 import。
 
+Status: completed
+
 - 新增 `media_importer/domains/` 包。
 - 选择一个低风险域做 proof slice，例如：
   - `domains/import_flow/` re-export `pipeline.context`、`core.task_lifecycle`、`pipeline.services.review`。
 - 旧路径保持可用，不改调用方。
 - 增加 import compatibility tests。
+
+执行记录：
+
+- 新增 `media_importer/domains/import_flow/`。
+- `import_flow` 仅 re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`。
+- 新增 `tests/test_domain_import_flow_compatibility.py` 保护新旧 import 与旧 patch 路径兼容。
 
 退出标准：
 

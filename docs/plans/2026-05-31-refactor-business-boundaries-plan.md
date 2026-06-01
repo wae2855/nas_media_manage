@@ -246,7 +246,9 @@ media_importer/
 
 - 新增 `docs/plans/2026-06-01-domain-directory-migration-feasibility.md`。
 - 新增 `docs/decisions/0002-domain-directory-migration-strategy.md`。
-- 决策：暂不做一次性目录大迁移；下一步先做 `domains/` 兼容 proof slice。
+- 决策：暂不做一次性目录大迁移；先做 `domains/` 兼容 proof slice。
+- Phase 6A 已新增 `media_importer/domains/import_flow/`，仅 re-export 已稳定实现。
+- 新增 `tests/test_domain_import_flow_compatibility.py` 保护新旧 import 与旧 patch 路径兼容。
 
 退出标准：文档能作为 AI 后续修改 pipeline/API 的入口，而不需要先全文搜索。
 

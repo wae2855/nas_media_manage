@@ -64,6 +64,7 @@ media_importer/
 ├── media_importer.py          # CLI 入口
 ├── api/                       # HTTP API 和静态文件服务
 ├── core/                      # 配置、DB、任务、安全、回收站、日志、指标
+├── domains/                   # 业务域兼容入口，当前仅 proof slice
 ├── pipeline/                  # 任务处理编排、确认、重分类
 ├── scraper/                   # LLM、Provider、置信度、维度映射
 ├── storage/                   # 文件扫描、复制、移动、分类、去重、源目录清理
@@ -141,6 +142,6 @@ media_importer/
 - 再做 `TaskContext`、`TaskLifecycle`。
 - 再抽 pipeline services。
 - 再做 config facade 和 API route table。
-- 最后补全详细架构事实文档。
+- 最后用兼容 proof slice 渐进引入 `domains/`，不一次性移动旧 public imports。
 
 路线图见 [docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md](docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md)。

@@ -242,7 +242,7 @@ confidence: medium
 
 目标：在业务边界稳定后，再考虑更大范围目录重组。
 
-Status: feasibility_review_completed
+Status: proof_slice_completed
 
 候选结构：
 
@@ -274,9 +274,9 @@ media_importer/
 
 建议下一步：
 
-- [ ] Phase 6A：新增 `media_importer/domains/` 兼容 proof slice。
-- [ ] 保持旧 public imports 可用。
-- [ ] 增加 import compatibility tests。
+- [x] Phase 6A：新增 `media_importer/domains/` 兼容 proof slice。
+- [x] 保持旧 public imports 可用。
+- [x] 增加 import compatibility tests。
 - [ ] 明确 deploy 副本同步策略后再移动实际实现。
 
 验收标准：
@@ -284,7 +284,7 @@ media_importer/
 - [x] import 路径迁移有兼容层或一次性机械迁移策略。
 - [x] 文档入口同步更新到评审文档和 ADR。
 - [x] 部署路径和 `deploy/` 同步风险已记录。
-- [ ] proof slice 实现并通过兼容测试。
+- [x] proof slice 实现并通过兼容测试。
 
 ### Phase 7: 测试体系与 AI 回归护栏
 

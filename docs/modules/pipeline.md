@@ -31,6 +31,8 @@
 
 已引入 `TaskContext`、`TaskLifecycle` 和 pipeline services。pipeline services 已改用 `ConfigView` 读取高频配置。
 
+Phase 6A 已新增 `media_importer/domains/import_flow/` 作为业务域兼容入口；pipeline 仍是当前实现所在地。
+
 ## Tests
 
 - `tests/test_full_flow.py`
