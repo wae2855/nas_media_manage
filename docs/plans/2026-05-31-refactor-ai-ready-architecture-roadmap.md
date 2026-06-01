@@ -277,6 +277,7 @@ media_importer/
 - [x] Phase 6A：新增 `media_importer/domains/` 兼容 proof slice。
 - [x] 保持旧 public imports 可用。
 - [x] 增加 import compatibility tests。
+- [x] Phase 6B：迁移 `source_cleaning` domain，保留 `storage/source_cleaner.py` 兼容别名。
 - [ ] 明确 deploy 副本同步策略后再移动实际实现。
 
 验收标准：

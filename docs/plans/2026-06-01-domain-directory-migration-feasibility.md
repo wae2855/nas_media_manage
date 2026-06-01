@@ -105,6 +105,8 @@ Status: completed
 
 目标：迁移边界相对清楚的源目录清理域。
 
+Status: completed
+
 候选：
 
 - `storage/source_cleaner.py`
@@ -123,6 +125,14 @@ Status: completed
 - 源目录清理相关单元/集成测试通过。
 - API 路径不变。
 - 文档入口改为 domain-first，但兼容旧模块链接。
+
+执行记录：
+
+- 新增 `media_importer/domains/source_cleaning/`。
+- `SourceCleaner` 实现迁移到 `domains/source_cleaning/cleaner.py`。
+- `storage/source_cleaner.py` 改为兼容别名，旧 import 和旧 patch 路径继续可用。
+- API handler 改为从 domain 入口导入 `SourceCleaner` 和清理记录函数，API 路径不变。
+- 新增 `tests/test_domain_source_cleaning_compatibility.py`。
 
 ### Phase 6C: Recycle Domain
 

@@ -4,7 +4,9 @@
 
 ## Entry Points
 
-- `media_importer/storage/source_cleaner.py`
+- `media_importer/domains/source_cleaning/cleaner.py`
+- `media_importer/domains/source_cleaning/records.py`
+- `media_importer/storage/source_cleaner.py` compatibility alias
 - `media_importer/api/source_cleaner_handlers.py`
 - `media_importer/core/db/cleaner_repo.py`
 - `media_importer/webui/js/config.js`
@@ -14,3 +16,4 @@
 - 主任务流处理视频和字幕任务。
 - 源目录清理器处理任务之外的源目录维护。
 - 删除行为必须遵守回收站安全规则。
+- 旧 `storage/source_cleaner.py` public import 保持可用，不能删除。

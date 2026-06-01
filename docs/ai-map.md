@@ -13,7 +13,7 @@
 | 修改刮削逻辑 | [modules/scraper.md](modules/scraper.md), [architecture/scraping.md](architecture/scraping.md) | `scraper/metadata_scraper.py`, `llm_scraper.py`, `confidence_engine.py` | confidence/scrape 测试 | scraper 文档 |
 | 新增 Provider | [modules/scraper-providers.md](modules/scraper-providers.md) | `scraper/providers/` | Provider/API 测试 | ADR 如影响架构 |
 | 修改文件移动/删除 | [standards/safety.md](standards/safety.md) | `storage/file_mover.py`, `core/recycle/`, `core/safety.py` | recycle/safety/e2e | 安全文档和回归矩阵 |
-| 修改源目录清理 | [architecture/source-cleaner.md](architecture/source-cleaner.md) | `storage/source_cleaner.py`, `api/source_cleaner_handlers.py`, `webui/js/config.js` | source cleaner/recycle/config 测试 | source-cleaner 文档 |
+| 修改源目录清理 | [modules/source-cleaning-domain.md](modules/source-cleaning-domain.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `domains/source_cleaning/`, `api/source_cleaner_handlers.py`, `webui/js/config.js` | source cleaner/recycle/config/compatibility 测试 | source-cleaner 文档 |
 | 修改前端 | [modules/webui.md](modules/webui.md) | `webui/index.html`, `webui/js/`, `webui/css/` | Playwright 或相关 UI 测试 | API/模块文档 |
 
 ## Decision Flow

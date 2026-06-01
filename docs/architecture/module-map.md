@@ -14,7 +14,7 @@ scraper + storage + notify
         v
 core
 
-domains compatibility entries -> pipeline + core
+domains compatibility entries -> pipeline + core + storage
 ```
 
 Rules:
@@ -25,6 +25,7 @@ Rules:
 - `webui` 只通过 HTTP API 与后端交互。
 - 未来 `domains/` 目录只能通过兼容 proof slice 渐进引入，不一次性移动现有 public imports。
 - `domains/` 当前只作为业务域导航与兼容入口，不能复制业务实现。
+- `domains/source_cleaning/` 已持有源目录清理实现，旧 `storage/source_cleaner.py` 是兼容别名。
 
 ## Documentation Mapping
 

@@ -41,7 +41,10 @@ core: config / db / recycle / safety / logger / metrics
 - API route table
 
 目录级 `domains/` 迁移采用兼容层 + proof slice 策略，不做一次性大迁移。旧 public imports 保持可用，详见 ADR-0002。
-当前 proof slice 是 `media_importer/domains/import_flow/`，它只 re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`，不移动业务实现。
+当前 domain 入口：
+
+- `media_importer/domains/import_flow/`: re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`。
+- `media_importer/domains/source_cleaning/`: 持有源目录清理实现，旧 `storage/source_cleaner.py` 保持兼容。
 
 详见：
 
