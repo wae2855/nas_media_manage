@@ -9,8 +9,8 @@ from media_importer.core.task_lifecycle import (
     mark_processing_step,
     mark_skipped,
 )
+from media_importer.domains.import_flow import TaskContext
 from media_importer.domains.import_flow.services import ClassificationService
-from .context import TaskContext
 from .utils import PipelineError, PipelineSkipError
 
 

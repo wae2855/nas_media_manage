@@ -20,7 +20,9 @@ from media_importer.domains.import_flow import (
     mark_imported,
 )
 from media_importer.domains.import_flow import lifecycle as domain_lifecycle
+from media_importer.domains.import_flow import context as domain_context
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
+import media_importer.pipeline.context as legacy_context
 from media_importer.pipeline.services import (
     ClassificationService as PipelineClassificationService,
 )
@@ -40,6 +42,7 @@ from media_importer.pipeline.services.review import (
 class TestImportFlowDomainCompatibility(unittest.TestCase):
     def test_domain_public_imports_reexport_existing_objects(self):
         self.assertIs(TaskContext, PipelineTaskContext)
+        self.assertIs(domain_context, legacy_context)
         self.assertIs(ClassificationService, PipelineClassificationService)
         self.assertIs(DedupService, PipelineDedupService)
         self.assertIs(ImportService, PipelineImportService)

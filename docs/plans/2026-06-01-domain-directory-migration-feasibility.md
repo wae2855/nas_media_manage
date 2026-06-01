@@ -169,7 +169,7 @@ Status: completed
 
 目标：在前面 proof slice 稳定后迁移主流程。
 
-Status: services_completed
+Status: context_completed
 
 候选：
 
@@ -197,8 +197,11 @@ Status: services_completed
 - 新增 `media_importer/domains/import_flow/services/`。
 - `pipeline/services/*` 改为兼容别名，旧 import 和旧 patch 路径继续可用。
 - `pipeline/runner.py`、`steps_file.py`、`steps_scrape.py`、`confirm.py` 已改为从 domain services 导入。
+- `TaskContext` 实现迁移到 `domains/import_flow/context.py`。
+- `pipeline/context.py` 改为兼容别名，旧 import 继续可用。
+- `pipeline/runner.py`、`confirm.py` 已改为从 domain 入口导入 `TaskContext`。
 - `domains/import_flow/__init__.py` 导出 services、`TaskContext` 和 `TaskLifecycle`。
-- `tests/test_domain_import_flow_compatibility.py` 增加 services 兼容与旧 patch 路径保护。
+- `tests/test_domain_import_flow_compatibility.py` 增加 context/services 兼容与旧 patch 路径保护。
 
 ## Explicit Non-Goals
 

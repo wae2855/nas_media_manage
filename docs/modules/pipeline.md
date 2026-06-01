@@ -2,7 +2,8 @@
 
 ## Code
 
-- `media_importer/pipeline/context.py`
+- `media_importer/domains/import_flow/context.py`
+- `media_importer/pipeline/context.py` compatibility alias
 - `media_importer/pipeline/runner.py`
 - `media_importer/pipeline/steps.py`
 - `media_importer/pipeline/steps_file.py`
@@ -30,11 +31,13 @@
 
 ## Direction
 
-已引入 `TaskContext`、`TaskLifecycle` 和 pipeline services。pipeline services 已改用 `ConfigView` 读取高频配置。
+已引入 `TaskContext`、`TaskLifecycle` 和 import-flow services。import-flow services 已改用 `ConfigView` 读取高频配置。
 
 Phase 6A 已新增 `media_importer/domains/import_flow/` 作为业务域兼容入口；pipeline 仍是当前实现所在地。
 
 Phase 6D services 已将 `pipeline/services/` 实现迁移到 `media_importer/domains/import_flow/services/`；旧 `pipeline/services/*` 保留 import 和 patch 路径兼容。
+
+Phase 6D context 已将 `TaskContext` 实现迁移到 `media_importer/domains/import_flow/context.py`；旧 `pipeline/context.py` 保留兼容别名。
 
 ## Tests
 

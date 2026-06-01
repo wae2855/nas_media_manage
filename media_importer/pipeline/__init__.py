@@ -1,3 +1,3 @@
 from .runner import PipelineRunner
-from .context import TaskContext
+from media_importer.domains.import_flow import TaskContext
 from .utils import PipelineError, PipelineSkipError, PIPELINE_STEPS

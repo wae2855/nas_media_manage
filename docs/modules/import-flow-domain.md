@@ -13,9 +13,9 @@
 
 入库流程的业务域入口，用于让 AI 和人按业务域定位入库流程核心概念和业务服务。
 
-当前 re-export：
+当前持有：
 
-- `TaskContext` from `media_importer.pipeline.context`
+- `TaskContext` from `media_importer.domains.import_flow.context`
 - `TaskLifecycle` constants/functions from `media_importer.core.task_lifecycle`
 - `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.domains.import_flow.services`
 
@@ -25,11 +25,11 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 
 实现仍在旧目录之外的部分：
 
-- `media_importer/pipeline/context.py`
 - `media_importer/core/task_lifecycle.py`
 
 兼容路径：
 
+- `media_importer/pipeline/context.py`
 - `media_importer/pipeline/services/`
 
 ## Extension Rules
@@ -38,7 +38,8 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 - 旧路径必须继续可 import。
 - 旧 patch 路径必须继续影响新 domain 入口。
 - 每个 domain proof slice 都要有 compatibility test。
-- 后续迁移 runner/confirm 时，先保留 `media_importer.pipeline` 公共入口。
+- `pipeline/runner.py` 和 `pipeline/confirm.py` 已从 domain 导入 `TaskContext` 和 services，但实现仍保留在 `pipeline/`。
+- 后续迁移 runner/confirm 实现时，先保留 `media_importer.pipeline` 公共入口。
 
 ## Tests
 

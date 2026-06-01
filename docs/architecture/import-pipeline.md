@@ -22,7 +22,7 @@ scan -> copy -> scrape -> validate -> classify -> dedup -> rename -> import -> n
 pipeline 已引入：
 
 - `Import Flow Domain`: `media_importer/domains/import_flow/`
-- `TaskContext`: `media_importer/pipeline/context.py`
+- `TaskContext`: `media_importer/domains/import_flow/context.py`
 - `TaskLifecycle`: `media_importer/core/task_lifecycle.py`
 - `ClassificationService`: `media_importer/domains/import_flow/services/classification.py`
 - `DedupService`: `media_importer/domains/import_flow/services/dedup.py`
@@ -32,7 +32,7 @@ pipeline 已引入：
 
 当前 `TaskContext` 和 `TaskLifecycle` 已接入 runner、confirm 和 retry 逻辑。分类、去重、导入、源文件清理和审核决策已从 step 内抽成 service；step 主要保留进度、日志和 DB 状态写入。
 
-`media_importer/domains/import_flow/` 是入库流程业务域入口。Phase 6D 已将 pipeline services 实现迁移到 `domains/import_flow/services/`；`pipeline/services/` 保留旧 import 和 patch 路径兼容。
+`media_importer/domains/import_flow/` 是入库流程业务域入口。Phase 6D 已将 `TaskContext` 和 pipeline services 实现迁移到 domain；`pipeline/context.py` 与 `pipeline/services/` 保留旧 import 和 patch 路径兼容。
 
 ## Change Guide
 
