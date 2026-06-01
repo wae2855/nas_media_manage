@@ -1,11 +1,13 @@
-from media_importer.domains.recycle import (
+from .browser import (
     delete_from_recycle,
     list_recycle_dir,
+    recycle_cleanup,
+    restore_from_recycle,
+)
+from .manager import (
     move_dir_to_recycle,
     move_to_recycle,
     move_to_recycle_with_companions,
-    recycle_cleanup,
-    restore_from_recycle,
 )
 
 __all__ = [

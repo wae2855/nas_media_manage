@@ -3,7 +3,7 @@ import os
 import shutil
 import hashlib
 
-from .recycle import (
+from media_importer.domains.recycle import (
     move_to_recycle,
     move_to_recycle_with_companions,
     move_dir_to_recycle,

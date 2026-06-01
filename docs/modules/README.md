@@ -7,4 +7,5 @@
 业务域兼容入口：
 
 - [import-flow-domain.md](import-flow-domain.md)
+- [recycle-domain.md](recycle-domain.md)
 - [source-cleaning-domain.md](source-cleaning-domain.md)

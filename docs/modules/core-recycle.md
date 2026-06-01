@@ -2,13 +2,17 @@
 
 ## Code
 
-- `media_importer/core/recycle/manager.py`
-- `media_importer/core/recycle/browser.py`
+- `media_importer/core/recycle/manager.py` compatibility alias
+- `media_importer/core/recycle/browser.py` compatibility alias
 - `media_importer/core/recycle/__init__.py`
+- `media_importer/domains/recycle/manager.py`
+- `media_importer/domains/recycle/browser.py`
 
 ## Responsibility
 
 回收站移动、恢复、浏览、永久删除和过期清理。
+
+实现已迁移到 `media_importer/domains/recycle/`。`core/recycle/*` 保留旧 import 和测试 patch 路径兼容。
 
 ## Safety Rule
 
@@ -17,4 +21,5 @@
 ## Tests
 
 - `tests/test_recycle_and_safety.py`
+- `tests/test_domain_recycle_compatibility.py`
 - `tests/test_integration_recycle.py`

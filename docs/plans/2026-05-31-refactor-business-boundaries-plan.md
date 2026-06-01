@@ -250,6 +250,7 @@ media_importer/
 - Phase 6A 已新增 `media_importer/domains/import_flow/`，仅 re-export 已稳定实现。
 - 新增 `tests/test_domain_import_flow_compatibility.py` 保护新旧 import 与旧 patch 路径兼容。
 - Phase 6B 已新增 `media_importer/domains/source_cleaning/`，迁移 `SourceCleaner` 实现并保留旧 `storage/source_cleaner.py` 兼容别名。
+- Phase 6C 已新增 `media_importer/domains/recycle/`，迁移回收站实现并保留旧 `core/recycle/*` 和 `core/safety.py` 兼容入口。
 
 退出标准：文档能作为 AI 后续修改 pipeline/API 的入口，而不需要先全文搜索。
 

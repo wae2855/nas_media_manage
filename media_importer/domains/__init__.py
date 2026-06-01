@@ -1,1 +1,1 @@
-__all__ = ["import_flow", "source_cleaning"]
+__all__ = ["import_flow", "source_cleaning", "recycle"]

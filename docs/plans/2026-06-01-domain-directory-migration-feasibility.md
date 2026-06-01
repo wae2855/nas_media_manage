@@ -138,6 +138,8 @@ Status: completed
 
 目标：迁移安全规则明确且已模块化的回收站域。
 
+Status: completed
+
 候选：
 
 - `core/recycle/`
@@ -153,6 +155,15 @@ Status: completed
 
 - `tests/test_recycle_and_safety.py` 通过或只剩已记录旧失败。
 - 所有直接删除规则仍受回收站门控。
+
+执行记录：
+
+- 新增 `media_importer/domains/recycle/`。
+- `core/recycle/manager.py` 和 `core/recycle/browser.py` 实现迁移到 domain。
+- 旧 `core/recycle/*` 改为兼容别名，历史私有 helper 和 patch 路径继续可用。
+- `core/safety.py` 保留文件安全 facade，回收站函数从 domain 入口导入。
+- API handler 改为从 domain 入口导入回收站浏览、恢复和永久删除函数，API 路径不变。
+- 新增 `tests/test_domain_recycle_compatibility.py`。
 
 ### Phase 6D: Import Flow Domain
 

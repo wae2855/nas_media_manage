@@ -10,7 +10,8 @@
 | `media_importer/api/` | 原生 HTTP API、route table、静态文件、Mixin handlers | [modules/api.md](modules/api.md) | [architecture/api.md](architecture/api.md) | `tests/test_api_routes.py`、API 集成、UI 测试 |
 | `media_importer/core/` | 配置、任务、DB、日志、指标、安全基础设施 | [modules/core.md](modules/core.md) | [architecture/configuration.md](architecture/configuration.md) | core 单测 |
 | `media_importer/core/db/` | SQLite connection/repo/migrations | [modules/core-db.md](modules/core-db.md) | [architecture/data-flow.md](architecture/data-flow.md) | `tests/test_sqlite_refactor.py` |
-| `media_importer/core/recycle/` | 回收站移动、浏览、恢复、清理 | [modules/core-recycle.md](modules/core-recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_recycle_and_safety.py` |
+| `media_importer/domains/recycle/` | 回收站移动、浏览、恢复、清理业务域 | [modules/recycle-domain.md](modules/recycle-domain.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_domain_recycle_compatibility.py`、`tests/test_recycle_and_safety.py` |
+| `media_importer/core/recycle/` | 回收站旧 public import 兼容入口 | [modules/core-recycle.md](modules/core-recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_domain_recycle_compatibility.py` |
 | `media_importer/domains/import_flow/` | 入库流程业务域兼容入口，re-export 已稳定实现 | [modules/import-flow-domain.md](modules/import-flow-domain.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_domain_import_flow_compatibility.py` |
 | `media_importer/domains/source_cleaning/` | 源目录清理业务域，持有清理器实现和记录入口 | [modules/source-cleaning-domain.md](modules/source-cleaning-domain.md) | [architecture/source-cleaner.md](architecture/source-cleaner.md) | `tests/test_domain_source_cleaning_compatibility.py` |
 | `media_importer/pipeline/` | 扫描后任务处理、确认、重分类、入库编排 | [modules/pipeline.md](modules/pipeline.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_full_flow.py` |

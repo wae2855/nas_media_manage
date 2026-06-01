@@ -15,6 +15,7 @@ scraper + storage + notify
 core
 
 domains compatibility entries -> pipeline + core + storage
+domains/recycle -> core/safety compatibility facade
 ```
 
 Rules:
@@ -26,6 +27,7 @@ Rules:
 - 未来 `domains/` 目录只能通过兼容 proof slice 渐进引入，不一次性移动现有 public imports。
 - `domains/` 当前只作为业务域导航与兼容入口，不能复制业务实现。
 - `domains/source_cleaning/` 已持有源目录清理实现，旧 `storage/source_cleaner.py` 是兼容别名。
+- `domains/recycle/` 已持有回收站实现，旧 `core/recycle/*` 和 `core/safety.py` 保持兼容。
 
 ## Documentation Mapping
 

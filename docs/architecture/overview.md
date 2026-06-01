@@ -45,6 +45,7 @@ core: config / db / recycle / safety / logger / metrics
 
 - `media_importer/domains/import_flow/`: re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`。
 - `media_importer/domains/source_cleaning/`: 持有源目录清理实现，旧 `storage/source_cleaner.py` 保持兼容。
+- `media_importer/domains/recycle/`: 持有回收站实现，旧 `core/recycle/*` 和 `core/safety.py` 保持兼容。
 
 详见：
 
