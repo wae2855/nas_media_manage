@@ -43,7 +43,7 @@ core: config / db / recycle / safety / logger / metrics
 目录级 `domains/` 迁移采用兼容层 + proof slice 策略，不做一次性大迁移。旧 public imports 保持可用，详见 ADR-0002。
 当前 domain 入口：
 
-- `media_importer/domains/import_flow/`: re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`。
+- `media_importer/domains/import_flow/`: 持有入库流程 services 实现，并 re-export `TaskContext`、`TaskLifecycle`。
 - `media_importer/domains/source_cleaning/`: 持有源目录清理实现，旧 `storage/source_cleaner.py` 保持兼容。
 - `media_importer/domains/recycle/`: 持有回收站实现，旧 `core/recycle/*` 和 `core/safety.py` 保持兼容。
 

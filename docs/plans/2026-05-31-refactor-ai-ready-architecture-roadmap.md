@@ -279,6 +279,7 @@ media_importer/
 - [x] 增加 import compatibility tests。
 - [x] Phase 6B：迁移 `source_cleaning` domain，保留 `storage/source_cleaner.py` 兼容别名。
 - [x] Phase 6C：迁移 `recycle` domain，保留 `core/recycle/*` 和 `core/safety.py` 兼容入口。
+- [x] Phase 6D services：迁移 `import_flow/services`，保留 `pipeline/services/*` 兼容别名。
 - [ ] 明确 deploy 副本同步策略后再移动实际实现。
 
 验收标准：

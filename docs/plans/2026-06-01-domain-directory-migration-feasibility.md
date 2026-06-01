@@ -92,7 +92,7 @@ Status: completed
 执行记录：
 
 - 新增 `media_importer/domains/import_flow/`。
-- `import_flow` 仅 re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`。
+- `import_flow` 初始仅 re-export `TaskContext`、`TaskLifecycle` 和 `ReviewDecisionService`；Phase 6D services 后已承载 services 实现。
 - 新增 `tests/test_domain_import_flow_compatibility.py` 保护新旧 import 与旧 patch 路径兼容。
 
 退出标准：
@@ -169,6 +169,8 @@ Status: completed
 
 目标：在前面 proof slice 稳定后迁移主流程。
 
+Status: services_completed
+
 候选：
 
 - `pipeline/context.py`
@@ -188,6 +190,15 @@ Status: completed
 - `tests/test_task_context_lifecycle.py`
 - `tests/test_full_flow.py` 关键切片
 - API 和 CLI 启动 smoke test
+
+执行记录：
+
+- 已先迁移 services，不迁移 runner/confirm 实现。
+- 新增 `media_importer/domains/import_flow/services/`。
+- `pipeline/services/*` 改为兼容别名，旧 import 和旧 patch 路径继续可用。
+- `pipeline/runner.py`、`steps_file.py`、`steps_scrape.py`、`confirm.py` 已改为从 domain services 导入。
+- `domains/import_flow/__init__.py` 导出 services、`TaskContext` 和 `TaskLifecycle`。
+- `tests/test_domain_import_flow_compatibility.py` 增加 services 兼容与旧 patch 路径保护。
 
 ## Explicit Non-Goals
 

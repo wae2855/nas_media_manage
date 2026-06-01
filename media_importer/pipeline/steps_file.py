@@ -4,9 +4,16 @@ from media_importer.core.db import (
     get_subtitles_by_task as db_get_subtitles,
     update_subtitle as db_update_subtitle,
 )
+from media_importer.domains.import_flow.services import (
+    ClassificationService,
+    DedupService,
+    ImportService,
+)
+from media_importer.domains.import_flow.services.paths import (
+    allowed_dirs_from_config,
+    import_roots_from_config,
+)
 from media_importer.storage.file_mover import apply_filename_template
-from .services import ClassificationService, DedupService, ImportService
-from .services.paths import allowed_dirs_from_config, import_roots_from_config
 from .utils import PipelineError, PipelineSkipError
 
 

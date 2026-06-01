@@ -6,26 +6,31 @@
 - `media_importer/domains/import_flow/context.py`
 - `media_importer/domains/import_flow/lifecycle.py`
 - `media_importer/domains/import_flow/review.py`
+- `media_importer/domains/import_flow/services/`
+- `media_importer/pipeline/services/` compatibility aliases
 
 ## Responsibility
 
-入库流程的业务域兼容入口。当前只做 proof slice，用于让 AI 和人按业务域定位入库流程核心概念。
+入库流程的业务域入口，用于让 AI 和人按业务域定位入库流程核心概念和业务服务。
 
 当前 re-export：
 
 - `TaskContext` from `media_importer.pipeline.context`
 - `TaskLifecycle` constants/functions from `media_importer.core.task_lifecycle`
-- `ReviewDecision` and `ReviewDecisionService` from `media_importer.pipeline.services.review`
+- `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.domains.import_flow.services`
 
 ## Boundary
 
-这里不是新的实现所在地。Phase 6A 只验证新 domain 入口和旧 public imports 可以同时存在。
+Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 
-实现仍在：
+实现仍在旧目录之外的部分：
 
 - `media_importer/pipeline/context.py`
 - `media_importer/core/task_lifecycle.py`
-- `media_importer/pipeline/services/review.py`
+
+兼容路径：
+
+- `media_importer/pipeline/services/`
 
 ## Extension Rules
 
@@ -33,6 +38,7 @@
 - 旧路径必须继续可 import。
 - 旧 patch 路径必须继续影响新 domain 入口。
 - 每个 domain proof slice 都要有 compatibility test。
+- 后续迁移 runner/confirm 时，先保留 `media_importer.pipeline` 公共入口。
 
 ## Tests
 

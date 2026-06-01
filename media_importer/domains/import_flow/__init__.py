@@ -27,11 +27,29 @@ from .lifecycle import (
     start_processing,
 )
 from .review import ReviewDecision, ReviewDecisionService
+from .services import (
+    ClassificationResult,
+    ClassificationService,
+    DedupDecision,
+    DedupService,
+    ImportResult,
+    ImportService,
+    SourceCleanupResult,
+    SourceCleanupService,
+)
 
 __all__ = [
     "TaskContext",
+    "ClassificationResult",
+    "ClassificationService",
+    "DedupDecision",
+    "DedupService",
+    "ImportResult",
+    "ImportService",
     "ReviewDecision",
     "ReviewDecisionService",
+    "SourceCleanupResult",
+    "SourceCleanupService",
     "STATUS_PENDING",
     "STATUS_PROCESSING",
     "STATUS_CONFIRMING",

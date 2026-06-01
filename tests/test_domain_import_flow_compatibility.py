@@ -10,13 +10,25 @@ from media_importer.core import task_lifecycle as core_lifecycle
 from media_importer.core.task_lifecycle import mark_imported as core_mark_imported
 from media_importer.domains import import_flow
 from media_importer.domains.import_flow import (
+    ClassificationService,
+    DedupService,
+    ImportService,
     ReviewDecision,
     ReviewDecisionService,
+    SourceCleanupService,
     TaskContext,
     mark_imported,
 )
 from media_importer.domains.import_flow import lifecycle as domain_lifecycle
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
+from media_importer.pipeline.services import (
+    ClassificationService as PipelineClassificationService,
+)
+from media_importer.pipeline.services import DedupService as PipelineDedupService
+from media_importer.pipeline.services import ImportService as PipelineImportService
+from media_importer.pipeline.services import (
+    SourceCleanupService as PipelineSourceCleanupService,
+)
 from media_importer.pipeline.services.review import (
     ReviewDecision as PipelineReviewDecision,
 )
@@ -28,6 +40,10 @@ from media_importer.pipeline.services.review import (
 class TestImportFlowDomainCompatibility(unittest.TestCase):
     def test_domain_public_imports_reexport_existing_objects(self):
         self.assertIs(TaskContext, PipelineTaskContext)
+        self.assertIs(ClassificationService, PipelineClassificationService)
+        self.assertIs(DedupService, PipelineDedupService)
+        self.assertIs(ImportService, PipelineImportService)
+        self.assertIs(SourceCleanupService, PipelineSourceCleanupService)
         self.assertIs(ReviewDecision, PipelineReviewDecision)
         self.assertIs(ReviewDecisionService, PipelineReviewDecisionService)
         self.assertIs(mark_imported, core_mark_imported)
@@ -61,6 +77,21 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
 
         self.assertEqual(decision.action, "continue")
         patched.assert_called_once_with({}, engine)
+
+    def test_old_service_patch_path_still_affects_domain_service(self):
+        with patch(
+            "media_importer.pipeline.services.dedup.check_duplicate",
+            return_value={"is_duplicate": False},
+        ) as patched:
+            service = DedupService({
+                "duplicate_handling": {"enabled": True},
+                "path_rules": [{"template": "/library/movies"}],
+            })
+            with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True):
+                decision = service.check_task({"scrape_result": {}, "video_path": "/tmp/movie.mkv"})
+
+        self.assertEqual(decision.action, "continue")
+        patched.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -18,13 +18,13 @@ from media_importer.core.task_lifecycle import (
     mark_temp_ready,
     start_processing,
 )
+from media_importer.domains.import_flow.services import SourceCleanupService
 from media_importer.storage.file_scanner import FileScanner
 from media_importer.storage.file_copier import FileCopier
 from media_importer.scraper.metadata_scraper import MetadataScraper
 from media_importer.storage.file_mover import delete_source_files
 from media_importer.notify.hooks import HookRunner
 from .context import TaskContext
-from .services import SourceCleanupService
 from .utils import PipelineSkipError
 from .steps import StepsMixin
 from .confirm import ConfirmMixin

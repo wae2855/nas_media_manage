@@ -24,7 +24,7 @@
 
 ## Boundary
 
-源目录清理器独立于主任务流。任务完成后的源文件处理仍归 `pipeline/services/source_cleanup.py` 管理。
+源目录清理器独立于主任务流。任务完成后的源文件处理仍归 `domains/import_flow/services/source_cleanup.py` 管理。
 
 `storage/source_cleaner.py` 是旧 public import 的兼容别名，历史 patch 路径必须继续可用。
 
