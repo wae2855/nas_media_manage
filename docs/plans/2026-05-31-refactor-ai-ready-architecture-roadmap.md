@@ -156,14 +156,21 @@ confidence: medium
 
 目标：让 pipeline runner 从“做所有事”变成“编排业务服务”。
 
-- [ ] 新增 `pipeline/services/`。
-- [ ] 抽出 `ClassificationService`。
-- [ ] 抽出 `DedupService`。
-- [ ] 抽出 `ImportService`。
-- [ ] 抽出 `SourceCleanupService`。
-- [ ] 抽出 `ReviewDecisionService`。
-- [ ] 普通入库和确认入库复用同一导入核心。
-- [ ] 每个服务配套单元测试。
+- [x] 新增 `pipeline/services/`。
+- [x] 抽出 `ClassificationService`。
+- [x] 抽出 `DedupService`。
+- [x] 抽出 `ImportService`。
+- [x] 抽出 `SourceCleanupService`。
+- [x] 抽出 `ReviewDecisionService`。
+- [x] 普通入库和确认入库复用同一导入核心。
+- [x] 每个服务配套单元测试。
+
+执行记录：
+
+- 新增 `tests/test_pipeline_services.py` 覆盖服务决策。
+- `steps_file.py` 保留进度、日志和 DB task 更新，业务策略下沉到 services。
+- `steps_scrape.py` 的审核决策下沉到 `ReviewDecisionService`。
+- pipeline skip 后的源文件回收统一到 `SourceCleanupService`。
 
 验收标准：
 

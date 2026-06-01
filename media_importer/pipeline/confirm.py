@@ -9,8 +9,8 @@ from media_importer.core.task_lifecycle import (
     mark_processing_step,
     mark_skipped,
 )
-from media_importer.storage.classifier import classify, render_template
 from .context import TaskContext
+from .services import ClassificationService
 from .utils import PipelineError, PipelineSkipError
 
 
@@ -78,38 +78,24 @@ class ConfirmMixin:
             classify_result="",
         )
 
-        path_rules = self.config.get("path_rules", [])
-        import_path = classify(scrape_result, path_rules)
-        if not import_path:
-            fallback_dir = self.config.get("fallback_dir", "")
-            if fallback_dir:
-                import_path = render_template(fallback_dir, scrape_result)
-                self._log("info", f"重新分类：无匹配规则，使用兜底目录: {import_path}", task, "classify")
-            else:
-                dims_str = ', '.join(f'{k}={v}' for k, v in current_dims.items())
-                raise PipelineError(f"重新分类失败，维度=[{dims_str}]")
+        result = ClassificationService(self.config).classify_task(task)
+        if not result.import_path:
+            raise PipelineError(f"重新分类失败，维度=[{result.dimensions_text}]")
+        if result.used_fallback:
+            self._log("info", f"重新分类：无匹配规则，使用兜底目录: {result.import_path}", task, "classify")
 
-        if not os.path.isabs(import_path):
-            project_root = os.path.dirname(
-                os.path.dirname(os.path.abspath(
-                    self.config.get('_config_path', '')
-                ))
-            )
-            if project_root:
-                import_path = os.path.join(project_root, import_path)
-
-        task["import_path"] = import_path
-        task["classify_result"] = import_path
+        task["import_path"] = result.import_path
+        task["classify_result"] = result.classify_result
         fields = mark_processing_step(
             ctx, current_step=5, step_name="classify", percentage=50
         )
         fields.update({
-            "import_path": import_path,
-            "classify_result": import_path,
+            "import_path": result.import_path,
+            "classify_result": result.classify_result,
         })
         db_update_task(self.task_manager.conn, tid,
                        **fields)
-        self._log("info", f"任务重新分类完成: {import_path}，继续后续流程", task, "classify")
+        self._log("info", f"任务重新分类完成: {result.import_path}，继续后续流程", task, "classify")
 
         try:
             self._step_dedup(task)

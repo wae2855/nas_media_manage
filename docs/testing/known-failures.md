@@ -37,6 +37,29 @@ Clean checks for the current refactor slice:
 - `python3 -m pytest tests/test_task_context_lifecycle.py tests/test_task_operations.py` -> 54 passed
 - `PYTHONPYCACHEPREFIX=/private/tmp/nas_media_pycache python3 -m py_compile media_importer/pipeline/context.py media_importer/core/task_lifecycle.py media_importer/pipeline/runner.py media_importer/pipeline/confirm.py media_importer/core/task_manager.py`
 
+## 2026-06-01 Network-Dependent E2E
+
+Observed while running:
+
+- `python3 -m pytest tests/test_e2e_file_processing.py`
+
+Result: 3 passed, 10 failed. The failures all occurred before the refactored service path could complete because TMDB/provider search could not resolve network hostnames in the current sandbox:
+
+- `<urlopen error [Errno 8] nodename nor servname provided, or not known>`
+
+Affected tests:
+
+- `tests/test_e2e_file_processing.py::TestE2E1MovieFullFlow::test_movie_with_subtitle`
+- `tests/test_e2e_file_processing.py::TestE2E2TVSeriesFlow::test_tv_episode`
+- `tests/test_e2e_file_processing.py::TestE2E3DocumentaryFlow::test_documentary_movie`
+- `tests/test_e2e_file_processing.py::TestE2E4LowConfidenceConfirm::test_low_confidence_confirm_flow`
+- `tests/test_e2e_file_processing.py::TestE2E5DedupQuality::test_quality_strategy_keep_better`
+- `tests/test_e2e_file_processing.py::TestE2E6DedupSkip::test_skip_strategy`
+- `tests/test_e2e_file_processing.py::TestE2E7SourceDedup::test_rename_detected`
+- `tests/test_e2e_file_processing.py::TestE2E7SourceDedup::test_reprocess_changed_file`
+- `tests/test_e2e_file_processing.py::TestE2E7SourceDedup::test_skip_existing_file`
+- `tests/test_e2e_file_processing.py::TestE2E9ReadOnlyMode::test_cleanup_source_false_preserves_source`
+
 Maintenance rule:
 
 - Do not use this file to excuse new failures.

@@ -7,6 +7,7 @@ from media_importer.core.db import (
     count_subtitles_by_task as db_count_subs,
 )
 from media_importer.core.task_lifecycle import (
+    FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
     FILE_LOCATION_TEMP,
     mark_confirming,
@@ -23,6 +24,7 @@ from media_importer.scraper.metadata_scraper import MetadataScraper
 from media_importer.storage.file_mover import delete_source_files
 from media_importer.notify.hooks import HookRunner
 from .context import TaskContext
+from .services import SourceCleanupService
 from .utils import PipelineSkipError
 from .steps import StepsMixin
 from .confirm import ConfirmMixin
@@ -202,9 +204,17 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             return True
 
         except PipelineSkipError as e:
-            fields = mark_skipped(ctx, str(e), file_location=FILE_LOCATION_SOURCE)
             self._log("info", f"任务跳过: {task.get('source_filename', '')} - {e}", task)
             self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            source_cleanup = SourceCleanupService(self.config).recycle_source_after_skip(
+                task,
+                original_source_video,
+                original_source_subs,
+            )
+            file_location = FILE_LOCATION_RECYCLE if source_cleanup.moved_count else FILE_LOCATION_SOURCE
+            if source_cleanup.message:
+                self._log("info", source_cleanup.message, task, "cleanup")
+            fields = mark_skipped(ctx, str(e), file_location=file_location)
 
             db_update_task(self.task_manager.conn, tid, **fields)
 

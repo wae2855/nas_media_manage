@@ -152,23 +152,32 @@ media_importer/
 
 目标：让 runner 和 step mixin 变薄，业务策略以服务形式存在。
 
-- [ ] 新建 `pipeline/services/` 子包。
-- [ ] 抽出 `ClassificationService`：
+- [x] 新建 `pipeline/services/` 子包。
+- [x] 抽出 `ClassificationService`：
   - 输入：scrape result、path rules、fallback_dir、config root
   - 输出：import_path、classify_result 或业务错误
   - 替换 `_step_classify()` 内路径策略。
-- [ ] 抽出 `DedupService`：
+- [x] 抽出 `DedupService`：
   - 输入：import_roots、scrape result、strategy、video_path
   - 输出：skip/rename/replace/quality 决策
   - 回收站移动交给 `SourceCleanupService` 或明确注入。
-- [ ] 抽出 `ImportService`：
+- [x] 抽出 `ImportService`：
   - 封装 `move_to_import()`、字幕 DB 更新、临时文件清理。
   - `_step_import()` 和 `_step_import_from_confirm()` 复用同一服务。
-- [ ] 抽出 `SourceCleanupService`：
+- [x] 抽出 `SourceCleanupService`：
   - 封装 `cleanup_source_after_done`、回收站目录、伴随文件、空目录清理。
-- [ ] 抽出 `ReviewDecisionService`：
+- [x] 抽出 `ReviewDecisionService`：
   - 把 `_step_validate()` 的置信度等级到 `_force_fail/_needs_review/_needs_confirm` 的隐式 flag 改成显式 decision。
-- [ ] 每抽一个服务先写或迁移对应单元测试，再替换 step 内实现。
+- [x] 每抽一个服务先写或迁移对应单元测试，再替换 step 内实现。
+
+执行记录：
+
+- `ClassificationService` 替换 `_step_classify()` 内路径策略。
+- `DedupService` 替换 `_step_dedup()` 内同名检测和 skip/rename/replace/quality 决策。
+- `ImportService` 统一 `_step_import()` 和 `_step_import_from_confirm()` 的文件移动、临时文件清理、字幕落库。
+- `SourceCleanupService` 统一源文件清理、回收站、skip 后源文件回收。
+- `ReviewDecisionService` 替换 `_step_validate()` 中置信度等级到审核动作的判断。
+- 服务测试：`tests/test_pipeline_services.py`。
 
 退出标准：`steps_file.py` 中不再直接承载去重替换、源文件清理、导入移动的完整业务策略；确认入库和普通入库复用同一导入服务。
 
