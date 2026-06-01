@@ -10,16 +10,18 @@ from .confidence_engine import (
     FilenameCleaner, TitleMatcher, ConfidenceEngine, CleanResult, MatchResult
 )
 from media_importer.core.db import get_enabled_dimensions
+from media_importer.core.config_view import ConfigView
 
 
 class MetadataScraper:
     def __init__(self, config: dict):
         self.config = config
+        self.view = ConfigView.from_dict(config)
         self.providers = create_providers(config)
         self.llm_scraper = LLMScraper(config)
-        self.confidence_engine = ConfidenceEngine(config.get("confidence", {}))
+        self.confidence_engine = ConfidenceEngine(self.view.metadata.confidence)
         self._cleaner = FilenameCleaner()
-        self._matcher = TitleMatcher(config.get("confidence", {}))
+        self._matcher = TitleMatcher(self.view.metadata.confidence)
 
     def _preprocess_filename(self, filename: str) -> tuple:
         clean_name = os.path.splitext(filename)[0]

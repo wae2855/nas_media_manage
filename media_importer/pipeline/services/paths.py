@@ -1,11 +1,16 @@
 import os
 
+from media_importer.core.config_view import ConfigView
+
+
+def _view(config) -> ConfigView:
+    if isinstance(config, ConfigView):
+        return config
+    return ConfigView.from_dict(config)
+
 
 def project_root_from_config(config: dict) -> str:
-    config_path = config.get("_config_path", "")
-    if not config_path:
-        return ""
-    return os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+    return _view(config).paths.project_root
 
 
 def resolve_project_path(path: str, config: dict) -> str:
@@ -18,9 +23,10 @@ def resolve_project_path(path: str, config: dict) -> str:
 
 
 def import_roots_from_config(config: dict) -> list:
+    view = _view(config)
     templates = [
         rule.get("template", "")
-        for rule in config.get("path_rules", [])
+        for rule in view.paths.path_rules
         if rule.get("template")
     ]
     roots = []
@@ -39,11 +45,12 @@ def import_roots_from_config(config: dict) -> list:
 
 
 def allowed_dirs_from_config(config: dict) -> list:
+    view = _view(config)
     allowed_dirs = [
-        config.get("source_dir", ""),
-        config.get("temp_dir", ""),
+        view.paths.source_dir,
+        view.paths.temp_dir,
     ]
-    for rule in config.get("path_rules", []):
+    for rule in view.paths.path_rules:
         template = rule.get("template", "")
         if not template:
             continue

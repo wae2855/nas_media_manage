@@ -6,6 +6,7 @@ import urllib.request
 import ssl
 from typing import List, Dict, Any, Optional
 
+from media_importer.core.config_view import ConfigView
 from .llm_prompts import LLMPromptBuilder
 
 
@@ -17,20 +18,20 @@ class LLMScraper:
     DEFAULT_SYSTEM_PROMPT = LLMPromptBuilder.DEFAULT_SYSTEM_PROMPT
 
     def __init__(self, config: dict):
-        llm_config = config.get('llm', {})
-        self.api_key = llm_config.get('api_key', '')
-        self.base_url = llm_config.get('base_url', 'https://api.openai.com/v1')
-        self.model = llm_config.get('model', 'gpt-3.5-turbo')
-        self.timeout = llm_config.get('timeout', 30)
-        self.max_retries = llm_config.get('max_retries', 2)
-        self.retry_delay = llm_config.get('retry_delay', 3)
-        self.fallback_model = llm_config.get('fallback_model')
-        self.confidence_threshold = llm_config.get('confidence_threshold', 0.8)
-        self.verify_ssl = llm_config.get('verify_ssl', True)
+        llm_config = ConfigView.from_dict(config).llm
+        self.api_key = llm_config.api_key
+        self.base_url = llm_config.base_url
+        self.model = llm_config.model
+        self.timeout = llm_config.timeout
+        self.max_retries = llm_config.max_retries
+        self.retry_delay = llm_config.retry_delay
+        self.fallback_model = llm_config.fallback_model or None
+        self.confidence_threshold = llm_config.confidence_threshold
+        self.verify_ssl = llm_config.verify_ssl
 
-        self.fast_model = llm_config.get('fast_model') or self.fallback_model or self.model
-        self.fast_base_url = llm_config.get('fast_base_url') or self.base_url
-        self.fast_api_key = llm_config.get('fast_api_key') or self.api_key
+        self.fast_model = llm_config.effective_fast_model
+        self.fast_base_url = llm_config.effective_fast_base_url
+        self.fast_api_key = llm_config.effective_fast_api_key
         default_dimensions = [
             {'name': 'media_type', 'label': '影视类型', 'values': ['movie', 'tv'], 'ai_prompt': '请判断这是电影（movie）还是电视剧（tv）。判断依据：如果文件名中包含季集编号（如S01E01、S2E03等格式），则为电视剧（tv）；如果是完整独立的影视故事，则为电影（movie）。电视电影/网络电影仍归为movie。'},
             {'name': 'documentary', 'label': '是否纪录片', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为纪录片（true/false）。纪录片是以真实事件、人物、历史、社会等为主题的非虚构影视作品，包括自然纪录片（如《地球脉动》）、历史纪录片、社会纪录片、科学纪录片等。TMDB genres 包含 Documentary (id=99) 则为 true；如 TMDB 未标注，请根据标题和简介判断。真人出演+虚构剧情的作品（如《辛德勒的名单》）应选 false。'},
@@ -41,7 +42,7 @@ class LLMScraper:
             {'name': 'broad_genre', 'label': '题材类型', 'values': ['horror_mystery', 'scifi_fantasy', 'war', 'action_adventure', 'comedy', 'drama_romance', 'documentary', 'music', 'kids', 'tv_show', 'other'], 'ai_prompt': '请判断该影视作品的主要类型，从以下选项中选择风格最鲜明突出的一个：horror_mystery（恐怖/悬疑）、scifi_fantasy（科幻/奇幻）、war（战争/军事）、action_adventure（动作/冒险）、comedy（喜剧）、drama_romance（剧情/情感）、documentary（纪录/纪实）、music（音乐/演出）、kids（儿童/家庭）、tv_show（电视节目）、other（其他）。'},
         ]
 
-        custom_system_prompt = llm_config.get('system_prompt', '')
+        custom_system_prompt = llm_config.system_prompt
 
         self.prompt_builder = LLMPromptBuilder(
             dimensions=default_dimensions,

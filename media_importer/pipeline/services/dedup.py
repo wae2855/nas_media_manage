@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
+from media_importer.core.config_view import ConfigView
 from media_importer.storage.dedup_checker import check_duplicate
 from .paths import import_roots_from_config
 from .source_cleanup import SourceCleanupService
@@ -16,22 +17,21 @@ class DedupDecision:
 
 class DedupService:
     def __init__(self, config: dict, cleanup_service: SourceCleanupService = None):
-        self.config = config
+        self.config = ConfigView.from_dict(config)
         self.cleanup_service = cleanup_service or SourceCleanupService(config)
 
     def import_roots(self) -> list:
         return import_roots_from_config(self.config)
 
     def check_task(self, task: dict) -> DedupDecision:
-        dedup_cfg = self.config.get("duplicate_handling", {}) or {}
-        if not dedup_cfg.get("enabled", True):
+        if not self.config.dedup.enabled:
             return DedupDecision(
                 action="continue",
                 result={"is_duplicate": False, "enabled": False},
                 message="智能同名检测已关闭，跳过跨目录扫描",
             )
 
-        strategy = dedup_cfg.get("strategy", "skip")
+        strategy = self.config.dedup.strategy
         dedup_result = {"is_duplicate": False}
         scraped = task.get("scrape_result", {})
         video_path = task.get("video_path", "")

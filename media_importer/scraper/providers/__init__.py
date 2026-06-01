@@ -1,5 +1,7 @@
 from typing import Dict, List, Type, Optional
 
+from media_importer.core.config_view import ConfigView
+
 _PROVIDER_REGISTRY: Dict[str, Type['MetadataProvider']] = {}
 
 
@@ -21,7 +23,7 @@ def get_all_registered_providers() -> Dict[str, Type['MetadataProvider']]:
 
 
 def create_providers(config: dict) -> list:
-    providers_config = config.get("metadata", {}).get("providers", [])
+    providers_config = ConfigView.from_dict(config).metadata.providers
     providers = []
     for pconf in providers_config:
         if not pconf.get("enabled", False):

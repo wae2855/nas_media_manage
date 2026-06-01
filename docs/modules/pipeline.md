@@ -29,7 +29,7 @@
 
 ## Direction
 
-已引入 `TaskContext`、`TaskLifecycle` 和 pipeline services。后续重点是让 services 改用 `ConfigView`，减少裸 `config` 访问。
+已引入 `TaskContext`、`TaskLifecycle` 和 pipeline services。pipeline services 已改用 `ConfigView` 读取高频配置。
 
 ## Tests
 

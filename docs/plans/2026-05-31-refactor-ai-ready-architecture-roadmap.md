@@ -182,8 +182,8 @@ confidence: medium
 
 目标：降低新增配置项的扇出成本。
 
-- [ ] 新增 `core/config_view.py`，定义 typed facade。
-- [ ] 覆盖高扇出配置：
+- [x] 新增 `core/config_view.py`，定义 typed facade。
+- [x] 覆盖高扇出配置：
   - 路径；
   - 源文件策略；
   - 去重；
@@ -191,9 +191,16 @@ confidence: medium
   - 人工审核；
   - Provider；
   - LLM。
-- [ ] pipeline services 改用 facade。
-- [ ] `FileScanner`、`SourceCleaner`、`MetadataScraper` 的高频配置逐步改为显式参数或 facade。
-- [ ] 更新配置迁移、校验、API、前端的新增配置流程文档。
+- [x] pipeline services 改用 facade。
+- [x] `FileScanner`、`SourceCleaner`、`MetadataScraper` 的高频配置逐步改为显式参数或 facade。
+- [x] 更新配置迁移、校验、API、前端的新增配置流程文档。
+
+执行记录：
+
+- 新增 `ConfigView` 及 `PathConfig`、`SourcePolicyConfig`、`DedupConfig`、`FilenameTemplateConfig`、`ManualReviewConfig`、`MetadataProviderConfig`、`LLMConfig`、`ScannerConfig`、`SourceCleanerConfig`。
+- pipeline services 已改用 `ConfigView`。
+- `FileScanner`、`SourceCleaner`、`MetadataScraper`、`LLMScraper`、provider registry 的高频读取已接入 `ConfigView`。
+- 新增 `tests/test_config_view.py` 覆盖默认值、扩展名归一化和消费者兼容。
 
 验收标准：
 

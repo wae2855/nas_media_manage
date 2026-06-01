@@ -6,6 +6,7 @@ from media_importer.core.db import (
     get_subtitles_by_task as db_get_subtitles,
     update_subtitle as db_update_subtitle,
 )
+from media_importer.core.config_view import ConfigView
 from media_importer.storage.file_mover import move_to_import
 from .paths import allowed_dirs_from_config
 from .source_cleanup import SourceCleanupResult, SourceCleanupService
@@ -22,7 +23,7 @@ class ImportResult:
 class ImportService:
     def __init__(self, config: dict, conn=None,
                  cleanup_service: SourceCleanupService = None):
-        self.config = config
+        self.config = ConfigView.from_dict(config)
         self.conn = conn
         self.cleanup_service = cleanup_service or SourceCleanupService(config)
 
@@ -39,7 +40,7 @@ class ImportService:
             task.get("subtitle_files", []),
             task.get("import_path", ""),
             task.get("scrape_result", {}),
-            self.config.get("filename_templates", {}),
+            self.config.filename_template_dict(),
             allowed_base_dirs=allowed_dirs_from_config(self.config),
             overwrite=overwrite,
         )
@@ -65,7 +66,7 @@ class ImportService:
         )
 
     def restore_confirm_temp_name(self, task: dict):
-        if not self.config.get("manual_review", {}).get("enabled", False):
+        if not self.config.manual_review.enabled:
             return
         temp_video_path = task.get("video_path", "")
         for extension in (".temp", ".tmp"):

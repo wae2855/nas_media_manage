@@ -185,18 +185,25 @@ media_importer/
 
 目标：减少全局配置 dict 扇出，尤其保护 pipeline 和 storage。
 
-- [ ] 新建 `core/config_view.py`。
-- [ ] 定义轻量 facade：
+- [x] 新建 `core/config_view.py`。
+- [x] 定义轻量 facade：
   - `PathConfig`
   - `SourcePolicyConfig`
   - `DedupConfig`
   - `FilenameTemplateConfig`
   - `ManualReviewConfig`
   - `MetadataProviderConfig`
-- [ ] 提供 `ConfigView.from_dict(config)`，保留原始 dict 访问能力。
-- [ ] 先在 pipeline services 中使用 facade。
-- [ ] 再把 `FileScanner`、`MetadataScraper`、`SourceCleaner` 中高频路径/扩展名配置替换为 facade 或显式构造参数。
-- [ ] 添加 facade 默认值和旧配置兼容测试。
+- [x] 提供 `ConfigView.from_dict(config)`，保留原始 dict 访问能力。
+- [x] 先在 pipeline services 中使用 facade。
+- [x] 再把 `FileScanner`、`MetadataScraper`、`SourceCleaner` 中高频路径/扩展名配置替换为 facade 或显式构造参数。
+- [x] 添加 facade 默认值和旧配置兼容测试。
+
+执行记录：
+
+- `ConfigView` 保留 `raw`，支持后续渐进迁移。
+- `pipeline/services/` 不再直接读取高频深层配置 key。
+- `LLMScraper` 和 provider registry 也接入 `ConfigView`，覆盖 LLM 与 Provider 配置入口。
+- `SourceCleaner` 保留历史默认模型 `gpt-4o-mini`。
 
 退出标准：pipeline services 不直接依赖裸 `config.get("source_policy", {})`、`config.get("path_rules", [])` 等关键 key。
 

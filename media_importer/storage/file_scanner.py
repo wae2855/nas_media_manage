@@ -4,21 +4,22 @@ import re
 import time
 from typing import List, Optional, Tuple
 
+from media_importer.core.config_view import ConfigView
+
 
 class FileScanner:
 
     def __init__(self, config: dict, task_manager=None):
         self.config = config
+        view = ConfigView.from_dict(config)
         self.task_manager = task_manager
-        self.scan_source = config.get("scan_source", True)
-        self.skip_existing = config.get("skip_existing", True)
-        self.sort_by = config.get("sort_by", "filename")
-        self.sort_reverse = config.get("sort_reverse", False)
-        self.group_delay_sec = config.get("group_delay_sec", 0)
-        video_list = config.get("video_extensions", [])
-        sub_list = config.get("subtitle_extensions", [])
-        self.video_extensions = tuple(ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in video_list)
-        self.subtitle_extensions = tuple(ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in sub_list)
+        self.scan_source = view.scanner.scan_source
+        self.skip_existing = view.scanner.skip_existing
+        self.sort_by = view.scanner.sort_by
+        self.sort_reverse = view.scanner.sort_reverse
+        self.group_delay_sec = view.scanner.group_delay_sec
+        self.video_extensions = view.paths.video_extensions
+        self.subtitle_extensions = view.paths.subtitle_extensions
 
     def scan_path(self, directory: str) -> List[dict]:
         if not os.path.isdir(directory):

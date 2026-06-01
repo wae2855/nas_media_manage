@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from media_importer.core.config_view import ConfigView
 from media_importer.storage.classifier import classify, render_template
 from .paths import resolve_project_path
 
@@ -15,10 +16,10 @@ class ClassificationResult:
 
 class ClassificationService:
     def __init__(self, config: dict):
-        self.config = config
+        self.config = ConfigView.from_dict(config)
 
     def classify_task(self, task: dict) -> ClassificationResult:
-        path_rules = self.config.get("path_rules", [])
+        path_rules = self.config.paths.path_rules
         scraped = task.get("scrape_result", {})
         dimensions = task.get("scrape_dimensions", {})
         dimensions_text = self._format_dimensions(dimensions)
@@ -26,7 +27,7 @@ class ClassificationService:
         import_path = classify(scraped, path_rules)
         used_fallback = False
         if not import_path:
-            fallback_dir = self.config.get("fallback_dir", "")
+            fallback_dir = self.config.paths.fallback_dir
             if fallback_dir:
                 import_path = render_template(fallback_dir, scraped)
                 used_fallback = True

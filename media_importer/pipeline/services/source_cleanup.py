@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 
+from media_importer.core.config_view import ConfigView
 from media_importer.core.safety import move_to_recycle, move_to_recycle_with_companions
 from media_importer.storage.file_mover import delete_source_files, remove_empty_parent_dir
 from .paths import allowed_dirs_from_config, import_roots_from_config
@@ -15,7 +16,7 @@ class SourceCleanupResult:
 
 class SourceCleanupService:
     def __init__(self, config: dict):
-        self.config = config
+        self.config = ConfigView.from_dict(config)
 
     def allowed_dirs(self) -> list:
         return allowed_dirs_from_config(self.config)
@@ -24,8 +25,8 @@ class SourceCleanupService:
         return import_roots_from_config(self.config)
 
     def recycle_existing_import(self, path: str, *, reason: str, task_id: str):
-        recycle_dir = self.config.get("source_policy", {}).get("recycle_dir", "")
-        source_dir = self.config.get("source_dir", "")
+        recycle_dir = self.config.source_policy.recycle_dir
+        source_dir = self.config.paths.source_dir
         return move_to_recycle(
             path,
             recycle_dir,
@@ -37,21 +38,20 @@ class SourceCleanupService:
 
     def cleanup_source_after_import(self, task: dict, original_video: str,
                                     original_subtitles: list) -> SourceCleanupResult:
-        source_dir = self.config.get("source_dir", "")
+        source_dir = self.config.paths.source_dir
         if not source_dir or not original_video:
             return SourceCleanupResult()
 
-        source_policy = self.config.get("source_policy", {})
-        if not source_policy.get("cleanup_source_after_done", False):
+        if not self.config.source_policy.cleanup_source_after_done:
             filename = os.path.basename(original_video)
             return SourceCleanupResult(message=f"源文件保留（配置: cleanup_source_after_done=false）: {filename}")
 
-        recycle_dir = source_policy.get("recycle_dir", "")
+        recycle_dir = self.config.source_policy.recycle_dir
         if not recycle_dir:
             return SourceCleanupResult()
 
-        video_exts = [ext.lower() for ext in self.config.get("video_extensions", [])]
-        sub_exts = [ext.lower() for ext in self.config.get("subtitle_extensions", [])]
+        video_exts = list(self.config.paths.video_extensions)
+        sub_exts = list(self.config.paths.subtitle_extensions)
         count = move_to_recycle_with_companions(
             original_video,
             original_subtitles,
@@ -71,7 +71,7 @@ class SourceCleanupService:
         return SourceCleanupResult(moved_count=count, message=message)
 
     def cleanup_temp_file(self, temp_video_path: str) -> SourceCleanupResult:
-        temp_dir = self.config.get("temp_dir", "")
+        temp_dir = self.config.paths.temp_dir
         if not temp_video_path or not temp_dir:
             return SourceCleanupResult()
         if not str(temp_video_path).startswith(temp_dir):
@@ -84,15 +84,15 @@ class SourceCleanupService:
 
     def recycle_source_after_skip(self, task: dict, original_video: str,
                                   original_subtitles: list) -> SourceCleanupResult:
-        source_dir = self.config.get("source_dir", "")
-        recycle_dir = self.config.get("source_policy", {}).get("recycle_dir", "")
+        source_dir = self.config.paths.source_dir
+        recycle_dir = self.config.source_policy.recycle_dir
         if not source_dir or not recycle_dir or not original_video:
             return SourceCleanupResult()
         if not str(original_video).startswith(source_dir):
             return SourceCleanupResult()
 
-        video_exts = [ext.lower() for ext in self.config.get("video_extensions", [])]
-        sub_exts = [ext.lower() for ext in self.config.get("subtitle_extensions", [])]
+        video_exts = list(self.config.paths.video_extensions)
+        sub_exts = list(self.config.paths.subtitle_extensions)
         count = move_to_recycle_with_companions(
             original_video,
             original_subtitles,

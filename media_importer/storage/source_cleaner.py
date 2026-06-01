@@ -6,6 +6,7 @@ import logging
 import urllib.request
 import urllib.error
 from datetime import datetime
+from media_importer.core.config_view import ConfigView
 from media_importer.core.safety import move_to_recycle, move_dir_to_recycle
 
 logger = logging.getLogger(__name__)
@@ -41,33 +42,23 @@ AI_SYSTEM_PROMPT = """你是"影音库AI智能整理"系统的源目录清理助
 class SourceCleaner:
     def __init__(self, config: dict):
         self.full_config = config
+        self.view = ConfigView.from_dict(config)
         self.config = config.get("source_cleaner", {})
-        self.source_dir = config.get("source_dir", "")
-        self.recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
-        self.cleanup_mode = self.config.get("cleanup_mode", "media_only")
-        self.ai_enabled = self.config.get("ai_enabled", False)
-        self.merge_strategy = self.config.get("merge_strategy", "intersection")
-        self.junk_video_max_size_mb = self.config.get("junk_video_max_size_mb", 50)
-        self.delete_extensions = set(
-            e.lower() if e.startswith(".") else f".{e.lower()}"
-            for e in self.config.get("delete_extensions", [".url", ".log", ".txt"])
-        )
-        self.protect_extensions = set(
-            e.lower() if e.startswith(".") else f".{e.lower()}"
-            for e in self.config.get("protect_extensions", [".nfo", ".jpg", ".png"])
-        )
-        self.blacklist_patterns = self.config.get("blacklist_patterns", [])
-        self.cleanup_empty_dirs = self.config.get("cleanup_empty_dirs", True)
-        self.ai_prompt = self.config.get("ai_prompt", AI_SYSTEM_PROMPT)
+        cleaner = self.view.source_cleaner
+        self.source_dir = self.view.paths.source_dir
+        self.recycle_dir = self.view.source_policy.recycle_dir
+        self.cleanup_mode = cleaner.cleanup_mode
+        self.ai_enabled = cleaner.ai_enabled
+        self.merge_strategy = cleaner.merge_strategy
+        self.junk_video_max_size_mb = cleaner.junk_video_max_size_mb
+        self.delete_extensions = set(cleaner.delete_extensions)
+        self.protect_extensions = set(cleaner.protect_extensions)
+        self.blacklist_patterns = cleaner.blacklist_patterns
+        self.cleanup_empty_dirs = cleaner.cleanup_empty_dirs
+        self.ai_prompt = cleaner.ai_prompt or AI_SYSTEM_PROMPT
 
-        self.video_extensions = set(
-            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
-            for ext in config.get("video_extensions", [])
-        )
-        self.subtitle_extensions = set(
-            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
-            for ext in config.get("subtitle_extensions", [])
-        )
+        self.video_extensions = set(self.view.paths.video_extensions)
+        self.subtitle_extensions = set(self.view.paths.subtitle_extensions)
         self.media_extensions = self.video_extensions | self.subtitle_extensions
 
     def preview(self, task_paths: set = None) -> list:
@@ -321,13 +312,13 @@ class SourceCleaner:
         return results
 
     def _ai_analyze_directory(self, dir_path: str, files: list) -> dict:
-        llm_config = self.full_config.get("llm", {})
-        api_key = llm_config.get("api_key", "")
+        llm_config = self.view.llm
+        api_key = llm_config.api_key
         if not api_key:
             return {}
 
-        api_base = llm_config.get("api_base", "https://api.openai.com/v1")
-        model = llm_config.get("fast_model", "") or llm_config.get("model", "gpt-4o-mini")
+        api_base = llm_config.effective_fast_base_url
+        model = llm_config.source_cleaner_model
 
         prompt = self._build_cleaner_prompt(dir_path, files)
         try:
