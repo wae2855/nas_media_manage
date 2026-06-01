@@ -8,7 +8,8 @@
 - `media_importer/pipeline/steps.py`
 - `media_importer/pipeline/steps_file.py`
 - `media_importer/pipeline/steps_scrape.py`
-- `media_importer/pipeline/confirm.py`
+- `media_importer/domains/import_flow/confirm.py`
+- `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/domains/import_flow/services/classification.py`
 - `media_importer/domains/import_flow/services/dedup.py`
 - `media_importer/domains/import_flow/services/import_service.py`
@@ -38,6 +39,8 @@ Phase 6A 已新增 `media_importer/domains/import_flow/` 作为业务域兼容�
 Phase 6D services 已将 `pipeline/services/` 实现迁移到 `media_importer/domains/import_flow/services/`；旧 `pipeline/services/*` 保留 import 和 patch 路径兼容。
 
 Phase 6D context 已将 `TaskContext` 实现迁移到 `media_importer/domains/import_flow/context.py`；旧 `pipeline/context.py` 保留兼容别名。
+
+Phase 6D confirm 已将确认/重分类实现迁移到 `media_importer/domains/import_flow/confirm.py`；旧 `pipeline/confirm.py` 保留兼容别名。
 
 ## Tests
 

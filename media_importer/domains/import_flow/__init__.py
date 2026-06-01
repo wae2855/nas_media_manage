@@ -37,8 +37,10 @@ from .services import (
     SourceCleanupResult,
     SourceCleanupService,
 )
+from .confirm import ConfirmMixin
 
 __all__ = [
+    "ConfirmMixin",
     "TaskContext",
     "ClassificationResult",
     "ClassificationService",

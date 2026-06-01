@@ -11,6 +11,7 @@ from media_importer.core.task_lifecycle import mark_imported as core_mark_import
 from media_importer.domains import import_flow
 from media_importer.domains.import_flow import (
     ClassificationService,
+    ConfirmMixin,
     DedupService,
     ImportService,
     ReviewDecision,
@@ -21,7 +22,10 @@ from media_importer.domains.import_flow import (
 )
 from media_importer.domains.import_flow import lifecycle as domain_lifecycle
 from media_importer.domains.import_flow import context as domain_context
+from media_importer.domains.import_flow import confirm as domain_confirm
+from media_importer.pipeline.confirm import ConfirmMixin as PipelineConfirmMixin
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
+import media_importer.pipeline.confirm as legacy_confirm
 import media_importer.pipeline.context as legacy_context
 from media_importer.pipeline.services import (
     ClassificationService as PipelineClassificationService,
@@ -43,6 +47,8 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
     def test_domain_public_imports_reexport_existing_objects(self):
         self.assertIs(TaskContext, PipelineTaskContext)
         self.assertIs(domain_context, legacy_context)
+        self.assertIs(ConfirmMixin, PipelineConfirmMixin)
+        self.assertIs(domain_confirm, legacy_confirm)
         self.assertIs(ClassificationService, PipelineClassificationService)
         self.assertIs(DedupService, PipelineDedupService)
         self.assertIs(ImportService, PipelineImportService)

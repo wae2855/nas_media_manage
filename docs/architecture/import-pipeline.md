@@ -6,9 +6,10 @@
 - `media_importer/pipeline/steps.py`
 - `media_importer/pipeline/steps_file.py`
 - `media_importer/pipeline/steps_scrape.py`
-- `media_importer/pipeline/confirm.py`
 - `media_importer/domains/import_flow/`
+- `media_importer/domains/import_flow/confirm.py`
 - `media_importer/domains/import_flow/services/`
+- `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/pipeline/services/` compatibility aliases
 
 ## Current Flow
@@ -33,6 +34,7 @@ pipeline 已引入：
 当前 `TaskContext` 和 `TaskLifecycle` 已接入 runner、confirm 和 retry 逻辑。分类、去重、导入、源文件清理和审核决策已从 step 内抽成 service；step 主要保留进度、日志和 DB 状态写入。
 
 `media_importer/domains/import_flow/` 是入库流程业务域入口。Phase 6D 已将 `TaskContext` 和 pipeline services 实现迁移到 domain；`pipeline/context.py` 与 `pipeline/services/` 保留旧 import 和 patch 路径兼容。
+确认/重分类实现已迁移到 `domains/import_flow/confirm.py`；`pipeline/confirm.py` 保留兼容别名。
 
 ## Change Guide
 

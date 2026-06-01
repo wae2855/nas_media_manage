@@ -281,6 +281,7 @@ media_importer/
 - [x] Phase 6C：迁移 `recycle` domain，保留 `core/recycle/*` 和 `core/safety.py` 兼容入口。
 - [x] Phase 6D services：迁移 `import_flow/services`，保留 `pipeline/services/*` 兼容别名。
 - [x] Phase 6D context：迁移 `TaskContext`，保留 `pipeline/context.py` 兼容别名。
+- [x] Phase 6D confirm：迁移确认/重分类实现，保留 `pipeline/confirm.py` 兼容别名。
 - [ ] 明确 deploy 副本同步策略后再移动实际实现。
 
 验收标准：

@@ -4,9 +4,11 @@
 
 - `media_importer/domains/import_flow/__init__.py`
 - `media_importer/domains/import_flow/context.py`
+- `media_importer/domains/import_flow/confirm.py`
 - `media_importer/domains/import_flow/lifecycle.py`
 - `media_importer/domains/import_flow/review.py`
 - `media_importer/domains/import_flow/services/`
+- `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/pipeline/services/` compatibility aliases
 
 ## Responsibility
@@ -16,6 +18,7 @@
 当前持有：
 
 - `TaskContext` from `media_importer.domains.import_flow.context`
+- `ConfirmMixin` from `media_importer.domains.import_flow.confirm`
 - `TaskLifecycle` constants/functions from `media_importer.core.task_lifecycle`
 - `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.domains.import_flow.services`
 
@@ -30,6 +33,7 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 兼容路径：
 
 - `media_importer/pipeline/context.py`
+- `media_importer/pipeline/confirm.py`
 - `media_importer/pipeline/services/`
 
 ## Extension Rules
@@ -38,8 +42,8 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 - 旧路径必须继续可 import。
 - 旧 patch 路径必须继续影响新 domain 入口。
 - 每个 domain proof slice 都要有 compatibility test。
-- `pipeline/runner.py` 和 `pipeline/confirm.py` 已从 domain 导入 `TaskContext` 和 services，但实现仍保留在 `pipeline/`。
-- 后续迁移 runner/confirm 实现时，先保留 `media_importer.pipeline` 公共入口。
+- `pipeline/runner.py` 已从 domain 导入 `TaskContext`、`ConfirmMixin` 和 services。
+- 后续迁移 runner 实现时，先保留 `media_importer.pipeline` 公共入口。
 
 ## Tests
 
