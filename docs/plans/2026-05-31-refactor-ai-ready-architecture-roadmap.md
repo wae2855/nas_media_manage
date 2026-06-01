@@ -212,18 +212,25 @@ confidence: medium
 
 目标：降低新增 API 和前端功能的成本。
 
-- [ ] 新增 `api/routes.py`。
-- [ ] 先迁移稳定 GET 路由。
-- [ ] 再迁移任务、配置、Provider、回收站、源目录清理路由。
-- [ ] API handler 只负责：
+- [x] 新增 `api/routes.py`。
+- [x] 先迁移稳定 GET 路由。
+- [x] 再迁移任务、配置、Provider、回收站、源目录清理路由。
+- [x] API handler 只负责：
   - 解析请求；
   - 鉴权；
   - 路由匹配；
   - 调用 handler；
   - 统一响应；
   - 静态文件 fallback。
-- [ ] 将 handler 内直接业务逻辑逐步下沉到应用服务。
-- [ ] 更新 `docs/规范/接口规范.md`。
+- [x] 将 handler 内直接业务逻辑逐步下沉到应用服务。
+- [x] 更新 API 架构与规范文档。
+
+执行记录：
+
+- 新增 `media_importer/api/routes.py`，支持 exact route 与 `{param}` 动态路径。
+- `handler.py` 的 API 长分支改为 route table dispatch。
+- 保留静态文件 fallback、API key 鉴权和 `{code,status,message,data}` 响应格式。
+- 新增 `tests/test_api_routes.py` 覆盖 route 匹配、动态参数和分发参数顺序。
 
 验收标准：
 

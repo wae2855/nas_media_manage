@@ -1,7 +1,6 @@
 import os
 import sys
 import threading
-import time
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -14,8 +13,6 @@ from media_importer.notify.hermes_hook import HermesNotifier
 from media_importer.monitor.file_watcher import FileWatcher
 from media_importer.core.db import (
     update_task as db_update_task,
-    delete_task as db_delete_task,
-    VALID_STATUSES,
 )
 
 from .utils import json_response, read_json_body, ThreadingHTTPServer, format_tasks_to_text
@@ -29,6 +26,7 @@ from .prompt_handlers import PromptHandlersMixin
 from .provider_handlers import ProviderHandlersMixin
 from .source_cleaner_handlers import SourceCleanerHandlers
 from .recycle_handlers import RecycleHandlers
+from .routes import match_route
 from . import globals
 
 
@@ -61,89 +59,46 @@ class APIHandler(
     def _auth_required(self):
         json_response(self, 401, code_str="unauthorized", message="认证失败：请提供有效的 API Key")
 
+    def _dispatch_api_route(self, method: str, path: str, query=None, body=None) -> bool:
+        match = match_route(method, path)
+        if not match:
+            return False
+        if match.route.auth_required and not self._check_auth():
+            self._auth_required()
+            return True
+
+        handler = getattr(self, match.route.handler_name)
+        args = []
+        if match.route.pass_self:
+            args.append(self)
+        if match.route.pass_body and match.route.body_before_params:
+            args.append(body or {})
+        for param_name in match.route.param_names:
+            args.append(match.params[param_name])
+        if match.route.pass_query:
+            args.append(query or {})
+        if match.route.pass_body and not match.route.body_before_params:
+            args.append(body or {})
+        if match.route.body_delete_files:
+            args.append(bool((body or {}).get("delete_files", False)))
+
+        result = handler(*args)
+        if match.route.handler_name == "_load_prompts_for_ui":
+            json_response(self, 200, data=result)
+        return True
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
 
-        if path.startswith("/api/") and path != "/api/health":
-            if not self._check_auth():
-                self._auth_required()
-                return
-
         if path == "/":
             self._serve_static_file("index.html")
         elif path.startswith("/css/") or path.startswith("/js/"):
             self._serve_static_file(path.lstrip("/"))
-        elif path == "/api/health":
-            self._health()
-        elif path == "/api/metrics":
-            self._metrics()
-        elif path == "/api/config":
-            self._config()
-        elif path == "/api/config/validate":
-            self._config_validate()
-        elif path == "/api/config/prompts":
-            prompts_data = self._load_prompts_for_ui()
-            json_response(self, 200, data=prompts_data)
-        elif path == "/api/config/prompts/reset":
-            self._config_reset_prompts()
-        elif path == "/api/watcher/status":
-            self._watcher_status()
-        elif path == "/api/tasks":
-            self._list_tasks(query)
-        elif path == "/api/tasks/stats":
-            self._task_stats()
-        elif path.startswith("/api/tasks/"):
-            parts = path.split("/")
-            if len(parts) >= 5 and parts[4] == "subtitles":
-                task_id = parts[3]
-                self._task_subtitles(task_id)
-            elif len(parts) >= 4:
-                task_id = parts[3]
-                self._get_task(task_id)
-            else:
-                json_response(self, 404, message="Not found")
-        elif path == "/api/queue/status":
-            self._queue_status()
-        elif path == "/api/logs":
-            self._logs(query)
-        elif path == "/api/skill":
-            self._skill()
-        elif path == "/api/skills":
-            self._skills_list()
-        elif path == "/api/dimensions":
-            self._dimensions_list()
-        elif path == "/api/dimensions/enabled":
-            self._dimensions_enabled()
-        elif path == "/api/providers":
-            self._providers_list()
-        elif path.startswith("/api/providers/"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                provider_type = parts[3]
-                action = parts[4]
-                if action == "genres":
-                    self._provider_genres_list(provider_type)
-                elif action == "prompts":
-                    self._provider_prompts_get(provider_type)
-                else:
-                    json_response(self, 404, message=f"Not found: {path}")
-            else:
-                json_response(self, 404, message=f"Not found: {path}")
-        elif path.startswith("/api/dimensions/"):
-            dim_name = path.split("/api/dimensions/")[1].rstrip("/")
-            self._dimension_get(dim_name)
-        elif path == "/api/source-cleaner/preview":
-            self.source_cleaner_preview(self)
-        elif path == "/api/source-cleaner/records":
-            self.source_cleaner_records(self)
-        elif path == "/api/source-cleaner/status":
-            self.source_cleaner_status(self)
-        elif path == "/api/source-cleaner/ai-preview":
-            self.source_cleaner_ai_preview(self)
-        elif path == "/api/recycle/list":
-            self.recycle_list(self)
+        elif path.startswith("/api/"):
+            if not self._dispatch_api_route("GET", path, query=query):
+                json_response(self, 404, message=f"Endpoint not found: {path}")
         else:
             self._serve_static_file(path.lstrip("/"))
 
@@ -154,128 +109,8 @@ class APIHandler(
         body = read_json_body(self)
 
         if path.startswith("/api/"):
-            if not self._check_auth():
-                self._auth_required()
-                return
-
-        if path == "/api/run":
-            self._run_batch()
-        elif path == "/api/restart":
-            self._restart_service()
-        elif path == "/api/watcher/control":
-            self._watcher_control(query)
-        elif path == "/api/run/file":
-            self._run_file(body)
-        elif path == "/api/tasks/clear":
-            self._clear_tasks(body)
-        elif path == "/api/tasks/confirm-all":
-            self._task_confirm_all()
-        elif path.startswith("/api/tasks/") and path.endswith("/retry"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                self._retry_task(task_id)
-            else:
-                json_response(self, 400, message="Invalid retry path")
-        elif path.startswith("/api/tasks/") and path.endswith("/confirm"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                self._task_confirm(task_id)
-            else:
-                json_response(self, 400, message="Invalid confirm path")
-        elif path.startswith("/api/tasks/") and path.endswith("/reclassify"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                self._task_reclassify(task_id, body)
-            else:
-                json_response(self, 400, message="Invalid reclassify path")
-        elif path.startswith("/api/tasks/") and path.endswith("/ignore"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                self._task_ignore(task_id)
-            else:
-                json_response(self, 400, message="Invalid ignore path")
-        elif path.startswith("/api/tasks/") and path.endswith("/rename"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                self._task_rename(task_id, body)
-            else:
-                json_response(self, 400, message="Invalid rename path")
-        elif path.startswith("/api/tasks/") and path.endswith("/delete"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                task_id = parts[3]
-                delete_files = bool(body.get("delete_files", False)) if body else False
-                self._delete_task(task_id, delete_files=delete_files)
-            else:
-                json_response(self, 400, message="Invalid delete path")
-        elif path == "/api/queue/pause":
-            self._queue_pause()
-        elif path == "/api/queue/resume":
-            self._queue_resume()
-        elif path == "/api/queue/retry-all":
-            self._queue_retry_all()
-        elif path == "/api/config/reload":
-            self._config_reload()
-        elif path == "/api/config/test-llm":
-            self._config_test_llm(body)
-        elif path == "/api/config/test-hermes":
-            self._config_test_hermes(body)
-        elif path == "/api/scrape/preview":
-            self._scrape_preview(body)
-        elif path.startswith("/api/providers/"):
-            parts = path.split("/")
-            if len(parts) >= 5:
-                provider_type = parts[3]
-                action = parts[4]
-                if action == "test":
-                    self._provider_test(body, provider_type)
-                elif action == "preview":
-                    self._provider_preview(body, provider_type)
-                elif action == "search":
-                    self._provider_search(body, provider_type)
-                elif action == "details":
-                    self._provider_details(body, provider_type)
-                elif action == "prompts":
-                    if len(parts) >= 6 and parts[5] == "reset":
-                        self._provider_prompts_reset(body, provider_type)
-                    else:
-                        self._provider_prompts_save(body, provider_type)
-                else:
-                    json_response(self, 404, message=f"Not found: {path}")
-            else:
-                json_response(self, 404, message=f"Not found: {path}")
-        elif path == "/api/config/check-permission":
-            self._config_check_permission(body)
-        elif path == "/api/path/test":
-            self._path_test(body)
-        elif path == "/api/config/section":
-            self._config_save_section(body)
-        elif path == "/api/config":
-            self._config_save(body)
-        elif path == "/api/config/prompts":
-            self._config_save_prompts(body)
-        elif path == "/api/config/prompts/reset":
-            self._config_reset_prompts()
-        elif path.startswith("/api/dimensions/") and path.endswith("/enable"):
-            dim_name = path.split("/api/dimensions/")[1].replace("/enable", "")
-            self._dimension_enable(dim_name)
-        elif path.startswith("/api/dimensions/") and path.endswith("/disable"):
-            dim_name = path.split("/api/dimensions/")[1].replace("/disable", "")
-            self._dimension_disable(dim_name)
-        elif path.startswith("/api/dimensions/") and path.endswith("/reset"):
-            dim_name = path.split("/api/dimensions/")[1].replace("/reset", "")
-            self._dimension_reset(dim_name)
-        elif path == "/api/source-cleaner/execute":
-            self.source_cleaner_execute(self)
-        elif path == "/api/recycle/restore":
-            self.recycle_restore(self)
-        elif path == "/api/recycle/delete":
-            self.recycle_delete(self)
+            if not self._dispatch_api_route("POST", path, query=query, body=body):
+                json_response(self, 404, message=f"Endpoint not found: {path}")
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
 
@@ -285,13 +120,8 @@ class APIHandler(
         body = read_json_body(self)
 
         if path.startswith("/api/"):
-            if not self._check_auth():
-                self._auth_required()
-                return
-
-        if path.startswith("/api/dimensions/"):
-            dim_name = path.split("/api/dimensions/")[1].rstrip("/")
-            self._dimension_update(dim_name, body)
+            if not self._dispatch_api_route("PUT", path, body=body):
+                json_response(self, 404, message=f"Endpoint not found: {path}")
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
 
@@ -300,20 +130,8 @@ class APIHandler(
         path = parsed.path
 
         if path.startswith("/api/"):
-            if not self._check_auth():
-                self._auth_required()
-                return
-
-        if path.startswith("/api/tasks/"):
-            suffix = path[len("/api/tasks/"):]
-            if "/" in suffix:
+            if not self._dispatch_api_route("DELETE", path):
                 json_response(self, 404, message=f"Endpoint not found: {path}")
-                return
-            task_id = suffix
-            if not task_id:
-                json_response(self, 400, message="Missing task_id")
-                return
-            self._delete_task(task_id, delete_files=False)
         else:
             json_response(self, 404, message=f"Endpoint not found: {path}")
 

@@ -211,17 +211,23 @@ media_importer/
 
 目标：降低新增端点成本，保持原生 HTTP 和 Mixin 模式。
 
-- [ ] 新建 `api/routes.py`。
-- [ ] 定义最小 route 结构：method、path/matcher、auth_required、handler_name、body_required。
-- [ ] 先迁移无路径参数的 GET 路由，如 `/api/health`、`/api/metrics`、`/api/config`。
-- [ ] 再迁移任务和 provider 这类带路径参数的路由。
-- [ ] `APIHandler.do_GET/do_POST/do_DELETE` 变成：
+- [x] 新建 `api/routes.py`。
+- [x] 定义最小 route 结构：method、path/matcher、auth_required、handler_name、body_required。
+- [x] 先迁移无路径参数的 GET 路由，如 `/api/health`、`/api/metrics`、`/api/config`。
+- [x] 再迁移任务和 provider 这类带路径参数的路由。
+- [x] `APIHandler.do_GET/do_POST/do_DELETE` 变成：
   - 解析 path/query/body
   - 鉴权
   - route 匹配
   - 调用 handler
   - 静态文件 fallback
-- [ ] 添加 route 匹配单元测试，覆盖当前端点路径。
+- [x] 添加 route 匹配单元测试，覆盖当前端点路径。
+
+执行记录：
+
+- API route table 覆盖 GET、POST、PUT、DELETE 现有端点。
+- `APIHandler` 保留原生 HTTP、鉴权、JSON 响应、静态文件 fallback。
+- `tests/test_api_routes.py` 覆盖 exact route 优先级、动态参数、provider body-first 旧签名、delete_files body 提取。
 
 退出标准：新增 API 端点不需要继续扩展长 `if/elif`；现有接口路径和响应格式不变。
 
