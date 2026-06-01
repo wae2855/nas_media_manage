@@ -29,9 +29,20 @@ core: config / db / recycle / safety / logger / metrics
 
 ## Architecture Direction
 
-当前阶段不重写详细事实文档。后续代码重构目标是让 `pipeline` 从“承载大量业务细节”逐步转为“编排 TaskContext、TaskLifecycle 和业务 services”。
+当前阶段的核心收益来自业务边界显式化，而不是目录名变化。
+
+已落地的稳定边界：
+
+- `TaskContext`
+- `TaskLifecycle`
+- pipeline services
+- `ConfigView`
+- API route table
+
+目录级 `domains/` 迁移采用兼容层 + proof slice 策略，不做一次性大迁移。旧 public imports 保持可用，详见 ADR-0002。
 
 详见：
 
 - [AI 友好架构整体调整路线图](../plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md)
 - [业务边界显式化重构](../plans/2026-05-31-refactor-business-boundaries-plan.md)
+- [业务域目录迁移可行性评审](../plans/2026-06-01-domain-directory-migration-feasibility.md)

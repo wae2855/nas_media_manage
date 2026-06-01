@@ -31,3 +31,4 @@ Status: Accepted | Superseded | Deprecated
 - Recycle-first file deletion
 - AI-ready documentation system
 - Task lifecycle centralization
+- Domain directory migration strategy

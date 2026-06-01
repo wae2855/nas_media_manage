@@ -242,6 +242,8 @@ confidence: medium
 
 目标：在业务边界稳定后，再考虑更大范围目录重组。
 
+Status: feasibility_review_completed
+
 候选结构：
 
 ```text
@@ -265,11 +267,24 @@ media_importer/
 
 本阶段不是必须立刻做。只有当 Phase 2-5 的业务边界稳定后，目录迁移才值得做。
 
+2026-06-01 评审结论：不做一次性大规模目录迁移。采用兼容层 + proof slice 渐进迁移，详见：
+
+- `docs/plans/2026-06-01-domain-directory-migration-feasibility.md`
+- `docs/decisions/0002-domain-directory-migration-strategy.md`
+
+建议下一步：
+
+- [ ] Phase 6A：新增 `media_importer/domains/` 兼容 proof slice。
+- [ ] 保持旧 public imports 可用。
+- [ ] 增加 import compatibility tests。
+- [ ] 明确 deploy 副本同步策略后再移动实际实现。
+
 验收标准：
 
-- import 路径迁移有兼容层或一次性机械迁移脚本。
-- 文档入口同步更新。
-- 部署路径和 `deploy/` 同步策略明确。
+- [x] import 路径迁移有兼容层或一次性机械迁移策略。
+- [x] 文档入口同步更新到评审文档和 ADR。
+- [x] 部署路径和 `deploy/` 同步风险已记录。
+- [ ] proof slice 实现并通过兼容测试。
 
 ### Phase 7: 测试体系与 AI 回归护栏
 

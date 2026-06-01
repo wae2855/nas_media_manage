@@ -235,11 +235,18 @@ media_importer/
 
 目标：让未来 AI 和人按新边界接手。
 
+- [x] 更新迁移评审文档，明确大目录重组的兼容策略和执行顺序。
 - [ ] 更新 `docs/系统架构总览.md` 的模块依赖和核心数据流。
 - [x] 更新 `docs/architecture/import-pipeline.md` 和 `docs/architecture/task-lifecycle.md`，补充 `TaskContext`、`TaskLifecycle`、services 边界。
 - [ ] 更新 `docs/架构/任务管理.md`，集中描述状态转换和 `file_location` 规则。
 - [ ] 若 API route table 落地，更新 `docs/规范/接口规范.md` 的新增端点维护规则。
 - [ ] 回写本计划的完成状态和实施偏差。
+
+执行记录：
+
+- 新增 `docs/plans/2026-06-01-domain-directory-migration-feasibility.md`。
+- 新增 `docs/decisions/0002-domain-directory-migration-strategy.md`。
+- 决策：暂不做一次性目录大迁移；下一步先做 `domains/` 兼容 proof slice。
 
 退出标准：文档能作为 AI 后续修改 pipeline/API 的入口，而不需要先全文搜索。
 
