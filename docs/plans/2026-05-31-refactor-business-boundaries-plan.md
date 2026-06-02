@@ -2,7 +2,7 @@
 title: "refactor: 业务边界显式化重构"
 type: plan
 date: 2026-05-31
-status: in_progress
+status: completed
 brainstorm: docs/方案/任务状态模型与文件流转重构.md
 confidence: medium
 ---
@@ -240,7 +240,7 @@ media_importer/
 - [x] 更新 `docs/architecture/import-pipeline.md` 和 `docs/architecture/task-lifecycle.md`，补充 `TaskContext`、`TaskLifecycle`、services 边界。
 - [x] 更新 `docs/architecture/task-lifecycle.md`，集中描述状态转换和 `file_location` 规则；旧中文架构目录降级为 legacy。
 - [x] API route table 已落地，当前维护规则迁移到 `docs/standards/api.md`、`docs/modules/api.md` 和 `docs/architecture/api.md`；旧中文规范目录降级为 legacy。
-- [ ] 回写本计划的完成状态和实施偏差。
+- [x] 回写本计划的完成状态和实施偏差。
 
 执行记录：
 
@@ -256,6 +256,15 @@ media_importer/
 - Phase 6D confirm 已迁移 `media_importer/domains/import_flow/confirm.py`，旧 `pipeline/confirm.py` 保留兼容别名。
 - Phase 6D runner 已迁移 `media_importer/domains/import_flow/runner.py`，旧 `pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 保留兼容入口。
 - Phase 6D steps 已迁移 `media_importer/domains/import_flow/steps/`，旧 `pipeline/steps*` 保留兼容别名。
+- DOC-1 收口：新增 `docs/legacy.md`，旧中文文档区降级为 legacy，不作为当前事实入口。
+- deploy 收口：新增 `docs/decisions/0003-deploy-package-generation-strategy.md`，明确根源码是唯一事实来源，`deploy/nas-media-importer/` 是生成 package workspace。
+
+实施偏差：
+
+- 原计划只要求在现有技术分层内显式化业务边界；实际增加了 `media_importer/domains/` 渐进业务域入口。该偏差已由 ADR-0002 约束为兼容 proof slice，不删除旧 public imports。
+- 原计划要求更新旧中文文档；实际改为建立新文档树并把旧中文文档降级为 legacy。原因是旧文档内容与迁移后事实冲突，继续维护会增加 AI 搜索成本。
+- 原计划不处理 deploy 手动同步；实际只补充 deploy package 生成策略，不修改生成包源码副本。该偏差解决发布边界歧义，但不执行 package 清理。
+- Phase 7 测试护栏仍作为后续阶段执行，不计入本业务边界计划的完成条件。
 
 退出标准：文档能作为 AI 后续修改 pipeline/API 的入口，而不需要先全文搜索。
 
