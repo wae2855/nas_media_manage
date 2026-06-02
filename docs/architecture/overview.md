@@ -20,7 +20,6 @@ shared: tiny cross-feature constants and helpers
 |------|------|------|
 | `media_importer/api/` | 入口层 | HTTP 路由、Mixin handler、静态文件服务 |
 | `media_importer/features/` | 业务事实源 | feature-first 业务能力入口 |
-| `media_importer/pipeline/` | 迁移期 wrapper | 入库流程旧路径，后续归档 |
 | `media_importer/scraper/` | 待迁移业务能力 | LLM、Provider、置信度、维度映射，目标是 `features/scraping` 与 `features/providers` |
 | `media_importer/storage/` | 待拆分能力 | 文件扫描、复制、移动、分类、去重，目标是 feature service + infrastructure/filesystem |
 | `media_importer/core/` | 待拆分基础设施 | DB、配置、任务、安全、日志、指标，目标是 feature-owned repos + infrastructure |
@@ -44,7 +43,7 @@ shared: tiny cross-feature constants and helpers
 
 - 新业务入口优先放入 `features/`。
 - API/CLI 只做请求解析、响应包装和用例调用，不承载复杂业务策略。
-- 旧技术目录如果只是转发到 feature，可在测试和文档完成后归档。
+- 旧技术目录如果只是转发到 feature，可在测试和文档完成后归档；旧 `pipeline/` 包装层已归档。
 - 当前事实文档不得引用归档内容作为依据。
 
 详见：

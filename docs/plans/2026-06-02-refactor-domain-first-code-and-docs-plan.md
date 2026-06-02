@@ -2,7 +2,7 @@
 title: "refactor: feature-first code and documentation structure"
 type: plan
 date: 2026-06-02
-status: in_progress
+status: complete
 confidence: medium
 ---
 
@@ -212,7 +212,7 @@ confidence: medium
   - `docs/features/recycle.md`
   - `docs/features/providers.md`
   - `docs/features/prompts.md`
-- [x] 当前 `docs/modules/` 可作为旧模块文档归档候选；若保留，必须只作为 feature 文档的辅助索引。
+- [x] 旧 `docs/modules/` 已归档，当前事实入口改为 `docs/features/`、`docs/architecture/` 和 `docs/INDEX.md`。
 - [x] 更新 `docs/testing/known-failures.md`，说明本阶段 known failures 暂缓处理的原因和重评条件。
 - [x] 更新 `AGENTS.md` 当前重构方向，强调先架构和文档、再前端、再深测。
 
@@ -271,7 +271,7 @@ confidence: medium
   - route table；
   - config view；
   - task lifecycle；
-  - pipeline services。
+  - import-flow services。
 - [x] 前端完成后，重新规划 UI/E2E 测试结构。
 - [x] 旧 known failures 到时按新业务契约重新分类：
   - delete obsolete test；

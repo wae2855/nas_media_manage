@@ -2,7 +2,7 @@
 
 ## Current Statuses
 
-当前任务状态仍由 DB 常量、TaskManager、pipeline、API、前端共同使用。
+当前任务状态仍由 DB 常量、TaskManager、import-flow、API、前端共同使用。
 
 常见状态：
 
@@ -38,7 +38,7 @@
 - imported；
 - retry reset。
 
-当前仍保持兼容：pipeline step 继续接收原始 task dict，后续服务化重构再逐步扩大使用范围。
+当前 import-flow step 继续接收原始 task dict；跨步骤更新通过 `TaskContext` 和 `TaskLifecycle` 集中表达。
 
 ## Transition Table
 
@@ -50,7 +50,7 @@
 | `mark_confirming()` | `CONFIRMING` | `temp` | 低置信度进入人工确认 |
 | `mark_confirmed()` | 保持原值 | 保持原值 | 用户确认任务 |
 | `mark_needs_review()` | `NEEDS_REVIEW` | `temp` | 数据来源门控拦截 |
-| `mark_failed()` | `FAILED` | 默认 `source` | pipeline/API 失败分支 |
+| `mark_failed()` | `FAILED` | 默认 `source` | import-flow/API 失败分支 |
 | `mark_skipped()` | `SKIPPED` | 默认 `source` | 去重跳过或用户忽略 |
 | `mark_imported()` | `SUCCESS` | `import` | 入库成功 |
 | `reset_for_retry()` | `PENDING` | `source` | 重试失败任务 |

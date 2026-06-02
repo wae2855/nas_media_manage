@@ -3,7 +3,8 @@
 ## Layer Rules
 
 - `api` 是入口层，负责 HTTP、鉴权、请求解析和响应，不承载复杂业务策略。
-- `pipeline` 是编排层，长期目标是调用 services，而不是直接处理所有策略。
+- `features` 是业务事实源；新增或重构业务优先按 feature 边界落地。
+- `features/import_flow` 是入库流程编排层，调用 services，不直接承载所有策略。
 - `scraper` 负责元数据和 AI/Provider 相关逻辑。
 - `storage` 负责文件系统和入库相关能力。
 - `core` 负责基础设施和跨域模型，不依赖上层模块。

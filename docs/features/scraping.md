@@ -29,7 +29,7 @@
 ## Tests
 
 - `tests/test_confidence_engine.py`
-- Scrape-related API and pipeline tests.
+- Scrape-related API and import-flow tests.
 - Provider tests when external calls are mocked.
 
 ## Migration Notes

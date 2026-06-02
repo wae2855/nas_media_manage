@@ -29,7 +29,7 @@ from media_importer.features.tasks import (
     reset_for_retry,
     start_processing,
 )
-from media_importer.pipeline.context import TaskContext
+from media_importer.features.import_flow import TaskContext
 
 
 class TestTaskContext(unittest.TestCase):

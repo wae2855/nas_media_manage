@@ -24,7 +24,6 @@
 
 - `architecture/` 描述当前事实，不放未实施设想。
 - `features/` 连接业务功能、代码入口、配置、API、数据和测试。
-- `modules/` 是迁移期辅助索引；新事实优先写入 `features/`。
 - `standards/` 放长期规则，AGENTS.md 只摘要最高优先级规则。
 - `workflows/` 放从想法到交付的闭环流程。
 - `decisions/` 放 ADR，说明为什么做某个架构选择。
@@ -33,4 +32,4 @@
 
 ## Current Reorganization Status
 
-当前文档体系正在从模块目录索引迁移到 feature-first 索引。旧中文文档、完成/废弃计划和历史测试脚本会统一归档；当前事实文档不得把归档内容作为依据。
+当前文档体系已经切换到 feature-first 索引。旧中文文档、旧 modules 文档、完成/废弃计划和历史测试脚本已统一归档；当前事实文档不得把归档内容作为依据。

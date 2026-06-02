@@ -27,11 +27,14 @@ Older plans may still reference legacy paths as historical evidence. A plan is c
 | `docs/规范/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/规范/` | `docs/standards/` |
 | `docs/测试/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/测试/` | `docs/testing/` |
 | `docs/系统架构总览.md` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/系统架构总览.md` | `docs/README.md`, `docs/architecture/overview.md`, `docs/INDEX.md` |
+| `docs/modules/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/modules/` | `docs/features/`, `docs/architecture/`, `docs/INDEX.md` |
+| `media_importer/pipeline/` | `docs/_archive/2026-06-02-feature-first-reorg/code/media_importer/pipeline/` | `media_importer/features/import_flow/` |
 
 ## Current Conflict Notes
 
 - Archived legacy docs may describe old `pipeline/`, `domains/`, or technical-layer-first layouts.
 - Current implementation facts live under `media_importer/features/` and `docs/features/`.
+- Old modules docs and old pipeline wrappers are traceability only.
 - Replaced plans live in `docs/_archive/2026-06-02-feature-first-reorg/docs/plans/`.
 
 ## Maintenance

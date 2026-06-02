@@ -69,7 +69,6 @@ media_importer/
 ├── api/                       # HTTP API 和静态文件服务
 ├── core/                      # 配置、DB、任务、安全、回收站、日志、指标
 ├── features/                  # feature-first 业务能力事实源
-├── pipeline/                  # 旧入库流程 wrapper，后续归档
 ├── scraper/                   # 待迁移到 features/scraping 与 features/providers
 ├── storage/                   # 待拆分为 feature 服务与 infrastructure/filesystem
 ├── monitor/                   # 待并入 notification/monitoring feature 或 infrastructure
@@ -94,9 +93,9 @@ media_importer/
 
 | 改动类型 | 必须同步 |
 |----------|----------|
-| 新增 API | `docs/architecture/api.md`, `docs/modules/api.md`, `docs/standards/api.md`, `docs/INDEX.md` |
+| 新增 API | `docs/architecture/api.md`, `docs/standards/api.md`, `docs/INDEX.md` |
 | 新增配置项 | loader/migration/validator/API/frontend/docs/tests |
-| 修改任务状态 | DB constants/task manager/pipeline/API/frontend/docs/tests |
+| 修改任务状态 | DB constants/task manager/import-flow/API/frontend/docs/tests |
 | 修改文件删除/覆盖逻辑 | safety/recycle 文档和回收站测试 |
 | 新增 Provider | Provider 文档、配置、API、测试 |
 | 大架构重构 | plan + ADR + `docs/features/` + 相关 architecture 文档 |
@@ -147,7 +146,8 @@ media_importer/
 当前大方向是 AI 友好的 feature-first 激进重构：
 
 - `features/` 是新业务入口，优先按业务能力检索和扩展。
-- 旧 `pipeline/`、`storage/`、`core/recycle/` 等路径只作为临时 wrapper 或待迁移目录，不作为新事实源。
+- `features/import_flow/` 已替代旧 `pipeline/` 包装层；旧包装层已归档，不作为可导入入口。
+- `storage/`、`core/recycle/` 等旧技术路径只作为待迁移目录，不作为新事实源。
 - 历史文档、旧方案、旧测试脚本和生成物统一归档，当前文档不得引用归档内容作为事实。
 - 前端重做和深层 UI/E2E 测试在代码与文档架构稳定后单独展开。
 

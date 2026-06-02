@@ -11,7 +11,6 @@
 | `media_importer/features/import_flow/steps/` | File and scrape step mixins. |
 | `media_importer/features/import_flow/services/` | Classification, dedup, import, source cleanup, and review decisions. |
 | `media_importer/features/import_flow/confirm.py` | Manual confirmation and reclassification behavior. |
-| `media_importer/pipeline/` | Temporary wrapper for old imports; not the preferred source of truth. |
 
 ## Related Areas
 
@@ -23,11 +22,10 @@
 ## Tests
 
 - `tests/test_feature_import_flow.py`
-- `tests/test_pipeline_services.py`
+- `tests/test_import_flow_services.py`
 - `tests/test_feature_entrypoints.py`
 
-## Migration Notes
+## Change Notes
 
 - New code should import from `media_importer.features.import_flow`.
-- Old `media_importer.pipeline` wrappers can be archived after route/API/tests no longer need patch compatibility.
 - Behavior changes must update `docs/architecture/import-pipeline.md` and this file together.

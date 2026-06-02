@@ -93,8 +93,8 @@ def test_file_watcher_config():
 
 def test_duplicate_handling_config():
     section("3. pipeline 同名检测 enabled 开关")
-    import media_importer.pipeline.steps as pipeline_steps
-    src = open(pipeline_steps.__file__).read()
+    from media_importer.features.import_flow import steps as feature_steps
+    src = open(feature_steps.__file__).read()
     if "dedup_cfg.get('enabled', True)" in src:
         ok("pipeline._step_dedup 读取 duplicate_handling.enabled")
     else:
@@ -217,7 +217,7 @@ def test_pipeline_with_full_config():
         'logging': {'level': 'INFO', 'format': 'text', 'max_size_mb': 10, 'backup_count': 2},
     }
     try:
-        from media_importer.pipeline import PipelineRunner
+        from media_importer.features.import_flow import PipelineRunner
         from media_importer.features.tasks import TaskManager
         from media_importer.core.logger import Logger
         from media_importer.core.metrics import Metrics

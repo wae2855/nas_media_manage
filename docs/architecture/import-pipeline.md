@@ -9,12 +9,6 @@
 - `media_importer/features/import_flow/steps/scrape.py`
 - `media_importer/features/import_flow/confirm.py`
 - `media_importer/features/import_flow/services/`
-- `media_importer/pipeline/runner.py` compatibility alias
-- `media_importer/pipeline/steps.py` compatibility alias
-- `media_importer/pipeline/steps_file.py` compatibility alias
-- `media_importer/pipeline/steps_scrape.py` compatibility alias
-- `media_importer/pipeline/confirm.py` compatibility alias
-- `media_importer/pipeline/services/` compatibility aliases
 
 ## Current Flow
 
@@ -24,7 +18,7 @@ scan -> copy -> scrape -> validate -> classify -> dedup -> rename -> import -> n
 
 ## Direction
 
-pipeline 已引入：
+Import flow 已引入：
 
 - `Import Flow Feature`: `media_importer/features/import_flow/`
 - `TaskContext`: `media_importer/features/import_flow/context.py`
@@ -37,10 +31,7 @@ pipeline 已引入：
 
 当前 `TaskContext` 和 `TaskLifecycle` 已接入 runner、confirm 和 retry 逻辑。分类、去重、导入、源文件清理和审核决策已从 step 内抽成 service；step 主要保留进度、日志和 DB 状态写入。
 
-`media_importer/features/import_flow/` 是入库流程业务域入口。Phase 6D 已将 `TaskContext` 和 pipeline services 实现迁移到 domain；`pipeline/context.py` 与 `pipeline/services/` 保留旧 import 和 patch 路径兼容。
-确认/重分类实现已迁移到 `features/import_flow/confirm.py`；`pipeline/confirm.py` 保留兼容别名。
-主编排 `PipelineRunner` 已迁移到 `features/import_flow/runner.py`；`pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 保留兼容入口。
-流程 step 实现已迁移到 `features/import_flow/steps/`；`pipeline/steps.py`、`pipeline/steps_file.py` 和 `pipeline/steps_scrape.py` 保留兼容别名。
+`media_importer/features/import_flow/` 是入库流程业务域入口。旧 `media_importer/pipeline/` 包装层已归档到 `docs/_archive/2026-06-02-feature-first-reorg/code/media_importer/pipeline/`，不再作为当前可导入入口。新代码、测试和文档必须直接使用 `media_importer.features.import_flow`。
 
 ## Change Guide
 

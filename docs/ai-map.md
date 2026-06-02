@@ -9,13 +9,13 @@
 | 新增 API 端点 | [architecture/api.md](architecture/api.md), [standards/api.md](standards/api.md) | `media_importer/api/handler.py`, 对应 `*_handlers.py` | API 集成/前端相关测试 | `docs/INDEX.md`, API 文档 |
 | 新增配置项 | [features/configuration.md](features/configuration.md), [architecture/configuration.md](architecture/configuration.md), [standards/configuration.md](standards/configuration.md) | `features/configuration/`, `core/config_loader.py`, `core/config_migrations.py`, `core/config_validator.py`, `api/config_handlers.py`, `webui/js/config.js` | 配置测试、UI 配置测试 | 配置 feature、架构和索引 |
 | 修改任务状态 | [features/tasks.md](features/tasks.md), [architecture/task-lifecycle.md](architecture/task-lifecycle.md) | `features/tasks/`, `core/db/constants.py`, `core/task_manager.py`, `features/import_flow/`, `api/task_handlers.py`, `webui/js/tasks.js` | 任务、import-flow、回归测试 | lifecycle 文档、测试矩阵 |
-| 修改入库流程 | [features/import-flow.md](features/import-flow.md), [architecture/import-pipeline.md](architecture/import-pipeline.md) | `features/import_flow/runner.py`, `features/import_flow/steps/`, `features/import_flow/services/` | full_flow/e2e/recycle/feature smoke | import-flow 文档 |
+| 修改入库流程 | [features/import-flow.md](features/import-flow.md), [architecture/import-pipeline.md](architecture/import-pipeline.md) | `features/import_flow/runner.py`, `features/import_flow/steps/`, `features/import_flow/services/` | import-flow services/feature smoke/recycle | import-flow 文档 |
 | 修改刮削逻辑 | [features/scraping.md](features/scraping.md), [architecture/scraping.md](architecture/scraping.md) | `features/scraping/`, `scraper/metadata_scraper.py`, `scraper/llm_scraper.py`, `scraper/confidence_engine.py` | confidence/scrape 测试 | scraping 文档 |
 | 新增 Provider | [features/providers.md](features/providers.md) | `features/providers/`, `scraper/providers/` | Provider/API 测试 | ADR 如影响架构 |
 | 修改提示词 | [features/prompts.md](features/prompts.md), [features/scraping.md](features/scraping.md) | `features/prompts/`, `scraper/llm_prompts.py`, prompt/provider API handlers | prompt/scrape 测试 | prompts 文档 |
 | 修改文件移动/删除 | [features/recycle.md](features/recycle.md), [standards/safety.md](standards/safety.md) | `features/recycle/`, `core/safety.py`, `storage/file_mover.py` | recycle/safety/e2e/feature smoke | recycle 文档和回归矩阵 |
 | 修改源目录清理 | [features/source-cleaning.md](features/source-cleaning.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `features/source_cleaning/`, `api/source_cleaner_handlers.py`, `webui/js/config.js` | source cleaner/recycle/config/feature smoke | source-cleaning 文档 |
-| 修改前端 | [modules/webui.md](modules/webui.md) | `webui/index.html`, `webui/js/`, `webui/css/` | Playwright 或相关 UI 测试 | API/模块文档 |
+| 修改前端 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md), [architecture/api.md](architecture/api.md) | `webui/index.html`, `webui/js/`, `webui/css/` | Playwright 或相关 UI 测试 | API/产品/测试文档 |
 | 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md) | `deploy/build_fpk.sh`, root `media_importer/` | release smoke/build checks | deployment 文档 |
 
 ## Decision Flow
@@ -36,7 +36,6 @@
 
 - `docs/architecture/`
 - `docs/features/`
-- `docs/modules/`（迁移期辅助，非首选事实源）
 - `docs/standards/`
 - `docs/workflows/`
 - `docs/decisions/`

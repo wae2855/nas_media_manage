@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from media_importer.pipeline.services import (
+from media_importer.features.import_flow.services import (
     ClassificationService,
     DedupService,
     ImportService,
@@ -122,8 +122,8 @@ class TestDedupService(unittest.TestCase):
             "suggested_filename": "/library/movies/Movie_copy1.mkv",
         }
 
-        with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True), \
-             patch("media_importer.pipeline.services.dedup.check_duplicate", return_value=duplicate):
+        with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
+             patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
             decision = DedupService(config).check_task({"scrape_result": {}})
 
         self.assertEqual(decision.action, "rename")
@@ -142,8 +142,8 @@ class TestDedupService(unittest.TestCase):
             }
             cleanup = FakeCleanupService()
 
-            with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True), \
-                 patch("media_importer.pipeline.services.dedup.check_duplicate", return_value=duplicate):
+            with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
+                 patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
                 decision = DedupService(config, cleanup).check_task({"task_id": "t1"})
 
             self.assertEqual(decision.action, "replace")
@@ -163,8 +163,8 @@ class TestDedupService(unittest.TestCase):
             }
             cleanup = FakeCleanupService()
 
-            with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True), \
-                 patch("media_importer.pipeline.services.dedup.check_duplicate", return_value=duplicate):
+            with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
+                 patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
                 decision = DedupService(config, cleanup).check_task({"task_id": "t2"})
 
             self.assertEqual(decision.action, "replace")
@@ -183,8 +183,8 @@ class TestDedupService(unittest.TestCase):
             "skip_message": "质量优先: 保留已有高质量版本",
         }
 
-        with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True), \
-             patch("media_importer.pipeline.services.dedup.check_duplicate", return_value=duplicate):
+        with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
+             patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
             decision = DedupService(config).check_task({"task_id": "t3"})
 
         self.assertEqual(decision.action, "skip")
@@ -323,8 +323,8 @@ class TestSourceCleanupService(unittest.TestCase):
         }
         service = SourceCleanupService(config)
 
-        with patch("media_importer.pipeline.services.source_cleanup.move_to_recycle_with_companions", return_value=1), \
-             patch("media_importer.pipeline.services.source_cleanup.remove_empty_parent_dir"):
+        with patch("media_importer.features.import_flow.services.source_cleanup.move_to_recycle_with_companions", return_value=1), \
+             patch("media_importer.features.import_flow.services.source_cleanup.remove_empty_parent_dir"):
             result = service.recycle_source_after_skip(
                 {"task_id": "t1"},
                 "/source/Movie.mkv",
@@ -341,7 +341,7 @@ class TestSourceCleanupService(unittest.TestCase):
             "path_rules": [{"template": "/import"}],
         })
 
-        with patch("media_importer.pipeline.services.source_cleanup.delete_source_files") as delete_files:
+        with patch("media_importer.features.import_flow.services.source_cleanup.delete_source_files") as delete_files:
             outside = service.cleanup_temp_file("/outside/Movie.mkv")
             inside = service.cleanup_temp_file("/temp/Movie.mkv")
 

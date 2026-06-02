@@ -19,7 +19,7 @@
 | `tests/test_config_view.py` | current | Config facade defaults and consumers. |
 | `tests/test_task_context_lifecycle.py` | current | Task context and lifecycle. |
 | `tests/test_task_operations.py` | current | Task manager operations. |
-| `tests/test_pipeline_services.py` | current | Import flow services. |
+| `tests/test_import_flow_services.py` | current | Import flow services. |
 | `tests/test_confidence_engine.py` | current | Confidence calculations. |
 | `tests/test_feature_entrypoints.py` | current | Verifies app entrypoints import `features/import_flow` directly. |
 | `tests/test_feature_*` | current | Feature entry smoke tests for import flow, recycle, and source cleaning. |
