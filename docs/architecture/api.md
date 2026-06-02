@@ -33,6 +33,8 @@
 
 API handlers should parse requests, call feature services/public APIs, and return HTTP responses. Complex business rules should move into feature modules.
 
+Phase 4 dependency inventory is tracked in [api-dependency-audit.md](api-dependency-audit.md).
+
 ## Route Table
 
 新增 API 端点优先注册到 `media_importer/api/routes.py`：

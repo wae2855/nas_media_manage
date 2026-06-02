@@ -170,11 +170,14 @@ confidence: medium
 
 ### Phase 4: API / CLI / Watcher 薄化
 
-- [ ] 盘点 `api/*_handlers.py` 中直接访问 DB/storage/scraper/monitor/notify 的调用。
-- [ ] 为高频动作建立 feature service 或 application function。
-- [ ] API handler 保留参数解析、错误包装、JSON 响应，不承载业务策略。
+- [x] 盘点 `api/*_handlers.py` 中直接访问 DB/storage/scraper/monitor/notify 的调用。
+- [x] 为任务删除高频动作建立 `features/tasks/delete_service.py` proof slice。
+- [x] `api/task_delete.py` 保留参数解析、错误包装、JSON 响应，不承载任务删除业务策略。
+- [ ] 继续为其他高频 API 动作建立 feature service 或 application function。
+- [ ] 继续薄化其他 API handler，保留参数解析、错误包装、JSON 响应。
 - [ ] CLI 和 watcher 通过 feature service 组装，不直接进入旧技术目录。
-- [ ] 扩展 `tests/test_feature_entrypoints.py`，覆盖 API/CLI/watcher 的依赖方向。
+- [x] 扩展 `tests/test_feature_entrypoints.py`，覆盖任务删除 API proof slice 的依赖方向。
+- [ ] 扩展 `tests/test_feature_entrypoints.py`，覆盖 CLI/watcher 的依赖方向。
 
 ### Phase 5: 前端重做准备
 

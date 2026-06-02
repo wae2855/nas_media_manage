@@ -22,6 +22,9 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "api" / "dimension_handlers.py": [
             "from media_importer.features.scraping import check_tier_access",
         ],
+        root / "media_importer" / "api" / "task_delete.py": [
+            "from media_importer.features.tasks import delete_task as delete_task_service",
+        ],
         root / "media_importer" / "api" / "connectivity_handlers.py": [
             "from media_importer.features.scraping import TMDbClient",
             "from media_importer.features.configuration import test_llm_api",
@@ -111,6 +114,7 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.import_flow.services.classification_rules import classify
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
     from media_importer.features.source_cleaning import SourceCleaner
+    from media_importer.features.tasks import delete_task
     from media_importer.features.providers import (
         MetadataProvider,
         TMDbProvider,
@@ -136,6 +140,7 @@ def test_feature_public_apis_are_importable():
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
     assert check_duplicate.__module__ == "media_importer.features.import_flow.services.dedup_rules"
     assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
+    assert delete_task.__module__ == "media_importer.features.tasks.delete_service"
     assert load_config is not None
     assert mask_sensitive is not None
     assert TaskManager is not None
