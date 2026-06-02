@@ -16,6 +16,7 @@
 | 安全规范 | [docs/standards/safety.md](docs/standards/safety.md) |
 | 功能开发流程 | [docs/workflows/feature-development.md](docs/workflows/feature-development.md) |
 | 重构流程 | [docs/workflows/refactor-development.md](docs/workflows/refactor-development.md) |
+| 旧文档说明 | [docs/legacy.md](docs/legacy.md) |
 
 ## 1. Project Summary
 
@@ -97,6 +98,8 @@ media_importer/
 | 大架构重构 | plan + ADR + 相关 architecture/modules 文档 |
 
 详细映射见 [docs/INDEX.md](docs/INDEX.md) 和 [docs/ai-map.md](docs/ai-map.md)。
+
+旧中文目录 `docs/架构/`、`docs/方案/`、`docs/规范/`、`docs/测试/` 和 `docs/系统架构总览.md` 仅作为 legacy 参考，不作为当前架构事实来源。除非任务明确要求整理旧文档，否则 AI 修改代码前应优先读取 `docs/architecture/`、`docs/modules/`、`docs/standards/`、`docs/workflows/` 和 `docs/decisions/`。
 
 ## 6. Coding Rules
 

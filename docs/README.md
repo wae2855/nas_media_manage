@@ -15,6 +15,7 @@
 | 按流程开发功能或重构 | [workflows/](workflows/) |
 | 查看架构决策记录 | [decisions/](decisions/) |
 | 查看测试策略和回归矩阵 | [testing/](testing/) |
+| 查看旧文档状态 | [legacy.md](legacy.md) |
 
 ## Documentation Rules
 
@@ -24,7 +25,8 @@
 - `workflows/` 放从想法到交付的闭环流程。
 - `decisions/` 放 ADR，说明为什么做某个架构选择。
 - `_archive/` 只保存历史，不作为当前事实引用。
+- `架构/`、`方案/`、`规范/`、`测试/` 和 `系统架构总览.md` 是旧中文文档区，仅作 legacy 参考；当前事实以英文目录名下的新文档为准。
 
 ## Current Reorganization Status
 
-当前处于文档体系重构第一阶段：先建立框架和规范。详细架构事实会在后续 `TaskContext`、`TaskLifecycle`、pipeline services 等代码重构稳定后逐步补全。
+当前文档体系已建立新入口、规范、工作流、ADR 和模块地图。旧中文文档暂不删除，统一标记为 legacy，后续在确认无引用价值后再决定归档或移除。

@@ -26,10 +26,24 @@
 6. 更新 `docs/INDEX.md` 和相关模块/架构文档。
 7. 在最终说明中报告测试结果和文档更新。
 
+## Legacy Documents
+
+旧中文目录 `docs/架构/`、`docs/方案/`、`docs/规范/`、`docs/测试/` 和 `docs/系统架构总览.md` 不是当前事实入口。AI 只有在任务明确要求整理旧文档、追溯历史方案或迁移 legacy 内容时才读取这些文件。
+
+当前架构事实优先看：
+
+- `docs/architecture/`
+- `docs/modules/`
+- `docs/standards/`
+- `docs/workflows/`
+- `docs/decisions/`
+- `docs/testing/`
+
 ## Hard Rules
 
 - 不直接删除或覆盖影视文件，必须走回收站安全规则。
 - 不把 `deploy/` 当作开发源；是否同步 deploy 需要单独决策。
-- `domains/` 当前是兼容入口，不复制实现，不删除旧 public imports。
+- `domains/` 当前是渐进业务域入口，不删除旧 public imports。
 - 不在架构事实文档中写未实施设想，未实施内容放 proposals/plans。
+- 不把 legacy 中文文档当作当前事实来源；如发现冲突，以新文档和代码为准，并记录待迁移项。
 - 大重构先有 plan，架构决策要写 ADR。

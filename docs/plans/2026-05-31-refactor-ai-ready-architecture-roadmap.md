@@ -111,14 +111,15 @@ confidence: medium
 - [x] 备份旧文档和旧 `AGENTS.md` 到 `_archive/`。
 - [x] 建立 `standards/`、`workflows/`、`decisions/`、`testing/` 的基础规则。
 - [ ] 后续按代码重构结果补全 architecture/modules 详细事实。
-- [ ] 原计划中的 `docs/架构/AI开发导航.md` 调整为 `docs/ai-map.md`：
+- [x] 原计划中的 `docs/架构/AI开发导航.md` 调整为 `docs/ai-map.md`：
   - 常见任务到代码入口映射；
   - 新增配置项清单；
   - 新增 API 清单；
   - 新增 pipeline step 清单；
   - 文件操作安全规则；
   - 测试选择指南。
-- [ ] 在代码架构重构稳定后，更新旧 `docs/系统架构总览.md` 或迁移为新 `docs/architecture/overview.md`。
+- [x] 新增 `docs/legacy.md`，明确旧中文文档区不作为当前事实入口。
+- [x] 当前架构入口迁移为 `docs/README.md`、`docs/INDEX.md` 和 `docs/architecture/overview.md`；旧 `docs/系统架构总览.md` 保留 legacy banner。
 - [ ] 在代码架构重构稳定后，补全核心业务域详细事实：
   - 任务与状态；
   - 刮削与 Provider；
@@ -302,7 +303,7 @@ media_importer/
 - [ ] 给 API route table 补路由匹配测试。
 - [ ] 给配置 facade 补默认值和迁移兼容测试。
 - [ ] 梳理 UI 测试依赖服务启动的要求。
-- [ ] 新增 `docs/测试/AI回归测试指南.md`。
+- [x] 当前测试入口迁移为 `docs/testing/`；旧中文测试目录保留 legacy README。
 
 验收标准：
 

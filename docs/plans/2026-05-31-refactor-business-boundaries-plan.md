@@ -236,10 +236,10 @@ media_importer/
 目标：让未来 AI 和人按新边界接手。
 
 - [x] 更新迁移评审文档，明确大目录重组的兼容策略和执行顺序。
-- [ ] 更新 `docs/系统架构总览.md` 的模块依赖和核心数据流。
+- [x] 当前总览入口迁移为 `docs/architecture/overview.md`、`docs/INDEX.md` 和 `docs/legacy.md`；旧 `docs/系统架构总览.md` 保留 legacy banner。
 - [x] 更新 `docs/architecture/import-pipeline.md` 和 `docs/architecture/task-lifecycle.md`，补充 `TaskContext`、`TaskLifecycle`、services 边界。
-- [ ] 更新 `docs/架构/任务管理.md`，集中描述状态转换和 `file_location` 规则。
-- [ ] 若 API route table 落地，更新 `docs/规范/接口规范.md` 的新增端点维护规则。
+- [x] 更新 `docs/architecture/task-lifecycle.md`，集中描述状态转换和 `file_location` 规则；旧中文架构目录降级为 legacy。
+- [x] API route table 已落地，当前维护规则迁移到 `docs/standards/api.md`、`docs/modules/api.md` 和 `docs/architecture/api.md`；旧中文规范目录降级为 legacy。
 - [ ] 回写本计划的完成状态和实施偏差。
 
 执行记录：
