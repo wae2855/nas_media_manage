@@ -37,8 +37,12 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "storage" / "file_scanner.py": [
             "from media_importer.features.configuration import ConfigView",
         ],
-        root / "media_importer" / "scraper" / "metadata_scraper.py": [
+        root / "media_importer" / "features" / "scraping" / "metadata_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
+            "from media_importer.features.providers import create_providers",
+        ],
+        root / "media_importer" / "scraper" / "metadata_scraper.py": [
+            "from media_importer.features.scraping.metadata_scraper import MetadataScraper",
         ],
         root / "media_importer" / "scraper" / "llm_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
@@ -86,6 +90,7 @@ def test_feature_public_apis_are_importable():
     assert ConfidenceEngine is not None
     assert LLMScraper is not None
     assert MetadataScraper is not None
+    assert MetadataScraper.__module__ == "media_importer.features.scraping.metadata_scraper"
     assert TMDbClient is not None
     assert check_tier_access("pro") is True
     assert get_dimensions_for_file is not None

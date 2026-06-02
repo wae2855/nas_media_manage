@@ -10,7 +10,8 @@
 
 ## Entry Points
 
-- `media_importer/scraper/metadata_scraper.py`
+- `media_importer/features/scraping/metadata_scraper.py`
+- `media_importer/scraper/metadata_scraper.py` legacy import wrapper
 - `media_importer/scraper/llm_scraper.py`
 - `media_importer/scraper/llm_prompts.py`
 - `media_importer/scraper/confidence_engine.py`
@@ -24,7 +25,7 @@
 filename -> filename cleaner -> provider search/details -> LLM normalization -> confidence engine -> dimensions
 ```
 
-`MetadataScraper` 是 import-flow 使用的刮削门面。它协调文件名清洗、Provider 查询、LLM 结构化和置信度计算。
+`MetadataScraper` 是 import-flow 使用的刮削门面，真实实现位于 `media_importer/features/scraping/metadata_scraper.py`。它协调文件名清洗、Provider 查询、LLM 结构化和置信度计算。
 
 `LLMScraper` 负责 LLM 调用和提示词装配。提示词文件由配置目录加载，Provider-specific prompts 由相关 API handler 维护。
 

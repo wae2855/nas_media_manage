@@ -148,7 +148,7 @@ confidence: medium
 
 ### Phase 2: Scraping / Providers / Prompts 实现收口
 
-- [ ] 把 `scraper/metadata_scraper.py` 迁到 `features/scraping/` 或拆出 feature-owned service。
+- [x] 把 `scraper/metadata_scraper.py` 迁到 `features/scraping/` 或拆出 feature-owned service。
 - [ ] 把 `confidence_engine.py`、`confidence_models.py`、`dimension_manager.py` 明确归入 `features/scraping/` 或 `infrastructure`。
 - [ ] 把 `scraper/providers/` 迁到 `features/providers/`，只保留外部 client adapter 时放入 infrastructure。
 - [ ] 把 prompt 相关实现迁到 `features/prompts/`，避免 prompt feature 只做 re-export。

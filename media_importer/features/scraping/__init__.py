@@ -22,8 +22,8 @@ from media_importer.scraper.dimension_manager import (
     map_tmdb_to_dimension,
 )
 from media_importer.scraper.llm_scraper import LLMScrapeError, LLMScraper
-from media_importer.scraper.metadata_scraper import MetadataScraper
 from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+from .metadata_scraper import MetadataScraper
 
 __all__ = [
     "CleanResult",
