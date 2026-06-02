@@ -2,7 +2,7 @@
 title: "refactor: AI 友好架构整体调整路线图"
 type: plan
 date: 2026-05-31
-status: pending
+status: completed
 confidence: medium
 ---
 

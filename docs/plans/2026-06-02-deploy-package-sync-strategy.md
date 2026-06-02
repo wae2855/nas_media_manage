@@ -2,7 +2,7 @@
 title: "docs: deploy package sync strategy"
 type: plan
 date: 2026-06-02
-status: approved
+status: completed
 confidence: high
 ---
 
@@ -52,7 +52,21 @@ This creates two risks:
 - [x] Add deploy directory guidance in `deploy/README.md`.
 - [x] Update AI navigation and AGENTS rules.
 - [x] Update active migration roadmap status.
-- [ ] Dedicated follow-up: decide whether to remove generated package workspace and `.fpk` from git.
+- [x] Dedicated follow-up: decide whether to remove generated package workspace and `.fpk` from git.
+
+## Generated Artifact Decision
+
+Decision: keep the tracked `deploy/nas-media-importer/` package workspace and `.fpk` in git for this architecture refactor cycle.
+
+Reason:
+
+- Removing them would create a large release-artifact cleanup diff unrelated to AI-ready architecture boundaries.
+- `deploy/build_fpk.sh` already regenerates the package workspace from root source for releases.
+- `deploy/README.md`, AGENTS, AI map and ADR-0003 now mark the package workspace as generated and not a source of architecture truth.
+
+Future cleanup rule:
+
+- If generated package files should be removed from git, create a separate cleanup plan and review `.gitignore`, release workflow, and build outputs together.
 
 ## Acceptance Criteria
 
