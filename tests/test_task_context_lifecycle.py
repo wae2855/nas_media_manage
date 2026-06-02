@@ -6,19 +6,24 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.core.task_lifecycle import (
+    CONFIRM_CONFIRMED,
+    CONFIRM_PENDING,
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_SOURCE,
     FILE_LOCATION_TEMP,
     STATUS_CONFIRMING,
     STATUS_FAILED,
+    STATUS_NEEDS_REVIEW,
     STATUS_PENDING,
     STATUS_PROCESSING,
     STATUS_SKIPPED,
     STATUS_SUCCESS,
+    mark_confirmed,
     mark_confirming,
     mark_failed,
     mark_imported,
     mark_needs_review,
+    mark_processing_step,
     mark_skipped,
     mark_temp_ready,
     reset_for_retry,
@@ -86,6 +91,121 @@ class TestTaskContext(unittest.TestCase):
 
 
 class TestTaskLifecycle(unittest.TestCase):
+    def test_lifecycle_transition_table_records_core_contract(self):
+        cases = [
+            (
+                "start",
+                {},
+                lambda task: start_processing(task, started_at="2026-06-02T10:00:00"),
+                {"status": STATUS_PROCESSING, "started_at": "2026-06-02T10:00:00"},
+                [],
+            ),
+            (
+                "processing_step",
+                {},
+                lambda task: mark_processing_step(
+                    task, current_step=3, step_name="scrape", percentage=35
+                ),
+                {
+                    "status": STATUS_PROCESSING,
+                    "current_step": 3,
+                    "step_name": "scrape",
+                    "percentage": 35,
+                },
+                [],
+            ),
+            (
+                "temp_ready",
+                {"video_path": "/temp/movie.mkv"},
+                mark_temp_ready,
+                {"file_location": FILE_LOCATION_TEMP, "video_path": "/temp/movie.mkv"},
+                [],
+            ),
+            (
+                "confirming",
+                {"video_path": "/temp/movie.mkv"},
+                lambda task: mark_confirming(task, "needs confirm"),
+                {
+                    "status": STATUS_CONFIRMING,
+                    "confirm_status": CONFIRM_PENDING,
+                    "file_location": FILE_LOCATION_TEMP,
+                    "video_path": "/temp/movie.mkv",
+                    "error_message": "needs confirm",
+                },
+                [],
+            ),
+            (
+                "confirmed",
+                {},
+                lambda task: mark_confirmed(task, confirmed_at="2026-06-02T10:01:00"),
+                {
+                    "confirm_status": CONFIRM_CONFIRMED,
+                    "confirmed_at": "2026-06-02T10:01:00",
+                },
+                [],
+            ),
+            (
+                "needs_review",
+                {"video_path": "/temp/movie.mkv"},
+                lambda task: mark_needs_review(task, "manual review"),
+                {
+                    "status": STATUS_NEEDS_REVIEW,
+                    "file_location": FILE_LOCATION_TEMP,
+                    "video_path": "/temp/movie.mkv",
+                    "error_message": "manual review",
+                },
+                [],
+            ),
+            (
+                "failed",
+                {"video_path": "/temp/movie.mkv"},
+                lambda task: mark_failed(task, "failed"),
+                {
+                    "status": STATUS_FAILED,
+                    "file_location": FILE_LOCATION_SOURCE,
+                    "video_path": "",
+                    "error_message": "failed",
+                },
+                ["completed_at"],
+            ),
+            (
+                "skipped",
+                {"video_path": "/temp/movie.mkv"},
+                lambda task: mark_skipped(task, "duplicate"),
+                {
+                    "status": STATUS_SKIPPED,
+                    "file_location": FILE_LOCATION_SOURCE,
+                    "video_path": "",
+                    "skip_reason": "duplicate",
+                },
+                ["completed_at"],
+            ),
+            (
+                "imported",
+                {"import_video_path": "/import/movie.mkv"},
+                mark_imported,
+                {
+                    "status": STATUS_SUCCESS,
+                    "file_location": FILE_LOCATION_IMPORT,
+                    "import_success": 1,
+                    "import_video_path": "/import/movie.mkv",
+                },
+                ["completed_at"],
+            ),
+        ]
+
+        for name, initial, action, expected, expected_keys in cases:
+            with self.subTest(name=name):
+                task = dict(initial)
+                fields = action(task)
+
+                for key, value in expected.items():
+                    self.assertEqual(fields[key], value)
+                    self.assertEqual(task[key], value)
+                for key in expected_keys:
+                    self.assertIn(key, fields)
+                    self.assertIn(key, task)
+
     def test_start_processing_sets_status_and_started_at(self):
         task = {"task_id": "t1"}
 

@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -79,6 +80,26 @@ class TestConfigViewDefaults(unittest.TestCase):
         view = ConfigView.from_dict({"llm": {"api_key": "secret"}})
 
         self.assertEqual(view.llm.source_cleaner_model, "gpt-4o-mini")
+
+    def test_repository_config_example_loads_into_config_view(self):
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config.yaml.example",
+        )
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        view = ConfigView.from_dict(config)
+
+        self.assertEqual(view.paths.source_dir, "/vol1/网盘下载")
+        self.assertGreater(len(view.paths.path_rules), 0)
+        self.assertIn(".mkv", view.paths.video_extensions)
+        self.assertIn(".srt", view.paths.subtitle_extensions)
+        self.assertEqual(view.dedup.strategy, "quality")
+        self.assertEqual(
+            view.source_policy.recycle_dir,
+            "/vol1/@appdata/nas-media-importer/data/recycle",
+        )
 
 
 class TestConfigViewConsumers(unittest.TestCase):

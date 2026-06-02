@@ -95,6 +95,14 @@ class TestAPIRoutes(unittest.TestCase):
 
         self.assertEqual(len(pairs), len(set(pairs)))
 
+    def test_all_registered_route_handlers_exist_on_api_handler(self):
+        for route in API_ROUTES:
+            with self.subTest(method=route.method, pattern=route.pattern):
+                self.assertTrue(
+                    hasattr(APIHandler, route.handler_name),
+                    f"{route.method} {route.pattern} -> {route.handler_name}",
+                )
+
     def test_dispatch_orders_task_params_before_body(self):
         handler = APIHandler.__new__(APIHandler)
         calls = []
