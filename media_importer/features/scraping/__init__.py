@@ -1,11 +1,3 @@
-from media_importer.scraper.confidence_models import (
-    CleanResult,
-    ConfidenceResult,
-    DEFAULT_CONFIDENCE_CONFIG,
-    MatchResult,
-    _aggregate,
-    _calc_R,
-)
 from media_importer.scraper.dimension_manager import (
     check_tier_access,
     get_dimensions_for_file,
@@ -17,6 +9,14 @@ from media_importer.scraper.dimension_manager import (
 )
 from media_importer.scraper.llm_scraper import LLMScrapeError, LLMScraper
 from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+from .confidence_models import (
+    CleanResult,
+    ConfidenceResult,
+    DEFAULT_CONFIDENCE_CONFIG,
+    MatchResult,
+    _aggregate,
+    _calc_R,
+)
 from .confidence_engine import (
     ConfidenceEngine,
     FilenameCleaner,

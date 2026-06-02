@@ -1,5 +1,5 @@
 import re
-from .confidence_models import (
+from media_importer.features.scraping.confidence_models import (
     CleanResult,
     _RESOLUTION_PATTERNS,
     _SOURCE_CODEC_PATTERNS,

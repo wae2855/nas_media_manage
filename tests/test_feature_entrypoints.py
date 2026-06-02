@@ -72,6 +72,7 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.providers import create_providers, get_provider_class
     from media_importer.features.prompts import LLMPromptBuilder
     from media_importer.features.scraping import (
+        CleanResult,
         ConfidenceEngine,
         LLMScraper,
         MetadataScraper,
@@ -96,9 +97,10 @@ def test_feature_public_apis_are_importable():
     assert LLMScraper is not None
     assert MetadataScraper is not None
     assert MetadataScraper.__module__ == "media_importer.features.scraping.metadata_scraper"
-    assert TMDbClient is not None
-    assert check_tier_access("pro") is True
+    assert CleanResult.__module__ == "media_importer.features.scraping.confidence_models"
     assert get_dimensions_for_file is not None
+    assert check_tier_access("pro") is True
+    assert TMDbClient is not None
     assert create_providers is not None
     assert get_provider_class("tmdb") is not None
     assert LLMPromptBuilder is not None

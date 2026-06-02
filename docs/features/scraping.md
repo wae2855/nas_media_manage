@@ -9,7 +9,9 @@
 | `media_importer/features/scraping/__init__.py` | Feature public API for metadata scraper, LLM scraper, confidence engine, and matcher/model helpers. |
 | `media_importer/features/scraping/metadata_scraper.py` | High-level metadata scraping orchestration. |
 | `media_importer/features/scraping/confidence_engine.py` | Confidence scoring and review threshold decisions. |
+| `media_importer/features/scraping/confidence_models.py` | Confidence config, result dataclasses, and shared parsing patterns. |
 | `media_importer/scraper/metadata_scraper.py` | Thin legacy import wrapper for `MetadataScraper`. |
+| `media_importer/scraper/confidence_models.py` | Thin legacy import wrapper for confidence models. |
 | `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
 | `media_importer/scraper/confidence_engine.py` | Thin legacy import wrapper for `ConfidenceEngine`. |
 | `media_importer/scraper/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
@@ -21,7 +23,7 @@
 - TMDB API handlers import `TMDbClient` and `TMDbError` from `media_importer.features.scraping`.
 - Dimension API handlers import tier checks from `media_importer.features.scraping`.
 - Import-flow scrape steps import file-dimension lookup from `media_importer.features.scraping`.
-- `MetadataScraper` and `ConfidenceEngine` implementations have moved under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
+- `MetadataScraper`, `ConfidenceEngine`, and confidence models have moved under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
 
 ## Target Shape
 

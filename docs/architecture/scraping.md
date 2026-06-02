@@ -12,10 +12,12 @@
 
 - `media_importer/features/scraping/metadata_scraper.py`
 - `media_importer/features/scraping/confidence_engine.py`
+- `media_importer/features/scraping/confidence_models.py`
 - `media_importer/scraper/metadata_scraper.py` legacy import wrapper
 - `media_importer/scraper/llm_scraper.py`
 - `media_importer/scraper/llm_prompts.py`
 - `media_importer/scraper/confidence_engine.py` legacy import wrapper
+- `media_importer/scraper/confidence_models.py` legacy import wrapper
 - `media_importer/scraper/dimension_manager.py`
 - `media_importer/scraper/tmdb_client.py`
 - `media_importer/scraper/providers/`
@@ -30,7 +32,7 @@ filename -> filename cleaner -> provider search/details -> LLM normalization -> 
 
 `LLMScraper` 负责 LLM 调用和提示词装配。提示词文件由配置目录加载，Provider-specific prompts 由相关 API handler 维护。
 
-`ConfidenceEngine` 负责把刮削结果、搜索置信度和数据来源门控转换为置信度等级，真实实现位于 `media_importer/features/scraping/confidence_engine.py`。import-flow 的最终审核动作由 `ReviewDecisionService` 决定。
+`ConfidenceEngine` 负责把刮削结果、搜索置信度和数据来源门控转换为置信度等级，真实实现位于 `media_importer/features/scraping/confidence_engine.py`，共享模型位于 `media_importer/features/scraping/confidence_models.py`。import-flow 的最终审核动作由 `ReviewDecisionService` 决定。
 
 `dimension_manager.py` 负责维度配置读取和文件维度映射；刮削 step 会把文件推导维度合并进刮削维度。
 

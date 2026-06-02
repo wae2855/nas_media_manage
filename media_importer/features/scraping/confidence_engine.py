@@ -1,7 +1,7 @@
 import json
 from typing import Optional, List, Dict, Any, Set
 
-from media_importer.scraper.confidence_models import (
+from media_importer.features.scraping.confidence_models import (
     DEFAULT_CONFIDENCE_CONFIG,
     CleanResult,
     MatchResult,

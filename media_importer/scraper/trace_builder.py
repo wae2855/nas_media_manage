@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from .confidence_models import CleanResult, MatchResult
+from media_importer.features.scraping.confidence_models import CleanResult, MatchResult
 
 
 class ScrapeTraceBuilder:

@@ -1,5 +1,5 @@
 from difflib import SequenceMatcher
-from .confidence_models import MatchResult, DEFAULT_CONFIDENCE_CONFIG
+from media_importer.features.scraping.confidence_models import MatchResult, DEFAULT_CONFIDENCE_CONFIG
 
 
 def _normalize_title(title: str) -> str:
