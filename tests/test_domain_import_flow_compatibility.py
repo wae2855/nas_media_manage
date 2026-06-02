@@ -31,6 +31,7 @@ from media_importer.domains.import_flow import runner as domain_runner
 from media_importer.domains.import_flow import steps as domain_steps
 from media_importer.domains.import_flow.steps import file as domain_steps_file
 from media_importer.domains.import_flow.steps import scrape as domain_steps_scrape
+from media_importer.domains.import_flow import utils as domain_utils
 from media_importer.pipeline.confirm import ConfirmMixin as PipelineConfirmMixin
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
 from media_importer.pipeline.runner import PipelineRunner as PipelinePackageRunner
@@ -45,6 +46,7 @@ import media_importer.pipeline.runner as legacy_runner
 import media_importer.pipeline.steps as legacy_steps
 import media_importer.pipeline.steps_file as legacy_steps_file
 import media_importer.pipeline.steps_scrape as legacy_steps_scrape
+import media_importer.pipeline.utils as legacy_utils
 from media_importer.pipeline.services import (
     ClassificationService as PipelineClassificationService,
 )
@@ -75,6 +77,10 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
         self.assertIs(domain_steps, legacy_steps)
         self.assertIs(domain_steps_file, legacy_steps_file)
         self.assertIs(domain_steps_scrape, legacy_steps_scrape)
+        self.assertIs(domain_utils.PipelineError, legacy_utils.PipelineError)
+        self.assertIs(domain_utils.PipelineSkipError, legacy_utils.PipelineSkipError)
+        self.assertIs(domain_utils.PIPELINE_STEPS, legacy_utils.PIPELINE_STEPS)
+        self.assertIs(domain_utils._extract_series_name, legacy_utils._extract_series_name)
         self.assertIs(ClassificationService, PipelineClassificationService)
         self.assertIs(DedupService, PipelineDedupService)
         self.assertIs(ImportService, PipelineImportService)

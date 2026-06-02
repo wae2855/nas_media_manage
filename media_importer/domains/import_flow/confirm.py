@@ -11,7 +11,7 @@ from media_importer.core.task_lifecycle import (
 )
 from media_importer.domains.import_flow.context import TaskContext
 from media_importer.domains.import_flow.services import ClassificationService
-from media_importer.pipeline.utils import PipelineError, PipelineSkipError
+from media_importer.domains.import_flow.utils import PipelineError, PipelineSkipError
 
 
 class ConfirmMixin:

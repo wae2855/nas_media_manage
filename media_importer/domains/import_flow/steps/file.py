@@ -14,7 +14,7 @@ from media_importer.domains.import_flow.services.paths import (
     import_roots_from_config,
 )
 from media_importer.storage.file_mover import apply_filename_template
-from media_importer.pipeline.utils import PipelineError, PipelineSkipError
+from media_importer.domains.import_flow.utils import PipelineError, PipelineSkipError
 
 
 class FileStepsMixin:

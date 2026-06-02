@@ -5,7 +5,7 @@ from media_importer.core.db import (
 )
 from media_importer.domains.import_flow.services import ReviewDecisionService
 from media_importer.scraper.llm_scraper import LLMScrapeError
-from media_importer.pipeline.utils import PipelineError, _extract_series_name
+from media_importer.domains.import_flow.utils import PipelineError, _extract_series_name
 
 
 class ScrapeStepsMixin:

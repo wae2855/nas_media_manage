@@ -35,6 +35,31 @@ Use this only when `config/config.yaml` is valid for the local machine. UI tests
 ## Command Reference
 
 ```bash
+# 默认稳定回归，不收集外部 UI/live E2E/已知失败
+pytest tests/
+
+# 自启动服务集成测试
+pytest tests/test_integration_recycle.py --run-service-integration
+
+# 自启动 UI 测试
+pytest tests/test_frontend_recycle.py --run-ui
+
+# 外部服务 UI 测试，需先启动 9855 服务
+pytest tests/test_confidence_ui.py tests/test_confidence_v2_ui.py tests/test_confidence_config_ui.py --run-external-ui
+pytest tests/test_config_page_full.py --run-external-ui
+pytest tests/test_scrape_ui.py --run-external-ui
+pytest tests/test_tmdb_config.py --run-external-ui
+
+# live E2E，需真实配置、网络和 Provider 凭据
+pytest tests/test_e2e_file_processing.py --run-live-e2e
+
+# 临时复跑已知失败
+pytest tests/ --run-known-failures
+```
+
+Legacy commands, kept for reference:
+
+```bash
 pytest tests/test_frontend_recycle.py
 pytest tests/test_confidence_ui.py tests/test_confidence_v2_ui.py tests/test_confidence_config_ui.py
 pytest tests/test_config_page_full.py
@@ -47,4 +72,6 @@ pytest tests/test_tmdb_config.py
 - For backend/domain refactors, prefer non-UI tests first.
 - For UI or API contract changes, run `tests/test_frontend_recycle.py` if recycle UI is affected.
 - Run external-service UI suites only after starting the service and confirming port 9855 is free.
+- Use `pytest tests/` as the default stable regression command.
+- Use explicit flags for gated suites: `--run-ui`, `--run-external-ui`, `--run-service-integration`, `--run-live-e2e`, `--run-known-failures`.
 - If Playwright/browser binaries are missing, record that as environment blocked rather than a product regression.

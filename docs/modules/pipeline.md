@@ -14,6 +14,8 @@
 - `media_importer/pipeline/steps_scrape.py` compatibility alias
 - `media_importer/domains/import_flow/confirm.py`
 - `media_importer/pipeline/confirm.py` compatibility alias
+- `media_importer/domains/import_flow/utils.py`
+- `media_importer/pipeline/utils.py` compatibility alias
 - `media_importer/domains/import_flow/services/classification.py`
 - `media_importer/domains/import_flow/services/dedup.py`
 - `media_importer/domains/import_flow/services/import_service.py`
@@ -50,9 +52,14 @@ Phase 6D runner 已将 `PipelineRunner` 实现迁移到 `media_importer/domains/
 
 Phase 6D steps 已将 `StepsMixin`、`FileStepsMixin` 和 `ScrapeStepsMixin` 实现迁移到 `media_importer/domains/import_flow/steps/`；旧 `pipeline/steps.py`、`pipeline/steps_file.py` 和 `pipeline/steps_scrape.py` 保留兼容别名。
 
+Phase 6E entrypoints 已将 API 服务入口和 CLI 组件构建入口改为直接导入 `media_importer.domains.import_flow.PipelineRunner`；旧 `media_importer.pipeline.PipelineRunner` 仅作为兼容入口保留。
+
+Phase 6E utils 已将 `PipelineError`、`PipelineSkipError`、`PIPELINE_STEPS` 和 `_extract_series_name` 迁移到 `media_importer/domains/import_flow/utils.py`；旧 `pipeline/utils.py` 保留兼容导出。
+
 ## Tests
 
 - `tests/test_full_flow.py`
 - `tests/test_pipeline_services.py`
 - `tests/test_e2e_file_processing.py`
 - `tests/test_task_operations.py`
+- `tests/test_domain_entrypoints.py`

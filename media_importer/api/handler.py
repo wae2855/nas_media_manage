@@ -6,7 +6,7 @@ from urllib.parse import urlparse, parse_qs
 
 from media_importer.core.config_loader import load_config, mask_sensitive
 from media_importer.core.task_manager import TaskManager
-from media_importer.pipeline import PipelineRunner
+from media_importer.domains.import_flow import PipelineRunner
 from media_importer.core.metrics import Metrics, get_metrics
 from media_importer.core.logger import get_logger
 from media_importer.notify.hermes_hook import HermesNotifier

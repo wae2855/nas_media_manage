@@ -11,6 +11,7 @@
 - `media_importer/domains/import_flow/confirm.py`
 - `media_importer/domains/import_flow/lifecycle.py`
 - `media_importer/domains/import_flow/review.py`
+- `media_importer/domains/import_flow/utils.py`
 - `media_importer/domains/import_flow/services/`
 - `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/pipeline/runner.py` compatibility alias
@@ -29,6 +30,7 @@
 - `PipelineRunner` from `media_importer.domains.import_flow.runner`
 - `StepsMixin`, `FileStepsMixin`, `ScrapeStepsMixin` from `media_importer.domains.import_flow.steps`
 - `ConfirmMixin` from `media_importer.domains.import_flow.confirm`
+- `PipelineError`, `PipelineSkipError`, `PIPELINE_STEPS` from `media_importer.domains.import_flow.utils`
 - `TaskLifecycle` constants/functions from `media_importer.core.task_lifecycle`
 - `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.domains.import_flow.services`
 
@@ -48,6 +50,7 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 - `media_importer/pipeline/steps_file.py`
 - `media_importer/pipeline/steps_scrape.py`
 - `media_importer/pipeline/confirm.py`
+- `media_importer/pipeline/utils.py`
 - `media_importer/pipeline/services/`
 
 ## Extension Rules
@@ -56,11 +59,13 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 - 旧路径必须继续可 import。
 - 旧 patch 路径必须继续影响新 domain 入口。
 - 每个 domain proof slice 都要有 compatibility test。
-- `media_importer.pipeline.PipelineRunner` 必须继续可用，CLI/API 启动路径依赖它。
+- 新应用入口应优先从 `media_importer.domains.import_flow` 导入 `PipelineRunner`。
+- `media_importer.pipeline.PipelineRunner` 必须继续可用，但只作为旧调用方兼容入口。
 - `media_importer.pipeline` 公共入口和旧 `pipeline/steps*` 路径必须继续可用，直到单独决策删除兼容层。
 
 ## Tests
 
 - `tests/test_domain_import_flow_compatibility.py`
+- `tests/test_domain_entrypoints.py`
 - `tests/test_task_context_lifecycle.py`
 - `tests/test_pipeline_services.py`
