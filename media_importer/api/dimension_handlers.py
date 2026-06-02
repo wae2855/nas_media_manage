@@ -7,7 +7,7 @@ from media_importer.core.db import (
     disable_dimension as db_disable_dimension,
     reset_dimension as db_reset_dimension,
 )
-from media_importer.scraper.dimension_manager import check_tier_access
+from media_importer.features.scraping import check_tier_access
 from media_importer.api import globals
 from .utils import json_response
 

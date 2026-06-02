@@ -23,7 +23,7 @@ class TMDbHandlersMixin:
             return
 
         try:
-            from media_importer.scraper.tmdb_client import TMDbClient
+            from media_importer.features.scraping import TMDbClient
             client = TMDbClient(api_key)
             raw = client.get_genre_list()
 
@@ -110,7 +110,7 @@ class TMDbHandlersMixin:
             return
 
         try:
-            from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+            from media_importer.features.scraping import TMDbClient, TMDbError
             client = TMDbClient(api_key)
 
             if media_type == "tv":
@@ -166,7 +166,7 @@ class TMDbHandlersMixin:
             return
 
         try:
-            from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+            from media_importer.features.scraping import TMDbClient, TMDbError
             client = TMDbClient(api_key)
 
             if media_type == "tv":
@@ -213,7 +213,7 @@ class TMDbHandlersMixin:
             return
 
         try:
-            from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+            from media_importer.features.scraping import TMDbClient, TMDbError
             client = TMDbClient(api_key)
 
             if media_type == "tv":

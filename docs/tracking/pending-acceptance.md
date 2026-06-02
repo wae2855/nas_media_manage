@@ -4,7 +4,7 @@
 
 | Item | Completed at | Commit | Scope | Verification | User confirmation needed |
 |------|--------------|--------|-------|--------------|--------------------------|
-| Feature-first architecture and documentation restructure | 2026-06-02 | `42c88b9`, `cb1d876`, `2f199b9` + latest cleanup commit | Code structure, docs structure, archive policy, lifecycle workflow, test archive, feature public APIs, product/API ownership docs, old pipeline/modules/config archive cleanup | `python3 -m pytest tests/` -> 155 passed; `compileall`; `git diff --check` | Confirm new architecture/docs direction after implementation |
+| Feature-first architecture and documentation restructure | 2026-06-02 | `42c88b9`, `cb1d876`, `2f199b9` + latest cleanup commits | Code structure, docs structure, archive policy, lifecycle workflow, test archive, feature public APIs, product/API ownership docs, old pipeline/modules/config archive cleanup, configuration/tasks/scraping consumer entrypoints | `python3 -m pytest tests/` -> 156 passed; `compileall`; `git diff --check` | Confirm new architecture/docs direction after implementation |
 
 ## Rules
 

@@ -20,6 +20,7 @@
 - Database: `tasks` table and JSON fields.
 - Frontend: task list/detail, retry, confirm, progress, status filters.
 - Import flow: every processing step should use lifecycle helpers for state changes.
+- Public task DB helpers for feature/API consumers are exposed through `media_importer.features.tasks.repository`.
 
 ## Tests
 
@@ -30,5 +31,6 @@
 ## Migration Notes
 
 - New app/API/import-flow code should import from `media_importer.features.tasks`.
+- New task repository usage should import from `media_importer.features.tasks.repository`.
 - Use `media_importer.infrastructure.db` for shared raw SQLite/repo infrastructure.
 - Any status change must update lifecycle docs, tests, API/frontend display logic, and regression matrix.

@@ -14,6 +14,8 @@
 - `media_importer/scraper/llm_scraper.py`
 - `media_importer/scraper/llm_prompts.py`
 - `media_importer/scraper/confidence_engine.py`
+- `media_importer/scraper/dimension_manager.py`
+- `media_importer/scraper/tmdb_client.py`
 - `media_importer/scraper/providers/`
 
 ## Current Flow
@@ -30,6 +32,8 @@ filename -> filename cleaner -> provider search/details -> LLM normalization -> 
 
 `dimension_manager.py` 负责维度配置读取和文件维度映射；刮削 step 会把文件推导维度合并进刮削维度。
 
+上层 API 和 import-flow 代码应通过 `media_importer.features.scraping` 访问 TMDB client、维度管理、置信度和 scraper 门面。`media_importer/scraper/` 当前只作为实现位置。
+
 ## Extension Points
 
 - 新 Provider：实现 `MetadataProvider`，注册到 provider registry。
@@ -40,6 +44,7 @@ filename -> filename cleaner -> provider search/details -> LLM normalization -> 
 ## Tests
 
 - `tests/test_confidence_engine.py`
+- `tests/test_feature_entrypoints.py`
 - `tests/test_confidence_config_ui.py`
 - `tests/test_confidence_engine.py`
 - `tests/test_import_flow_services.py` for review decision boundaries

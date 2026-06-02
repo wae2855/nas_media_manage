@@ -3,11 +3,12 @@
 ## Current Pattern
 
 - 配置格式：YAML。
-- 加载入口：`media_importer/core/config_loader.py`。
+- 业务入口：`media_importer/features/configuration/`。
+- 加载实现：`media_importer/core/config_loader.py`。
 - 自动迁移：`media_importer/core/config_migrations.py`。
 - 校验入口：`media_importer/core/config_validator.py`。
 - 前端配置 API：`media_importer/api/config_handlers.py`。
-- 业务读取门面：`media_importer/core/config_view.py`。
+- 业务读取门面：`media_importer.features.configuration.ConfigView`，实现位于 `media_importer/core/config_view.py`。
 
 ## Change Rule
 
@@ -27,7 +28,7 @@ config.yaml.example
 
 ## ConfigView
 
-`ConfigView` 是业务层读取配置的稳定入口，保留 `raw` 原始 dict 兼容旧代码，同时提供 typed sections：
+`ConfigView` 是业务层读取配置的稳定入口。业务代码从 `media_importer.features.configuration` 导入它；底层实现文件保留在 `core/config_view.py`。它保留 `raw` 原始 dict 兼容旧代码，同时提供 typed sections：
 
 - `paths`
 - `source_policy`

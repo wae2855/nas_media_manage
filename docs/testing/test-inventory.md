@@ -21,7 +21,7 @@
 | `tests/test_task_operations.py` | current | Task manager operations. |
 | `tests/test_import_flow_services.py` | current | Import flow services. |
 | `tests/test_confidence_engine.py` | current | Confidence calculations. |
-| `tests/test_feature_entrypoints.py` | current | Verifies app entrypoints import `features/import_flow` directly. |
+| `tests/test_feature_entrypoints.py` | current | Verifies app/API/feature consumers import feature public APIs directly. |
 | `tests/test_feature_*` | current | Feature entry smoke tests for import flow, recycle, and source cleaning. |
 | `tests/test_recycle_safety.py` | current | Focused recycle safety smoke. |
 

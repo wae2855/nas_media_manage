@@ -15,7 +15,7 @@ class ScrapeStepsMixin:
 
         file_dimensions = {}
         try:
-            from media_importer.scraper.dimension_manager import get_dimensions_for_file
+            from media_importer.features.scraping import get_dimensions_for_file
             from media_importer.storage.file_analyzer import analyze_file
             file_dims_config = get_dimensions_for_file(self.task_manager.conn)
             if file_dims_config:

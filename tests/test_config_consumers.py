@@ -9,7 +9,7 @@
 - hermes: enabled / webhook.* / events
 - task_queue: max_concurrent
 - logging: level / format / max_size_mb / backup_count
-- pipeline: 同名检测 enable 开关生效
+- import-flow: 同名检测 enable 开关生效
 - file_mover: 目标已存在同名文件兜底
 """
 import sys, os, tempfile, shutil, yaml
@@ -92,19 +92,19 @@ def test_file_watcher_config():
 
 
 def test_duplicate_handling_config():
-    section("3. pipeline 同名检测 enabled 开关")
+    section("3. import-flow 同名检测 enabled 开关")
     from media_importer.features.import_flow import steps as feature_steps
     src = open(feature_steps.__file__).read()
     if "dedup_cfg.get('enabled', True)" in src:
-        ok("pipeline._step_dedup 读取 duplicate_handling.enabled")
+        ok("import-flow._step_dedup 读取 duplicate_handling.enabled")
     else:
-        bad("pipeline 未读取 enabled", "代码中没找到 dedup_cfg.get('enabled', True)")
+        bad("import-flow 未读取 enabled", "代码中没找到 dedup_cfg.get('enabled', True)")
 
     # 检查关闭后是否会 return
     if "智能同名检测已关闭，跳过跨目录扫描" in src:
-        ok("pipeline 关闭智能检测时正确跳过 dedup 逻辑")
+        ok("import-flow 关闭智能检测时正确跳过 dedup 逻辑")
     else:
-        bad("pipeline 关闭智能检测", "未找到跳过逻辑提示")
+        bad("import-flow 关闭智能检测", "未找到跳过逻辑提示")
 
 
 def test_file_mover_dest_conflict():
@@ -195,8 +195,8 @@ def test_hermes_config():
         bad("HermesNotifier enabled=False", str(e))
 
 
-def test_pipeline_with_full_config():
-    section("7. pipeline 完整加载（验证不会因配置类型崩溃）")
+def test_import_flow_with_full_config():
+    section("7. import-flow 完整加载（验证不会因配置类型崩溃）")
     cfg = {
         'source_dir': '/tmp',
         'temp_dir': tempfile.mkdtemp(prefix='ptemp_'),
@@ -343,7 +343,7 @@ def main():
     test_file_mover_dest_conflict()
     test_logger_config()
     test_hermes_config()
-    test_pipeline_with_full_config()
+    test_import_flow_with_full_config()
     test_permission_checker()
     test_api_check_permission_endpoint()
 

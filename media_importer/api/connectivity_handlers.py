@@ -75,7 +75,7 @@ class ConnectivityHandlersMixin:
                 return
 
         try:
-            from media_importer.scraper.tmdb_client import TMDbClient
+            from media_importer.features.scraping import TMDbClient
             client = TMDbClient(api_key)
             ok = client.test_connection()
             msg = "连接成功" if ok else "连接失败，请检查 API Key 是否正确"

@@ -8,7 +8,7 @@ from .llm_scraper import LLMScraper
 from .confidence_engine import (
     FilenameCleaner, TitleMatcher, ConfidenceEngine, CleanResult, MatchResult
 )
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 from .metadata_scrape_flow import scrape_metadata, scrape_series_metadata
 
 

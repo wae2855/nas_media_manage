@@ -4,7 +4,7 @@ import re
 import time
 from typing import List, Optional, Tuple
 
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 
 
 class FileScanner:

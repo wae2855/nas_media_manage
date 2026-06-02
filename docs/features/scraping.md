@@ -10,8 +10,16 @@
 | `media_importer/scraper/metadata_scraper.py` | High-level metadata scraping orchestration. |
 | `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
 | `media_importer/scraper/confidence_engine.py` | Confidence scoring and review threshold decisions. |
-| `media_importer/scraper/dimension_mapper.py` | Dimension mapping and category normalization. |
+| `media_importer/scraper/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
+| `media_importer/scraper/tmdb_client.py` | TMDB client and error type, exposed through the scraping feature. |
 | `media_importer/scraper/providers/` | External metadata provider implementations. |
+
+## Current Consumers
+
+- TMDB API handlers import `TMDbClient` and `TMDbError` from `media_importer.features.scraping`.
+- Dimension API handlers import tier checks from `media_importer.features.scraping`.
+- Import-flow scrape steps import file-dimension lookup from `media_importer.features.scraping`.
+- `media_importer/scraper/` remains implementation detail until the files are moved under feature-owned structure.
 
 ## Target Shape
 
@@ -29,6 +37,7 @@
 ## Tests
 
 - `tests/test_confidence_engine.py`
+- `tests/test_feature_entrypoints.py`
 - Scrape-related API and import-flow tests.
 - Provider tests when external calls are mocked.
 

@@ -25,7 +25,7 @@
 
 ## Direction
 
-已新增 `media_importer/core/task_lifecycle.py`，用于集中状态转换和文件位置规则。
+`media_importer/features/tasks/` 是任务状态、`TaskManager` 和生命周期 helper 的业务入口。`media_importer/core/task_lifecycle.py` 是当前集中状态转换和文件位置规则的实现文件。
 
 当前已集中：
 
@@ -60,6 +60,7 @@
 新增状态或文件位置时必须同步：
 
 - `media_importer/core/db/constants.py`
+- `media_importer/features/tasks/`
 - `media_importer/core/task_lifecycle.py`
 - `media_importer/core/task_manager.py`
 - `media_importer/features/import_flow/`
