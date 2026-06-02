@@ -45,6 +45,9 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "scraper" / "confidence_engine.py": [
             "from media_importer.features.scraping.confidence_engine import",
         ],
+        root / "media_importer" / "scraper" / "dimension_manager.py": [
+            "from media_importer.features.scraping.dimension_manager import",
+        ],
         root / "media_importer" / "scraper" / "metadata_scraper.py": [
             "from media_importer.features.scraping.metadata_scraper import MetadataScraper",
         ],
@@ -99,6 +102,7 @@ def test_feature_public_apis_are_importable():
     assert MetadataScraper.__module__ == "media_importer.features.scraping.metadata_scraper"
     assert CleanResult.__module__ == "media_importer.features.scraping.confidence_models"
     assert get_dimensions_for_file is not None
+    assert get_dimensions_for_file.__module__ == "media_importer.features.scraping.dimension_manager"
     assert check_tier_access("pro") is True
     assert TMDbClient is not None
     assert create_providers is not None

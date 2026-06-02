@@ -1,4 +1,4 @@
-from media_importer.scraper.dimension_manager import (
+from .dimension_manager import (
     check_tier_access,
     get_dimensions_for_file,
     get_dimensions_for_provider,

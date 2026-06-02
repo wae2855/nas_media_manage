@@ -50,7 +50,7 @@ class LLMScraper:
         )
 
     def load_dimensions_from_db(self, conn):
-        from .dimension_manager import get_dimensions_for_scrape
+        from media_importer.features.scraping.dimension_manager import get_dimensions_for_scrape
         db_dims = get_dimensions_for_scrape(conn)
         if db_dims:
             self.prompt_builder.load_dimensions(db_dims)

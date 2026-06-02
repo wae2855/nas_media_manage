@@ -10,11 +10,12 @@
 | `media_importer/features/scraping/metadata_scraper.py` | High-level metadata scraping orchestration. |
 | `media_importer/features/scraping/confidence_engine.py` | Confidence scoring and review threshold decisions. |
 | `media_importer/features/scraping/confidence_models.py` | Confidence config, result dataclasses, and shared parsing patterns. |
+| `media_importer/features/scraping/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
 | `media_importer/scraper/metadata_scraper.py` | Thin legacy import wrapper for `MetadataScraper`. |
 | `media_importer/scraper/confidence_models.py` | Thin legacy import wrapper for confidence models. |
-| `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
 | `media_importer/scraper/confidence_engine.py` | Thin legacy import wrapper for `ConfidenceEngine`. |
-| `media_importer/scraper/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
+| `media_importer/scraper/dimension_manager.py` | Thin legacy import wrapper for dimension helpers. |
+| `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
 | `media_importer/scraper/tmdb_client.py` | TMDB client and error type, exposed through the scraping feature. |
 | `media_importer/scraper/providers/` | External metadata provider implementations. |
 
@@ -23,11 +24,11 @@
 - TMDB API handlers import `TMDbClient` and `TMDbError` from `media_importer.features.scraping`.
 - Dimension API handlers import tier checks from `media_importer.features.scraping`.
 - Import-flow scrape steps import file-dimension lookup from `media_importer.features.scraping`.
-- `MetadataScraper`, `ConfidenceEngine`, and confidence models have moved under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
+- `MetadataScraper`, `ConfidenceEngine`, confidence models, and dimension mapping have moved under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
 
 ## Target Shape
 
-- Continue moving scraping orchestration and supporting implementation into `media_importer/features/scraping/`.
+- Continue moving LLM and provider-adjacent scraping implementation into `media_importer/features/scraping/`.
 - Keep provider clients under `features/providers/` or infrastructure adapters depending on ownership.
 - Keep confidence/review decisions aligned with `features/import_flow/services/review.py`.
 

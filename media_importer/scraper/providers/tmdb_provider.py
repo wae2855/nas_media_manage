@@ -128,7 +128,7 @@ class TMDbProvider(MetadataProvider):
         return self._client.test_connection()
 
     def map_dimensions(self, dim_configs: list, details: MediaDetails) -> List[DimensionMapping]:
-        from ..dimension_manager import map_provider_to_dimension
+        from media_importer.features.scraping.dimension_manager import map_provider_to_dimension
         release_dates = self._get_release_dates(details.item_id, details.media_type)
         results = []
         for dim_config in dim_configs:
