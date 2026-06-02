@@ -4,8 +4,8 @@ import threading
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-from media_importer.core.config_loader import load_config, mask_sensitive
-from media_importer.core.task_manager import TaskManager
+from media_importer.features.configuration import load_config, mask_sensitive
+from media_importer.features.tasks import TaskManager
 from media_importer.features.import_flow import PipelineRunner
 from media_importer.core.metrics import Metrics, get_metrics
 from media_importer.core.logger import get_logger

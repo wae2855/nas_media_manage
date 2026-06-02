@@ -10,7 +10,7 @@ from media_importer.core.db import (
     count_by_specific_status as db_count_specific,
     VALID_STATUSES,
 )
-from media_importer.core.task_manager import TaskManager
+from media_importer.features.tasks import TaskManager
 from media_importer.api import globals
 from .task_delete import delete_task
 from .utils import json_response

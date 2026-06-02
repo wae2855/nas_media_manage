@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from media_importer.core.task_lifecycle import (
+from media_importer.features.tasks import (
     CONFIRM_CONFIRMED,
     CONFIRM_PENDING,
     FILE_LOCATION_IMPORT,

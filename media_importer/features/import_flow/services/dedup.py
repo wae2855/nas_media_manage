@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 from media_importer.storage.dedup_checker import check_duplicate
 from .paths import import_roots_from_config
 from .source_cleanup import SourceCleanupService

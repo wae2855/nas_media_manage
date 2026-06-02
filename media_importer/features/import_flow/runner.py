@@ -6,7 +6,7 @@ from media_importer.core.db import (
     get_subtitles_by_task as db_get_subtitles,
     count_subtitles_by_task as db_count_subs,
 )
-from media_importer.core.task_lifecycle import (
+from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
     FILE_LOCATION_TEMP,
@@ -23,7 +23,7 @@ from media_importer.features.import_flow.context import TaskContext
 from media_importer.features.import_flow.services import SourceCleanupService
 from media_importer.storage.file_scanner import FileScanner
 from media_importer.storage.file_copier import FileCopier
-from media_importer.scraper.metadata_scraper import MetadataScraper
+from media_importer.features.scraping import MetadataScraper
 from media_importer.storage.file_mover import delete_source_files
 from media_importer.notify.hooks import HookRunner
 from media_importer.features.import_flow.utils import PipelineSkipError

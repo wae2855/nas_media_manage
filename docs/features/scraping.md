@@ -6,6 +6,7 @@
 
 | Path | Role |
 |------|------|
+| `media_importer/features/scraping/__init__.py` | Feature public API for metadata scraper, LLM scraper, confidence engine, and matcher/model helpers. |
 | `media_importer/scraper/metadata_scraper.py` | High-level metadata scraping orchestration. |
 | `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
 | `media_importer/scraper/confidence_engine.py` | Confidence scoring and review threshold decisions. |
@@ -33,5 +34,6 @@
 
 ## Migration Notes
 
-- Until code moves, `media_importer/scraper/` remains current implementation but is not the final feature boundary.
+- New app/API/import-flow code should import from `media_importer.features.scraping`.
+- Until implementation files move, `media_importer/scraper/` remains implementation detail but is not the preferred feature entry.
 - New scraping behavior must update `docs/architecture/scraping.md` and this feature doc.

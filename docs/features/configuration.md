@@ -6,6 +6,7 @@
 
 | Path | Role |
 |------|------|
+| `media_importer/features/configuration/__init__.py` | Feature public API for config loading, validation, masking, and `ConfigView`. |
 | `media_importer/core/config_loader.py` | Load YAML config and defaults. |
 | `media_importer/core/config_migrations.py` | Apply config migrations. |
 | `media_importer/core/config_validator.py` | Validate config shape and values. |
@@ -19,8 +20,8 @@
 - Security: sensitive keys returned to frontend must be masked as `***`.
 - Tests: config loader, migration, validator, API, and UI config flows.
 
-## Target Shape
+## Migration Notes
 
-- Move feature-owned config behavior into `features/configuration/`.
+- New app/API code should import from `media_importer.features.configuration`.
 - Keep low-level YAML and file IO helpers in infrastructure if shared.
 - Each new config item must document default, migration behavior, validation rule, API exposure, and UI ownership.

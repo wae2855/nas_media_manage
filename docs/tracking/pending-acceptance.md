@@ -4,7 +4,7 @@
 
 | Item | Completed at | Commit | Scope | Verification | User confirmation needed |
 |------|--------------|--------|-------|--------------|--------------------------|
-| Feature-first architecture and documentation restructure | 2026-06-02 | Pending commit | Code structure, docs structure, archive policy, lifecycle workflow, test archive | `python3 -m pytest tests/`; `compileall`; `git diff --check` | Confirm new architecture/docs direction after implementation |
+| Feature-first architecture and documentation restructure | 2026-06-02 | `42c88b9` + pending follow-up | Code structure, docs structure, archive policy, lifecycle workflow, test archive, feature public APIs | `python3 -m pytest tests/` -> 155 passed; `compileall`; `git diff --check` | Confirm new architecture/docs direction after implementation |
 
 ## Rules
 

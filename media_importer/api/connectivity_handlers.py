@@ -32,7 +32,7 @@ class ConnectivityHandlersMixin:
                 return
 
         try:
-            from media_importer.core.config_validator import test_llm_api
+            from media_importer.features.configuration import test_llm_api
             ok, msg = test_llm_api(base_url, api_key, model, timeout=15)
             json_response(self, 200, data={"success": ok, "message": msg})
         except Exception as e:
@@ -59,7 +59,7 @@ class ConnectivityHandlersMixin:
             return
 
         try:
-            from media_importer.core.config_validator import test_hermes_webhook
+            from media_importer.features.configuration import test_hermes_webhook
             ok, msg = test_hermes_webhook(base_url, route_name, secret, timeout=15)
             json_response(self, 200, data={"success": ok, "message": msg})
         except Exception as e:

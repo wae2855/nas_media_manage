@@ -6,8 +6,8 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from media_importer.core.config_loader import load_config, mask_sensitive
-from media_importer.core.task_manager import TaskManager
+from media_importer.features.configuration import load_config, mask_sensitive
+from media_importer.features.tasks import TaskManager
 from media_importer.features.import_flow import PipelineRunner
 from media_importer.core.metrics import get_metrics
 from media_importer.core.logger import get_logger

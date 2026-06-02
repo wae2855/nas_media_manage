@@ -1,8 +1,8 @@
 import os
 
-from media_importer.core.config_loader import load_config, mask_sensitive
+from media_importer.features.configuration import load_config, mask_sensitive
 from media_importer.api import globals
-from media_importer.core.config_validator import validate_config
+from media_importer.features.configuration import validate_config
 from media_importer.notify.hermes_hook import HermesNotifier
 from media_importer.monitor.file_watcher import FileWatcher
 from media_importer.core.db import list_tasks as db_list
@@ -119,7 +119,7 @@ class ConfigHandlersMixin:
 
             if globals._global_pipeline:
                 globals._global_pipeline.config = globals._config
-                from media_importer.scraper.llm_scraper import LLMScraper
+                from media_importer.features.scraping import LLMScraper
                 globals._global_pipeline.scraper = LLMScraper(globals._config)
                 globals._global_pipeline.copier = type(globals._global_pipeline.copier)(globals._config.get('temp_dir', ''))
 

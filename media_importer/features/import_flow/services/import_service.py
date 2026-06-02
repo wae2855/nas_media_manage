@@ -6,7 +6,7 @@ from media_importer.core.db import (
     get_subtitles_by_task as db_get_subtitles,
     update_subtitle as db_update_subtitle,
 )
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 from media_importer.storage.file_mover import move_to_import
 from .paths import allowed_dirs_from_config
 from .source_cleanup import SourceCleanupResult, SourceCleanupService

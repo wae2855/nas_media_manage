@@ -32,7 +32,7 @@ class ProviderHandlersMixin:
         return {}
 
     def _create_provider_instance(self, provider_type: str):
-        from media_importer.scraper.providers import get_provider_class
+        from media_importer.features.providers import get_provider_class
         cls = get_provider_class(provider_type)
         if not cls:
             return None
@@ -45,8 +45,8 @@ class ProviderHandlersMixin:
             return None
 
     def _providers_list(self):
-        from media_importer.scraper.providers import get_all_registered_providers, create_providers
-        from media_importer.core.config_loader import mask_sensitive
+        from media_importer.features.providers import get_all_registered_providers, create_providers
+        from media_importer.features.configuration import mask_sensitive
 
         all_providers = get_all_registered_providers()
         enabled_types = set()
@@ -217,7 +217,7 @@ class ProviderHandlersMixin:
             json_response(self, 500, message=f"详情获取异常: {str(e)}")
 
     def _provider_prompts_get(self, provider_type: str):
-        from media_importer.scraper.llm_scraper import LLMScraper
+        from media_importer.features.scraping import LLMScraper
 
         default_prompt = LLMScraper._get_default_provider_prompt(provider_type)
 
@@ -227,7 +227,7 @@ class ProviderHandlersMixin:
         else:
             prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        from media_importer.scraper.providers import get_provider_class
+        from media_importer.features.providers import get_provider_class
         cls = get_provider_class(provider_type)
         prompt_filename = f"{provider_type}_prompts.md"
         if cls and hasattr(cls, "provider_type"):
@@ -271,7 +271,7 @@ class ProviderHandlersMixin:
             else:
                 prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-            from media_importer.scraper.providers import get_provider_class
+            from media_importer.features.providers import get_provider_class
             cls = get_provider_class(provider_type)
             prompt_filename = f"{provider_type}_prompts.md"
             if cls and hasattr(cls, "provider_type"):
@@ -315,7 +315,7 @@ class ProviderHandlersMixin:
             else:
                 prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-            from media_importer.scraper.providers import get_provider_class
+            from media_importer.features.providers import get_provider_class
             cls = get_provider_class(provider_type)
             prompt_filename = f"{provider_type}_prompts.md"
             if cls and hasattr(cls, "provider_type"):

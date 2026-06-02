@@ -1,6 +1,6 @@
 import unittest
 import math
-from media_importer.scraper.confidence_engine import (
+from media_importer.features.scraping import (
     ConfidenceEngine, FilenameCleaner, TitleMatcher,
     CleanResult, MatchResult, ConfidenceResult,
     _calc_R, _aggregate, DEFAULT_CONFIDENCE_CONFIG,

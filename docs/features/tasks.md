@@ -6,6 +6,7 @@
 
 | Path | Role |
 |------|------|
+| `media_importer/features/tasks/__init__.py` | Feature public API for `TaskManager`, lifecycle transitions, and task constants. |
 | `media_importer/core/task_manager.py` | Task creation, querying, and updates. |
 | `media_importer/core/task_lifecycle.py` | Centralized lifecycle transitions. |
 | `media_importer/core/db/constants.py` | Task status constants. |
@@ -25,8 +26,8 @@
 - Import flow tests that assert state transitions.
 - API task tests.
 
-## Target Shape
+## Migration Notes
 
-- Move task application and repo facade into `features/tasks/`.
+- New app/API/import-flow code should import from `media_importer.features.tasks`.
 - Keep raw SQLite connection helpers in infrastructure.
 - Any status change must update lifecycle docs, tests, API/frontend display logic, and regression matrix.

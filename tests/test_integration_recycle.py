@@ -16,10 +16,10 @@ import yaml
 
 from media_importer.api.handler import start_server, APIHandler
 from media_importer.api import globals as api_globals
-from media_importer.core.config_loader import load_config
+from media_importer.features.configuration import load_config
 from media_importer.core.db.connection import init_db
 from media_importer.core.db.task_repo import create_task, update_task
-from media_importer.core.task_manager import TaskManager
+from media_importer.features.tasks import TaskManager
 
 
 def find_free_port():

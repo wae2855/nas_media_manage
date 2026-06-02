@@ -6,6 +6,7 @@
 
 | Path | Role |
 |------|------|
+| `media_importer/features/prompts/__init__.py` | Feature public API for prompt builder and LLM prompt defaults. |
 | `media_importer/scraper/llm_scraper.py` | Builds prompts and parses LLM responses. |
 | `media_importer/api/prompt_handlers.py` | Prompt-related HTTP handlers if enabled in current routes. |
 | `media_importer/webui/js/` | Prompt configuration UI dependencies. |
@@ -19,5 +20,6 @@
 ## Target Shape
 
 - Move prompt template ownership into `features/prompts/`.
+- New prompt API code should import from `media_importer.features.prompts`.
 - Keep provider-specific API calls outside prompt template logic.
 - Record any prompt contract change in scraping docs and tests.

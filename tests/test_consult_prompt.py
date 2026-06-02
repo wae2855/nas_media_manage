@@ -7,7 +7,7 @@ import math
 import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from media_importer.scraper.confidence_engine import (
+from media_importer.features.scraping import (
     ConfidenceEngine, FilenameCleaner, TitleMatcher, MatchResult,
     _calc_R, _similarity, DEFAULT_CONFIDENCE_CONFIG
 )

@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.api.handler import start_server
-from media_importer.core.config_loader import load_config
+from media_importer.features.configuration import load_config
 
 
 def find_free_port():

@@ -21,7 +21,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.core import db as db_module
-from media_importer.core.task_manager import TaskManager
+from media_importer.features.tasks import TaskManager
 
 
 class TestTaskOperations(unittest.TestCase):

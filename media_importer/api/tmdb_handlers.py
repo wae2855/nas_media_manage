@@ -238,10 +238,10 @@ class TMDbHandlersMixin:
             json_response(self, 400, message="请输入视频文件名")
             return
 
-        from media_importer.scraper.llm_scraper import LLMScraper
-        from media_importer.scraper.metadata_scraper import MetadataScraper
-        from media_importer.scraper.confidence_engine import FilenameCleaner
-        from media_importer.scraper.providers import create_providers
+        from media_importer.features.scraping import LLMScraper
+        from media_importer.features.scraping import MetadataScraper
+        from media_importer.features.scraping import FilenameCleaner
+        from media_importer.features.providers import create_providers
 
         logger = globals._global_logger
         cleaner = FilenameCleaner()

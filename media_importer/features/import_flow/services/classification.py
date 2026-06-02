@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 from media_importer.storage.classifier import classify, render_template
 from .paths import resolve_project_path
 

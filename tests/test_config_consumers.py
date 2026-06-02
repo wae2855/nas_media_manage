@@ -37,7 +37,7 @@ def section(name):
 
 def test_config_loader_normalization():
     section("1. config_loader 兼容历史配置")
-    from media_importer.core.config_loader import _normalize_bool_strings
+    from media_importer.features.configuration import _normalize_bool_strings
     cases = [
         ({'enabled': 'true'}, True),
         ({'enabled': 'TRUE'}, True),
@@ -218,7 +218,7 @@ def test_pipeline_with_full_config():
     }
     try:
         from media_importer.pipeline import PipelineRunner
-        from media_importer.core.task_manager import TaskManager
+        from media_importer.features.tasks import TaskManager
         from media_importer.core.logger import Logger
         from media_importer.core.metrics import Metrics
         logger = Logger(level='INFO', fmt='text', log_dir=cfg['log_dir'])

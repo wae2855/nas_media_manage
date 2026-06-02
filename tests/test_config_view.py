@@ -6,8 +6,8 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from media_importer.core.config_view import ConfigView
-from media_importer.scraper.llm_scraper import LLMScraper
+from media_importer.features.configuration import ConfigView
+from media_importer.features.scraping import LLMScraper
 from media_importer.storage.file_scanner import FileScanner
 from media_importer.storage.source_cleaner import SourceCleaner
 

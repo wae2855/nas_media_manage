@@ -1,6 +1,6 @@
 import os
 
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 
 
 def _view(config) -> ConfigView:

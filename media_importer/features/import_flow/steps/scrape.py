@@ -4,7 +4,7 @@ from media_importer.core.db import (
     list_all_tasks as db_list_all_tasks,
 )
 from media_importer.features.import_flow.services import ReviewDecisionService
-from media_importer.scraper.llm_scraper import LLMScrapeError
+from media_importer.features.scraping import LLMScrapeError
 from media_importer.features.import_flow.utils import PipelineError, _extract_series_name
 
 

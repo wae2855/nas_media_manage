@@ -6,6 +6,7 @@ Provider 能力负责接入 TMDB 或后续外部元数据源，并为刮削流�
 
 | Path | Role |
 |------|------|
+| `media_importer/features/providers/__init__.py` | Feature public API for provider registry and factory functions. |
 | `media_importer/scraper/providers/` | Provider abstractions and concrete implementations. |
 | `media_importer/scraper/metadata_scraper.py` | Calls providers during scrape orchestration. |
 | `media_importer/core/config_view.py` | Reads provider-related configuration values. |
@@ -19,6 +20,7 @@ Provider 能力负责接入 TMDB 或后续外部元数据源，并为刮削流�
 ## Target Shape
 
 - Keep provider-specific client code isolated from import flow.
+- New API/scraping code should import registry functions from `media_importer.features.providers`.
 - Add a new provider by updating provider docs, config loader/migration/validator, API/frontend settings, and tests.
 - If provider selection affects architecture, add an ADR.
 

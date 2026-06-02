@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 
-from media_importer.core.config_view import ConfigView
+from media_importer.features.configuration import ConfigView
 from media_importer.core.safety import move_to_recycle, move_to_recycle_with_companions
 from media_importer.storage.file_mover import delete_source_files, remove_empty_parent_dir
 from .paths import allowed_dirs_from_config, import_roots_from_config

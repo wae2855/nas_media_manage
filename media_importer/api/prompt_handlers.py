@@ -37,7 +37,7 @@ class PromptHandlersMixin:
                     using_custom = False
 
             if not sp:
-                from media_importer.scraper.llm_scraper import LLMScraper
+                from media_importer.features.scraping import LLMScraper
                 ds = LLMScraper.DEFAULT_SYSTEM_PROMPT
                 SEP = "【维度判断】\n当前需要判断的维度："
                 if ds.endswith(SEP):
@@ -53,7 +53,7 @@ class PromptHandlersMixin:
 
     def _load_tmdb_prompts_for_ui(self) -> dict:
         try:
-            from media_importer.scraper.llm_scraper import LLMScraper
+            from media_importer.features.scraping import LLMScraper
 
             default_prompt = LLMScraper._get_default_provider_prompt('tmdb')
 

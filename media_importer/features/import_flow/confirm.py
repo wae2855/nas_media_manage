@@ -1,6 +1,6 @@
 import os
 from media_importer.core.db import update_task as db_update_task, update_subtitles_by_task as db_update_subs
-from media_importer.core.task_lifecycle import (
+from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
     mark_confirmed,

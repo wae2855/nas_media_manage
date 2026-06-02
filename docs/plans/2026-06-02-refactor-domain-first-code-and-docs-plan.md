@@ -134,22 +134,22 @@ confidence: medium
   - `api`：HTTP handler/route；
   - `config`：配置项和默认值；
   - `docs/tests` 映射。
-- [ ] 迁移或新增 `scraping` feature：
+- [x] 迁移或新增 `scraping` feature：
   - `MetadataScraper`
   - provider registry
   - confidence / trace / dimension mapping 相关入口
   - 旧 `scraper/` 路径可归档，不强制兼容。
-- [ ] 迁移或新增 `configuration` feature：
+- [x] 迁移或新增 `configuration` feature：
   - `ConfigView`
   - config loader / migration / validator 的业务入口
   - 配置保存 API 辅助逻辑
   - 结合 `config/config.yaml`、配置 API、前端配置页重新定义配置文档。
-- [ ] 迁移或新增 `tasks` feature：
+- [x] 迁移或新增 `tasks` feature：
   - `TaskLifecycle`
   - `TaskManager`
   - task repo public entry
   - 结合 SQLite task schema 重新组织任务状态/文件位置/确认状态文档。
-- [ ] 迁移或重组 `api/`：
+- [x] 迁移或重组 `api/`：
   - route table 可保留；
   - handler 可以按 feature 分布；
   - 保留统一 HTTP 响应规范。
