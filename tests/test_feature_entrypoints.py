@@ -40,8 +40,14 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "features" / "import_flow" / "services" / "classification.py": [
             "from .classification_rules import classify, render_template",
         ],
+        root / "media_importer" / "features" / "import_flow" / "services" / "dedup.py": [
+            "from .dedup_rules import check_duplicate",
+        ],
         root / "media_importer" / "storage" / "classifier.py": [
             "from media_importer.features.import_flow.services.classification_rules import",
+        ],
+        root / "media_importer" / "storage" / "dedup_checker.py": [
+            "from media_importer.features.import_flow.services.dedup_rules import",
         ],
         root / "media_importer" / "storage" / "file_scanner.py": [
             "from media_importer.features.configuration import ConfigView",
@@ -99,6 +105,7 @@ def test_feature_consumers_use_feature_public_apis():
 def test_feature_public_apis_are_importable():
     from media_importer.features.configuration import ConfigView, load_config, mask_sensitive
     from media_importer.features.import_flow.services.classification_rules import classify
+    from media_importer.features.import_flow.services.dedup_rules import check_duplicate
     from media_importer.features.providers import (
         MetadataProvider,
         TMDbProvider,
@@ -122,6 +129,7 @@ def test_feature_public_apis_are_importable():
 
     assert ConfigView is not None
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
+    assert check_duplicate.__module__ == "media_importer.features.import_flow.services.dedup_rules"
     assert load_config is not None
     assert mask_sensitive is not None
     assert TaskManager is not None

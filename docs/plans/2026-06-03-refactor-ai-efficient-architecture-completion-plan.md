@@ -162,7 +162,8 @@ confidence: medium
 - [x] 将 `FileCopier` 复制基础能力归入 `infrastructure/filesystem`，旧 `storage/file_copier.py` 保留 wrapper。
 - [ ] 继续评估路径校验、复制/移动、删除基础能力是否归入 `infrastructure/filesystem`。
 - [x] 将分类规则和模板渲染迁到 `features/import_flow/services/classification_rules.py`，旧 `storage/classifier.py` 保留 wrapper。
-- [ ] 继续评估命名模板、去重策略、源文件处理策略是否迁到 `features/import_flow/services/` 或独立 feature service。
+- [x] 将去重策略迁到 `features/import_flow/services/dedup_rules.py`，旧 `storage/dedup_checker.py` 保留 wrapper。
+- [ ] 继续评估命名模板、源文件处理策略是否迁到 `features/import_flow/services/` 或独立 feature service。
 - [ ] 将 `storage/source_cleaner.py` 的剩余旧入口继续对齐 `features/source_cleaning/`。
 - [ ] 增加 storage boundary tests，防止 feature 继续直接依赖旧业务策略文件。
 - [ ] 更新 `docs/architecture/storage-filesystem.md` 和 import-flow/source-cleaning feature 文档。

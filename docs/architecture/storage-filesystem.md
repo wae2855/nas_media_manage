@@ -13,11 +13,12 @@
 
 - `media_importer/infrastructure/filesystem/file_copier.py`
 - `media_importer/features/import_flow/services/classification_rules.py`
+- `media_importer/features/import_flow/services/dedup_rules.py`
 - `media_importer/storage/file_scanner.py`
 - `media_importer/storage/file_copier.py` compatibility alias
 - `media_importer/storage/classifier.py` compatibility alias
 - `media_importer/storage/file_mover.py`
-- `media_importer/storage/dedup_checker.py`
+- `media_importer/storage/dedup_checker.py` compatibility alias
 - `media_importer/features/recycle/manager.py`
 - `media_importer/features/source_cleaning/cleaner.py`
 - `media_importer/storage/source_cleaner.py` compatibility alias
@@ -29,3 +30,5 @@
 `FileCopier` 是基础文件系统复制能力，真实实现位于 `media_importer/infrastructure/filesystem/file_copier.py`。Import-flow 可以直接依赖该 infrastructure API；旧 `storage/file_copier.py` 仅保留为兼容导入。
 
 分类规则和模板渲染是入库业务策略，真实实现位于 `media_importer/features/import_flow/services/classification_rules.py`。旧 `storage/classifier.py` 仅保留为兼容导入。
+
+去重、质量比较和重命名建议是入库业务策略，真实实现位于 `media_importer/features/import_flow/services/dedup_rules.py`。旧 `storage/dedup_checker.py` 仅保留为兼容导入。
