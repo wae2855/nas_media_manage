@@ -14,6 +14,7 @@ from media_importer.domains.import_flow import (
     ConfirmMixin,
     DedupService,
     ImportService,
+    PipelineRunner,
     ReviewDecision,
     ReviewDecisionService,
     SourceCleanupService,
@@ -23,10 +24,13 @@ from media_importer.domains.import_flow import (
 from media_importer.domains.import_flow import lifecycle as domain_lifecycle
 from media_importer.domains.import_flow import context as domain_context
 from media_importer.domains.import_flow import confirm as domain_confirm
+from media_importer.domains.import_flow import runner as domain_runner
 from media_importer.pipeline.confirm import ConfirmMixin as PipelineConfirmMixin
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
+from media_importer.pipeline.runner import PipelineRunner as PipelinePackageRunner
 import media_importer.pipeline.confirm as legacy_confirm
 import media_importer.pipeline.context as legacy_context
+import media_importer.pipeline.runner as legacy_runner
 from media_importer.pipeline.services import (
     ClassificationService as PipelineClassificationService,
 )
@@ -49,6 +53,8 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
         self.assertIs(domain_context, legacy_context)
         self.assertIs(ConfirmMixin, PipelineConfirmMixin)
         self.assertIs(domain_confirm, legacy_confirm)
+        self.assertIs(PipelineRunner, PipelinePackageRunner)
+        self.assertIs(domain_runner, legacy_runner)
         self.assertIs(ClassificationService, PipelineClassificationService)
         self.assertIs(DedupService, PipelineDedupService)
         self.assertIs(ImportService, PipelineImportService)

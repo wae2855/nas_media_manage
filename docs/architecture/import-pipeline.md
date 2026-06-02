@@ -2,13 +2,14 @@
 
 ## Current Entry Points
 
-- `media_importer/pipeline/runner.py`
+- `media_importer/domains/import_flow/runner.py`
 - `media_importer/pipeline/steps.py`
 - `media_importer/pipeline/steps_file.py`
 - `media_importer/pipeline/steps_scrape.py`
 - `media_importer/domains/import_flow/`
 - `media_importer/domains/import_flow/confirm.py`
 - `media_importer/domains/import_flow/services/`
+- `media_importer/pipeline/runner.py` compatibility alias
 - `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/pipeline/services/` compatibility aliases
 
@@ -35,6 +36,7 @@ pipeline 已引入：
 
 `media_importer/domains/import_flow/` 是入库流程业务域入口。Phase 6D 已将 `TaskContext` 和 pipeline services 实现迁移到 domain；`pipeline/context.py` 与 `pipeline/services/` 保留旧 import 和 patch 路径兼容。
 确认/重分类实现已迁移到 `domains/import_flow/confirm.py`；`pipeline/confirm.py` 保留兼容别名。
+主编排 `PipelineRunner` 已迁移到 `domains/import_flow/runner.py`；`pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 保留兼容入口。
 
 ## Change Guide
 

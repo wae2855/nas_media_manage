@@ -38,9 +38,11 @@ from .services import (
     SourceCleanupService,
 )
 from .confirm import ConfirmMixin
+from .runner import PipelineRunner
 
 __all__ = [
     "ConfirmMixin",
+    "PipelineRunner",
     "TaskContext",
     "ClassificationResult",
     "ClassificationService",

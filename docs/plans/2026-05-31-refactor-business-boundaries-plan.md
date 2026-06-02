@@ -254,6 +254,7 @@ media_importer/
 - Phase 6D services 已迁移 `media_importer/domains/import_flow/services/`，旧 `pipeline/services/*` 保留兼容别名。
 - Phase 6D context 已迁移 `media_importer/domains/import_flow/context.py`，旧 `pipeline/context.py` 保留兼容别名。
 - Phase 6D confirm 已迁移 `media_importer/domains/import_flow/confirm.py`，旧 `pipeline/confirm.py` 保留兼容别名。
+- Phase 6D runner 已迁移 `media_importer/domains/import_flow/runner.py`，旧 `pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 保留兼容入口。
 
 退出标准：文档能作为 AI 后续修改 pipeline/API 的入口，而不需要先全文搜索。
 

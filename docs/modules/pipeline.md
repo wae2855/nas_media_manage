@@ -4,7 +4,8 @@
 
 - `media_importer/domains/import_flow/context.py`
 - `media_importer/pipeline/context.py` compatibility alias
-- `media_importer/pipeline/runner.py`
+- `media_importer/domains/import_flow/runner.py`
+- `media_importer/pipeline/runner.py` compatibility alias
 - `media_importer/pipeline/steps.py`
 - `media_importer/pipeline/steps_file.py`
 - `media_importer/pipeline/steps_scrape.py`
@@ -41,6 +42,8 @@ Phase 6D services 已将 `pipeline/services/` 实现迁移到 `media_importer/do
 Phase 6D context 已将 `TaskContext` 实现迁移到 `media_importer/domains/import_flow/context.py`；旧 `pipeline/context.py` 保留兼容别名。
 
 Phase 6D confirm 已将确认/重分类实现迁移到 `media_importer/domains/import_flow/confirm.py`；旧 `pipeline/confirm.py` 保留兼容别名。
+
+Phase 6D runner 已将 `PipelineRunner` 实现迁移到 `media_importer/domains/import_flow/runner.py`；旧 `pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 保留兼容入口。
 
 ## Tests
 
