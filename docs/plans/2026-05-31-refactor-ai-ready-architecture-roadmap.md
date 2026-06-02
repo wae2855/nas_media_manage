@@ -110,7 +110,7 @@ confidence: medium
   - `proposals/`
 - [x] 备份旧文档和旧 `AGENTS.md` 到 `_archive/`。
 - [x] 建立 `standards/`、`workflows/`、`decisions/`、`testing/` 的基础规则。
-- [ ] 后续按代码重构结果补全 architecture/modules 详细事实。
+- [x] 后续按代码重构结果补全 architecture/modules 详细事实。
 - [x] 原计划中的 `docs/架构/AI开发导航.md` 调整为 `docs/ai-map.md`：
   - 常见任务到代码入口映射；
   - 新增配置项清单；
@@ -120,7 +120,7 @@ confidence: medium
   - 测试选择指南。
 - [x] 新增 `docs/legacy.md`，明确旧中文文档区不作为当前事实入口。
 - [x] 当前架构入口迁移为 `docs/README.md`、`docs/INDEX.md` 和 `docs/architecture/overview.md`；旧 `docs/系统架构总览.md` 保留 legacy banner。
-- [ ] 在代码架构重构稳定后，补全核心业务域详细事实：
+- [x] 在代码架构重构稳定后，补全核心业务域详细事实：
   - 任务与状态；
   - 刮削与 Provider；
   - 入库流水线；

@@ -39,3 +39,31 @@
 - retry reset。
 
 当前仍保持兼容：pipeline step 继续接收原始 task dict，后续服务化重构再逐步扩大使用范围。
+
+## Transition Table
+
+| 函数 | 目标状态 | 文件位置 | 典型调用方 |
+|------|----------|----------|------------|
+| `start_processing()` | `PROCESSING` | 保持原值 | runner 开始处理任务 |
+| `mark_processing_step()` | `PROCESSING` | 保持原值 | step 进度更新 |
+| `mark_temp_ready()` | 保持原值 | `temp` | copy 完成后 |
+| `mark_confirming()` | `CONFIRMING` | `temp` | 低置信度进入人工确认 |
+| `mark_confirmed()` | 保持原值 | 保持原值 | 用户确认任务 |
+| `mark_needs_review()` | `NEEDS_REVIEW` | `temp` | 数据来源门控拦截 |
+| `mark_failed()` | `FAILED` | 默认 `source` | pipeline/API 失败分支 |
+| `mark_skipped()` | `SKIPPED` | 默认 `source` | 去重跳过或用户忽略 |
+| `mark_imported()` | `SUCCESS` | `import` | 入库成功 |
+| `reset_for_retry()` | `PENDING` | `source` | 重试失败任务 |
+
+## Update Rule
+
+新增状态或文件位置时必须同步：
+
+- `media_importer/core/db/constants.py`
+- `media_importer/core/task_lifecycle.py`
+- `media_importer/core/task_manager.py`
+- `media_importer/domains/import_flow/`
+- `media_importer/api/task_handlers.py`
+- `media_importer/webui/js/tasks.js`
+- `docs/testing/regression-matrix.md`
+- `tests/test_task_context_lifecycle.py`
