@@ -159,7 +159,8 @@ confidence: medium
 
 ### Phase 3: Storage / 文件系统边界收口
 
-- [ ] 将文件系统原子操作、路径校验、复制/移动基础能力归入 infrastructure/filesystem 或保留为明确 infrastructure。
+- [x] 将 `FileCopier` 复制基础能力归入 `infrastructure/filesystem`，旧 `storage/file_copier.py` 保留 wrapper。
+- [ ] 继续评估路径校验、复制/移动、删除基础能力是否归入 `infrastructure/filesystem`。
 - [ ] 将分类、命名模板、去重策略、源文件处理策略迁到 `features/import_flow/services/` 或独立 feature service。
 - [ ] 将 `storage/source_cleaner.py` 的剩余旧入口继续对齐 `features/source_cleaning/`。
 - [ ] 增加 storage boundary tests，防止 feature 继续直接依赖旧业务策略文件。

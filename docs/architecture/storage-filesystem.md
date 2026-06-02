@@ -11,8 +11,9 @@
 
 ## Entry Points
 
+- `media_importer/infrastructure/filesystem/file_copier.py`
 - `media_importer/storage/file_scanner.py`
-- `media_importer/storage/file_copier.py`
+- `media_importer/storage/file_copier.py` compatibility alias
 - `media_importer/storage/file_mover.py`
 - `media_importer/storage/dedup_checker.py`
 - `media_importer/storage/classifier.py`
@@ -23,3 +24,5 @@
 ## Safety
 
 文件删除和覆盖必须遵守 [../standards/safety.md](../standards/safety.md)。
+
+`FileCopier` 是基础文件系统复制能力，真实实现位于 `media_importer/infrastructure/filesystem/file_copier.py`。Import-flow 可以直接依赖该 infrastructure API；旧 `storage/file_copier.py` 仅保留为兼容导入。

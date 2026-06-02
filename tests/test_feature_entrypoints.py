@@ -34,8 +34,14 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "features" / "import_flow" / "steps" / "scrape.py": [
             "from media_importer.features.scraping import get_dimensions_for_file",
         ],
+        root / "media_importer" / "features" / "import_flow" / "runner.py": [
+            "from media_importer.infrastructure.filesystem import FileCopier",
+        ],
         root / "media_importer" / "storage" / "file_scanner.py": [
             "from media_importer.features.configuration import ConfigView",
+        ],
+        root / "media_importer" / "storage" / "file_copier.py": [
+            "from media_importer.infrastructure.filesystem import FileCopier",
         ],
         root / "media_importer" / "features" / "scraping" / "metadata_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
@@ -105,6 +111,7 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.tasks import TaskManager, mark_imported
     from media_importer.features.tasks.repository import create_task, update_task
     from media_importer.infrastructure.db import init_db
+    from media_importer.infrastructure.filesystem import FileCopier
 
     assert ConfigView is not None
     assert load_config is not None
@@ -114,6 +121,7 @@ def test_feature_public_apis_are_importable():
     assert create_task is not None
     assert update_task is not None
     assert init_db is not None
+    assert FileCopier.__module__ == "media_importer.infrastructure.filesystem.file_copier"
     assert ConfidenceEngine is not None
     assert ConfidenceEngine.__module__ == "media_importer.features.scraping.confidence_engine"
     assert LLMScraper is not None
