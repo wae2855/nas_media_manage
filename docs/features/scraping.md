@@ -17,7 +17,8 @@
 | `media_importer/scraper/dimension_manager.py` | Thin legacy import wrapper for dimension helpers. |
 | `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
 | `media_importer/scraper/tmdb_client.py` | TMDB client and error type, exposed through the scraping feature. |
-| `media_importer/scraper/providers/` | External metadata provider implementations. |
+| `media_importer/features/providers/` | External metadata provider registry, interface, and implementations. |
+| `media_importer/scraper/providers/` | Thin legacy import wrappers for provider modules. |
 
 ## Current Consumers
 
@@ -29,7 +30,7 @@
 ## Target Shape
 
 - Continue moving LLM and provider-adjacent scraping implementation into `media_importer/features/scraping/`.
-- Keep provider clients under `features/providers/` or infrastructure adapters depending on ownership.
+- Keep provider implementations under `features/providers/`; keep lower-level external clients as explicit adapters until separately migrated.
 - Keep confidence/review decisions aligned with `features/import_flow/services/review.py`.
 
 ## Related Areas

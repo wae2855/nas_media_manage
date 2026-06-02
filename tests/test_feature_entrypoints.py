@@ -40,7 +40,17 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "features" / "scraping" / "metadata_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
             "from media_importer.features.providers import create_providers",
+            "from media_importer.features.providers import (",
             "from media_importer.features.scraping.confidence_engine import",
+        ],
+        root / "media_importer" / "scraper" / "providers" / "__init__.py": [
+            "from media_importer.features.providers import",
+        ],
+        root / "media_importer" / "scraper" / "providers" / "base.py": [
+            "from media_importer.features.providers.base import",
+        ],
+        root / "media_importer" / "scraper" / "providers" / "tmdb_provider.py": [
+            "from media_importer.features.providers.tmdb_provider import TMDbProvider",
         ],
         root / "media_importer" / "scraper" / "confidence_engine.py": [
             "from media_importer.features.scraping.confidence_engine import",
@@ -72,7 +82,12 @@ def test_feature_consumers_use_feature_public_apis():
 
 def test_feature_public_apis_are_importable():
     from media_importer.features.configuration import ConfigView, load_config, mask_sensitive
-    from media_importer.features.providers import create_providers, get_provider_class
+    from media_importer.features.providers import (
+        MetadataProvider,
+        TMDbProvider,
+        create_providers,
+        get_provider_class,
+    )
     from media_importer.features.prompts import LLMPromptBuilder
     from media_importer.features.scraping import (
         CleanResult,
@@ -107,4 +122,6 @@ def test_feature_public_apis_are_importable():
     assert TMDbClient is not None
     assert create_providers is not None
     assert get_provider_class("tmdb") is not None
+    assert MetadataProvider.__module__ == "media_importer.features.providers.base"
+    assert TMDbProvider.__module__ == "media_importer.features.providers.tmdb_provider"
     assert LLMPromptBuilder is not None

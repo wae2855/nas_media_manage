@@ -102,7 +102,7 @@ class TitleMatcher:
                 )
 
     def match_standard(self, clean_title: str, search_item, year=None, season=None) -> MatchResult:
-        from media_importer.scraper.providers.base import SearchItem
+        from media_importer.features.providers import SearchItem
         original_title = search_item.original_title or ""
         title = search_item.title or ""
         tmdb_year = search_item.year

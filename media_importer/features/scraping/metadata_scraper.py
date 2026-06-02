@@ -3,7 +3,7 @@ import os
 import re
 from typing import Dict, List, Optional, Any
 from media_importer.features.providers import create_providers
-from media_importer.scraper.providers.base import (
+from media_importer.features.providers import (
     MetadataProvider,
     SearchItem,
     MediaDetails,
@@ -245,7 +245,7 @@ class MetadataScraper:
                 tmdb_year = int(release_date[:4])
             except (ValueError, TypeError):
                 pass
-        from media_importer.scraper.providers.base import MediaDetails as _MD, Genre as _G
+        from media_importer.features.providers import MediaDetails as _MD, Genre as _G
         details = _MD(
             provider_type="tmdb",
             item_id=str(tmdb_data.get("id", "")),
@@ -277,7 +277,7 @@ class MetadataScraper:
         if not self.providers:
             return {}
         provider = self.providers[0]
-        from media_importer.scraper.providers.base import MediaDetails as _MD, Genre as _G
+        from media_importer.features.providers import MediaDetails as _MD, Genre as _G
         date_field = "release_date" if media_type == "movie" else "first_air_date"
         release_date = tmdb_data.get(date_field, "")
         tmdb_year = None

@@ -88,13 +88,13 @@ class LLMPromptBuilder:
 
     @staticmethod
     def _get_default_provider_prompt(provider_type='tmdb') -> str:
-        from media_importer.scraper.providers import get_provider_class
+        from media_importer.features.providers import get_provider_class
         cls = get_provider_class(provider_type)
         if cls:
             template = cls.get_context_template()
             if template:
                 return template.strip()
-        from media_importer.scraper.providers.base import MetadataProvider
+        from media_importer.features.providers import MetadataProvider
         return MetadataProvider.get_context_template().strip()
 
     @staticmethod
@@ -147,7 +147,7 @@ class LLMPromptBuilder:
             pass
 
     def _load_provider_prompts_from_files(self):
-        from media_importer.scraper.providers import get_all_provider_types
+        from media_importer.features.providers import get_all_provider_types
         for ptype in get_all_provider_types():
             self._provider_prompts[ptype] = self._load_prompt_file(f"{ptype}_prompts.md")
 
@@ -228,7 +228,7 @@ class LLMPromptBuilder:
         provider_type = None
 
         if provider_name:
-            from media_importer.scraper.providers import get_all_registered_providers
+            from media_importer.features.providers import get_all_registered_providers
             for ptype, cls in get_all_registered_providers().items():
                 if cls.display_name == provider_name or ptype == provider_name:
                     provider_type = ptype
@@ -238,13 +238,13 @@ class LLMPromptBuilder:
             base = self._provider_prompts.get(provider_type, '')
 
         if not base and provider_type:
-            from media_importer.scraper.providers import get_provider_class
+            from media_importer.features.providers import get_provider_class
             cls = get_provider_class(provider_type)
             if cls:
                 base = cls.get_context_template()
 
         if not base:
-            from media_importer.scraper.providers.base import MetadataProvider
+            from media_importer.features.providers import MetadataProvider
             base = MetadataProvider.get_context_template()
 
         if base.endswith(SEP):
@@ -355,7 +355,7 @@ class LLMPromptBuilder:
         provider_type = None
 
         if provider_name:
-            from media_importer.scraper.providers import get_all_registered_providers
+            from media_importer.features.providers import get_all_registered_providers
             for ptype, cls in get_all_registered_providers().items():
                 if cls.display_name == provider_name or ptype == provider_name:
                     provider_type = ptype
@@ -365,13 +365,13 @@ class LLMPromptBuilder:
             base = self._provider_prompts.get(provider_type, '')
 
         if not base and provider_type:
-            from media_importer.scraper.providers import get_provider_class
+            from media_importer.features.providers import get_provider_class
             cls = get_provider_class(provider_type)
             if cls:
                 base = cls.get_context_template()
 
         if not base:
-            from media_importer.scraper.providers.base import MetadataProvider
+            from media_importer.features.providers import MetadataProvider
             base = MetadataProvider.get_context_template()
 
         if base.endswith(SEP):
