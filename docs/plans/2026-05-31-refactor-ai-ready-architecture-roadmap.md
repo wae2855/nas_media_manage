@@ -283,6 +283,7 @@ media_importer/
 - [x] Phase 6D context：迁移 `TaskContext`，保留 `pipeline/context.py` 兼容别名。
 - [x] Phase 6D confirm：迁移确认/重分类实现，保留 `pipeline/confirm.py` 兼容别名。
 - [x] Phase 6D runner：迁移 `PipelineRunner`，保留 `pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 兼容入口。
+- [x] Phase 6D steps：迁移 `import_flow/steps`，保留 `pipeline/steps*` 兼容别名。
 - [ ] 明确 deploy 副本同步策略后再移动实际实现。
 
 验收标准：

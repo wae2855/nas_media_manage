@@ -5,12 +5,18 @@
 - `media_importer/domains/import_flow/__init__.py`
 - `media_importer/domains/import_flow/context.py`
 - `media_importer/domains/import_flow/runner.py`
+- `media_importer/domains/import_flow/steps/`
+- `media_importer/domains/import_flow/steps/file.py`
+- `media_importer/domains/import_flow/steps/scrape.py`
 - `media_importer/domains/import_flow/confirm.py`
 - `media_importer/domains/import_flow/lifecycle.py`
 - `media_importer/domains/import_flow/review.py`
 - `media_importer/domains/import_flow/services/`
 - `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/pipeline/runner.py` compatibility alias
+- `media_importer/pipeline/steps.py` compatibility alias
+- `media_importer/pipeline/steps_file.py` compatibility alias
+- `media_importer/pipeline/steps_scrape.py` compatibility alias
 - `media_importer/pipeline/services/` compatibility aliases
 
 ## Responsibility
@@ -21,6 +27,7 @@
 
 - `TaskContext` from `media_importer.domains.import_flow.context`
 - `PipelineRunner` from `media_importer.domains.import_flow.runner`
+- `StepsMixin`, `FileStepsMixin`, `ScrapeStepsMixin` from `media_importer.domains.import_flow.steps`
 - `ConfirmMixin` from `media_importer.domains.import_flow.confirm`
 - `TaskLifecycle` constants/functions from `media_importer.core.task_lifecycle`
 - `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.domains.import_flow.services`
@@ -37,6 +44,9 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 
 - `media_importer/pipeline/context.py`
 - `media_importer/pipeline/runner.py`
+- `media_importer/pipeline/steps.py`
+- `media_importer/pipeline/steps_file.py`
+- `media_importer/pipeline/steps_scrape.py`
 - `media_importer/pipeline/confirm.py`
 - `media_importer/pipeline/services/`
 
@@ -47,7 +57,7 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 - 旧 patch 路径必须继续影响新 domain 入口。
 - 每个 domain proof slice 都要有 compatibility test。
 - `media_importer.pipeline.PipelineRunner` 必须继续可用，CLI/API 启动路径依赖它。
-- 后续迁移 steps 实现时，先保留 `media_importer.pipeline` 公共入口。
+- `media_importer.pipeline` 公共入口和旧 `pipeline/steps*` 路径必须继续可用，直到单独决策删除兼容层。
 
 ## Tests
 

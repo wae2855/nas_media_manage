@@ -1,11 +1,4 @@
-from .steps_scrape import ScrapeStepsMixin
-from .steps_file import FileStepsMixin
-from media_importer.storage.classifier import classify, render_template
-from media_importer.storage.dedup_checker import check_duplicate
-from media_importer.storage.file_mover import (
-    apply_filename_template, move_to_import, delete_source_files, remove_empty_parent_dir,
-)
+import sys
+from media_importer.domains.import_flow import steps as _steps
 
-
-class StepsMixin(ScrapeStepsMixin, FileStepsMixin):
-    pass
+sys.modules[__name__] = _steps

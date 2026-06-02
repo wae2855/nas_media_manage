@@ -169,7 +169,7 @@ Status: completed
 
 目标：在前面 proof slice 稳定后迁移主流程。
 
-Status: runner_completed
+Status: steps_completed
 
 候选：
 
@@ -203,8 +203,11 @@ Status: runner_completed
 - `pipeline/confirm.py` 改为兼容别名，旧 import 继续可用。
 - `PipelineRunner` 实现迁移到 `domains/import_flow/runner.py`。
 - `pipeline/runner.py` 改为兼容别名，`media_importer.pipeline.PipelineRunner` 继续可用。
-- `domains/import_flow/__init__.py` 导出 services、`TaskContext` 和 `TaskLifecycle`。
-- `tests/test_domain_import_flow_compatibility.py` 增加 context/confirm/runner/services 兼容与旧 patch 路径保护。
+- `StepsMixin`、`FileStepsMixin`、`ScrapeStepsMixin` 实现迁移到 `domains/import_flow/steps/`。
+- `pipeline/steps.py`、`pipeline/steps_file.py`、`pipeline/steps_scrape.py` 改为兼容别名。
+- `domains/import_flow/runner.py` 从 domain steps 导入 `StepsMixin`。
+- `domains/import_flow/__init__.py` 导出 services、steps、`TaskContext` 和 `TaskLifecycle`。
+- `tests/test_domain_import_flow_compatibility.py` 增加 context/confirm/runner/steps/services 兼容与旧 patch 路径保护。
 
 ## Explicit Non-Goals
 

@@ -27,7 +27,7 @@ from media_importer.scraper.metadata_scraper import MetadataScraper
 from media_importer.storage.file_mover import delete_source_files
 from media_importer.notify.hooks import HookRunner
 from media_importer.pipeline.utils import PipelineSkipError
-from media_importer.pipeline.steps import StepsMixin
+from media_importer.domains.import_flow.steps import StepsMixin
 
 
 class PipelineRunner(StepsMixin, ConfirmMixin):

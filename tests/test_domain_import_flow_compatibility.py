@@ -17,7 +17,10 @@ from media_importer.domains.import_flow import (
     PipelineRunner,
     ReviewDecision,
     ReviewDecisionService,
+    FileStepsMixin,
+    ScrapeStepsMixin,
     SourceCleanupService,
+    StepsMixin,
     TaskContext,
     mark_imported,
 )
@@ -25,12 +28,23 @@ from media_importer.domains.import_flow import lifecycle as domain_lifecycle
 from media_importer.domains.import_flow import context as domain_context
 from media_importer.domains.import_flow import confirm as domain_confirm
 from media_importer.domains.import_flow import runner as domain_runner
+from media_importer.domains.import_flow import steps as domain_steps
+from media_importer.domains.import_flow.steps import file as domain_steps_file
+from media_importer.domains.import_flow.steps import scrape as domain_steps_scrape
 from media_importer.pipeline.confirm import ConfirmMixin as PipelineConfirmMixin
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
 from media_importer.pipeline.runner import PipelineRunner as PipelinePackageRunner
+from media_importer.pipeline.steps import StepsMixin as PipelineStepsMixin
+from media_importer.pipeline.steps_file import FileStepsMixin as PipelineFileStepsMixin
+from media_importer.pipeline.steps_scrape import (
+    ScrapeStepsMixin as PipelineScrapeStepsMixin,
+)
 import media_importer.pipeline.confirm as legacy_confirm
 import media_importer.pipeline.context as legacy_context
 import media_importer.pipeline.runner as legacy_runner
+import media_importer.pipeline.steps as legacy_steps
+import media_importer.pipeline.steps_file as legacy_steps_file
+import media_importer.pipeline.steps_scrape as legacy_steps_scrape
 from media_importer.pipeline.services import (
     ClassificationService as PipelineClassificationService,
 )
@@ -55,6 +69,12 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
         self.assertIs(domain_confirm, legacy_confirm)
         self.assertIs(PipelineRunner, PipelinePackageRunner)
         self.assertIs(domain_runner, legacy_runner)
+        self.assertIs(StepsMixin, PipelineStepsMixin)
+        self.assertIs(FileStepsMixin, PipelineFileStepsMixin)
+        self.assertIs(ScrapeStepsMixin, PipelineScrapeStepsMixin)
+        self.assertIs(domain_steps, legacy_steps)
+        self.assertIs(domain_steps_file, legacy_steps_file)
+        self.assertIs(domain_steps_scrape, legacy_steps_scrape)
         self.assertIs(ClassificationService, PipelineClassificationService)
         self.assertIs(DedupService, PipelineDedupService)
         self.assertIs(ImportService, PipelineImportService)

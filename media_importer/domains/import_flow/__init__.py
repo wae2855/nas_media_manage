@@ -37,12 +37,16 @@ from .services import (
     SourceCleanupResult,
     SourceCleanupService,
 )
+from .steps import FileStepsMixin, ScrapeStepsMixin, StepsMixin
 from .confirm import ConfirmMixin
 from .runner import PipelineRunner
 
 __all__ = [
     "ConfirmMixin",
     "PipelineRunner",
+    "StepsMixin",
+    "FileStepsMixin",
+    "ScrapeStepsMixin",
     "TaskContext",
     "ClassificationResult",
     "ClassificationService",
