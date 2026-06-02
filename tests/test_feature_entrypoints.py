@@ -55,6 +55,10 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "storage" / "file_copier.py": [
             "from media_importer.infrastructure.filesystem import FileCopier",
         ],
+        root / "media_importer" / "storage" / "source_cleaner.py": [
+            "from media_importer.features.source_cleaning import cleaner as _cleaner",
+            "sys.modules[__name__] = _cleaner",
+        ],
         root / "media_importer" / "features" / "scraping" / "metadata_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
             "from media_importer.features.providers import create_providers",
@@ -106,6 +110,7 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.configuration import ConfigView, load_config, mask_sensitive
     from media_importer.features.import_flow.services.classification_rules import classify
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
+    from media_importer.features.source_cleaning import SourceCleaner
     from media_importer.features.providers import (
         MetadataProvider,
         TMDbProvider,
@@ -130,6 +135,7 @@ def test_feature_public_apis_are_importable():
     assert ConfigView is not None
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
     assert check_duplicate.__module__ == "media_importer.features.import_flow.services.dedup_rules"
+    assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
     assert load_config is not None
     assert mask_sensitive is not None
     assert TaskManager is not None

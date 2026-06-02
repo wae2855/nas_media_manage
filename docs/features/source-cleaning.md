@@ -8,7 +8,7 @@
 |------|------|
 | `media_importer/features/source_cleaning/cleaner.py` | Preview and execute source cleanup decisions. |
 | `media_importer/features/source_cleaning/records.py` | Cleaner record repository facade. |
-| `media_importer/storage/source_cleaner.py` | Temporary wrapper for old imports. |
+| `media_importer/storage/source_cleaner.py` | Compatibility wrapper for old imports. |
 | `media_importer/api/source_cleaner_handlers.py` | HTTP actions for preview, execute, records, and status. |
 
 ## Related Areas
