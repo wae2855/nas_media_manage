@@ -1,9 +1,3 @@
-from media_importer.scraper.confidence_engine import (
-    ConfidenceEngine,
-    FilenameCleaner,
-    TitleMatcher,
-    _similarity,
-)
 from media_importer.scraper.confidence_models import (
     CleanResult,
     ConfidenceResult,
@@ -23,6 +17,12 @@ from media_importer.scraper.dimension_manager import (
 )
 from media_importer.scraper.llm_scraper import LLMScrapeError, LLMScraper
 from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+from .confidence_engine import (
+    ConfidenceEngine,
+    FilenameCleaner,
+    TitleMatcher,
+    _similarity,
+)
 from .metadata_scraper import MetadataScraper
 
 __all__ = [

@@ -40,6 +40,10 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "features" / "scraping" / "metadata_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
             "from media_importer.features.providers import create_providers",
+            "from media_importer.features.scraping.confidence_engine import",
+        ],
+        root / "media_importer" / "scraper" / "confidence_engine.py": [
+            "from media_importer.features.scraping.confidence_engine import",
         ],
         root / "media_importer" / "scraper" / "metadata_scraper.py": [
             "from media_importer.features.scraping.metadata_scraper import MetadataScraper",
@@ -88,6 +92,7 @@ def test_feature_public_apis_are_importable():
     assert update_task is not None
     assert init_db is not None
     assert ConfidenceEngine is not None
+    assert ConfidenceEngine.__module__ == "media_importer.features.scraping.confidence_engine"
     assert LLMScraper is not None
     assert MetadataScraper is not None
     assert MetadataScraper.__module__ == "media_importer.features.scraping.metadata_scraper"

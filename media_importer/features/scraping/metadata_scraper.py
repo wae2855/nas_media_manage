@@ -10,7 +10,7 @@ from media_importer.scraper.providers.base import (
     DimensionMapping,
 )
 from media_importer.scraper.llm_scraper import LLMScraper
-from media_importer.scraper.confidence_engine import (
+from media_importer.features.scraping.confidence_engine import (
     FilenameCleaner, TitleMatcher, ConfidenceEngine, CleanResult, MatchResult
 )
 from media_importer.features.configuration import ConfigView
