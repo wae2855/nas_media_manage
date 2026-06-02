@@ -40,6 +40,7 @@
 - [AI 友好架构整体调整路线图](plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md)
 - [业务边界显式化重构](plans/2026-05-31-refactor-business-boundaries-plan.md)
 - [业务域目录迁移可行性评审](plans/2026-06-01-domain-directory-migration-feasibility.md)
+- [deploy package 同步策略](plans/2026-06-02-deploy-package-sync-strategy.md)
 
 ## Archive
 

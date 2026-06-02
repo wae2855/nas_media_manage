@@ -15,6 +15,7 @@
 | 修改文件移动/删除 | [modules/recycle-domain.md](modules/recycle-domain.md), [standards/safety.md](standards/safety.md) | `domains/recycle/`, `core/safety.py`, `storage/file_mover.py` | recycle/safety/e2e/compatibility | 安全文档和回归矩阵 |
 | 修改源目录清理 | [modules/source-cleaning-domain.md](modules/source-cleaning-domain.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `domains/source_cleaning/`, `api/source_cleaner_handlers.py`, `webui/js/config.js` | source cleaner/recycle/config/compatibility 测试 | source-cleaner 文档 |
 | 修改前端 | [modules/webui.md](modules/webui.md) | `webui/index.html`, `webui/js/`, `webui/css/` | Playwright 或相关 UI 测试 | API/模块文档 |
+| 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md) | `deploy/build_fpk.sh`, root `media_importer/` | release smoke/build checks | deployment 文档 |
 
 ## Decision Flow
 
@@ -43,6 +44,7 @@
 
 - 不直接删除或覆盖影视文件，必须走回收站安全规则。
 - 不把 `deploy/` 当作开发源；是否同步 deploy 需要单独决策。
+- `deploy/nas-media-importer/` 是生成 package workspace；应用代码事实以根目录 `media_importer/` 为准。
 - `domains/` 当前是渐进业务域入口，不删除旧 public imports。
 - 不在架构事实文档中写未实施设想，未实施内容放 proposals/plans。
 - 不把 legacy 中文文档当作当前事实来源；如发现冲突，以新文档和代码为准，并记录待迁移项。

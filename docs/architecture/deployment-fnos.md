@@ -6,10 +6,29 @@
 
 ## Important Rule
 
-`deploy/` 目录内有独立副本，当前开发不自动同步 `deploy/`。需要同步部署目录时必须作为明确任务处理。
+`deploy/nas-media-importer/` 是 fnOS package workspace，不是应用源码入口。
+
+应用代码的唯一事实来源是根目录：
+
+- `media_importer/`
+- `hermes/`
+- `config.yaml.example`
+- `requirements.txt`
+
+`deploy/build_fpk.sh` 会重建 `deploy/nas-media-importer/`，再把根源码复制到 `app/server/`。当前开发不手动同步 deploy 副本；发布时通过 build script 生成 package workspace 和 `.fpk`。
+
+已跟踪的 `deploy/nas-media-importer/app/server/media_importer/` 可能滞后于根源码，不能作为架构事实或修改入口。
 
 ## Start Command
 
 ```bash
 python3 -m media_importer.media_importer -c <config> serve -p <port> --host <host>
 ```
+
+## Build Command
+
+```bash
+./deploy/build_fpk.sh <version>
+```
+
+`fnpack` 不存在时脚本会尝试下载工具，因此该命令属于发布流程，不是日常重构验证命令。

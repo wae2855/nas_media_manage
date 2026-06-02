@@ -32,3 +32,4 @@ Status: Accepted | Superseded | Deprecated
 - AI-ready documentation system
 - Task lifecycle centralization
 - Domain directory migration strategy
+- Deploy package generation strategy

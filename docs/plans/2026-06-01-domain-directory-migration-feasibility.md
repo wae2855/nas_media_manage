@@ -46,7 +46,7 @@ Related roadmap phase: Phase 6
 
 ### Deployment Coupling
 
-`deploy/nas-media-importer/app/server/media_importer/` 里存在独立的 `media_importer` 副本，约 71 个 Python 文件。根目录代码迁移后，部署副本同步策略必须先明确，否则会出现“开发包结构”和“fnOS 包结构”分叉。
+`deploy/nas-media-importer/app/server/media_importer/` 里存在已跟踪 package workspace 副本。根目录代码迁移后，必须明确它不是开发源，否则会出现“开发包结构”和“fnOS 包结构”分叉。
 
 ### Current Stabilized Boundaries
 
@@ -214,7 +214,7 @@ Status: steps_completed
 - 不在一个提交里移动所有目录。
 - 不把 `api`、`core/db`、`media_importer.py` 入口层作为第一批迁移对象。
 - 不删除旧 import 路径。
-- 不在 deploy 副本同步策略明确前改 fnOS 打包结构。
+- 不把 `deploy/nas-media-importer/` 当作应用源码入口；fnOS package 由 `deploy/build_fpk.sh` 从根源码生成。
 
 ## Compatibility Rules
 
@@ -226,6 +226,7 @@ Status: steps_completed
   - `media_importer.api`
 - 新路径只作为新开发入口逐步引入。
 - 旧路径 re-export 时必须有测试保护。
+- deploy package workspace 不作为 import 或架构证据；发布时从根源码重建。
 - 每个迁移提交必须包含：
   - import compatibility test；
   - module docs update；
@@ -254,7 +255,7 @@ Status: steps_completed
 
 - 评审开始时工作区干净。
 - 已存在稳定边界：`TaskContext`、`TaskLifecycle`、pipeline services、`ConfigView`、API route table。
-- `deploy/nas-media-importer/app/server/media_importer/` 存在独立部署副本。
+- `deploy/nas-media-importer/app/server/media_importer/` 存在已跟踪 package workspace 副本，但不作为开发源。
 - 历史 import 和测试 patch 路径引用数量较高。
 
 本评审没有修改应用代码。提交前验证：

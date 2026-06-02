@@ -285,7 +285,7 @@ media_importer/
 - [x] Phase 6D confirm：迁移确认/重分类实现，保留 `pipeline/confirm.py` 兼容别名。
 - [x] Phase 6D runner：迁移 `PipelineRunner`，保留 `pipeline/runner.py` 和 `media_importer.pipeline.PipelineRunner` 兼容入口。
 - [x] Phase 6D steps：迁移 `import_flow/steps`，保留 `pipeline/steps*` 兼容别名。
-- [ ] 明确 deploy 副本同步策略后再移动实际实现。
+- [x] 明确 deploy package 生成策略：根源码是唯一事实来源，发布时通过 `deploy/build_fpk.sh` 重建 package workspace。
 
 验收标准：
 
@@ -326,7 +326,7 @@ media_importer/
 - 每个阶段都要保持服务可启动。
 - 不做“改了一半系统不可运行”的长时间迁移。
 - 文档和代码同阶段更新。
-- `deploy/` 不自动作为开发源，但 baseline 会保留当前状态；后续是否同步 deploy 需要单独决策。
+- `deploy/nas-media-importer/` 是生成 package workspace，不作为开发源；发布时由 `deploy/build_fpk.sh` 从根源码重建。
 - 任何删除/覆盖影视文件相关逻辑必须优先走回收站安全规则。
 
 ## 与现有计划关系
@@ -342,7 +342,7 @@ media_importer/
 | 一次性目录重组导致 import 大面积损坏 | 高 | 放到 Phase 6，等业务边界稳定后再做 |
 | 已知失败测试掩盖重构回归 | 高 | Phase 0 记录基线，阶段内只追踪新增失败 |
 | 文档继续漂移 | 中 | 每阶段验收包含文档更新 |
-| deploy 目录与根源码漂移 | 中 | 后续单独制定 deploy 同步策略，不在业务重构中隐式处理 |
+| deploy package workspace 与根源码漂移 | 中 | 已决策：根源码为事实来源，发布时由 `deploy/build_fpk.sh` 重建；生成物清理单独处理 |
 | 过度抽象导致代码更难读 | 中 | 只为真实业务变化点抽服务，不为了模式而抽象 |
 
 ## 完成标准

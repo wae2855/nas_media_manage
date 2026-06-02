@@ -75,6 +75,7 @@ media_importer/
 ```
 
 `deploy/` 内有部署副本，不是默认开发源。不要自动同步或修改 deploy，除非任务明确要求。
+`deploy/nas-media-importer/` 是生成 package workspace；应用代码事实以根目录 `media_importer/` 为准。发布时通过 `deploy/build_fpk.sh` 从根源码重建。
 
 ## 4. Highest Priority Safety Rules
 
@@ -96,6 +97,7 @@ media_importer/
 | 修改文件删除/覆盖逻辑 | safety/recycle 文档和回收站测试 |
 | 新增 Provider | Provider 文档、配置、API、测试 |
 | 大架构重构 | plan + ADR + 相关 architecture/modules 文档 |
+| 发布 fnOS package | 使用 `deploy/build_fpk.sh` 从根源码生成，不手动补丁 deploy package 副本 |
 
 详细映射见 [docs/INDEX.md](docs/INDEX.md) 和 [docs/ai-map.md](docs/ai-map.md)。
 
