@@ -1,5 +1,0 @@
-/* 主题选择器样式 - 已禁用，保留动画定义 */
-@keyframes themeDropdownIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-}

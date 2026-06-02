@@ -1,3 +1,0 @@
-#!/bin/bash
-APP_DIR="${TRIM_APPDEST}"
-rm -rf "${APP_DIR}/venv" 2>/dev/null || true

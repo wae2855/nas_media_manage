@@ -1,8 +1,0 @@
-#!/bin/bash
-CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
-
-if [ -f "${CONFIG_FILE}" ] && [ -n "${wizard_port}" ]; then
-    sed -i "s/^\\(  port:\\).*/\\1 ${wizard_port}/" "${CONFIG_FILE}" 2>/dev/null || true
-fi
-
-exit 0
