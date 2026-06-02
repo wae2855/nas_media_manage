@@ -75,6 +75,30 @@ class TestClassificationService(unittest.TestCase):
         self.assertEqual(result.import_path, "/library/兜底电影/")
         self.assertTrue(result.used_fallback)
 
+    def test_reports_rules_when_no_rule_and_no_fallback_matches(self):
+        config = {
+            "path_rules": [
+                {
+                    "conditions": {"media_type": "tv"},
+                    "template": "/library/tv",
+                }
+            ]
+        }
+        task = {
+            "scrape_dimensions": {"media_type": "movie"},
+            "scrape_result": {
+                "title_cn": "无匹配电影",
+                "dimensions": {"media_type": "movie"},
+            },
+        }
+
+        result = ClassificationService(config).classify_task(task)
+
+        self.assertEqual(result.import_path, "")
+        self.assertEqual(result.classify_result, "")
+        self.assertEqual(result.dimensions_text, "media_type=movie")
+        self.assertIn("规则1", result.rules_description)
+
 
 class TestDedupService(unittest.TestCase):
     def test_skips_cross_directory_scan_when_disabled(self):
@@ -125,6 +149,47 @@ class TestDedupService(unittest.TestCase):
             self.assertEqual(decision.action, "replace")
             self.assertEqual(cleanup.recycled, [(existing.name, "dedup_replace", "t1")])
 
+    def test_quality_strategy_replaces_lower_quality_duplicate(self):
+        with tempfile.NamedTemporaryFile() as existing:
+            config = {
+                "duplicate_handling": {"strategy": "quality"},
+                "path_rules": [{"template": os.path.dirname(existing.name)}],
+            }
+            duplicate = {
+                "is_duplicate": True,
+                "existing_file": os.path.basename(existing.name),
+                "existing_path": existing.name,
+                "quality_decision": "replace",
+            }
+            cleanup = FakeCleanupService()
+
+            with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True), \
+                 patch("media_importer.pipeline.services.dedup.check_duplicate", return_value=duplicate):
+                decision = DedupService(config, cleanup).check_task({"task_id": "t2"})
+
+            self.assertEqual(decision.action, "replace")
+            self.assertEqual(cleanup.recycled, [(existing.name, "quality_replace", "t2")])
+
+    def test_quality_strategy_skips_when_existing_file_is_preferred(self):
+        config = {
+            "duplicate_handling": {"strategy": "quality"},
+            "path_rules": [{"template": "/library/movies"}],
+        }
+        duplicate = {
+            "is_duplicate": True,
+            "existing_file": "Movie.mkv",
+            "existing_path": "/library/movies/Movie.mkv",
+            "quality_decision": "keep",
+            "skip_message": "质量优先: 保留已有高质量版本",
+        }
+
+        with patch("media_importer.pipeline.services.dedup.os.path.isdir", return_value=True), \
+             patch("media_importer.pipeline.services.dedup.check_duplicate", return_value=duplicate):
+            decision = DedupService(config).check_task({"task_id": "t3"})
+
+        self.assertEqual(decision.action, "skip")
+        self.assertEqual(decision.message, "质量优先: 保留已有高质量版本")
+
 
 class TestImportService(unittest.TestCase):
     def test_moves_temp_video_to_import_path_and_updates_task(self):
@@ -159,6 +224,20 @@ class TestImportService(unittest.TestCase):
 
             self.assertTrue(os.path.exists(result.video_path))
             self.assertEqual(task["import_video_path"], result.video_path)
+            self.assertFalse(os.path.exists(temp_video))
+
+    def test_restore_confirm_temp_name_only_when_manual_review_enabled(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_video = os.path.join(tmpdir, "Movie.mkv.tmp")
+            with open(temp_video, "w") as f:
+                f.write("video")
+            task = {"video_path": temp_video}
+
+            ImportService({"manual_review": {"enabled": True}}).restore_confirm_temp_name(task)
+
+            restored = os.path.join(tmpdir, "Movie.mkv")
+            self.assertEqual(task["video_path"], restored)
+            self.assertTrue(os.path.exists(restored))
             self.assertFalse(os.path.exists(temp_video))
 
 
@@ -207,6 +286,20 @@ class TestReviewDecisionService(unittest.TestCase):
         self.assertEqual(decision.action, "needs_review")
         self.assertIn("来源不信任", decision.reason)
 
+    def test_valid_result_with_optional_warnings_can_continue(self):
+        decision = ReviewDecisionService().evaluate(
+            {
+                "title_cn": "测试电影",
+                "type": "movie",
+                "confidence": 0.9,
+                "confidence_search": 0.8,
+            },
+            FakeConfidenceEngine("SUCCESS"),
+        )
+
+        self.assertEqual(decision.action, "continue")
+        self.assertIn("年份缺失", decision.warnings[0])
+
 
 class TestSourceCleanupService(unittest.TestCase):
     def test_source_retention_returns_operator_message(self):
@@ -240,6 +333,24 @@ class TestSourceCleanupService(unittest.TestCase):
 
         self.assertEqual(result.moved_count, 1)
         self.assertIn("跳过任务源文件", result.message)
+
+    def test_temp_cleanup_only_deletes_files_inside_temp_dir(self):
+        service = SourceCleanupService({
+            "source_dir": "/source",
+            "temp_dir": "/temp",
+            "path_rules": [{"template": "/import"}],
+        })
+
+        with patch("media_importer.pipeline.services.source_cleanup.delete_source_files") as delete_files:
+            outside = service.cleanup_temp_file("/outside/Movie.mkv")
+            inside = service.cleanup_temp_file("/temp/Movie.mkv")
+
+        self.assertEqual(outside.deleted_count, 0)
+        self.assertEqual(inside.deleted_count, 1)
+        delete_files.assert_called_once_with(
+            ["/temp/Movie.mkv"],
+            allowed_base_dirs=["/source", "/temp", "/import"],
+        )
 
 
 if __name__ == "__main__":
