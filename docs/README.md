@@ -28,7 +28,7 @@
 - `workflows/` 放从想法到交付的闭环流程。
 - `decisions/` 放 ADR，说明为什么做某个架构选择。
 - `_archive/` 只保存历史，不作为当前事实引用。
-- `架构/`、`方案/`、`规范/`、`测试/` 和 `系统架构总览.md` 是旧中文文档区，仅作 legacy 参考；后续统一移入 `_archive/`。
+- 旧中文文档区已统一移入 `_archive/`，只作为 traceability，不作为当前事实引用。
 
 ## Current Reorganization Status
 
