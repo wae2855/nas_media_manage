@@ -9,7 +9,7 @@ api / media_importer.py / monitor
 features
         |
         v
-infrastructure adapters
+infrastructure adapters / current implementation directories
         |
         v
 shared helpers
@@ -23,6 +23,26 @@ Rules:
 - 旧 wrapper 可以依赖 feature，但 feature 不应依赖旧 wrapper。
 - `webui` 只通过 HTTP API 与后端交互。
 - `features/source_cleaning/`、`features/recycle/`、`features/import_flow/` 已是当前业务实现入口。
+
+## Allowed During Migration
+
+- `features/*` can temporarily call `core`, `storage`, `scraper`, `notify`, and `monitor` implementation files when no feature-owned service exists yet.
+- `features/*/__init__.py` may re-export legacy implementation objects as public feature APIs while the implementation moves.
+- `api/*_handlers.py` may call legacy implementations only when no feature service exists; new behavior should introduce or reuse a feature service first.
+
+## Not Allowed For New Work
+
+- Do not add new public imports from archived paths such as `media_importer.pipeline`.
+- Do not add new business strategies to `storage/` if they belong to import flow, source cleaning, or recycle.
+- Do not add new scraping/provider/prompt public entrypoints under `scraper/`; expose them through `features/scraping`, `features/providers`, or `features/prompts`.
+- Do not let API handlers become the owner of classification, dedup, task lifecycle, scraping, file deletion, or provider decisions.
+
+## Migration Priority
+
+1. Move real implementation behind existing feature public APIs.
+2. Split filesystem, DB, client, logger, and metrics adapters into infrastructure.
+3. Thin API/CLI/watcher after feature services exist.
+4. Add dependency direction tests for each migrated slice.
 
 ## Documentation Mapping
 

@@ -39,9 +39,10 @@
 | 新增或迁移 feature | 对应 `docs/features/` 文档、feature smoke 测试、ADR/plan 状态 |
 | 大架构重构 | 新增 ADR，更新 roadmap/plan 和相关架构文档 |
 
-## Active Plans
+## Current Plans
 
-- [Feature-first 代码和文档结构重组](plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md)
+- [AI-efficient architecture completion](plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md) — pending review
+- [Feature-first 代码和文档结构重组](plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md) — complete, pending user acceptance
 
 ## Archive
 

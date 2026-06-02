@@ -5,6 +5,7 @@
 | Item | Completed at | Commit | Scope | Verification | User confirmation needed |
 |------|--------------|--------|-------|--------------|--------------------------|
 | Feature-first architecture and documentation restructure | 2026-06-02 | `42c88b9`, `cb1d876`, `2f199b9` + latest cleanup commits | Code structure, docs structure, archive policy, lifecycle workflow, test archive, feature public APIs, product/API ownership docs, old pipeline/modules/config archive cleanup, configuration/tasks/scraping consumer entrypoints | `python3 -m pytest tests/` -> 156 passed; `compileall`; `git diff --check` | Confirm new architecture/docs direction after implementation |
+| AI-efficient architecture completion Phase 1 | 2026-06-03 | pending phase commit | Plan status/index cleanup, architecture standards, dependency direction map, acceptance tracking split | `git diff --check`; docs line-count check | Confirm Phase 1 documentation guardrails before implementation-heavy migration |
 
 ## Rules
 
