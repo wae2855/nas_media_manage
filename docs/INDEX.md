@@ -10,6 +10,7 @@
 | `media_importer/api/` | 原生 HTTP API、route table、静态文件、Mixin handlers | [modules/api.md](modules/api.md) | [architecture/api.md](architecture/api.md) | `tests/test_api_routes.py`、API 集成、UI 测试 |
 | `media_importer/core/` | 配置、任务、DB、日志、指标、安全基础设施 | [modules/core.md](modules/core.md) | [architecture/configuration.md](architecture/configuration.md) | core 单测 |
 | `media_importer/core/db/` | SQLite connection/repo/migrations | [modules/core-db.md](modules/core-db.md) | [architecture/data-flow.md](architecture/data-flow.md) | `tests/test_task_operations.py` |
+| `media_importer/infrastructure/db/` | SQLite/repo infrastructure facade | [architecture/data-flow.md](architecture/data-flow.md) | [architecture/repository-structure.md](architecture/repository-structure.md) | `tests/test_feature_entrypoints.py` |
 | `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏和 ConfigView 业务入口 | [features/configuration.md](features/configuration.md) | [architecture/configuration.md](architecture/configuration.md) | `tests/test_config_view.py`、`tests/test_config_consumers.py` |
 | `media_importer/features/tasks/` | 任务管理、任务状态和生命周期业务入口 | [features/tasks.md](features/tasks.md) | [architecture/task-lifecycle.md](architecture/task-lifecycle.md) | `tests/test_task_context_lifecycle.py`、`tests/test_task_operations.py` |
 | `media_importer/features/recycle/` | 回收站移动、浏览、恢复、清理业务域 | [features/recycle.md](features/recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_feature_recycle.py`、`tests/test_recycle_safety.py` |

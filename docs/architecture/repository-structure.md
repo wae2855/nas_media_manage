@@ -65,6 +65,7 @@ media_importer/
 | `media_importer/api/` | entrypoint | Keep route table, then distribute handlers by feature where useful. |
 | `media_importer/core/` | infrastructure | Split into `features/tasks`, `features/configuration`, and shared infrastructure. |
 | `media_importer/features/` | current | Feature-first business source of truth. Expand here before touching old technical layers. |
+| `media_importer/infrastructure/` | infrastructure | Shared infrastructure adapters; currently exposes DB facade. |
 | `media_importer/pipeline/` | archive_candidate | Replaced by `features/import_flow`; archive after imports are moved. |
 | `media_importer/scraper/` | feature_target | Move to `features/scraping` and `features/providers`. |
 | `media_importer/storage/` | infrastructure | Split filesystem utilities into infrastructure and feature-owned services. |

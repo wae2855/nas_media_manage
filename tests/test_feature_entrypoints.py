@@ -22,12 +22,17 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.prompts import LLMPromptBuilder
     from media_importer.features.scraping import ConfidenceEngine, LLMScraper, MetadataScraper
     from media_importer.features.tasks import TaskManager, mark_imported
+    from media_importer.features.tasks.repository import create_task, update_task
+    from media_importer.infrastructure.db import init_db
 
     assert ConfigView is not None
     assert load_config is not None
     assert mask_sensitive is not None
     assert TaskManager is not None
     assert mark_imported is not None
+    assert create_task is not None
+    assert update_task is not None
+    assert init_db is not None
     assert ConfidenceEngine is not None
     assert LLMScraper is not None
     assert MetadataScraper is not None

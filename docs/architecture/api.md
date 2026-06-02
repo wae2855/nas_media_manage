@@ -19,6 +19,20 @@
 - `media_importer/api/recycle_handlers.py`
 - `media_importer/api/source_cleaner_handlers.py`
 
+## Feature Ownership
+
+| API area | Handler | Feature owner |
+|----------|---------|---------------|
+| Tasks, retry, queue, confirm, reclassify | `task_handlers.py` | `features/tasks`, `features/import_flow` |
+| Config load/save/validate/check | `config_handlers.py`, `connectivity_handlers.py` | `features/configuration` |
+| Provider list/test/search/details/prompts | `provider_handlers.py`, `tmdb_handlers.py` | `features/providers`, `features/scraping`, `features/prompts` |
+| Prompt defaults and reset | `prompt_handlers.py` | `features/prompts` |
+| Source cleaner preview/execute/records | `source_cleaner_handlers.py` | `features/source_cleaning` |
+| Recycle list/restore/delete/cleanup | `recycle_handlers.py` | `features/recycle` |
+| Dimensions | `dimension_handlers.py` | scraping/classification configuration; target feature doc to be added when dimensions are migrated |
+
+API handlers should parse requests, call feature services/public APIs, and return HTTP responses. Complex business rules should move into feature modules.
+
 ## Route Table
 
 新增 API 端点优先注册到 `media_importer/api/routes.py`：

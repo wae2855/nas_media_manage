@@ -13,3 +13,6 @@
 | confidence | 置信度，用于决定自动入库、确认或失败 |
 | path_rules | 维度到目标路径的规则 |
 | cleanup_source_after_done | 任务完成后是否把源文件移入回收站 |
+| feature | 按业务能力划分的后端入口和文档单元 |
+| infrastructure | 多个 feature 复用的底层适配层，如 SQLite、文件系统、日志 |
+| pending acceptance | 已完成但尚未由用户确认验收的事项 |

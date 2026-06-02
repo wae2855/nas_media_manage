@@ -19,6 +19,23 @@
 - 安全回收源文件、被替换文件和删除任务关联文件。
 - Web UI 配置和任务管理。
 
+## Feature Map
+
+| Product capability | Feature doc | Backend entry |
+|--------------------|-------------|---------------|
+| 入库流程 | [../features/import-flow.md](../features/import-flow.md) | `media_importer/features/import_flow/` |
+| 任务管理 | [../features/tasks.md](../features/tasks.md) | `media_importer/features/tasks/` |
+| 配置管理 | [../features/configuration.md](../features/configuration.md) | `media_importer/features/configuration/` |
+| 刮削与置信度 | [../features/scraping.md](../features/scraping.md) | `media_importer/features/scraping/` |
+| Provider | [../features/providers.md](../features/providers.md) | `media_importer/features/providers/` |
+| 提示词 | [../features/prompts.md](../features/prompts.md) | `media_importer/features/prompts/` |
+| 源目录清理 | [../features/source-cleaning.md](../features/source-cleaning.md) | `media_importer/features/source_cleaning/` |
+| 回收站 | [../features/recycle.md](../features/recycle.md) | `media_importer/features/recycle/` |
+
+## Frontend Direction
+
+旧前端保留为当前可运行 UI。新前端设计已登记在 [frontend-redesign-todo.md](frontend-redesign-todo.md)，后续基于 feature 文档、API 文档和产品工作流单独规划。
+
 ## Non-Goals
 
 - 不作为通用媒体播放器。

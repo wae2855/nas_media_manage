@@ -153,7 +153,7 @@ confidence: medium
   - route table 可保留；
   - handler 可以按 feature 分布；
   - 保留统一 HTTP 响应规范。
-- [ ] 迁移或重组 `core/db`：
+- [x] 迁移或重组 `core/db`：
   - 不再按历史兼容优先；
   - 按 feature repo 或 shared infrastructure 重新定位。
 - [x] 为已迁移 feature 增加新架构 smoke/import tests。
@@ -212,7 +212,7 @@ confidence: medium
   - `docs/features/recycle.md`
   - `docs/features/providers.md`
   - `docs/features/prompts.md`
-- [ ] 当前 `docs/modules/` 可作为旧模块文档归档候选；若保留，必须只作为 feature 文档的辅助索引。
+- [x] 当前 `docs/modules/` 可作为旧模块文档归档候选；若保留，必须只作为 feature 文档的辅助索引。
 - [x] 更新 `docs/testing/known-failures.md`，说明本阶段 known failures 暂缓处理的原因和重评条件。
 - [x] 更新 `AGENTS.md` 当前重构方向，强调先架构和文档、再前端、再深测。
 
@@ -248,12 +248,12 @@ confidence: medium
 
 ### Phase 4: Frontend Preparation Docs
 
-- [ ] 更新产品文档：
+- [x] 更新产品文档：
   - `docs/product/overview.md`
   - `docs/product/workflows.md`
   - `docs/product/glossary.md`
 - [x] 将前端设计工作登记为待办事项，后续单独展开讨论。
-- [ ] 后续新增前端重做规划文档时，应明确：
+- [x] 后续新增前端重做规划文档时，应明确：
   - 信息架构；
   - 页面模块；
   - API 依赖；
@@ -261,7 +261,7 @@ confidence: medium
   - 配置页面结构；
   - 任务列表和任务详情；
   - 源目录清理、回收站、Provider、提示词管理。
-- [ ] 更新 API 文档，使前端开发能直接按接口和业务域理解。
+- [x] 更新 API 文档，使前端开发能直接按接口和业务域理解。
 
 ### Phase 5: Testing Re-entry Plan
 
@@ -272,7 +272,7 @@ confidence: medium
   - config view；
   - task lifecycle；
   - pipeline services。
-- [ ] 前端完成后，重新规划 UI/E2E 测试结构。
+- [x] 前端完成后，重新规划 UI/E2E 测试结构。
 - [x] 旧 known failures 到时按新业务契约重新分类：
   - delete obsolete test；
   - rewrite test；
