@@ -1,7 +1,13 @@
-from media_importer.scraper.llm_prompts import LLMPromptBuilder
-from media_importer.scraper.llm_scraper import LLMScraper
+from .prompt_builder import LLMPromptBuilder
 
 __all__ = [
     "LLMPromptBuilder",
     "LLMScraper",
 ]
+
+
+def __getattr__(name):
+    if name == "LLMScraper":
+        from media_importer.scraper.llm_scraper import LLMScraper
+        return LLMScraper
+    raise AttributeError(name)

@@ -63,6 +63,10 @@ def test_feature_consumers_use_feature_public_apis():
         ],
         root / "media_importer" / "scraper" / "llm_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
+            "from media_importer.features.prompts.prompt_builder import LLMPromptBuilder",
+        ],
+        root / "media_importer" / "scraper" / "llm_prompts.py": [
+            "from media_importer.features.prompts.prompt_builder import LLMPromptBuilder",
         ],
     }
 
@@ -125,3 +129,4 @@ def test_feature_public_apis_are_importable():
     assert MetadataProvider.__module__ == "media_importer.features.providers.base"
     assert TMDbProvider.__module__ == "media_importer.features.providers.tmdb_provider"
     assert LLMPromptBuilder is not None
+    assert LLMPromptBuilder.__module__ == "media_importer.features.prompts.prompt_builder"

@@ -153,7 +153,7 @@ confidence: medium
 - [x] 把 `confidence_models.py` 迁到 `features/scraping/`，旧路径保留薄 wrapper。
 - [x] 把 `dimension_manager.py` 明确归入 `features/scraping/` 或 `infrastructure`。
 - [x] 把 `scraper/providers/` 迁到 `features/providers/`，只保留外部 client adapter 时放入 infrastructure。
-- [ ] 把 prompt 相关实现迁到 `features/prompts/`，避免 prompt feature 只做 re-export。
+- [x] 把 prompt 相关实现迁到 `features/prompts/`，避免 prompt feature 只做 re-export。
 - [ ] 补充 scraping/provider/prompt import smoke tests 和 provider mock tests。
 - [ ] 更新 `docs/features/scraping.md`、`providers.md`、`prompts.md` 和 `architecture/scraping.md`。
 

@@ -7,7 +7,7 @@ import ssl
 from typing import List, Dict, Any, Optional
 
 from media_importer.features.configuration import ConfigView
-from .llm_prompts import LLMPromptBuilder
+from media_importer.features.prompts.prompt_builder import LLMPromptBuilder
 
 
 class LLMScrapeError(Exception):
