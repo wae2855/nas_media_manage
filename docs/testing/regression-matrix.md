@@ -7,5 +7,5 @@
 | pipeline | `tests/test_full_flow.py`, `tests/test_e2e_file_processing.py`, `tests/test_task_operations.py` |
 | scraper/confidence | `tests/test_confidence_engine.py`, scrape/confidence UI tests |
 | config | config save/load/page tests |
-| webui | Playwright frontend tests |
+| webui | `tests/test_frontend_recycle.py` for recycle UI; external-service Playwright suites only after starting port 9855 |
 | API | integration/API or related UI tests |

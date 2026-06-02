@@ -302,7 +302,7 @@ media_importer/
 - [x] 给状态生命周期补全转换表测试。
 - [x] 给 API route table 补路由匹配测试。
 - [x] 给配置 facade 补默认值和迁移兼容测试。
-- [ ] 梳理 UI 测试依赖服务启动的要求。
+- [x] 梳理 UI 测试依赖服务启动的要求。
 - [x] 当前测试入口迁移为 `docs/testing/`；旧中文测试目录保留 legacy README。
 
 验收标准：
