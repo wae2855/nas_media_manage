@@ -14,9 +14,9 @@ from media_importer.core.db.cleaner_repo import (
 from media_importer.core.db.cleaner_repo import (
     save_cleaner_record as core_save_cleaner_record,
 )
-from media_importer.domains.source_cleaning import SourceCleaner
-from media_importer.domains.source_cleaning import cleaner as domain_cleaner
-from media_importer.domains.source_cleaning.records import (
+from media_importer.features.source_cleaning import SourceCleaner
+from media_importer.features.source_cleaning import cleaner as feature_cleaner
+from media_importer.features.source_cleaning.records import (
     get_cleaner_records,
     save_cleaner_record,
 )
@@ -24,18 +24,18 @@ from media_importer.storage.source_cleaner import SourceCleaner as StorageSource
 import media_importer.storage.source_cleaner as legacy_cleaner
 
 
-class TestSourceCleaningDomainCompatibility(unittest.TestCase):
-    def test_domain_reexports_existing_public_objects(self):
+class TestSourceCleaningFeatureCompatibility(unittest.TestCase):
+    def test_feature_reexports_existing_public_objects(self):
         self.assertIs(StorageSourceCleaner, SourceCleaner)
         self.assertIs(ApiSourceCleaner, SourceCleaner)
         self.assertIs(save_cleaner_record, core_save_cleaner_record)
         self.assertIs(get_cleaner_records, core_get_cleaner_records)
 
-    def test_legacy_storage_module_aliases_domain_module_for_patch_paths(self):
-        self.assertIs(legacy_cleaner, domain_cleaner)
+    def test_legacy_storage_module_aliases_feature_module_for_patch_paths(self):
+        self.assertIs(legacy_cleaner, feature_cleaner)
         self.assertIs(legacy_cleaner.SourceCleaner, SourceCleaner)
 
-    def test_preview_keeps_source_cleaner_behavior_under_domain_entry(self):
+    def test_preview_keeps_source_cleaner_behavior_under_feature_entry(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             source_dir = os.path.join(tmpdir, "source")
             recycle_dir = os.path.join(tmpdir, "recycle")

@@ -16,8 +16,8 @@
 - `media_importer/storage/file_mover.py`
 - `media_importer/storage/dedup_checker.py`
 - `media_importer/storage/classifier.py`
-- `media_importer/domains/recycle/manager.py`
-- `media_importer/domains/source_cleaning/cleaner.py`
+- `media_importer/features/recycle/manager.py`
+- `media_importer/features/source_cleaning/cleaner.py`
 - `media_importer/storage/source_cleaner.py` compatibility alias
 
 ## Safety

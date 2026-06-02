@@ -19,8 +19,8 @@
 
 scraper 负责“识别是什么”，不负责“放到哪里”。
 
-- 入库路径分类在 `domains/import_flow/services/classification.py`。
-- 人工确认/审核动作在 `domains/import_flow/services/review.py`。
+- 入库路径分类在 `features/import_flow/services/classification.py`。
+- 人工确认/审核动作在 `features/import_flow/services/review.py`。
 - Provider 注册在 `scraper/providers/`。
 - 维度配置和文件维度推导在 `scraper/dimension_manager.py`。
 
@@ -35,5 +35,5 @@ scraper 负责“识别是什么”，不负责“放到哪里”。
 
 - `tests/test_confidence_engine.py`
 - `tests/test_confidence_config_ui.py`
-- `tests/test_scrape_results.py`
+- `tests/test_confidence_engine.py`
 - `tests/test_pipeline_services.py`

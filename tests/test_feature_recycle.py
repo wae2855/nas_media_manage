@@ -31,7 +31,7 @@ from media_importer.core.recycle.manager import (
     _determine_source_zone,
     _recycle_subpath,
 )
-from media_importer.domains.recycle import (
+from media_importer.features.recycle import (
     delete_from_recycle,
     list_recycle_dir,
     move_to_recycle,
@@ -39,14 +39,14 @@ from media_importer.domains.recycle import (
     recycle_cleanup,
     restore_from_recycle,
 )
-from media_importer.domains.recycle import browser as domain_browser
-from media_importer.domains.recycle import manager as domain_manager
+from media_importer.features.recycle import browser as feature_browser
+from media_importer.features.recycle import manager as feature_manager
 import media_importer.core.recycle.browser as legacy_browser
 import media_importer.core.recycle.manager as legacy_manager
 
 
-class TestRecycleDomainCompatibility(unittest.TestCase):
-    def test_domain_reexports_existing_public_objects(self):
+class TestRecycleFeatureCompatibility(unittest.TestCase):
+    def test_feature_reexports_existing_public_objects(self):
         self.assertIs(core_move_to_recycle, move_to_recycle)
         self.assertIs(
             core_move_to_recycle_with_companions,
@@ -57,9 +57,9 @@ class TestRecycleDomainCompatibility(unittest.TestCase):
         self.assertIs(core_delete_from_recycle, delete_from_recycle)
         self.assertIs(core_recycle_cleanup, recycle_cleanup)
 
-    def test_legacy_modules_alias_domain_modules(self):
-        self.assertIs(legacy_manager, domain_manager)
-        self.assertIs(legacy_browser, domain_browser)
+    def test_legacy_modules_alias_feature_modules(self):
+        self.assertIs(legacy_manager, feature_manager)
+        self.assertIs(legacy_browser, feature_browser)
         self.assertIs(legacy_manager.move_to_recycle, move_to_recycle)
         self.assertIs(legacy_browser.list_recycle_dir, list_recycle_dir)
 
@@ -87,7 +87,7 @@ class TestRecycleDomainCompatibility(unittest.TestCase):
         self.assertIn("[源目录]", subpath)
         self.assertEqual(zone, "import")
 
-    def test_domain_move_and_list_preserve_metadata_contract(self):
+    def test_feature_move_and_list_preserve_metadata_contract(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             source_dir = os.path.join(tmpdir, "source")
             recycle_dir = os.path.join(tmpdir, "recycle")
@@ -100,7 +100,7 @@ class TestRecycleDomainCompatibility(unittest.TestCase):
             ok, dest, _ = move_to_recycle(
                 src,
                 recycle_dir,
-                reason="domain_test",
+                reason="feature_test",
                 task_id="task-1",
                 source_dir=source_dir,
             )
@@ -111,11 +111,11 @@ class TestRecycleDomainCompatibility(unittest.TestCase):
             self.assertTrue(os.path.exists(dest + ".meta"))
             with open(dest + ".meta", encoding="utf-8") as f:
                 meta = json.load(f)
-            self.assertEqual(meta["reason"], "domain_test")
+            self.assertEqual(meta["reason"], "feature_test")
             self.assertEqual(meta["task_id"], "task-1")
             self.assertEqual(meta["source_zone"], "source")
             self.assertEqual(listing["total"], 1)
-            self.assertEqual(listing["items"][0]["reason"], "domain_test")
+            self.assertEqual(listing["items"][0]["reason"], "feature_test")
 
 
 if __name__ == "__main__":

@@ -34,12 +34,12 @@ filename -> filename cleaner -> provider search/details -> LLM normalization -> 
 
 - 新 Provider：实现 `MetadataProvider`，注册到 provider registry。
 - 新维度映射：更新 dimension manager、DB 维度配置、文档和测试。
-- 新置信度规则：更新 `confidence_engine.py`、`domains/import_flow/services/review.py` 和置信度测试。
+- 新置信度规则：更新 `confidence_engine.py`、`features/import_flow/services/review.py` 和置信度测试。
 - 新提示词配置：更新 prompts API、配置文档和 UI 测试。
 
 ## Tests
 
 - `tests/test_confidence_engine.py`
 - `tests/test_confidence_config_ui.py`
-- `tests/test_scrape_results.py`
+- `tests/test_confidence_engine.py`
 - `tests/test_pipeline_services.py` for review decision boundaries

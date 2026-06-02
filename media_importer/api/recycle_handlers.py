@@ -2,7 +2,7 @@
 import json
 from media_importer.api.utils import json_response
 from media_importer.api import globals
-from media_importer.domains.recycle import (
+from media_importer.features.recycle import (
     delete_from_recycle,
     list_recycle_dir,
     restore_from_recycle,

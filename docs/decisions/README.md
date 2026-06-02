@@ -23,13 +23,9 @@ Status: Accepted | Superseded | Deprecated
 
 ## Initial Decision Backlog
 
-- SQLite + JSON fields
-- Native HTTP API + Mixin composition
-- Native JS/CSS without build step
-- YAML config + automatic migrations
-- Provider abstraction
-- Recycle-first file deletion
-- AI-ready documentation system
-- Task lifecycle centralization
-- Domain directory migration strategy
-- Deploy package generation strategy
+| ADR | Status | Topic |
+|-----|--------|-------|
+| [0001](0001-ai-ready-documentation-system.md) | Accepted | AI-ready documentation system |
+| [0002](0002-domain-directory-migration-strategy.md) | Superseded | Conservative domain directory migration strategy |
+| [0003](0003-deploy-package-generation-strategy.md) | Accepted | Deploy package generation strategy |
+| [0004](0004-feature-first-architecture-restructure.md) | Accepted | Feature-first architecture restructure |

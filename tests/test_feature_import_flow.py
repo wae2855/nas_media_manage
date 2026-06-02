@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.core import task_lifecycle as core_lifecycle
 from media_importer.core.task_lifecycle import mark_imported as core_mark_imported
-from media_importer.domains import import_flow
-from media_importer.domains.import_flow import (
+from media_importer.features import import_flow
+from media_importer.features.import_flow import (
     ClassificationService,
     ConfirmMixin,
     DedupService,
@@ -24,14 +24,14 @@ from media_importer.domains.import_flow import (
     TaskContext,
     mark_imported,
 )
-from media_importer.domains.import_flow import lifecycle as domain_lifecycle
-from media_importer.domains.import_flow import context as domain_context
-from media_importer.domains.import_flow import confirm as domain_confirm
-from media_importer.domains.import_flow import runner as domain_runner
-from media_importer.domains.import_flow import steps as domain_steps
-from media_importer.domains.import_flow.steps import file as domain_steps_file
-from media_importer.domains.import_flow.steps import scrape as domain_steps_scrape
-from media_importer.domains.import_flow import utils as domain_utils
+from media_importer.features.import_flow import lifecycle as feature_lifecycle
+from media_importer.features.import_flow import context as feature_context
+from media_importer.features.import_flow import confirm as feature_confirm
+from media_importer.features.import_flow import runner as feature_runner
+from media_importer.features.import_flow import steps as feature_steps
+from media_importer.features.import_flow.steps import file as feature_steps_file
+from media_importer.features.import_flow.steps import scrape as feature_steps_scrape
+from media_importer.features.import_flow import utils as feature_utils
 from media_importer.pipeline.confirm import ConfirmMixin as PipelineConfirmMixin
 from media_importer.pipeline.context import TaskContext as PipelineTaskContext
 from media_importer.pipeline.runner import PipelineRunner as PipelinePackageRunner
@@ -63,24 +63,24 @@ from media_importer.pipeline.services.review import (
 )
 
 
-class TestImportFlowDomainCompatibility(unittest.TestCase):
-    def test_domain_public_imports_reexport_existing_objects(self):
+class TestImportFlowFeatureCompatibility(unittest.TestCase):
+    def test_feature_public_imports_reexport_existing_objects(self):
         self.assertIs(TaskContext, PipelineTaskContext)
-        self.assertIs(domain_context, legacy_context)
+        self.assertIs(feature_context, legacy_context)
         self.assertIs(ConfirmMixin, PipelineConfirmMixin)
-        self.assertIs(domain_confirm, legacy_confirm)
+        self.assertIs(feature_confirm, legacy_confirm)
         self.assertIs(PipelineRunner, PipelinePackageRunner)
-        self.assertIs(domain_runner, legacy_runner)
+        self.assertIs(feature_runner, legacy_runner)
         self.assertIs(StepsMixin, PipelineStepsMixin)
         self.assertIs(FileStepsMixin, PipelineFileStepsMixin)
         self.assertIs(ScrapeStepsMixin, PipelineScrapeStepsMixin)
-        self.assertIs(domain_steps, legacy_steps)
-        self.assertIs(domain_steps_file, legacy_steps_file)
-        self.assertIs(domain_steps_scrape, legacy_steps_scrape)
-        self.assertIs(domain_utils.PipelineError, legacy_utils.PipelineError)
-        self.assertIs(domain_utils.PipelineSkipError, legacy_utils.PipelineSkipError)
-        self.assertIs(domain_utils.PIPELINE_STEPS, legacy_utils.PIPELINE_STEPS)
-        self.assertIs(domain_utils._extract_series_name, legacy_utils._extract_series_name)
+        self.assertIs(feature_steps, legacy_steps)
+        self.assertIs(feature_steps_file, legacy_steps_file)
+        self.assertIs(feature_steps_scrape, legacy_steps_scrape)
+        self.assertIs(feature_utils.PipelineError, legacy_utils.PipelineError)
+        self.assertIs(feature_utils.PipelineSkipError, legacy_utils.PipelineSkipError)
+        self.assertIs(feature_utils.PIPELINE_STEPS, legacy_utils.PIPELINE_STEPS)
+        self.assertIs(feature_utils._extract_series_name, legacy_utils._extract_series_name)
         self.assertIs(ClassificationService, PipelineClassificationService)
         self.assertIs(DedupService, PipelineDedupService)
         self.assertIs(ImportService, PipelineImportService)
@@ -90,12 +90,12 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
         self.assertIs(mark_imported, core_mark_imported)
         self.assertIs(import_flow.TaskContext, PipelineTaskContext)
 
-    def test_domain_lifecycle_module_reexports_existing_functions(self):
-        self.assertIs(domain_lifecycle.mark_imported, core_lifecycle.mark_imported)
-        self.assertIs(domain_lifecycle.mark_failed, core_lifecycle.mark_failed)
-        self.assertIs(domain_lifecycle.reset_for_retry, core_lifecycle.reset_for_retry)
+    def test_feature_lifecycle_module_reexports_existing_functions(self):
+        self.assertIs(feature_lifecycle.mark_imported, core_lifecycle.mark_imported)
+        self.assertIs(feature_lifecycle.mark_failed, core_lifecycle.mark_failed)
+        self.assertIs(feature_lifecycle.reset_for_retry, core_lifecycle.reset_for_retry)
 
-    def test_domain_context_preserves_task_dict_contract(self):
+    def test_feature_context_preserves_task_dict_contract(self):
         task = {"task_id": "t1", "source_path": "/source/movie.mkv"}
         ctx = TaskContext(task)
 
@@ -108,7 +108,7 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
             "subtitle_files": ["/temp/movie.srt"],
         })
 
-    def test_old_patch_path_still_affects_domain_import(self):
+    def test_old_patch_path_still_affects_feature_import(self):
         engine = object()
         with patch(
             "media_importer.pipeline.services.review.ReviewDecisionService.evaluate",
@@ -119,7 +119,7 @@ class TestImportFlowDomainCompatibility(unittest.TestCase):
         self.assertEqual(decision.action, "continue")
         patched.assert_called_once_with({}, engine)
 
-    def test_old_service_patch_path_still_affects_domain_service(self):
+    def test_old_service_patch_path_still_affects_feature_service(self):
         with patch(
             "media_importer.pipeline.services.dedup.check_duplicate",
             return_value={"is_duplicate": False},

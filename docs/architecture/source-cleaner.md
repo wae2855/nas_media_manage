@@ -4,8 +4,8 @@
 
 ## Entry Points
 
-- `media_importer/domains/source_cleaning/cleaner.py`
-- `media_importer/domains/source_cleaning/records.py`
+- `media_importer/features/source_cleaning/cleaner.py`
+- `media_importer/features/source_cleaning/records.py`
 - `media_importer/storage/source_cleaner.py` compatibility alias
 - `media_importer/api/source_cleaner_handlers.py`
 - `media_importer/core/db/cleaner_repo.py`

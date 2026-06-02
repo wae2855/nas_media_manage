@@ -10,7 +10,7 @@
 
 ```bash
 pytest tests/
-pytest tests/test_sqlite_refactor.py
+pytest tests/test_feature_import_flow.py
 pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
 ```
 

@@ -16,6 +16,9 @@
 | 安全规范 | [docs/standards/safety.md](docs/standards/safety.md) |
 | 功能开发流程 | [docs/workflows/feature-development.md](docs/workflows/feature-development.md) |
 | 重构流程 | [docs/workflows/refactor-development.md](docs/workflows/refactor-development.md) |
+| 项目闭环流程 | [docs/workflows/project-lifecycle.md](docs/workflows/project-lifecycle.md) |
+| 待验收/完成事项 | [docs/tracking/pending-acceptance.md](docs/tracking/pending-acceptance.md), [docs/tracking/completed-items.md](docs/tracking/completed-items.md) |
+| 仓库结构与归档 | [docs/architecture/repository-structure.md](docs/architecture/repository-structure.md), [docs/architecture/archive-policy.md](docs/architecture/archive-policy.md) |
 | 旧文档说明 | [docs/legacy.md](docs/legacy.md) |
 
 ## 1. Project Summary
@@ -46,7 +49,7 @@ PYTHONPATH="${PWD}" python3 -m media_importer.media_importer -c config/config.ya
 pytest tests/
 
 # 单个测试文件
-pytest tests/test_sqlite_refactor.py
+pytest tests/test_feature_import_flow.py
 
 # 非 UI 测试
 pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
@@ -65,12 +68,12 @@ media_importer/
 ├── media_importer.py          # CLI 入口
 ├── api/                       # HTTP API 和静态文件服务
 ├── core/                      # 配置、DB、任务、安全、回收站、日志、指标
-├── domains/                   # 业务域入口，渐进承载稳定业务实现
-├── pipeline/                  # 任务处理编排、确认、重分类
-├── scraper/                   # LLM、Provider、置信度、维度映射
-├── storage/                   # 文件扫描、复制、移动、分类、去重、源目录清理
-├── monitor/                   # 文件监控、权限检查
-├── notify/                    # Hermes 和 hook 通知
+├── features/                  # feature-first 业务能力事实源
+├── pipeline/                  # 旧入库流程 wrapper，后续归档
+├── scraper/                   # 待迁移到 features/scraping 与 features/providers
+├── storage/                   # 待拆分为 feature 服务与 infrastructure/filesystem
+├── monitor/                   # 待并入 notification/monitoring feature 或 infrastructure
+├── notify/                    # 待迁移到 notification/monitoring feature
 └── webui/                     # 原生前端
 ```
 
@@ -96,19 +99,19 @@ media_importer/
 | 修改任务状态 | DB constants/task manager/pipeline/API/frontend/docs/tests |
 | 修改文件删除/覆盖逻辑 | safety/recycle 文档和回收站测试 |
 | 新增 Provider | Provider 文档、配置、API、测试 |
-| 大架构重构 | plan + ADR + 相关 architecture/modules 文档 |
+| 大架构重构 | plan + ADR + `docs/features/` + 相关 architecture 文档 |
 | 发布 fnOS package | 使用 `deploy/build_fpk.sh` 从根源码生成，不手动补丁 deploy package 副本 |
 
 详细映射见 [docs/INDEX.md](docs/INDEX.md) 和 [docs/ai-map.md](docs/ai-map.md)。
 
-旧中文目录 `docs/架构/`、`docs/方案/`、`docs/规范/`、`docs/测试/` 和 `docs/系统架构总览.md` 仅作为 legacy 参考，不作为当前架构事实来源。除非任务明确要求整理旧文档，否则 AI 修改代码前应优先读取 `docs/architecture/`、`docs/modules/`、`docs/standards/`、`docs/workflows/` 和 `docs/decisions/`。
+旧中文目录、历史方案和被替代计划已统一移入 `docs/_archive/`，只作为 traceability，不作为当前架构事实来源。AI 修改代码前应优先读取 `docs/features/`、`docs/architecture/`、`docs/standards/`、`docs/workflows/` 和 `docs/decisions/`。
 
 ## 6. Coding Rules
 
 - Python 文件建议不超过 500 行。
 - 文档建议不超过 500 行。
 - API handler 不承载复杂业务策略。
-- pipeline 长期目标是调用 services，而不是混合所有业务细节。
+- `features/` 是业务事实源；API、CLI 和旧技术目录只能薄调用 feature service。
 - 同子包内相对导入；跨子包使用 `media_importer.xxx` 绝对导入。
 - 不添加无意义注释；复杂规则优先写入文档。
 - CSS 使用变量体系，不硬编码颜色。
@@ -141,12 +144,11 @@ media_importer/
 
 ## 8. Current Refactor Direction
 
-当前大方向是 AI 友好架构重构：
+当前大方向是 AI 友好的 feature-first 激进重构：
 
-- 先建立文档导航、规范、工作流和 ADR。
-- 再做 `TaskContext`、`TaskLifecycle`。
-- 再抽 pipeline services。
-- 再做 config facade 和 API route table。
-- 最后用兼容 proof slice 渐进引入 `domains/`，再按业务域迁移稳定实现，不一次性移动旧 public imports。
+- `features/` 是新业务入口，优先按业务能力检索和扩展。
+- 旧 `pipeline/`、`storage/`、`core/recycle/` 等路径只作为临时 wrapper 或待迁移目录，不作为新事实源。
+- 历史文档、旧方案、旧测试脚本和生成物统一归档，当前文档不得引用归档内容作为事实。
+- 前端重做和深层 UI/E2E 测试在代码与文档架构稳定后单独展开。
 
-路线图见 [docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md](docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md)。
+当前执行计划见 [docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md](docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md)，架构决策见 [docs/decisions/0004-feature-first-architecture-restructure.md](docs/decisions/0004-feature-first-architecture-restructure.md)。

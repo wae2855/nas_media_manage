@@ -10,8 +10,8 @@
 
 ## Entry Points
 
-- `media_importer/domains/recycle/manager.py`
-- `media_importer/domains/recycle/browser.py`
+- `media_importer/features/recycle/manager.py`
+- `media_importer/features/recycle/browser.py`
 - `media_importer/core/recycle/manager.py` compatibility alias
 - `media_importer/core/recycle/browser.py` compatibility alias
 - `media_importer/core/safety.py` safety facade

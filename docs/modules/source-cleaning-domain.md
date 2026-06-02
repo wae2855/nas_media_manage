@@ -1,10 +1,10 @@
-# Module: Source Cleaning Domain
+# Module: Source Cleaning Feature
 
 ## Code
 
-- `media_importer/domains/source_cleaning/cleaner.py`
-- `media_importer/domains/source_cleaning/records.py`
-- `media_importer/domains/source_cleaning/__init__.py`
+- `media_importer/features/source_cleaning/cleaner.py`
+- `media_importer/features/source_cleaning/records.py`
+- `media_importer/features/source_cleaning/__init__.py`
 - `media_importer/storage/source_cleaner.py` compatibility alias
 - `media_importer/api/source_cleaner_handlers.py`
 - `media_importer/core/db/cleaner_repo.py`
@@ -15,8 +15,8 @@
 
 当前实现所在地：
 
-- `SourceCleaner`: `media_importer/domains/source_cleaning/cleaner.py`
-- 清理记录 repo 入口: `media_importer/domains/source_cleaning/records.py`
+- `SourceCleaner`: `media_importer/features/source_cleaning/cleaner.py`
+- 清理记录 repo 入口: `media_importer/features/source_cleaning/records.py`
 
 兼容路径：
 
@@ -24,7 +24,7 @@
 
 ## Boundary
 
-源目录清理器独立于主任务流。任务完成后的源文件处理仍归 `domains/import_flow/services/source_cleanup.py` 管理。
+源目录清理器独立于主任务流。任务完成后的源文件处理仍归 `features/import_flow/services/source_cleanup.py` 管理。
 
 `storage/source_cleaner.py` 是旧 public import 的兼容别名，历史 patch 路径必须继续可用。
 
@@ -36,6 +36,6 @@
 
 ## Tests
 
-- `tests/test_domain_source_cleaning_compatibility.py`
-- `tests/test_recycle_and_safety.py`
+- `tests/test_feature_source_cleaning_compatibility.py`
+- `tests/test_recycle_safety.py`
 - 配置相关测试

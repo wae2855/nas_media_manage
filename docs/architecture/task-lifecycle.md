@@ -62,7 +62,7 @@
 - `media_importer/core/db/constants.py`
 - `media_importer/core/task_lifecycle.py`
 - `media_importer/core/task_manager.py`
-- `media_importer/domains/import_flow/`
+- `media_importer/features/import_flow/`
 - `media_importer/api/task_handlers.py`
 - `media_importer/webui/js/tasks.js`
 - `docs/testing/regression-matrix.md`

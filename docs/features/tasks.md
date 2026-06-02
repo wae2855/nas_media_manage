@@ -1,0 +1,32 @@
+# Tasks Feature
+
+任务能力负责扫描任务的创建、状态流转、重试、失败记录、人工确认状态和任务查询。
+
+## Current Code Entrypoints
+
+| Path | Role |
+|------|------|
+| `media_importer/core/task_manager.py` | Task creation, querying, and updates. |
+| `media_importer/core/task_lifecycle.py` | Centralized lifecycle transitions. |
+| `media_importer/core/db/constants.py` | Task status constants. |
+| `media_importer/core/db/task_repo.py` | Task repository operations. |
+| `media_importer/api/task_handlers.py` | Task HTTP handlers. |
+| `media_importer/features/import_flow/context.py` | Task-scoped import flow state. |
+
+## Related Areas
+
+- Database: `tasks` table and JSON fields.
+- Frontend: task list/detail, retry, confirm, progress, status filters.
+- Import flow: every processing step should use lifecycle helpers for state changes.
+
+## Tests
+
+- Task manager and lifecycle tests.
+- Import flow tests that assert state transitions.
+- API task tests.
+
+## Target Shape
+
+- Move task application and repo facade into `features/tasks/`.
+- Keep raw SQLite connection helpers in infrastructure.
+- Any status change must update lifecycle docs, tests, API/frontend display logic, and regression matrix.

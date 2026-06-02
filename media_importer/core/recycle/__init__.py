@@ -1,4 +1,4 @@
-from media_importer.domains.recycle import (
+from media_importer.features.recycle import (
     delete_from_recycle,
     list_recycle_dir,
     move_dir_to_recycle,

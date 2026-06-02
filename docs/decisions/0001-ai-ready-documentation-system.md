@@ -39,5 +39,4 @@ Use English paths for tooling stability while keeping Chinese content in documen
 
 ## Links
 
-- `docs/方案/文档体系重构方案.md`
-- `docs/plans/2026-05-31-refactor-ai-ready-architecture-roadmap.md`
+- `docs/_archive/2026-06-02-feature-first-reorg/README.md`

@@ -1,18 +1,18 @@
-# Module: Import Flow Domain
+# Module: Import Flow Feature
 
 ## Code
 
-- `media_importer/domains/import_flow/__init__.py`
-- `media_importer/domains/import_flow/context.py`
-- `media_importer/domains/import_flow/runner.py`
-- `media_importer/domains/import_flow/steps/`
-- `media_importer/domains/import_flow/steps/file.py`
-- `media_importer/domains/import_flow/steps/scrape.py`
-- `media_importer/domains/import_flow/confirm.py`
-- `media_importer/domains/import_flow/lifecycle.py`
-- `media_importer/domains/import_flow/review.py`
-- `media_importer/domains/import_flow/utils.py`
-- `media_importer/domains/import_flow/services/`
+- `media_importer/features/import_flow/__init__.py`
+- `media_importer/features/import_flow/context.py`
+- `media_importer/features/import_flow/runner.py`
+- `media_importer/features/import_flow/steps/`
+- `media_importer/features/import_flow/steps/file.py`
+- `media_importer/features/import_flow/steps/scrape.py`
+- `media_importer/features/import_flow/confirm.py`
+- `media_importer/features/import_flow/lifecycle.py`
+- `media_importer/features/import_flow/review.py`
+- `media_importer/features/import_flow/utils.py`
+- `media_importer/features/import_flow/services/`
 - `media_importer/pipeline/confirm.py` compatibility alias
 - `media_importer/pipeline/runner.py` compatibility alias
 - `media_importer/pipeline/steps.py` compatibility alias
@@ -26,13 +26,13 @@
 
 当前持有：
 
-- `TaskContext` from `media_importer.domains.import_flow.context`
-- `PipelineRunner` from `media_importer.domains.import_flow.runner`
-- `StepsMixin`, `FileStepsMixin`, `ScrapeStepsMixin` from `media_importer.domains.import_flow.steps`
-- `ConfirmMixin` from `media_importer.domains.import_flow.confirm`
-- `PipelineError`, `PipelineSkipError`, `PIPELINE_STEPS` from `media_importer.domains.import_flow.utils`
+- `TaskContext` from `media_importer.features.import_flow.context`
+- `PipelineRunner` from `media_importer.features.import_flow.runner`
+- `StepsMixin`, `FileStepsMixin`, `ScrapeStepsMixin` from `media_importer.features.import_flow.steps`
+- `ConfirmMixin` from `media_importer.features.import_flow.confirm`
+- `PipelineError`, `PipelineSkipError`, `PIPELINE_STEPS` from `media_importer.features.import_flow.utils`
 - `TaskLifecycle` constants/functions from `media_importer.core.task_lifecycle`
-- `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.domains.import_flow.services`
+- `ClassificationService`, `DedupService`, `ImportService`, `SourceCleanupService`, `ReviewDecisionService` from `media_importer.features.import_flow.services`
 
 ## Boundary
 
@@ -55,17 +55,17 @@ Phase 6D services 阶段后，这里已经持有 pipeline services 实现。
 
 ## Extension Rules
 
-- 新 domain 入口必须保持薄层，不复制实现。
+- 新 feature 入口必须保持薄层，不复制实现。
 - 旧路径必须继续可 import。
-- 旧 patch 路径必须继续影响新 domain 入口。
-- 每个 domain proof slice 都要有 compatibility test。
-- 新应用入口应优先从 `media_importer.domains.import_flow` 导入 `PipelineRunner`。
+- 旧 patch 路径必须继续影响新 feature 入口。
+- 每个 feature proof slice 都要有 compatibility test。
+- 新应用入口应优先从 `media_importer.features.import_flow` 导入 `PipelineRunner`。
 - `media_importer.pipeline.PipelineRunner` 必须继续可用，但只作为旧调用方兼容入口。
 - `media_importer.pipeline` 公共入口和旧 `pipeline/steps*` 路径必须继续可用，直到单独决策删除兼容层。
 
 ## Tests
 
-- `tests/test_domain_import_flow_compatibility.py`
-- `tests/test_domain_entrypoints.py`
+- `tests/test_feature_import_flow_compatibility.py`
+- `tests/test_feature_entrypoints.py`
 - `tests/test_task_context_lifecycle.py`
 - `tests/test_pipeline_services.py`

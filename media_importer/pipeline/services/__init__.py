@@ -1,4 +1,4 @@
-from media_importer.domains.import_flow.services import (
+from media_importer.features.import_flow.services import (
     ClassificationResult,
     ClassificationService,
     DedupDecision,

@@ -21,5 +21,5 @@ SQLite 初始化、迁移、repo 访问和共享常量。
 
 ## Tests
 
-- `tests/test_sqlite_refactor.py`
+- `tests/test_task_operations.py`
 - task/config/source-cleaner 相关单测

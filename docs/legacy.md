@@ -7,7 +7,7 @@
 AI and maintainers should prefer the new documentation tree:
 
 - `docs/architecture/`
-- `docs/modules/`
+- `docs/features/`
 - `docs/standards/`
 - `docs/workflows/`
 - `docs/decisions/`
@@ -20,24 +20,20 @@ Older plans may still reference legacy paths as historical evidence. A plan is c
 
 ## Legacy Areas
 
-| Legacy path | Status | Current replacement |
-|-------------|--------|---------------------|
-| `docs/架构/` | Legacy architecture notes. Some paths predate `domains/` migration. | `docs/architecture/`, `docs/modules/` |
-| `docs/方案/` | Legacy proposals and implemented方案 notes. | `docs/proposals/`, `docs/plans/`, `docs/decisions/` |
-| `docs/规范/` | Legacy standards and reports. | `docs/standards/` |
-| `docs/测试/` | Legacy test notes. | `docs/testing/` |
-| `docs/系统架构总览.md` | Legacy architecture overview. | `docs/README.md`, `docs/architecture/overview.md`, `docs/INDEX.md` |
+| Legacy path | Archived under | Current replacement |
+|-------------|----------------|---------------------|
+| `docs/架构/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/架构/` | `docs/architecture/`, `docs/features/` |
+| `docs/方案/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/方案/` | `docs/proposals/`, `docs/plans/`, `docs/decisions/` |
+| `docs/规范/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/规范/` | `docs/standards/` |
+| `docs/测试/` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/测试/` | `docs/testing/` |
+| `docs/系统架构总览.md` | `docs/_archive/2026-06-02-feature-first-reorg/docs/legacy-chinese/系统架构总览.md` | `docs/README.md`, `docs/architecture/overview.md`, `docs/INDEX.md` |
 
 ## Current Conflict Notes
 
-- `docs/架构/流水线处理.md` still describes `media_importer/pipeline/steps.py` as the implementation entry. Current implementation lives under `media_importer/domains/import_flow/`.
-- `docs/方案/代码解耦重构.md` still describes the earlier pipeline split shape. Current migration status is recorded in `docs/plans/2026-06-01-domain-directory-migration-feasibility.md`.
-- `docs/系统架构总览.md` predates the AI-ready documentation structure and should not be used as the first entry point.
+- Archived legacy docs may describe old `pipeline/`, `domains/`, or technical-layer-first layouts.
+- Current implementation facts live under `media_importer/features/` and `docs/features/`.
+- Replaced plans live in `docs/_archive/2026-06-02-feature-first-reorg/docs/plans/`.
 
 ## Maintenance
 
-Each documentation maintenance pass should choose one legacy area and either:
-
-- migrate still-useful content into the new documentation tree;
-- add a short legacy banner to the old file;
-- move it into `_archive/` after review.
+Each documentation maintenance pass should either migrate still-useful ideas into the active docs or leave the archived file untouched. Do not link archived files as current facts.

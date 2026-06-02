@@ -1,10 +1,10 @@
-# Module: Recycle Domain
+# Module: Recycle Feature
 
 ## Code
 
-- `media_importer/domains/recycle/manager.py`
-- `media_importer/domains/recycle/browser.py`
-- `media_importer/domains/recycle/__init__.py`
+- `media_importer/features/recycle/manager.py`
+- `media_importer/features/recycle/browser.py`
+- `media_importer/features/recycle/__init__.py`
 - `media_importer/core/recycle/manager.py` compatibility alias
 - `media_importer/core/recycle/browser.py` compatibility alias
 - `media_importer/core/safety.py` safety facade
@@ -16,8 +16,8 @@
 
 当前实现所在地：
 
-- 移入回收站: `media_importer/domains/recycle/manager.py`
-- 浏览/恢复/永久删除/过期清理: `media_importer/domains/recycle/browser.py`
+- 移入回收站: `media_importer/features/recycle/manager.py`
+- 浏览/恢复/永久删除/过期清理: `media_importer/features/recycle/browser.py`
 
 ## Compatibility
 
@@ -39,6 +39,6 @@
 
 ## Tests
 
-- `tests/test_domain_recycle_compatibility.py`
-- `tests/test_recycle_and_safety.py`
+- `tests/test_feature_recycle_compatibility.py`
+- `tests/test_recycle_safety.py`
 - `tests/test_integration_recycle.py`

@@ -11,7 +11,7 @@ The repository contains root application source and a fnOS package workspace:
 - package workspace: `deploy/nas-media-importer/`;
 - build entry: `deploy/build_fpk.sh`.
 
-The package workspace currently contains a tracked copy of `app/server/media_importer/`. After the domain migration, that copy can be stale and may not contain new root directories such as `media_importer/domains/`.
+The package workspace currently contains a tracked copy of `app/server/media_importer/`. After the feature migration, that copy can be stale and may not contain new root directories such as `media_importer/features/`.
 
 `deploy/build_fpk.sh` already rebuilds `deploy/nas-media-importer/` during packaging:
 
@@ -33,7 +33,7 @@ Keep the tracked package workspace for now to avoid a disruptive cleanup in the 
 ## Consequences
 
 - Application changes happen once, in root source.
-- The stale deploy copy no longer blocks domain migration, because release builds regenerate it.
+- The stale deploy copy no longer blocks feature migration, because release builds regenerate it.
 - AI search must ignore `deploy/nas-media-importer/app/server/media_importer/` as architecture evidence.
 - The repository still has generated package files until a dedicated cleanup removes or ignores them.
 
@@ -48,4 +48,4 @@ Keep the tracked package workspace for now to avoid a disruptive cleanup in the 
 - `deploy/build_fpk.sh`
 - `docs/architecture/deployment-fnos.md`
 - `docs/workflows/release.md`
-- `docs/plans/2026-06-02-deploy-package-sync-strategy.md`
+- `docs/_archive/2026-06-02-feature-first-reorg/README.md`

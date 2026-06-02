@@ -2,8 +2,8 @@
 import json
 from media_importer.api.utils import json_response, get_db
 from media_importer.api import globals
-from media_importer.domains.source_cleaning import SourceCleaner
-from media_importer.domains.source_cleaning.records import (
+from media_importer.features.source_cleaning import SourceCleaner
+from media_importer.features.source_cleaning.records import (
     get_cleaner_records,
     get_cleaner_status,
     save_cleaner_record,

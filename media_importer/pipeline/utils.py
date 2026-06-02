@@ -1,4 +1,4 @@
-from media_importer.domains.import_flow.utils import (
+from media_importer.features.import_flow.utils import (
     PIPELINE_STEPS,
     PipelineError,
     PipelineSkipError,

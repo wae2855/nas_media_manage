@@ -6,31 +6,24 @@
 api / media_importer.py / monitor
         |
         v
-pipeline
+features
         |
         v
-scraper + storage + notify
+infrastructure adapters
         |
         v
-core
-
-domains compatibility entries -> pipeline + core + storage
-domains/import_flow/services -> storage + core
-domains/recycle -> core/safety compatibility facade
+shared helpers
 ```
 
 Rules:
 
-- `core` 不应依赖 `pipeline`、`api`、`webui`。
-- `api` 和 `pipeline` 是编排层，可以依赖多个业务模块。
-- `scraper` 和 `storage` 尽量保持互相低耦合。
+- `features/` 是业务事实源，可以调用 infrastructure 和 shared。
+- `api`、CLI 和 watcher 是入口层，只调用 feature application/service，不承载复杂业务策略。
+- `core`、`storage`、`scraper`、`notify`、`monitor` 中仍在用的实现需要逐步迁移到 feature 或 infrastructure。
+- 旧 wrapper 可以依赖 feature，但 feature 不应依赖旧 wrapper。
 - `webui` 只通过 HTTP API 与后端交互。
-- 未来 `domains/` 目录只能通过兼容 proof slice 渐进引入，不一次性移动现有 public imports。
-- `domains/` 当前只作为业务域导航与兼容入口，不能复制业务实现。
-- `domains/source_cleaning/` 已持有源目录清理实现，旧 `storage/source_cleaner.py` 是兼容别名。
-- `domains/recycle/` 已持有回收站实现，旧 `core/recycle/*` 和 `core/safety.py` 保持兼容。
-- `domains/import_flow/services/` 已持有 pipeline services 实现，旧 `pipeline/services/*` 保持兼容。
+- `features/source_cleaning/`、`features/recycle/`、`features/import_flow/` 已是当前业务实现入口。
 
 ## Documentation Mapping
 
-模块文档在 [../modules/](../modules/)；代码和文档索引在 [../INDEX.md](../INDEX.md)。
+业务文档在 [../features/](../features/)；仓库结构在 [repository-structure.md](repository-structure.md)；代码和文档索引在 [../INDEX.md](../INDEX.md)。
