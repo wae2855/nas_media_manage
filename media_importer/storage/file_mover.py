@@ -3,7 +3,7 @@ import os
 import shutil
 import re
 from media_importer.core.safety import validate_path_safety, safe_delete, safe_move, check_write_permission
-from .classifier import render_template
+from media_importer.features.import_flow.services.classification_rules import render_template
 
 
 def apply_filename_template(scraped_info: dict, template: str, video_ext: str) -> str:
