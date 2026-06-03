@@ -7,7 +7,7 @@
 | API Area | Current Direct Dependencies | Direction |
 |----------|-----------------------------|-----------|
 | `handler.py` | `features.tasks`, `features.import_flow`, `core.metrics`, `core.logger`, `notify`, `monitor`, `core.db` | Startup scan now uses feature import-flow entry; remaining startup wiring still needs application-service cleanup. |
-| `task_handlers.py` | `core.db`, `features.tasks`, `api.task_delete`, `core.safety` for path validation | Task delete, task list, and queue clear/retry/pause/resume/status proof slices now use `features.tasks`; confirm/ignore/rename/run-file still need feature services. |
+| `task_handlers.py` | `core.db`, `features.tasks`, `api.task_delete`, `core.safety` for path validation | Task delete, task list, queue actions, and manual review confirm/reclassify/confirm-all proof slices now use `features.tasks`; ignore/rename/run-file still need file lifecycle services. |
 | `task_delete.py` | `features.tasks.delete_task` | Thin API wrapper after Phase 4 proof slice. |
 | `config_handlers.py` | `features.configuration`, `features.tasks`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, watcher status, runtime refresh, and task list payloads now route through feature services. |
 | `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
@@ -24,10 +24,12 @@ Task deletion now calls `media_importer.features.tasks.delete_task`, which owns 
 
 Task queue actions now call `media_importer.features.tasks.queue_service`, which owns status validation for clear, retry/retry-all orchestration, pause/resume metrics updates, and queue status payload assembly. `media_importer/api/task_handlers.py` still owns HTTP adaptation and retains more complex file lifecycle actions for a later service migration.
 
+Task manual review actions now call `media_importer.features.tasks.review_service`, which owns confirm, reclassify, and confirm-all orchestration over the pipeline/task manager. File lifecycle actions remain in the handler until they are moved behind a safety-focused service.
+
 Startup scan in `api/handler.py` now imports `scan_source_dir` from `media_importer.features.import_flow`, instead of directly calling `storage.file_scanner`.
 
 ## Next Candidates
 
-- Move task confirm/confirm-all/reclassify/ignore/rename/run-file actions behind task/import-flow feature services.
+- Move task ignore/rename/run-file actions behind task/import-flow feature services.
 - Continue thinning provider/config global orchestration after prompt file operations were moved into `features/prompts`.
 - Move config permission checks into configuration/infrastructure services.

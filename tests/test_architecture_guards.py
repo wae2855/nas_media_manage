@@ -136,3 +136,15 @@ def test_task_handler_delegates_queue_actions_to_tasks_feature():
     assert "resume_queue_for_api" in source
     assert "get_queue_status_for_api" in source
     assert "VALID_STATUSES" not in source
+
+
+def test_task_handler_delegates_review_actions_to_tasks_feature():
+    source = (
+        ROOT / "media_importer" / "api" / "task_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "confirm_task_for_api" in source
+    assert "reclassify_task_for_api" in source
+    assert "confirm_all_tasks_for_api" in source
+    assert "confirm_task(task_id)" not in source
+    assert "reclassify_task(task_id" not in source
+    assert "list_tasks(status=\"CONFIRMING\"" not in source

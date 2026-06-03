@@ -37,12 +37,19 @@ from .queue_service import (
     retry_all_failed_for_api,
     retry_task_for_api,
 )
+from .review_service import (
+    TaskReviewActionResult,
+    confirm_all_tasks_for_api,
+    confirm_task_for_api,
+    reclassify_task_for_api,
+)
 
 __all__ = [
     "TaskManager",
     "DeleteTaskResult",
     "TaskListResult",
     "TaskQueueActionResult",
+    "TaskReviewActionResult",
     "CONFIRM_CONFIRMED",
     "CONFIRM_NONE",
     "CONFIRM_PENDING",
@@ -60,6 +67,8 @@ __all__ = [
     "current_video_path",
     "delete_task",
     "clear_tasks_for_api",
+    "confirm_all_tasks_for_api",
+    "confirm_task_for_api",
     "get_queue_status_for_api",
     "list_tasks_for_api",
     "mark_confirmed",
@@ -73,6 +82,7 @@ __all__ = [
     "pause_queue_for_api",
     "reset_for_retry",
     "resume_queue_for_api",
+    "reclassify_task_for_api",
     "retry_all_failed_for_api",
     "retry_task_for_api",
     "start_processing",

@@ -9,8 +9,11 @@ from media_importer.core.db import (
 from media_importer.features.tasks import (
     TaskManager,
     clear_tasks_for_api,
+    confirm_all_tasks_for_api,
+    confirm_task_for_api,
     get_queue_status_for_api,
     pause_queue_for_api,
+    reclassify_task_for_api,
     resume_queue_for_api,
     retry_all_failed_for_api,
     retry_task_for_api,
@@ -69,33 +72,20 @@ class TaskHandlersMixin:
         json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_confirm(self, task_id: str):
-        if globals._global_pipeline is None:
-            json_response(self, 500, message="Pipeline not initialized")
-            return
-        try:
-            ok = globals._global_pipeline.confirm_task(task_id)
-            if ok:
-                json_response(self, 200, message="任务确认入库成功")
-            else:
-                task = globals._global_task_manager.get_task(task_id)
-                err = task.get("error_message", "") if task else ""
-                json_response(self, 500, message="确认入库失败" + (f": {err}" if err else ""))
-        except Exception as e:
-            json_response(self, 400, message=str(e))
+        result = confirm_task_for_api(
+            globals._global_pipeline,
+            globals._global_task_manager,
+            task_id,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_reclassify(self, task_id: str, body: dict):
-        if globals._global_pipeline is None:
-            json_response(self, 500, message="Pipeline not initialized")
-            return
-        dimensions = body.get("dimensions", {})
-        if not dimensions:
-            json_response(self, 400, message="缺少 dimensions 参数")
-            return
-        try:
-            task = globals._global_pipeline.reclassify_task(task_id, dimensions)
-            json_response(self, 200, data={"task": task}, message="重新分类完成")
-        except Exception as e:
-            json_response(self, 400, message=str(e))
+        result = reclassify_task_for_api(
+            globals._global_pipeline,
+            task_id,
+            body.get("dimensions", {}),
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_ignore(self, task_id: str):
         task = globals._global_task_manager.get_task(task_id)
@@ -222,25 +212,11 @@ class TaskHandlersMixin:
         json_response(self, 200, data={"task": updated_task}, message="文件重命名成功")
 
     def _task_confirm_all(self):
-        if globals._global_pipeline is None:
-            json_response(self, 500, message="Pipeline not initialized")
-            return
-        confirming_tasks = globals._global_task_manager.list_tasks(status="CONFIRMING", limit=1000)
-        results = []
-        for t in confirming_tasks:
-            tid = t.get("task_id", "")
-            try:
-                ok = globals._global_pipeline.confirm_task(tid)
-                results.append({"task_id": tid, "success": ok})
-            except Exception as e:
-                results.append({"task_id": tid, "success": False, "error": str(e)})
-        success_count = sum(1 for r in results if r["success"])
-        json_response(self, 200, data={
-            "results": results,
-            "total": len(results),
-            "success": success_count,
-            "failed": len(results) - success_count,
-        }, message=f"批量确认完成: 成功 {success_count}, 失败 {len(results) - success_count}")
+        result = confirm_all_tasks_for_api(
+            globals._global_pipeline,
+            globals._global_task_manager,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_stats(self):
         if globals._global_task_manager is None:

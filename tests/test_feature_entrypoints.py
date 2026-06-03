@@ -34,8 +34,11 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "api" / "task_handlers.py": [
             "from media_importer.features.tasks import (",
             "clear_tasks_for_api",
+            "confirm_all_tasks_for_api",
+            "confirm_task_for_api",
             "get_queue_status_for_api",
             "pause_queue_for_api",
+            "reclassify_task_for_api",
             "resume_queue_for_api",
             "retry_all_failed_for_api",
             "retry_task_for_api",
@@ -196,8 +199,11 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.tasks import delete_task
     from media_importer.features.tasks import (
         clear_tasks_for_api,
+        confirm_all_tasks_for_api,
+        confirm_task_for_api,
         get_queue_status_for_api,
         pause_queue_for_api,
+        reclassify_task_for_api,
         resume_queue_for_api,
         retry_all_failed_for_api,
         retry_task_for_api,
@@ -257,8 +263,11 @@ def test_feature_public_apis_are_importable():
     assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
     assert delete_task.__module__ == "media_importer.features.tasks.delete_service"
     assert clear_tasks_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert confirm_all_tasks_for_api.__module__ == "media_importer.features.tasks.review_service"
+    assert confirm_task_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert get_queue_status_for_api.__module__ == "media_importer.features.tasks.queue_service"
     assert pause_queue_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert reclassify_task_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert resume_queue_for_api.__module__ == "media_importer.features.tasks.queue_service"
     assert retry_all_failed_for_api.__module__ == "media_importer.features.tasks.queue_service"
     assert retry_task_for_api.__module__ == "media_importer.features.tasks.queue_service"

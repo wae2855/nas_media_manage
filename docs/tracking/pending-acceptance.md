@@ -5,7 +5,7 @@
 | Item | Completed at | Commit | Scope | Verification | User confirmation needed |
 |------|--------------|--------|-------|--------------|--------------------------|
 | Feature-first architecture and documentation restructure | 2026-06-02 | `42c88b9`, `cb1d876`, `2f199b9` + latest cleanup commits | Code structure, docs structure, archive policy, lifecycle workflow, test archive, feature public APIs, product/API ownership docs, old pipeline/modules/config archive cleanup, configuration/tasks/scraping consumer entrypoints | `python3 -m pytest tests/` -> 156 passed; `compileall`; `git diff --check` | Confirm new architecture/docs direction after implementation |
-| AI-efficient architecture completion Phase 1-4 slices | 2026-06-03 | latest refactor commits through task queue service slice | Plan status/index cleanup, architecture standards, dependency direction map, scraping/provider/prompt/storage/config/source-cleaning/dimension/prompt/task-list/task-queue feature services | `python3 -m pytest tests/`; `compileall`; `git diff --check` | Confirm backend feature-first direction before frontend redesign |
+| AI-efficient architecture completion Phase 1-4 slices | 2026-06-03 | latest refactor commits through task review service slice | Plan status/index cleanup, architecture standards, dependency direction map, scraping/provider/prompt/storage/config/source-cleaning/dimension/prompt/task-list/task-queue/task-review feature services | `python3 -m pytest tests/`; `compileall`; `git diff --check` | Confirm backend feature-first direction before frontend redesign |
 
 ## Rules
 
