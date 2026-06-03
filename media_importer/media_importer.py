@@ -59,7 +59,7 @@ def cmd_run(args):
 
     if args.dry_run:
         logger.info("Dry-run: 扫描源目录")
-        from media_importer.storage.file_scanner import scan_source_dir
+        from media_importer.features.import_flow import scan_source_dir
         groups = scan_source_dir(config.get("source_dir", ""), config)
         logger.info(f"扫描到 {len(groups)} 个视频文件组")
         for group in groups:

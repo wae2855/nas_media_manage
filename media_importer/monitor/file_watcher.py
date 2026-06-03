@@ -2,7 +2,7 @@
 import os
 import threading
 import logging
-from media_importer.storage.file_scanner import scan_source_dir
+from media_importer.features.import_flow import scan_source_dir
 from media_importer.core.safety import recycle_cleanup
 
 

@@ -12,8 +12,10 @@
 ## Entry Points
 
 - `media_importer/infrastructure/filesystem/file_copier.py`
+- `media_importer/features/import_flow/scan_service.py`
 - `media_importer/features/import_flow/services/classification_rules.py`
 - `media_importer/features/import_flow/services/dedup_rules.py`
+- `media_importer/features/import_flow/services/naming.py`
 - `media_importer/storage/file_scanner.py`
 - `media_importer/storage/file_copier.py` compatibility alias
 - `media_importer/storage/classifier.py` compatibility alias
@@ -32,3 +34,7 @@
 分类规则和模板渲染是入库业务策略，真实实现位于 `media_importer/features/import_flow/services/classification_rules.py`。旧 `storage/classifier.py` 仅保留为兼容导入。
 
 去重、质量比较和重命名建议是入库业务策略，真实实现位于 `media_importer/features/import_flow/services/dedup_rules.py`。旧 `storage/dedup_checker.py` 仅保留为兼容导入。
+
+源目录扫描和任务感知过滤真实实现位于 `media_importer/features/import_flow/scan_service.py`。旧 `storage/file_scanner.py` 仅保留为兼容导入。
+
+文件名模板和字幕命名规则真实实现位于 `media_importer/features/import_flow/services/naming.py`。`storage/file_mover.py` 保留文件移动与删除相关能力，并复用该命名规则。

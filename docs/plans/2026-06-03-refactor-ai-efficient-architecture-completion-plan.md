@@ -163,7 +163,8 @@ confidence: medium
 - [ ] 继续评估路径校验、复制/移动、删除基础能力是否归入 `infrastructure/filesystem`。
 - [x] 将分类规则和模板渲染迁到 `features/import_flow/services/classification_rules.py`，旧 `storage/classifier.py` 保留 wrapper。
 - [x] 将去重策略迁到 `features/import_flow/services/dedup_rules.py`，旧 `storage/dedup_checker.py` 保留 wrapper。
-- [ ] 继续评估命名模板、源文件处理策略是否迁到 `features/import_flow/services/` 或独立 feature service。
+- [x] 将命名模板与字幕命名规则迁到 `features/import_flow/services/naming.py`，旧 `storage/file_mover.py` 复用该 service。
+- [ ] 继续评估源文件处理策略是否迁到 `features/import_flow/services/` 或独立 feature service。
 - [x] 将 `storage/source_cleaner.py` 的剩余旧入口继续对齐 `features/source_cleaning/`。
 - [x] 增加 storage boundary tests，防止 feature 继续直接依赖旧业务策略文件。
 - [x] 更新 `docs/architecture/storage-filesystem.md` 和 import-flow/source-cleaning feature 文档。
@@ -173,11 +174,12 @@ confidence: medium
 - [x] 盘点 `api/*_handlers.py` 中直接访问 DB/storage/scraper/monitor/notify 的调用。
 - [x] 为任务删除高频动作建立 `features/tasks/delete_service.py` proof slice。
 - [x] `api/task_delete.py` 保留参数解析、错误包装、JSON 响应，不承载任务删除业务策略。
+- [x] 将启动扫描逻辑通过 `features.import_flow.scan_source_dir` 暴露给 API/CLI/watcher proof slice。
 - [ ] 继续为其他高频 API 动作建立 feature service 或 application function。
 - [ ] 继续薄化其他 API handler，保留参数解析、错误包装、JSON 响应。
-- [ ] CLI 和 watcher 通过 feature service 组装，不直接进入旧技术目录。
+- [x] CLI 和 watcher 的扫描入口改为通过 `features.import_flow.scan_source_dir`，不再直接调用 `storage.file_scanner`。
 - [x] 扩展 `tests/test_feature_entrypoints.py`，覆盖任务删除 API proof slice 的依赖方向。
-- [ ] 扩展 `tests/test_feature_entrypoints.py`，覆盖 CLI/watcher 的依赖方向。
+- [x] 扩展 `tests/test_feature_entrypoints.py`，覆盖 CLI/watcher 的依赖方向。
 
 ### Phase 5: 前端重做准备
 

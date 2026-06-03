@@ -13,7 +13,7 @@ from media_importer.features.import_flow.services.paths import (
     allowed_dirs_from_config,
     import_roots_from_config,
 )
-from media_importer.storage.file_mover import apply_filename_template
+from media_importer.features.import_flow.services.naming import apply_filename_template
 from media_importer.features.import_flow.utils import PipelineError, PipelineSkipError
 
 

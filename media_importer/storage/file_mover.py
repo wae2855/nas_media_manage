@@ -3,21 +3,11 @@ import os
 import shutil
 import re
 from media_importer.core.safety import validate_path_safety, safe_delete, safe_move, check_write_permission
-from media_importer.features.import_flow.services.classification_rules import render_template
-
-
-def apply_filename_template(scraped_info: dict, template: str, video_ext: str) -> str:
-    filename = render_template(template, scraped_info, extra_vars={'ext': video_ext})
-    filename = filename.rstrip('/')
-    if '{ext}' not in template:
-        if not filename.endswith(video_ext):
-            filename = filename + video_ext
-    return filename
-
-
-def apply_subtitle_template(video_basename: str, lang: str, subtitle_ext: str) -> str:
-    video_name_without_ext = os.path.splitext(video_basename)[0]
-    return f"{video_name_without_ext}.{lang}{subtitle_ext}"
+from media_importer.features.import_flow.services.naming import (
+    apply_filename_template,
+    apply_subtitle_template,
+    detect_subtitle_lang,
+)
 
 
 def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
@@ -79,19 +69,6 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
         result['subtitles'].append(dest_sub)
 
     return result
-
-
-def detect_subtitle_lang(filename: str) -> str:
-    name_lower = filename.lower()
-    if '.zh.' in name_lower or '.chs.' in name_lower or 'chinese' in name_lower:
-        return 'zh'
-    elif '.en.' in name_lower or '.eng.' in name_lower or 'english' in name_lower:
-        return 'en'
-    elif '.ja.' in name_lower or '.jpn.' in name_lower or 'japanese' in name_lower:
-        return 'ja'
-    elif '.ko.' in name_lower or '.kor.' in name_lower or 'korean' in name_lower:
-        return 'ko'
-    return 'unknown'
 
 
 def delete_source_files(source_paths: list[str], allowed_base_dirs: list = None):

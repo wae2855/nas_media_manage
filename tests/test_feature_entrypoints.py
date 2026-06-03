@@ -11,6 +11,7 @@ def test_application_entrypoints_use_import_flow_feature_runner():
     for path in entrypoints:
         source = path.read_text(encoding="utf-8")
         assert "from media_importer.features.import_flow import PipelineRunner" in source
+        assert "from media_importer.features.import_flow import scan_source_dir" in source or path.name != "media_importer.py"
         assert "from media_importer.features.configuration import load_config, mask_sensitive" in source
         assert "from media_importer.features.tasks import TaskManager" in source
         assert "from media_importer.pipeline import PipelineRunner" not in source
@@ -24,6 +25,10 @@ def test_feature_consumers_use_feature_public_apis():
         ],
         root / "media_importer" / "api" / "task_delete.py": [
             "from media_importer.features.tasks import delete_task as delete_task_service",
+        ],
+        root / "media_importer" / "api" / "handler.py": [
+            "from media_importer.features.import_flow import PipelineRunner",
+            "from media_importer.features.import_flow import scan_source_dir",
         ],
         root / "media_importer" / "api" / "connectivity_handlers.py": [
             "from media_importer.features.scraping import TMDbClient",
@@ -39,12 +44,16 @@ def test_feature_consumers_use_feature_public_apis():
         ],
         root / "media_importer" / "features" / "import_flow" / "runner.py": [
             "from media_importer.infrastructure.filesystem import FileCopier",
+            "from media_importer.features.import_flow.scan_service import FileScanner",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "classification.py": [
             "from .classification_rules import classify, render_template",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "dedup.py": [
             "from .dedup_rules import check_duplicate",
+        ],
+        root / "media_importer" / "features" / "import_flow" / "steps" / "file.py": [
+            "from media_importer.features.import_flow.services.naming import apply_filename_template",
         ],
         root / "media_importer" / "storage" / "classifier.py": [
             "from media_importer.features.import_flow.services.classification_rules import",
@@ -53,10 +62,16 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.import_flow.services.dedup_rules import",
         ],
         root / "media_importer" / "storage" / "file_scanner.py": [
-            "from media_importer.features.configuration import ConfigView",
+            "from media_importer.features.import_flow.scan_service import FileScanner, scan_source_dir",
         ],
         root / "media_importer" / "storage" / "file_copier.py": [
             "from media_importer.infrastructure.filesystem import FileCopier",
+        ],
+        root / "media_importer" / "monitor" / "file_watcher.py": [
+            "from media_importer.features.import_flow import scan_source_dir",
+        ],
+        root / "media_importer" / "storage" / "file_mover.py": [
+            "from media_importer.features.import_flow.services.naming import",
         ],
         root / "media_importer" / "storage" / "source_cleaner.py": [
             "from media_importer.features.source_cleaning import cleaner as _cleaner",
@@ -111,8 +126,10 @@ def test_feature_consumers_use_feature_public_apis():
 
 def test_feature_public_apis_are_importable():
     from media_importer.features.configuration import ConfigView, load_config, mask_sensitive
+    from media_importer.features.import_flow import FileScanner, scan_source_dir
     from media_importer.features.import_flow.services.classification_rules import classify
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
+    from media_importer.features.import_flow.services.naming import apply_filename_template
     from media_importer.features.source_cleaning import SourceCleaner
     from media_importer.features.tasks import delete_task
     from media_importer.features.providers import (
@@ -137,8 +154,11 @@ def test_feature_public_apis_are_importable():
     from media_importer.infrastructure.filesystem import FileCopier
 
     assert ConfigView is not None
+    assert FileScanner.__module__ == "media_importer.features.import_flow.scan_service"
+    assert scan_source_dir.__module__ == "media_importer.features.import_flow.scan_service"
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
     assert check_duplicate.__module__ == "media_importer.features.import_flow.services.dedup_rules"
+    assert apply_filename_template.__module__ == "media_importer.features.import_flow.services.naming"
     assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
     assert delete_task.__module__ == "media_importer.features.tasks.delete_service"
     assert load_config is not None

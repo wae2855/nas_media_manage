@@ -262,7 +262,7 @@ def start_server(host: str, port: int, config: dict):
 
     source_dir = config.get("source_dir", "")
     if source_dir and os.path.isdir(source_dir):
-        from media_importer.storage.file_scanner import scan_source_dir
+        from media_importer.features.import_flow import scan_source_dir
         try:
             groups = scan_source_dir(source_dir, config)
             if groups:
