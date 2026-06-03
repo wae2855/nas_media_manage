@@ -31,6 +31,15 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "api" / "task_delete.py": [
             "from media_importer.features.tasks import delete_task as delete_task_service",
         ],
+        root / "media_importer" / "api" / "task_handlers.py": [
+            "from media_importer.features.tasks import (",
+            "clear_tasks_for_api",
+            "get_queue_status_for_api",
+            "pause_queue_for_api",
+            "resume_queue_for_api",
+            "retry_all_failed_for_api",
+            "retry_task_for_api",
+        ],
         root / "media_importer" / "api" / "handler.py": [
             "from media_importer.features.import_flow import PipelineRunner",
             "from media_importer.features.import_flow import scan_source_dir",
@@ -185,6 +194,14 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.import_flow.services.naming import apply_filename_template
     from media_importer.features.source_cleaning import SourceCleaner
     from media_importer.features.tasks import delete_task
+    from media_importer.features.tasks import (
+        clear_tasks_for_api,
+        get_queue_status_for_api,
+        pause_queue_for_api,
+        resume_queue_for_api,
+        retry_all_failed_for_api,
+        retry_task_for_api,
+    )
     from media_importer.features.providers import (
         MetadataProvider,
         TMDbProvider,
@@ -239,6 +256,12 @@ def test_feature_public_apis_are_importable():
     assert apply_filename_template.__module__ == "media_importer.features.import_flow.services.naming"
     assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
     assert delete_task.__module__ == "media_importer.features.tasks.delete_service"
+    assert clear_tasks_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert get_queue_status_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert pause_queue_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert resume_queue_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert retry_all_failed_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert retry_task_for_api.__module__ == "media_importer.features.tasks.queue_service"
     assert load_config is not None
     assert mask_sensitive is not None
     assert TaskManager is not None

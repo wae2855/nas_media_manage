@@ -122,3 +122,17 @@ def test_config_handler_delegates_task_listing_to_tasks_feature():
     assert "from media_importer.features.tasks import list_tasks_for_api" in source
     assert "from media_importer.core.db import list_tasks" not in source
     assert "from media_importer.core.db import VALID_STATUSES" not in source
+
+
+def test_task_handler_delegates_queue_actions_to_tasks_feature():
+    source = (
+        ROOT / "media_importer" / "api" / "task_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "from media_importer.features.tasks import (" in source
+    assert "clear_tasks_for_api" in source
+    assert "retry_task_for_api" in source
+    assert "retry_all_failed_for_api" in source
+    assert "pause_queue_for_api" in source
+    assert "resume_queue_for_api" in source
+    assert "get_queue_status_for_api" in source
+    assert "VALID_STATUSES" not in source

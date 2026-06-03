@@ -5,12 +5,16 @@ from media_importer.core.db import (
     update_task as db_update_task,
     get_subtitles_by_task as db_get_subtitles,
     update_subtitles_by_task as db_update_subtitles_by_task,
-    update_subtitle as db_update_subtitle,
-    count_by_status as db_count_by_status,
-    count_by_specific_status as db_count_specific,
-    VALID_STATUSES,
 )
-from media_importer.features.tasks import TaskManager
+from media_importer.features.tasks import (
+    TaskManager,
+    clear_tasks_for_api,
+    get_queue_status_for_api,
+    pause_queue_for_api,
+    resume_queue_for_api,
+    retry_all_failed_for_api,
+    retry_task_for_api,
+)
 from media_importer.api import globals
 from .task_delete import delete_task
 from .utils import json_response
@@ -28,72 +32,41 @@ class TaskHandlersMixin:
         delete_task(self, task_id, delete_files, globals_module=globals, respond=json_response)
 
     def _clear_tasks(self, body: dict):
-        status = body.get("status")
-        if status:
-            status = str(status).strip().upper()
-        if status and status != "ALL" and status not in VALID_STATUSES:
-            if globals._global_logger:
-                globals._global_logger.warning(f"Invalid status filter: {status}, VALID_STATUSES={VALID_STATUSES}")
-            json_response(self, 400, message=f"Invalid status: {status}")
-            return
-        if status and status == "ALL":
-            status = None
-        globals._global_task_manager.clear_tasks(status=status)
-        json_response(self, 200, message="Tasks cleared", data={"status": status or "all"})
+        result = clear_tasks_for_api(
+            globals._global_task_manager,
+            body.get("status"),
+            logger=globals._global_logger,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _retry_task(self, task_id: str):
-        task = globals._global_task_manager.retry_task(task_id)
-        if task is None:
-            json_response(self, 400, message=f"任务不存在或当前状态不可重试: {task_id}")
-            return
-
-        if globals._global_pipeline and not globals._global_pipeline.is_paused():
-            def run_retry():
-                try:
-                    globals._global_pipeline.process_one(task)
-                except Exception as e:
-                    globals._global_logger.error(f"重试任务执行异常: {e}")
-            threading.Thread(target=run_retry, daemon=True).start()
-
-        json_response(self, 200, data={"task": task}, message="任务已重试并开始执行")
+        result = retry_task_for_api(
+            globals._global_task_manager,
+            globals._global_pipeline,
+            task_id,
+            logger=globals._global_logger,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _queue_retry_all(self):
-        retried = globals._global_task_manager.retry_all_failed()
-
-        if retried and globals._global_pipeline and not globals._global_pipeline.is_paused():
-            def run_retry_all():
-                try:
-                    globals._global_pipeline.run_all()
-                except Exception as e:
-                    globals._global_logger.error(f"批量重试执行异常: {e}")
-            threading.Thread(target=run_retry_all, daemon=True).start()
-
-        json_response(self, 200, data={
-            "retried_count": len(retried),
-            "task_ids": [t.get("task_id", "") for t in retried]
-        }, message=f"已重试 {len(retried)} 个失败任务并开始执行")
+        result = retry_all_failed_for_api(
+            globals._global_task_manager,
+            globals._global_pipeline,
+            logger=globals._global_logger,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _queue_pause(self):
-        if globals._global_pipeline:
-            globals._global_pipeline.pause()
-        if globals._global_metrics:
-            globals._global_metrics.set_queue_paused(True)
-        json_response(self, 200, message="Queue paused")
+        result = pause_queue_for_api(globals._global_pipeline, globals._global_metrics)
+        json_response(self, result.code, message=result.message)
 
     def _queue_resume(self):
-        if globals._global_pipeline:
-            globals._global_pipeline.resume()
-        if globals._global_metrics:
-            globals._global_metrics.set_queue_paused(False)
-        json_response(self, 200, message="Queue resumed")
+        result = resume_queue_for_api(globals._global_pipeline, globals._global_metrics)
+        json_response(self, result.code, message=result.message)
 
     def _queue_status(self):
-        paused = globals._global_pipeline.is_paused() if globals._global_pipeline else False
-        counts = globals._global_task_manager.count_by_status() if globals._global_task_manager else {}
-        json_response(self, 200, data={
-            "paused": paused,
-            "by_status": counts
-        })
+        result = get_queue_status_for_api(globals._global_pipeline, globals._global_task_manager)
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_confirm(self, task_id: str):
         if globals._global_pipeline is None:

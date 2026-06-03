@@ -28,11 +28,21 @@ from media_importer.core.task_lifecycle import (
 from media_importer.core.task_manager import TaskManager
 from .delete_service import DeleteTaskResult, delete_task
 from .list_service import TaskListResult, list_tasks_for_api
+from .queue_service import (
+    TaskQueueActionResult,
+    clear_tasks_for_api,
+    get_queue_status_for_api,
+    pause_queue_for_api,
+    resume_queue_for_api,
+    retry_all_failed_for_api,
+    retry_task_for_api,
+)
 
 __all__ = [
     "TaskManager",
     "DeleteTaskResult",
     "TaskListResult",
+    "TaskQueueActionResult",
     "CONFIRM_CONFIRMED",
     "CONFIRM_NONE",
     "CONFIRM_PENDING",
@@ -49,6 +59,8 @@ __all__ = [
     "STATUS_SUCCESS",
     "current_video_path",
     "delete_task",
+    "clear_tasks_for_api",
+    "get_queue_status_for_api",
     "list_tasks_for_api",
     "mark_confirmed",
     "mark_confirming",
@@ -58,6 +70,10 @@ __all__ = [
     "mark_processing_step",
     "mark_skipped",
     "mark_temp_ready",
+    "pause_queue_for_api",
     "reset_for_retry",
+    "resume_queue_for_api",
+    "retry_all_failed_for_api",
+    "retry_task_for_api",
     "start_processing",
 ]
