@@ -168,3 +168,15 @@ def test_task_handler_delegates_ignore_to_tasks_file_lifecycle_service():
     assert "move_to_recycle_bin" not in source
     assert "update_task as db_update_task" not in source
     assert "update_subtitles_by_task as db_update_subtitles_by_task" not in source
+
+
+def test_task_handler_delegates_run_file_to_import_flow_service():
+    source = (
+        ROOT / "media_importer" / "api" / "task_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "from media_importer.features.import_flow import run_file_for_api" in source
+    assert "validate_path_safety" not in source
+    assert "validate_file_ext" not in source
+    assert "create_task(" not in source
+    assert "process_one(task)" not in source
+    assert "file_size_mb" not in source

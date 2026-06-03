@@ -2,6 +2,7 @@ import os
 import threading
 
 from media_importer.core.db import get_subtitles_by_task as db_get_subtitles
+from media_importer.features.import_flow import run_file_for_api
 from media_importer.features.tasks import (
     TaskManager,
     clear_tasks_for_api,
@@ -132,52 +133,13 @@ class TaskHandlersMixin:
         json_response(self, 202, message="Batch processing started in background")
 
     def _run_file(self, body: dict):
-        if globals._global_pipeline is None:
-            json_response(self, 500, message="Pipeline not initialized")
-            return
-        file_path = body.get("path", "")
-        if not file_path:
-            json_response(self, 400, message="Missing 'path' field")
-            return
-
-        from media_importer.core.safety import validate_path_safety, validate_file_ext
-
-        source_dir = globals._config.get("source_dir", "") if globals._config else ""
-        allowed_dirs = [source_dir] if source_dir else []
-
-        ok, msg = validate_path_safety(file_path, allowed_base_dirs=allowed_dirs)
-        if not ok:
-            json_response(self, 400, message=f"路径校验失败: {msg}")
-            return
-
-        video_exts = globals._config.get("video_extensions", []) if globals._config else []
-        sub_exts = globals._config.get("subtitle_extensions", []) if globals._config else []
-        media_exts = set(
-            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
-            for ext in video_exts + sub_exts
+        result = run_file_for_api(
+            globals._config or {},
+            globals._global_task_manager,
+            globals._global_pipeline,
+            body.get("path", ""),
         )
-        ok, msg = validate_file_ext(file_path, media_exts)
-        if not ok:
-            json_response(self, 400, message=f"文件类型校验失败: {msg}")
-            return
-
-        if not os.path.isfile(file_path):
-            json_response(self, 404, message=f"File not found: {file_path}")
-            return
-
-        def run_one():
-            video_file = os.path.basename(file_path)
-            task = globals._global_task_manager.create_task(
-                video_path=file_path,
-                video_file=video_file,
-                subtitle_files=[],
-                file_size_mb=os.path.getsize(file_path) / (1024 * 1024)
-            )
-            globals._global_pipeline.process_one(task)
-
-        thread = threading.Thread(target=run_one, daemon=True)
-        thread.start()
-        json_response(self, 202, message=f"Processing started: {file_path}")
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _restart_service(self):
         import subprocess

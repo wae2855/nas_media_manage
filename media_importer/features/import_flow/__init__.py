@@ -40,6 +40,7 @@ from .services import (
 from .steps import FileStepsMixin, ScrapeStepsMixin, StepsMixin
 from .confirm import ConfirmMixin
 from .runner import PipelineRunner
+from .run_file_service import RunFileResult, run_file_for_api
 from .scan_service import FileScanner, scan_source_dir
 
 __all__ = [
@@ -58,8 +59,10 @@ __all__ = [
     "ImportService",
     "ReviewDecision",
     "ReviewDecisionService",
+    "RunFileResult",
     "SourceCleanupResult",
     "SourceCleanupService",
+    "run_file_for_api",
     "scan_source_dir",
     "STATUS_PENDING",
     "STATUS_PROCESSING",
