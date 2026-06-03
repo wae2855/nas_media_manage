@@ -11,6 +11,7 @@
 | `media_importer/features/scraping/confidence_engine.py` | Confidence scoring and review threshold decisions. |
 | `media_importer/features/scraping/confidence_models.py` | Confidence config, result dataclasses, and shared parsing patterns. |
 | `media_importer/features/scraping/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
+| `media_importer/features/scraping/dimensions_service.py` | Dimension CRUD/tier-gated application service for API callers. |
 | `media_importer/scraper/metadata_scraper.py` | Thin legacy import wrapper for `MetadataScraper`. |
 | `media_importer/scraper/confidence_models.py` | Thin legacy import wrapper for confidence models. |
 | `media_importer/scraper/confidence_engine.py` | Thin legacy import wrapper for `ConfidenceEngine`. |
@@ -23,7 +24,7 @@
 ## Current Consumers
 
 - TMDB API handlers import `TMDbClient` and `TMDbError` from `media_importer.features.scraping`.
-- Dimension API handlers import tier checks from `media_importer.features.scraping`.
+- Dimension API handlers import dimension query/update services from `media_importer.features.scraping`.
 - Import-flow scrape steps import file-dimension lookup from `media_importer.features.scraping`.
 - `MetadataScraper`, `ConfidenceEngine`, confidence models, and dimension mapping have moved under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
 

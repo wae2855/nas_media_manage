@@ -74,3 +74,11 @@ def test_source_cleaner_api_handler_uses_feature_application_service():
     ).read_text(encoding="utf-8")
     assert "from media_importer.features.source_cleaning.application_service import (" in source
     assert "from media_importer.core.db.task_repo import list_all_tasks" not in source
+
+
+def test_dimension_api_handler_uses_feature_dimension_service():
+    source = (
+        ROOT / "media_importer" / "api" / "dimension_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "from media_importer.features.scraping import (" in source
+    assert "from media_importer.core.db import (" not in source

@@ -9,9 +9,9 @@
 | `handler.py` | `features.tasks`, `features.import_flow`, `core.metrics`, `core.logger`, `notify`, `monitor`, `core.db` | Startup scan now uses feature import-flow entry; remaining startup wiring still needs application-service cleanup. |
 | `task_handlers.py` | `core.db`, `features.tasks`, `api.task_delete`, `core.safety` for path validation | Task delete proof slice moved to `features.tasks.delete_service`; path validation remains pending. |
 | `task_delete.py` | `features.tasks.delete_task` | Thin API wrapper after Phase 4 proof slice. |
-| `config_handlers.py` | `notify`, `monitor`, `core.db`, config save utilities | Needs configuration/application service for permission and task export actions. |
+| `config_handlers.py` | `features.configuration`, `notify`, `monitor`, `core.db`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, and watcher status now route through `features.configuration.application_service`; reload and task listing remain pending. |
 | `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
-| `dimension_handlers.py` | `core.db`, `features.scraping` | Dimension repository should become feature/infrastructure facade. |
+| `dimension_handlers.py` | `features.scraping` | Dimension CRUD and tier checks now route through `features.scraping.dimensions_service`; handler no longer imports dimension DB functions directly. |
 | `provider_handlers.py` | `features.providers` | Acceptable direction. |
 | `prompt_handlers.py` | prompt file operations and API utilities | Candidate for `features.prompts` service. |
 | `source_cleaner_handlers.py` | `features.source_cleaning`, `monitor.permission_checker` | Task path listing, status shaping, records access, and execute orchestration now route through `features.source_cleaning.application_service`; permission check remains infrastructure-bound. |

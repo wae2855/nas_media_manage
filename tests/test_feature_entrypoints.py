@@ -21,7 +21,12 @@ def test_feature_consumers_use_feature_public_apis():
     root = Path(__file__).resolve().parents[1]
     expected_imports = {
         root / "media_importer" / "api" / "dimension_handlers.py": [
-            "from media_importer.features.scraping import check_tier_access",
+            "from media_importer.features.scraping import (",
+            "get_dimension_detail",
+            "update_dimension_detail",
+            "enable_dimension_detail",
+            "disable_dimension_detail",
+            "reset_dimension_detail",
         ],
         root / "media_importer" / "api" / "task_delete.py": [
             "from media_importer.features.tasks import delete_task as delete_task_service",
@@ -34,6 +39,14 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.scraping import TMDbClient",
             "from media_importer.features.configuration import test_llm_api",
             "from media_importer.features.configuration import test_hermes_webhook",
+        ],
+        root / "media_importer" / "api" / "config_handlers.py": [
+            "from media_importer.features.configuration import (",
+            "build_config_ui_payload",
+            "build_section_config_update",
+            "build_config_permission_payload",
+            "build_path_test_payload",
+            "build_watcher_status_payload",
         ],
         root / "media_importer" / "api" / "tmdb_handlers.py": [
             "from media_importer.features.scraping import TMDbClient",
@@ -133,6 +146,13 @@ def test_feature_consumers_use_feature_public_apis():
 
 def test_feature_public_apis_are_importable():
     from media_importer.features.configuration import ConfigView, load_config, mask_sensitive
+    from media_importer.features.configuration import (
+        build_config_permission_payload,
+        build_config_ui_payload,
+        build_path_test_payload,
+        build_section_config_update,
+        build_watcher_status_payload,
+    )
     from media_importer.features.import_flow import FileScanner, scan_source_dir
     from media_importer.features.import_flow.services.classification_rules import classify
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
@@ -149,11 +169,19 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.scraping import (
         CleanResult,
         ConfidenceEngine,
+        DimensionActionResult,
         LLMScraper,
         MetadataScraper,
         TMDbClient,
+        disable_dimension_detail,
+        enable_dimension_detail,
         check_tier_access,
+        get_dimension_detail,
         get_dimensions_for_file,
+        list_dimensions,
+        list_enabled_dimensions,
+        reset_dimension_detail,
+        update_dimension_detail,
     )
     from media_importer.features.tasks import TaskManager, mark_imported
     from media_importer.features.tasks.repository import create_task, update_task
@@ -161,6 +189,11 @@ def test_feature_public_apis_are_importable():
     from media_importer.infrastructure.filesystem import FileCopier
 
     assert ConfigView is not None
+    assert build_config_ui_payload.__module__ == "media_importer.features.configuration.application_service"
+    assert build_section_config_update.__module__ == "media_importer.features.configuration.application_service"
+    assert build_config_permission_payload.__module__ == "media_importer.features.configuration.application_service"
+    assert build_path_test_payload.__module__ == "media_importer.features.configuration.application_service"
+    assert build_watcher_status_payload.__module__ == "media_importer.features.configuration.application_service"
     assert FileScanner.__module__ == "media_importer.features.import_flow.scan_service"
     assert scan_source_dir.__module__ == "media_importer.features.import_flow.scan_service"
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
@@ -178,12 +211,20 @@ def test_feature_public_apis_are_importable():
     assert FileCopier.__module__ == "media_importer.infrastructure.filesystem.file_copier"
     assert ConfidenceEngine is not None
     assert ConfidenceEngine.__module__ == "media_importer.features.scraping.confidence_engine"
+    assert DimensionActionResult.__module__ == "media_importer.features.scraping.dimensions_service"
     assert LLMScraper is not None
     assert MetadataScraper is not None
     assert MetadataScraper.__module__ == "media_importer.features.scraping.metadata_scraper"
     assert CleanResult.__module__ == "media_importer.features.scraping.confidence_models"
     assert get_dimensions_for_file is not None
     assert get_dimensions_for_file.__module__ == "media_importer.features.scraping.dimension_manager"
+    assert list_dimensions.__module__ == "media_importer.features.scraping.dimensions_service"
+    assert list_enabled_dimensions.__module__ == "media_importer.features.scraping.dimensions_service"
+    assert get_dimension_detail.__module__ == "media_importer.features.scraping.dimensions_service"
+    assert update_dimension_detail.__module__ == "media_importer.features.scraping.dimensions_service"
+    assert enable_dimension_detail.__module__ == "media_importer.features.scraping.dimensions_service"
+    assert disable_dimension_detail.__module__ == "media_importer.features.scraping.dimensions_service"
+    assert reset_dimension_detail.__module__ == "media_importer.features.scraping.dimensions_service"
     assert check_tier_access("pro") is True
     assert TMDbClient is not None
     assert create_providers is not None

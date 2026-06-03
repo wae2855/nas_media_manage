@@ -1,3 +1,11 @@
+from .application_service import (
+    SECTION_FIELD_MAP,
+    build_config_permission_payload,
+    build_config_ui_payload,
+    build_path_test_payload,
+    build_section_config_update,
+    build_watcher_status_payload,
+)
 from media_importer.core.config_loader import (
     copy_config_template,
     load_config,
@@ -25,6 +33,12 @@ __all__ = [
     "BOOL_KEYS",
     "ConfigView",
     "_normalize_bool_strings",
+    "SECTION_FIELD_MAP",
+    "build_config_permission_payload",
+    "build_config_ui_payload",
+    "build_path_test_payload",
+    "build_section_config_update",
+    "build_watcher_status_payload",
     "check_path",
     "copy_config_template",
     "load_config",

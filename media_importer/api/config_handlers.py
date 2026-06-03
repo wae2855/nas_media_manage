@@ -1,6 +1,13 @@
 import os
 
-from media_importer.features.configuration import load_config, mask_sensitive
+from media_importer.features.configuration import (
+    build_config_permission_payload,
+    build_config_ui_payload,
+    build_path_test_payload,
+    build_section_config_update,
+    build_watcher_status_payload,
+    load_config,
+)
 from media_importer.api import globals
 from media_importer.features.configuration import validate_config
 from media_importer.notify.hermes_hook import HermesNotifier
@@ -12,18 +19,9 @@ from .utils import json_response
 
 class ConfigHandlersMixin:
     def _config(self):
-        masked = mask_sensitive(globals._config) if globals._config else {}
-        sp = masked.get("source_policy", {})
-        if "cleanup_mode" not in sp:
-            cleanup_after_done = sp.get("cleanup_source_after_done")
-            if cleanup_after_done is False:
-                sp["cleanup_mode"] = "read_only"
-            elif cleanup_after_done is True:
-                sp["cleanup_mode"] = "full_cleanup"
-        if "delete_source_after_import" not in sp:
-            sp["delete_source_after_import"] = sp.get("cleanup_source_after_done", True)
         prompts_data = self._load_prompts_for_ui()
-        json_response(self, 200, data={"config": masked, "prompts": prompts_data})
+        payload = build_config_ui_payload(globals._config, prompts_data)
+        json_response(self, 200, data=payload)
 
     def _config_save(self, body: dict):
         save_config(self, body, globals_module=globals, respond=json_response)
@@ -32,70 +30,13 @@ class ConfigHandlersMixin:
         section = body.get("section", "")
         data = body.get("data", {})
 
-        if not section or not data:
-            json_response(self, 400, message="缺少 section 或 data 参数")
-            return
-
-        section_map = {
-            "basic": ["source_dir", "temp_dir", "source_policy"],
-            "path_rules": ["path_rules", "fallback_dir"],
-            "import_options": ["manual_review", "duplicate_handling", "filename_templates"],
-            "metadata.providers": ["metadata"],
-            "llm": ["llm"],
-            "server": ["server"],
-            "hermes": ["hermes"],
-            "file_watcher": ["file_watcher"],
-            "advanced": ["log_dir", "task_queue", "video_extensions", "subtitle_extensions"],
-            "confidence": ["confidence"],
-            "source_cleaner": ["source_cleaner"],
-        }
-
-        if section not in section_map:
-            json_response(self, 400, message=f"未知的配置区块: {section}")
-            return
-
         try:
-            section_body = {}
-            for key in section_map[section]:
-                if key in data:
-                    section_body[key] = data[key]
-
-            if not section_body:
-                json_response(self, 400, message="区块数据为空")
-                return
-
-            if section == "metadata.providers":
-                self._merge_provider_sensitive_fields(section_body)
-
+            section_body = build_section_config_update(section, data, globals._config)
             self._config_save(section_body)
+        except (KeyError, ValueError) as e:
+            json_response(self, 400, message=str(e))
         except Exception as e:
             json_response(self, 500, message=f"保存区块配置失败: {str(e)}")
-
-    def _merge_provider_sensitive_fields(self, section_body: dict):
-        new_providers = []
-        if isinstance(section_body.get("metadata"), dict):
-            new_providers = section_body["metadata"].get("providers", [])
-        if not new_providers:
-            return
-        existing_providers = globals._config.get("metadata", {}).get("providers", []) if globals._config else []
-        legacy_configs = {}
-        metadata = globals._config.get("metadata", {}) if globals._config else {}
-        for ptype in set(p.get("type", "") for p in new_providers):
-            legacy = metadata.get(ptype, {})
-            if isinstance(legacy, dict) and legacy.get("api_key"):
-                legacy_configs[ptype] = legacy
-        for new_p in new_providers:
-            ptype = new_p.get("type", "")
-            existing_p = None
-            for ep in existing_providers:
-                if ep.get("type") == ptype:
-                    existing_p = ep
-                    break
-            if not new_p.get("api_key") or new_p.get("api_key") == "***":
-                if existing_p and existing_p.get("api_key") and existing_p.get("api_key") != "***":
-                    new_p["api_key"] = existing_p["api_key"]
-                elif ptype in legacy_configs and legacy_configs[ptype].get("api_key"):
-                    new_p["api_key"] = legacy_configs[ptype]["api_key"]
 
     def _config_validate(self):
         try:
@@ -164,35 +105,27 @@ class ConfigHandlersMixin:
     def _config_check_permission(self, body: dict):
         try:
             from media_importer.monitor.permission_checker import check_config_permissions
-            cfg_to_check = body if body else (globals._config or {})
-            result = check_config_permissions(cfg_to_check)
+            result = build_config_permission_payload(
+                body,
+                globals._config,
+                check_config_permissions,
+            )
             json_response(self, 200, data=result, message="权限检测完成")
         except Exception as e:
             json_response(self, 500, message=f"权限检测异常: {e}")
 
     def _path_test(self, body: dict):
         try:
-            path = (body or {}).get("path", "").strip()
-            need_write = bool((body or {}).get("need_write", True))
-            if not path:
-                json_response(self, 400, message="path 参数必填")
-                return
             from media_importer.monitor.permission_checker import check_path_permission, get_current_user
-            result = check_path_permission(path, need_write=need_write)
-            result["user"] = get_current_user()
+            result = build_path_test_payload(body, check_path_permission, get_current_user)
             json_response(self, 200, data=result, message=result["message"])
+        except ValueError as e:
+            json_response(self, 400, message=str(e))
         except Exception as e:
             json_response(self, 500, message=f"路径测试异常: {e}")
 
     def _watcher_status(self):
-        if not globals._global_watcher:
-            json_response(self, 200, data={"enabled": False, "status": "not_started"})
-            return
-        json_response(self, 200, data={
-            "enabled": globals._global_watcher.is_running(),
-            "poll_interval": globals._global_watcher.poll_interval,
-            "status": "running" if globals._global_watcher.is_running() else "stopped"
-        })
+        json_response(self, 200, data=build_watcher_status_payload(globals._global_watcher))
 
     def _watcher_control(self, query):
         action = query.get("action", [None])[0]
