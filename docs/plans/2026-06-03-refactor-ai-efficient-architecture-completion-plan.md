@@ -175,6 +175,7 @@ confidence: medium
 - [x] 为任务删除高频动作建立 `features/tasks/delete_service.py` proof slice。
 - [x] `api/task_delete.py` 保留参数解析、错误包装、JSON 响应，不承载任务删除业务策略。
 - [x] 将启动扫描逻辑通过 `features.import_flow.scan_source_dir` 暴露给 API/CLI/watcher proof slice。
+- [x] 为 source cleaner API 建立 `features/source_cleaning/application_service.py` proof slice。
 - [ ] 继续为其他高频 API 动作建立 feature service 或 application function。
 - [ ] 继续薄化其他 API handler，保留参数解析、错误包装、JSON 响应。
 - [x] CLI 和 watcher 的扫描入口改为通过 `features.import_flow.scan_source_dir`，不再直接调用 `storage.file_scanner`。
@@ -183,18 +184,18 @@ confidence: medium
 
 ### Phase 5: 前端重做准备
 
-- [ ] 输出 `docs/product/frontend-information-architecture.md`。
-- [ ] 输出 `docs/architecture/frontend-api-dependency-map.md`。
-- [ ] 按页面列出 API、业务 feature、状态字段和测试入口。
-- [ ] 将当前超 500 行前端文件登记为重做输入，而不是继续局部修补。
-- [ ] 前端开工前先确定页面拆分、状态模型和 UI/E2E 验收方式。
+- [x] 输出 `docs/product/frontend-information-architecture.md`。
+- [x] 输出 `docs/architecture/frontend-api-dependency-map.md`。
+- [x] 按页面列出 API、业务 feature、状态字段和测试入口。
+- [x] 将当前超 500 行前端文件登记为重做输入，而不是继续局部修补。
+- [x] 前端开工前先确定页面拆分、状态模型和 UI/E2E 验收方式。
 
 ### Phase 6: 工程化护栏
 
-- [ ] 评估是否新增 `pyproject.toml` 管理 pytest、ruff/formatter、可选 typecheck。
-- [ ] 增加结构扫描测试，确保当前事实文档不引用 archived 文件作为事实来源。
-- [ ] 增加 dependency direction test，限制 API/feature/infra 的依赖方向。
-- [ ] 将工程化命令写入 `AGENTS.md` 和 `docs/standards/testing.md`。
+- [x] 评估是否新增 `pyproject.toml` 管理 pytest、ruff/formatter、可选 typecheck。当前结论：在 lint/typecheck 工具链未定前暂不新增，继续沿用 `pytest.ini`。
+- [x] 增加结构扫描测试，确保当前事实文档不引用 archived 文件作为事实来源。
+- [x] 增加 dependency direction test，限制 API/feature/infra 的依赖方向。
+- [x] 将工程化命令写入 `AGENTS.md` 和 `docs/standards/testing.md`。
 
 ## Acceptance Criteria
 

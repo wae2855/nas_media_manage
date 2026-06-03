@@ -16,6 +16,7 @@ from media_importer.core.db.cleaner_repo import (
 )
 from media_importer.features.source_cleaning import SourceCleaner
 from media_importer.features.source_cleaning import cleaner as feature_cleaner
+from media_importer.features.source_cleaning import collect_task_paths, execute_source_cleaning
 from media_importer.features.source_cleaning.records import (
     get_cleaner_records,
     save_cleaner_record,
@@ -99,6 +100,49 @@ class TestSourceCleaningFeatureCompatibility(unittest.TestCase):
         self.assertEqual(record["total_files"], 1)
         patched.assert_called_once()
         self.assertEqual(patched.call_args.args[0], junk_path)
+
+    def test_collect_task_paths_merges_video_import_and_subtitle_locations(self):
+        tasks = [
+            {
+                "source_path": "/source/a.mkv",
+                "video_path": "/temp/a.mkv",
+                "import_video_path": "/library/a.mkv",
+                "subtitle_files": [
+                    "/temp/a.srt",
+                    {"source_path": "/source/a.ass", "target_path": "/library/a.ass"},
+                ],
+            }
+        ]
+
+        with patch(
+            "media_importer.features.source_cleaning.application_service.list_all_tasks",
+            return_value=tasks,
+        ):
+            paths = collect_task_paths(conn=object())
+
+        self.assertEqual(
+            paths,
+            {
+                "/source/a.mkv",
+                "/temp/a.mkv",
+                "/library/a.mkv",
+                "/temp/a.srt",
+                "/library/a.ass",
+            },
+        )
+
+    def test_execute_source_cleaning_returns_permission_error_before_running_cleaner(self):
+        config = {"source_policy": {"recycle_dir": "/recycle"}}
+
+        result = execute_source_cleaning(
+            config=config,
+            conn=object(),
+            permission_check=lambda path, need_write=True: {"ok": False, "message": "denied"},
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIn("回收站目录权限不足", result.message)
+        self.assertIsNone(result.record)
 
 
 if __name__ == "__main__":

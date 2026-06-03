@@ -14,8 +14,8 @@
 | 新增 Provider | [features/providers.md](features/providers.md) | `features/providers/` | Provider/API 测试 | ADR 如影响架构 |
 | 修改提示词 | [features/prompts.md](features/prompts.md), [features/scraping.md](features/scraping.md) | `features/prompts/prompt_builder.py`, `scraper/llm_scraper.py`, prompt/provider API handlers | prompt/scrape 测试 | prompts 文档 |
 | 修改文件移动/删除 | [features/recycle.md](features/recycle.md), [standards/safety.md](standards/safety.md) | `features/recycle/`, `core/safety.py`, `storage/file_mover.py` | recycle/safety/e2e/feature smoke | recycle 文档和回归矩阵 |
-| 修改源目录清理 | [features/source-cleaning.md](features/source-cleaning.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `features/source_cleaning/`, `api/source_cleaner_handlers.py`, `webui/js/config.js` | source cleaner/recycle/config/feature smoke | source-cleaning 文档 |
-| 修改前端 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md), [architecture/api.md](architecture/api.md) | `webui/index.html`, `webui/js/`, `webui/css/` | Playwright 或相关 UI 测试 | API/产品/测试文档 |
+| 修改源目录清理 | [features/source-cleaning.md](features/source-cleaning.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `features/source_cleaning/`, `features/source_cleaning/application_service.py`, `api/source_cleaner_handlers.py`, `webui/js/config.js` | source cleaner/recycle/config/feature smoke | source-cleaning 文档 |
+| 修改前端 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md), [product/frontend-information-architecture.md](product/frontend-information-architecture.md), [architecture/frontend-api-dependency-map.md](architecture/frontend-api-dependency-map.md), [architecture/api.md](architecture/api.md) | `media_importer/webui/index.html`, `media_importer/webui/js/`, `media_importer/webui/css/` | Playwright 或相关 UI 测试 | API/产品/测试文档 |
 | 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md) | `deploy/build_fpk.sh`, root `media_importer/` | release smoke/build checks | deployment 文档 |
 
 ## Decision Flow
@@ -30,7 +30,7 @@
 
 ## Legacy Documents
 
-旧中文目录、历史方案和被替代计划已移入 `docs/_archive/`，不是当前事实入口。AI 只有在任务明确要求追溯历史或迁移 legacy 内容时才读取 archive。
+旧中文目录、历史方案和被替代计划已移入归档目录，不是当前事实入口。AI 只有在任务明确要求追溯历史或迁移 legacy 内容时才读取 archive。
 
 当前架构事实优先看：
 

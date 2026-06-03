@@ -9,7 +9,7 @@
 | 快速了解项目结构 | [INDEX.md](INDEX.md) |
 | AI 要判断改哪里 | [ai-map.md](ai-map.md) |
 | 了解产品目标和术语 | [product/overview.md](product/overview.md) |
-| 查看前端重做待办 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md) |
+| 查看前端重做待办 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md), [product/frontend-information-architecture.md](product/frontend-information-architecture.md), [architecture/frontend-api-dependency-map.md](architecture/frontend-api-dependency-map.md) |
 | 查看当前架构地图 | [architecture/overview.md](architecture/overview.md) |
 | 查看业务功能说明 | [features/](features/) |
 | 查看仓库结构和归档规则 | [architecture/repository-structure.md](architecture/repository-structure.md), [architecture/archive-policy.md](architecture/archive-policy.md) |

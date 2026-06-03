@@ -31,7 +31,7 @@ Import flow 已引入：
 
 当前 `TaskContext` 和 `TaskLifecycle` 已接入 runner、confirm 和 retry 逻辑。分类、去重、导入、源文件清理和审核决策已从 step 内抽成 service；step 主要保留进度、日志和 DB 状态写入。
 
-`media_importer/features/import_flow/` 是入库流程业务域入口。旧 `media_importer/pipeline/` 包装层已归档到 `docs/_archive/2026-06-02-feature-first-reorg/code/media_importer/pipeline/`，不再作为当前可导入入口。新代码、测试和文档必须直接使用 `media_importer.features.import_flow`。
+`media_importer/features/import_flow/` 是入库流程业务域入口。旧 `media_importer/pipeline/` 包装层已归档，不再作为当前可导入入口。新代码、测试和文档必须直接使用 `media_importer.features.import_flow`。
 
 ## Change Guide
 

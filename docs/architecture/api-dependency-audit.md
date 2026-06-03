@@ -14,7 +14,7 @@
 | `dimension_handlers.py` | `core.db`, `features.scraping` | Dimension repository should become feature/infrastructure facade. |
 | `provider_handlers.py` | `features.providers` | Acceptable direction. |
 | `prompt_handlers.py` | prompt file operations and API utilities | Candidate for `features.prompts` service. |
-| `source_cleaner_handlers.py` | `features.source_cleaning`, `monitor.permission_checker`, `core.db.task_repo` | Cleaner actions are feature-backed; task path listing and permission check remain pending. |
+| `source_cleaner_handlers.py` | `features.source_cleaning`, `monitor.permission_checker` | Task path listing, status shaping, records access, and execute orchestration now route through `features.source_cleaning.application_service`; permission check remains infrastructure-bound. |
 | `tmdb_handlers.py` | `features.scraping`, `features.providers` | Acceptable for current scraping/provider proof slice. |
 | `recycle_handlers.py` | `features.recycle` | Acceptable direction. |
 

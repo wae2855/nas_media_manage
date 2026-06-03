@@ -20,4 +20,4 @@
 
 ## Current Status
 
-Registered as future work. Do not treat old UI tests as final frontend acceptance criteria.
+Planning baseline is now available in [frontend-information-architecture.md](frontend-information-architecture.md) and [../architecture/frontend-api-dependency-map.md](../architecture/frontend-api-dependency-map.md). Do not treat old UI tests as final frontend acceptance criteria.

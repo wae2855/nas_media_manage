@@ -7,6 +7,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/source_cleaning/cleaner.py` | Preview and execute source cleanup decisions. |
+| `media_importer/features/source_cleaning/application_service.py` | Feature application entry for preview, execute, status, records, and task-path aggregation. |
 | `media_importer/features/source_cleaning/records.py` | Cleaner record repository facade. |
 | `media_importer/storage/source_cleaner.py` | Compatibility wrapper for old imports. |
 | `media_importer/api/source_cleaner_handlers.py` | HTTP actions for preview, execute, records, and status. |
@@ -27,4 +28,5 @@
 ## Migration Notes
 
 - New code should import from `media_importer.features.source_cleaning`.
+- API/CLI style callers should prefer `application_service.py` instead of reassembling task paths or status payloads themselves.
 - If cleanup categories change, update `docs/architecture/source-cleaner.md`, API docs, and UI wording together.

@@ -24,7 +24,7 @@
 | `media_importer/storage/` | 扫描、复制、移动、去重、分类、源目录清理 | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | 文件处理测试 |
 | `media_importer/monitor/` | 文件监控、权限检查 | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | 权限/配置测试 |
 | `media_importer/notify/` | Hermes 和 hook 通知 | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | 通知测试 |
-| `media_importer/webui/` | 原生 HTML/CSS/JS 前端，后续单独重做 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md) | [architecture/api.md](architecture/api.md) | Playwright UI 测试 |
+| `media_importer/webui/` | 原生 HTML/CSS/JS 前端，后续单独重做 | [product/frontend-redesign-todo.md](product/frontend-redesign-todo.md), [product/frontend-information-architecture.md](product/frontend-information-architecture.md) | [architecture/api.md](architecture/api.md), [architecture/frontend-api-dependency-map.md](architecture/frontend-api-dependency-map.md) | Playwright UI 测试 |
 
 ## Change Impact Checklist
 
@@ -35,13 +35,13 @@
 | 修改任务状态 | `features/tasks.md`, `architecture/task-lifecycle.md`, `testing/regression-matrix.md` |
 | 修改文件删除/覆盖逻辑 | `standards/safety.md`, `architecture/storage-filesystem.md`, 回收站测试 |
 | 新增 Provider | `features/providers.md`, `architecture/scraping.md`, Provider 测试 |
-| 修改前端页面 | `product/frontend-redesign-todo.md`, API 文档，UI 测试 |
+| 修改前端页面 | `product/frontend-redesign-todo.md`, `product/frontend-information-architecture.md`, `architecture/frontend-api-dependency-map.md`, UI 测试 |
 | 新增或迁移 feature | 对应 `docs/features/` 文档、feature smoke 测试、ADR/plan 状态 |
 | 大架构重构 | 新增 ADR，更新 roadmap/plan 和相关架构文档 |
 
 ## Current Plans
 
-- [AI-efficient architecture completion](plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md) — pending review
+- [AI-efficient architecture completion](plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md) — in progress
 - [Feature-first 代码和文档结构重组](plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md) — complete, pending user acceptance
 
 ## Archive

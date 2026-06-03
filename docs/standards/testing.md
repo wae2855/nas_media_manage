@@ -11,7 +11,9 @@
 ```bash
 pytest tests/
 pytest tests/test_feature_import_flow.py
+pytest tests/test_architecture_guards.py
 pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
+PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python3 -m compileall -q media_importer tests
 ```
 
 ## Before Refactor
@@ -28,3 +30,9 @@ pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ig
 - 是否通过；
 - 未跑测试的原因；
 - 已知失败是否与本次变更无关。
+
+## Architecture Guardrails
+
+- 结构或文档重构后，优先运行 `tests/test_feature_entrypoints.py` 和 `tests/test_architecture_guards.py`。
+- `tests/test_architecture_guards.py` 用于防止当前事实文档重新引用 archive 作为事实来源，并限制关键入口回退到旧 `storage/` 业务路径。
+- 在未确定 lint/typecheck 工具链前，暂不新增 `pyproject.toml`；当前仍以 `pytest.ini` 维持 pytest 配置。

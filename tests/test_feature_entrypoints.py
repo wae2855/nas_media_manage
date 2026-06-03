@@ -77,6 +77,12 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.source_cleaning import cleaner as _cleaner",
             "sys.modules[__name__] = _cleaner",
         ],
+        root / "media_importer" / "api" / "source_cleaner_handlers.py": [
+            "from media_importer.features.source_cleaning.application_service import (",
+            "preview_source_cleaning",
+            "execute_source_cleaning",
+            "get_source_cleaner_status",
+        ],
         root / "media_importer" / "features" / "scraping" / "metadata_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
             "from media_importer.features.providers import create_providers",
@@ -114,6 +120,7 @@ def test_feature_consumers_use_feature_public_apis():
         "from media_importer.core.config_view import ConfigView",
         "from media_importer.scraper.dimension_manager import",
         "from media_importer.scraper.tmdb_client import",
+        "from media_importer.core.db.task_repo import list_all_tasks",
     ]
 
     for path, imports in expected_imports.items():

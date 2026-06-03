@@ -51,13 +51,19 @@ pytest tests/
 # 单个测试文件
 pytest tests/test_feature_import_flow.py
 
+# 架构/依赖方向护栏
+pytest tests/test_architecture_guards.py
+
 # 非 UI 测试
 pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
+
+# 编译检查
+PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python3 -m compileall -q media_importer tests
 ```
 
 测试前注意：
 
-- 项目没有 `pyproject.toml`，没有统一 lint/formatter/typecheck 配置。
+- 当前仍未新增 `pyproject.toml`；在 lint/formatter/typecheck 工具链明确前，继续使用 `pytest.ini` 和文档化命令。
 - UI 测试依赖 Playwright 模块、浏览器二进制和本地运行服务。
 - 许多测试可能已有历史失败，改动前先看 `.pytest_cache/v/cache/lastfailed`。
 
@@ -151,4 +157,4 @@ media_importer/
 - 历史文档、旧方案、旧测试脚本和生成物统一归档，当前文档不得引用归档内容作为事实。
 - 前端重做和深层 UI/E2E 测试在代码与文档架构稳定后单独展开。
 
-当前执行计划见 [docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md](docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md)，架构决策见 [docs/decisions/0004-feature-first-architecture-restructure.md](docs/decisions/0004-feature-first-architecture-restructure.md)。
+当前执行计划见 [docs/plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md](docs/plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md)，上一轮重组基线见 [docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md](docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md)，架构决策见 [docs/decisions/0004-feature-first-architecture-restructure.md](docs/decisions/0004-feature-first-architecture-restructure.md)。
