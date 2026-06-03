@@ -6,12 +6,12 @@ from media_importer.features.configuration import (
     build_path_test_payload,
     build_section_config_update,
     build_watcher_status_payload,
+    apply_runtime_config,
     load_config,
+    restart_watcher,
 )
 from media_importer.api import globals
 from media_importer.features.configuration import validate_config
-from media_importer.notify.hermes_hook import HermesNotifier
-from media_importer.monitor.file_watcher import FileWatcher
 from media_importer.core.db import list_tasks as db_list
 from .config_save import save_config
 from .utils import json_response
@@ -58,49 +58,26 @@ class ConfigHandlersMixin:
             globals._config.clear()
             globals._config.update(new_config)
 
-            if globals._global_pipeline:
-                globals._global_pipeline.config = globals._config
-                from media_importer.features.scraping import LLMScraper
-                globals._global_pipeline.scraper = LLMScraper(globals._config)
-                globals._global_pipeline.copier = type(globals._global_pipeline.copier)(globals._config.get('temp_dir', ''))
-
-            hermes_cfg = globals._config.get("hermes", {})
-            if hermes_cfg.get("enabled", False):
-                globals._global_notifier = HermesNotifier(globals._config)
-            else:
-                globals._global_notifier = None
-
-            if globals._global_pipeline:
-                globals._global_pipeline.notifier = globals._global_notifier
-
-            self._reload_watcher()
+            components = apply_runtime_config(
+                globals._config,
+                globals._global_pipeline,
+                current_watcher=globals._global_watcher,
+                logger=globals._global_logger,
+            )
+            globals._global_notifier = components.notifier
+            globals._global_watcher = components.watcher
 
             json_response(self, 200, message="配置已重载并生效")
         except Exception as e:
             json_response(self, 500, message="配置重载失败: " + str(e))
 
     def _reload_watcher(self):
-
-        if globals._global_watcher:
-            globals._global_watcher.stop()
-            globals._global_watcher = None
-
-        watcher_cfg = globals._config.get("file_watcher", {})
-        if watcher_cfg.get("enabled", False):
-            def on_new_files(new_files):
-                if globals._global_pipeline and not globals._global_pipeline.is_paused():
-                    try:
-                        globals._global_pipeline.run_all()
-                    except Exception as e:
-                        globals._global_logger.error("批量处理异常: " + str(e))
-
-            globals._global_watcher = FileWatcher(globals._config, on_new_files=on_new_files, logger=globals._global_logger)
-            globals._global_watcher.start()
-            globals._global_logger.info("文件监控已应用新配置并重启: "
-                                f"enabled={watcher_cfg.get('enabled')}, "
-                                f"poll_interval={watcher_cfg.get('poll_interval')}s")
-        else:
-            globals._global_logger.info("文件监控已停用（配置 enabled=false）")
+        globals._global_watcher = restart_watcher(
+            globals._config,
+            current_watcher=globals._global_watcher,
+            pipeline=globals._global_pipeline,
+            logger=globals._global_logger,
+        )
 
     def _config_check_permission(self, body: dict):
         try:

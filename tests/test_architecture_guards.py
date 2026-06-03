@@ -98,3 +98,13 @@ def test_prompt_file_operations_live_in_prompts_feature():
         assert "ruamel.yaml" not in source
         assert "yaml.safe_load" not in source
         assert "system_prompt:" not in source
+
+
+def test_config_handler_delegates_runtime_component_refresh():
+    source = (
+        ROOT / "media_importer" / "api" / "config_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "apply_runtime_config" in source
+    assert "restart_watcher" in source
+    assert "from media_importer.notify.hermes_hook import HermesNotifier" not in source
+    assert "from media_importer.monitor.file_watcher import FileWatcher" not in source

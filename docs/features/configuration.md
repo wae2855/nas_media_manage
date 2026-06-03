@@ -8,6 +8,7 @@
 |------|------|
 | `media_importer/features/configuration/__init__.py` | Feature public API for config loading, validation, masking, and `ConfigView`. |
 | `media_importer/features/configuration/application_service.py` | UI payload shaping, section-save splitting, permission/path payload assembly, and watcher status projection. |
+| `media_importer/features/configuration/runtime_service.py` | Runtime refresh service for pipeline config, scraper, copier, Hermes notifier, and file watcher after config reload. |
 | `media_importer/core/config_loader.py` | Load YAML config and defaults. |
 | `media_importer/core/config_migrations.py` | Apply config migrations. |
 | `media_importer/core/config_validator.py` | Validate config shape and values. |
@@ -19,6 +20,7 @@
 
 - App/API entrypoints import load, validation, masking, and `ConfigView` through `media_importer.features.configuration`.
 - Config API handlers now call feature application helpers for UI config payloads, section updates, permission checks, path tests, and watcher status payloads.
+- Config reload now calls configuration runtime helpers for pipeline/notifier/watcher refresh instead of constructing those components in the API handler.
 - Scraping/provider implementations and storage scanner use `ConfigView` through the configuration feature entry, not direct `core.config_view` imports.
 - Low-level `core/config_*` files remain implementation details until they are moved into feature-owned or infrastructure modules.
 

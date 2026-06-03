@@ -6,6 +6,12 @@ from .application_service import (
     build_section_config_update,
     build_watcher_status_payload,
 )
+from .runtime_service import (
+    RuntimeComponents,
+    apply_runtime_config,
+    build_notifier,
+    restart_watcher,
+)
 from media_importer.core.config_loader import (
     copy_config_template,
     load_config,
@@ -39,6 +45,10 @@ __all__ = [
     "build_path_test_payload",
     "build_section_config_update",
     "build_watcher_status_payload",
+    "RuntimeComponents",
+    "apply_runtime_config",
+    "build_notifier",
+    "restart_watcher",
     "check_path",
     "copy_config_template",
     "load_config",

@@ -177,6 +177,7 @@ confidence: medium
 - [x] 将启动扫描逻辑通过 `features.import_flow.scan_source_dir` 暴露给 API/CLI/watcher proof slice。
 - [x] 为 source cleaner API 建立 `features/source_cleaning/application_service.py` proof slice。
 - [x] 为 config handler 建立 `features/configuration/application_service.py` proof slice，承接 UI payload、section save、permission/path payload 和 watcher status。
+- [x] 为 config reload 建立 `features/configuration/runtime_service.py` proof slice，承接 pipeline/notifier/watcher 刷新。
 - [x] 为 dimension handler 建立 `features/scraping/dimensions_service.py` proof slice，承接维度 CRUD 和 tier 校验。
 - [x] 为 prompt/provider prompt handler 建立 `features/prompts/application_service.py` proof slice，承接全局和 Provider-specific prompt 文件读写。
 - [ ] 继续为其他高频 API 动作建立 feature service 或 application function。

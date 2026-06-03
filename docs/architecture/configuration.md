@@ -5,6 +5,7 @@
 - 配置格式：YAML。
 - 业务入口：`media_importer/features/configuration/`。
 - 应用层辅助：`media_importer/features/configuration/application_service.py`。
+- 运行时刷新：`media_importer/features/configuration/runtime_service.py`。
 - 加载实现：`media_importer/core/config_loader.py`。
 - 自动迁移：`media_importer/core/config_migrations.py`。
 - 校验入口：`media_importer/core/config_validator.py`。
@@ -43,4 +44,4 @@ config.yaml.example
 
 新增配置项时，loader/migration/validator 仍负责配置文件生命周期；业务代码优先通过 `ConfigView` 读取，避免散落深层 `config.get(...)`。
 
-当前 `config_handlers.py` 中的 UI 配置投影、分区保存拆分、权限检查请求组装、路径测试结果组装和 watcher 状态投影已下沉到 configuration feature application service；`reload` 和 watcher/notifier 全局编排仍待后续继续薄化。
+当前 `config_handlers.py` 中的 UI 配置投影、分区保存拆分、权限检查请求组装、路径测试结果组装和 watcher 状态投影已下沉到 configuration feature application service；配置重载后的 pipeline/notifier/watcher 刷新已下沉到 runtime service。API handler 仍保留全局对象引用赋值，后续如新增 application state 容器再继续收口。

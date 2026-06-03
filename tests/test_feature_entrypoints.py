@@ -47,6 +47,8 @@ def test_feature_consumers_use_feature_public_apis():
             "build_config_permission_payload",
             "build_path_test_payload",
             "build_watcher_status_payload",
+            "apply_runtime_config",
+            "restart_watcher",
         ],
         root / "media_importer" / "api" / "tmdb_handlers.py": [
             "from media_importer.features.scraping import TMDbClient",
@@ -164,6 +166,8 @@ def test_feature_public_apis_are_importable():
         build_path_test_payload,
         build_section_config_update,
         build_watcher_status_payload,
+        apply_runtime_config,
+        restart_watcher,
     )
     from media_importer.features.import_flow import FileScanner, scan_source_dir
     from media_importer.features.import_flow.services.classification_rules import classify
@@ -214,6 +218,8 @@ def test_feature_public_apis_are_importable():
     assert build_config_permission_payload.__module__ == "media_importer.features.configuration.application_service"
     assert build_path_test_payload.__module__ == "media_importer.features.configuration.application_service"
     assert build_watcher_status_payload.__module__ == "media_importer.features.configuration.application_service"
+    assert apply_runtime_config.__module__ == "media_importer.features.configuration.runtime_service"
+    assert restart_watcher.__module__ == "media_importer.features.configuration.runtime_service"
     assert FileScanner.__module__ == "media_importer.features.import_flow.scan_service"
     assert scan_source_dir.__module__ == "media_importer.features.import_flow.scan_service"
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
