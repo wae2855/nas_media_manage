@@ -37,4 +37,4 @@
 
 源目录扫描和任务感知过滤真实实现位于 `media_importer/features/import_flow/scan_service.py`。旧 `storage/file_scanner.py` 仅保留为兼容导入。
 
-文件名模板和字幕命名规则真实实现位于 `media_importer/features/import_flow/services/naming.py`。`storage/file_mover.py` 保留文件移动与删除相关能力，并复用该命名规则。
+文件名模板和字幕命名规则真实实现位于 `media_importer/features/import_flow/services/naming.py`。入库移动、源文件安全删除、附属文件识别和空父目录清理真实实现位于 `media_importer/features/import_flow/services/file_operations.py`。`storage/file_mover.py` 仅保留兼容 wrapper。

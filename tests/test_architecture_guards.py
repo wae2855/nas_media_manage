@@ -53,6 +53,9 @@ def test_import_flow_rules_do_not_import_legacy_storage_business_helpers():
         ROOT / "media_importer" / "features" / "import_flow" / "steps" / "file.py",
         ROOT / "media_importer" / "features" / "import_flow" / "services" / "classification.py",
         ROOT / "media_importer" / "features" / "import_flow" / "services" / "dedup.py",
+        ROOT / "media_importer" / "features" / "import_flow" / "services" / "import_service.py",
+        ROOT / "media_importer" / "features" / "import_flow" / "services" / "source_cleanup.py",
+        ROOT / "media_importer" / "features" / "import_flow" / "runner.py",
     ]
 
     forbidden = [
@@ -60,6 +63,8 @@ def test_import_flow_rules_do_not_import_legacy_storage_business_helpers():
         "from media_importer.storage.dedup_checker import",
         "from media_importer.storage.file_scanner import",
         "from media_importer.storage.file_mover import apply_filename_template",
+        "from media_importer.storage.file_mover import move_to_import",
+        "from media_importer.storage.file_mover import delete_source_files",
     ]
 
     for path in paths:

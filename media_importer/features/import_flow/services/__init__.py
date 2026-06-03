@@ -1,6 +1,15 @@
 from .classification import ClassificationResult, ClassificationService
 from .dedup import DedupDecision, DedupService
 from .import_service import ImportResult, ImportService
+from .file_operations import (
+    cleanup_source_non_media,
+    delete_source_files,
+    delete_source_with_companions,
+    find_companion_files,
+    move_to_import,
+    move_with_cross_device_fallback,
+    remove_empty_parent_dir,
+)
 from .naming import (
     apply_filename_template,
     apply_subtitle_template,
@@ -16,6 +25,13 @@ __all__ = [
     "DedupService",
     "ImportResult",
     "ImportService",
+    "cleanup_source_non_media",
+    "delete_source_files",
+    "delete_source_with_companions",
+    "find_companion_files",
+    "move_to_import",
+    "move_with_cross_device_fallback",
+    "remove_empty_parent_dir",
     "apply_filename_template",
     "apply_subtitle_template",
     "detect_subtitle_lang",

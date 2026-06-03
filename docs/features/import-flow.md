@@ -36,6 +36,7 @@
 - Classification rules and template rendering belong to `features/import_flow/services/classification_rules.py`; `storage/classifier.py` is only a compatibility alias.
 - Dedup rules belong to `features/import_flow/services/dedup_rules.py`; `storage/dedup_checker.py` is only a compatibility alias.
 - Scan orchestration belongs to `features/import_flow/scan_service.py`; `storage/file_scanner.py` is only a compatibility alias.
-- Filename and subtitle naming rules belong to `features/import_flow/services/naming.py`; `storage/file_mover.py` only keeps move/delete mechanics and compatibility exports.
+- Filename and subtitle naming rules belong to `features/import_flow/services/naming.py`.
+- Import move/delete mechanics belong to `features/import_flow/services/file_operations.py`; `storage/file_mover.py` only keeps compatibility exports.
 - File copy infrastructure should be imported from `media_importer.infrastructure.filesystem`.
 - Behavior changes must update `docs/architecture/import-pipeline.md` and this file together.

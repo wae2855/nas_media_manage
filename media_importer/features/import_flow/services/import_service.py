@@ -7,7 +7,7 @@ from media_importer.core.db import (
     update_subtitle as db_update_subtitle,
 )
 from media_importer.features.configuration import ConfigView
-from media_importer.storage.file_mover import move_to_import
+from .file_operations import move_to_import
 from .paths import allowed_dirs_from_config
 from .source_cleanup import SourceCleanupResult, SourceCleanupService
 

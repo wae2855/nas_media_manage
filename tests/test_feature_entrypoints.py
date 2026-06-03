@@ -61,6 +61,7 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "features" / "import_flow" / "runner.py": [
             "from media_importer.infrastructure.filesystem import FileCopier",
             "from media_importer.features.import_flow.scan_service import FileScanner",
+            "from media_importer.features.import_flow.services.file_operations import delete_source_files",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "classification.py": [
             "from .classification_rules import classify, render_template",
@@ -70,6 +71,12 @@ def test_feature_consumers_use_feature_public_apis():
         ],
         root / "media_importer" / "features" / "import_flow" / "steps" / "file.py": [
             "from media_importer.features.import_flow.services.naming import apply_filename_template",
+        ],
+        root / "media_importer" / "features" / "import_flow" / "services" / "import_service.py": [
+            "from .file_operations import move_to_import",
+        ],
+        root / "media_importer" / "features" / "import_flow" / "services" / "source_cleanup.py": [
+            "from .file_operations import delete_source_files, remove_empty_parent_dir",
         ],
         root / "media_importer" / "storage" / "classifier.py": [
             "from media_importer.features.import_flow.services.classification_rules import",
@@ -87,7 +94,8 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.import_flow import scan_source_dir",
         ],
         root / "media_importer" / "storage" / "file_mover.py": [
-            "from media_importer.features.import_flow.services.naming import",
+            "from media_importer.features.import_flow.services.file_operations import (",
+            "from media_importer.features.import_flow.services.naming import (",
         ],
         root / "media_importer" / "storage" / "source_cleaner.py": [
             "from media_importer.features.source_cleaning import cleaner as _cleaner",
@@ -173,6 +181,7 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.import_flow import FileScanner, scan_source_dir
     from media_importer.features.import_flow.services.classification_rules import classify
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
+    from media_importer.features.import_flow.services.file_operations import move_to_import
     from media_importer.features.import_flow.services.naming import apply_filename_template
     from media_importer.features.source_cleaning import SourceCleaner
     from media_importer.features.tasks import delete_task
@@ -226,6 +235,7 @@ def test_feature_public_apis_are_importable():
     assert scan_source_dir.__module__ == "media_importer.features.import_flow.scan_service"
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
     assert check_duplicate.__module__ == "media_importer.features.import_flow.services.dedup_rules"
+    assert move_to_import.__module__ == "media_importer.features.import_flow.services.file_operations"
     assert apply_filename_template.__module__ == "media_importer.features.import_flow.services.naming"
     assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
     assert delete_task.__module__ == "media_importer.features.tasks.delete_service"
