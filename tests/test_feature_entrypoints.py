@@ -127,6 +127,18 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "scraper" / "llm_prompts.py": [
             "from media_importer.features.prompts.prompt_builder import LLMPromptBuilder",
         ],
+        root / "media_importer" / "api" / "prompt_handlers.py": [
+            "from media_importer.features.prompts import (",
+            "load_global_prompt_for_ui",
+            "save_global_prompt",
+            "reset_global_prompt",
+        ],
+        root / "media_importer" / "api" / "provider_handlers.py": [
+            "from media_importer.features.prompts import (",
+            "load_provider_prompt_for_ui",
+            "save_provider_prompt",
+            "reset_provider_prompt",
+        ],
     }
 
     forbidden_imports = [
@@ -166,6 +178,14 @@ def test_feature_public_apis_are_importable():
         get_provider_class,
     )
     from media_importer.features.prompts import LLMPromptBuilder
+    from media_importer.features.prompts import (
+        load_global_prompt_for_ui,
+        load_provider_prompt_for_ui,
+        reset_global_prompt,
+        reset_provider_prompt,
+        save_global_prompt,
+        save_provider_prompt,
+    )
     from media_importer.features.scraping import (
         CleanResult,
         ConfidenceEngine,
@@ -233,3 +253,9 @@ def test_feature_public_apis_are_importable():
     assert TMDbProvider.__module__ == "media_importer.features.providers.tmdb_provider"
     assert LLMPromptBuilder is not None
     assert LLMPromptBuilder.__module__ == "media_importer.features.prompts.prompt_builder"
+    assert load_global_prompt_for_ui.__module__ == "media_importer.features.prompts.application_service"
+    assert load_provider_prompt_for_ui.__module__ == "media_importer.features.prompts.application_service"
+    assert save_global_prompt.__module__ == "media_importer.features.prompts.application_service"
+    assert save_provider_prompt.__module__ == "media_importer.features.prompts.application_service"
+    assert reset_global_prompt.__module__ == "media_importer.features.prompts.application_service"
+    assert reset_provider_prompt.__module__ == "media_importer.features.prompts.application_service"

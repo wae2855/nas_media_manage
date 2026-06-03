@@ -7,6 +7,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/prompts/__init__.py` | Feature public API for prompt builder and LLM prompt defaults. |
+| `media_importer/features/prompts/application_service.py` | Prompt file load/save/reset service for global and provider-specific prompts. |
 | `media_importer/features/prompts/prompt_builder.py` | Prompt template loading and JSON schema rendering. |
 | `media_importer/scraper/llm_prompts.py` | Thin legacy import wrapper for `LLMPromptBuilder`. |
 | `media_importer/scraper/llm_scraper.py` | Builds prompts and parses LLM responses. |
@@ -21,7 +22,7 @@
 
 ## Target Shape
 
-- Keep prompt template ownership in `features/prompts/`.
+- Keep prompt template and prompt file ownership in `features/prompts/`.
 - New prompt API code should import from `media_importer.features.prompts`.
-- Keep provider-specific API calls outside prompt template logic.
+- Keep provider-specific API calls outside prompt template logic; provider prompt file names and defaults are resolved through the prompts feature service.
 - Record any prompt contract change in scraping docs and tests.

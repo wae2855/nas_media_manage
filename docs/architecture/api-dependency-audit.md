@@ -13,7 +13,7 @@
 | `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
 | `dimension_handlers.py` | `features.scraping` | Dimension CRUD and tier checks now route through `features.scraping.dimensions_service`; handler no longer imports dimension DB functions directly. |
 | `provider_handlers.py` | `features.providers` | Acceptable direction. |
-| `prompt_handlers.py` | prompt file operations and API utilities | Candidate for `features.prompts` service. |
+| `prompt_handlers.py` | `features.prompts`, API utilities | Global prompt file load/save/reset now routes through `features.prompts.application_service`. |
 | `source_cleaner_handlers.py` | `features.source_cleaning`, `monitor.permission_checker` | Task path listing, status shaping, records access, and execute orchestration now route through `features.source_cleaning.application_service`; permission check remains infrastructure-bound. |
 | `tmdb_handlers.py` | `features.scraping`, `features.providers` | Acceptable for current scraping/provider proof slice. |
 | `recycle_handlers.py` | `features.recycle` | Acceptable direction. |
@@ -28,5 +28,5 @@ Startup scan in `api/handler.py` now imports `scan_source_dir` from `media_impor
 
 - Move watcher construction and callback orchestration behind an application/feature service.
 - Move dimension API DB calls behind a dimension feature/repository facade.
-- Move prompt file read/write behavior into `features/prompts`.
+- Continue thinning provider/config global orchestration after prompt file operations were moved into `features/prompts`.
 - Move config permission checks into configuration/infrastructure services.

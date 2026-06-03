@@ -33,7 +33,7 @@ filename -> filename cleaner -> provider search/details -> LLM normalization -> 
 
 `MetadataScraper` 是 import-flow 使用的刮削门面，真实实现位于 `media_importer/features/scraping/metadata_scraper.py`。它协调文件名清洗、Provider 查询、LLM 结构化和置信度计算。
 
-`LLMScraper` 负责 LLM 调用和响应解析。提示词模板构建真实实现位于 `media_importer/features/prompts/prompt_builder.py`，提示词文件由配置目录加载，Provider-specific prompts 由相关 API handler 维护。
+`LLMScraper` 负责 LLM 调用和响应解析。提示词模板构建真实实现位于 `media_importer/features/prompts/prompt_builder.py`，提示词文件读写和 Provider-specific prompts 由 `media_importer/features/prompts/application_service.py` 维护。
 
 `ConfidenceEngine` 负责把刮削结果、搜索置信度和数据来源门控转换为置信度等级，真实实现位于 `media_importer/features/scraping/confidence_engine.py`，共享模型位于 `media_importer/features/scraping/confidence_models.py`。import-flow 的最终审核动作由 `ReviewDecisionService` 决定。
 

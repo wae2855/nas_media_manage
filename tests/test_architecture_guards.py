@@ -82,3 +82,19 @@ def test_dimension_api_handler_uses_feature_dimension_service():
     ).read_text(encoding="utf-8")
     assert "from media_importer.features.scraping import (" in source
     assert "from media_importer.core.db import (" not in source
+
+
+def test_prompt_file_operations_live_in_prompts_feature():
+    prompt_handler = (
+        ROOT / "media_importer" / "api" / "prompt_handlers.py"
+    ).read_text(encoding="utf-8")
+    provider_handler = (
+        ROOT / "media_importer" / "api" / "provider_handlers.py"
+    ).read_text(encoding="utf-8")
+
+    assert "from media_importer.features.prompts import (" in prompt_handler
+    assert "from media_importer.features.prompts import (" in provider_handler
+    for source in (prompt_handler, provider_handler):
+        assert "ruamel.yaml" not in source
+        assert "yaml.safe_load" not in source
+        assert "system_prompt:" not in source

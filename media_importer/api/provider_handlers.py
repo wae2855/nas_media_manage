@@ -3,6 +3,11 @@ import time
 import copy
 
 from media_importer.api import globals
+from media_importer.features.prompts import (
+    load_provider_prompt_for_ui,
+    reset_provider_prompt,
+    save_provider_prompt,
+)
 from .utils import json_response
 
 
@@ -217,115 +222,23 @@ class ProviderHandlersMixin:
             json_response(self, 500, message=f"详情获取异常: {str(e)}")
 
     def _provider_prompts_get(self, provider_type: str):
-        from media_importer.features.scraping import LLMScraper
-
-        default_prompt = LLMScraper._get_default_provider_prompt(provider_type)
-
         config_path = globals._config.get("_config_path") if globals._config else None
-        if config_path:
-            prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-        else:
-            prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-        from media_importer.features.providers import get_provider_class
-        cls = get_provider_class(provider_type)
-        prompt_filename = f"{provider_type}_prompts.md"
-        if cls and hasattr(cls, "provider_type"):
-            prompt_filename = f"{cls.provider_type}_prompts.md"
-        user_file = os.path.join(prompts_dir, "config", prompt_filename)
-
-        custom_prompt = ""
-        using_custom = False
-
-        if os.path.isfile(user_file):
-            try:
-                import yaml as _yaml
-                with open(user_file, "r", encoding="utf-8") as f:
-                    content = f.read()
-                if "system_prompt:" in content:
-                    data = _yaml.safe_load(content)
-                    if data and isinstance(data, dict):
-                        custom_prompt = (data.get("system_prompt") or "").strip()
-                        using_custom = bool(custom_prompt)
-            except Exception:
-                pass
-
-        system_prompt = custom_prompt if custom_prompt else default_prompt
-
-        json_response(self, 200, data={
-            "system_prompt": system_prompt,
-            "using_custom": using_custom,
-        })
+        json_response(self, 200, data=load_provider_prompt_for_ui(config_path, provider_type))
 
     def _provider_prompts_save(self, body: dict, provider_type: str):
         try:
-            if not body:
-                json_response(self, 400, message="Empty body")
-                return
-
-            system_prompt = body.get("system_prompt", "").strip()
-
             config_path = globals._config.get("_config_path") if globals._config else None
-            if config_path:
-                prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-            else:
-                prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-            from media_importer.features.providers import get_provider_class
-            cls = get_provider_class(provider_type)
-            prompt_filename = f"{provider_type}_prompts.md"
-            if cls and hasattr(cls, "provider_type"):
-                prompt_filename = f"{cls.provider_type}_prompts.md"
-            prompts_file = os.path.join(prompts_dir, "config", prompt_filename)
-
-            display_name = cls.display_name if cls else provider_type
-            head_comment = f"""# ============================================================
-# LLM+{display_name} 刮削提示词配置
-# ============================================================
-# 当 {display_name} API 命中元数据后，使用此提示词让 AI 整理/校验 {display_name} 数据
-# 程序会自动追加维度列表和 JSON Schema，此文件只需编写上半部
-# 如需恢复出厂默认，点击 WebUI 中的 "重置为默认" 即可
-
-"""
-
-            from ruamel.yaml import YAML
-            from ruamel.yaml.scalarstring import LiteralScalarString
-
-            yaml = YAML()
-            yaml.preserve_quotes = True
-            yaml.width = 120
-
-            doc = {}
-            if system_prompt:
-                doc["system_prompt"] = LiteralScalarString(system_prompt)
-
-            with open(prompts_file, "w", encoding="utf-8") as f:
-                f.write(head_comment)
-                yaml.dump(doc, f)
-
+            display_name = save_provider_prompt(config_path, provider_type, body)
             json_response(self, 200, message=f"LLM+{display_name} 提示词已保存，重启服务后生效")
+        except ValueError as e:
+            json_response(self, 400, message=str(e))
         except Exception as e:
             json_response(self, 500, message=f"保存提示词失败: {str(e)}")
 
     def _provider_prompts_reset(self, body: dict, provider_type: str):
         try:
             config_path = globals._config.get("_config_path") if globals._config else None
-            if config_path:
-                prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-            else:
-                prompts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-            from media_importer.features.providers import get_provider_class
-            cls = get_provider_class(provider_type)
-            prompt_filename = f"{provider_type}_prompts.md"
-            if cls and hasattr(cls, "provider_type"):
-                prompt_filename = f"{cls.provider_type}_prompts.md"
-            prompts_file = os.path.join(prompts_dir, "config", prompt_filename)
-
-            if os.path.isfile(prompts_file):
-                os.remove(prompts_file)
-
-            display_name = cls.display_name if cls else provider_type
+            display_name = reset_provider_prompt(config_path, provider_type)
             json_response(self, 200, message=f"已恢复出厂默认 LLM+{display_name} 提示词，重启服务后生效")
         except Exception as e:
             json_response(self, 500, message=f"恢复默认提示词失败: {str(e)}")
