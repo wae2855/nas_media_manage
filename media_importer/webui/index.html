@@ -94,28 +94,78 @@
                 <div class="page-hero"><div><div class="eyebrow">按顺序完成基础设置</div><h2>系统配置</h2><p>新手优先完成 01-04。更多配置项通过下方提示展开。</p></div><button class="btn btn-primary" data-action="placeholder">保存配置</button></div>
                 <section class="setup-steps">
                     <button class="setup-card active" data-nav="system" data-view-target="directory"><span class="step-no">01</span><div><h3>目录配置</h3><p>源目录 → 中转目录 → 回收站目录 → 入库规则</p></div><b>继续</b></button>
-                    <button class="setup-card" data-action="placeholder"><span class="step-no">02</span><div><h3>影视刮削配置</h3><p>元数据源配置</p></div><b>配置</b></button>
-                    <button class="setup-card" data-action="placeholder"><span class="step-no">03</span><div><h3>AI 配置</h3><p>LLM 配置</p></div><b>配置</b></button>
-                    <button class="setup-card" data-action="placeholder"><span class="step-no">04</span><div><h3>定时任务</h3><p>轮询监控配置</p></div><b>配置</b></button>
+                    <button class="setup-card" data-nav="system" data-view-target="metadata-config"><span class="step-no">02</span><div><h3>影视刮削配置</h3><p>元数据源配置</p></div><b>配置</b></button>
+                    <button class="setup-card" data-nav="ai" data-view-target="ai-config"><span class="step-no">03</span><div><h3>AI 配置</h3><p>LLM 配置</p></div><b>配置</b></button>
+                    <button class="setup-card" data-nav="system" data-view-target="schedule-config"><span class="step-no">04</span><div><h3>定时任务</h3><p>轮询监控配置</p></div><b>配置</b></button>
                 </section>
                 <section class="more-config-list">
                     <button class="expand-more" type="button" aria-expanded="false" aria-controls="more-config-menu"><span>⌄</span><b>点击展开更多配置</b></button>
                     <div class="more-config-menu" id="more-config-menu" aria-hidden="true">
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">05</span><div><h3>入库名称规范</h3><p>入库设置 / 入库选项</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">06</span><div><h3>影视分类维度</h3><p>影视分类配置</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">07</span><div><h3>AI刮削提示词</h3><p>提示词工作区</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">08</span><div><h3>置信度计算配置</h3><p>置信度规则</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">09</span><div><h3>安全配置</h3><p>API 安全配置</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">10</span><div><h3>Hermes通知</h3><p>通知配置</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-action="placeholder"><span class="step-no">11</span><div><h3>系统设置</h3><p>高级配置</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="rules" data-view-target="naming-config"><span class="step-no">05</span><div><h3>入库名称规范</h3><p>入库设置 / 入库选项</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="rules" data-view-target="dimensions-config"><span class="step-no">06</span><div><h3>影视分类维度</h3><p>影视分类配置</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="ai" data-view-target="prompt-config"><span class="step-no">07</span><div><h3>AI刮削提示词</h3><p>提示词工作区</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="ai" data-view-target="confidence-config"><span class="step-no">08</span><div><h3>置信度计算配置</h3><p>置信度规则</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="system" data-view-target="security-config"><span class="step-no">09</span><div><h3>安全配置</h3><p>API 安全配置</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="system" data-view-target="hermes-config"><span class="step-no">10</span><div><h3>Hermes通知</h3><p>通知配置</p></div><b>配置</b></button>
+                        <button class="setup-card row-card" data-nav="system" data-view-target="system-settings"><span class="step-no">11</span><div><h3>系统设置</h3><p>高级配置</p></div><b>配置</b></button>
                     </div>
                 </section>
             </section>
 
             <section class="page-view" data-view="directory">
-                <div class="page-hero"><div><div class="eyebrow">第一步</div><h2>目录配置</h2><p>先告诉系统影片从哪里来、整理到哪里去。</p></div><button class="btn btn-primary" data-action="placeholder">保存目录配置</button></div>
+                <div class="page-hero"><div><div class="eyebrow">第一步</div><h2>目录配置</h2><p>先告诉系统影片从哪里来、整理到哪里去。</p></div><div class="hero-actions"><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button><button class="btn btn-primary" data-action="placeholder">保存目录配置</button></div></div>
                 <section class="config-flow page-flow"><article><b>源目录</b><span id="dir-source">待读取</span></article><article><b>中转目录</b><span id="dir-temp">待读取</span></article><article><b>回收站目录</b><span id="dir-recycle">待读取</span></article><article><b>入库规则</b><span>电影 / 剧集 / 动漫路径规则</span></article></section>
                 <section class="config-panel"><div class="section-title"><h2>入库规则</h2><span class="badge">包含检查</span></div><div class="config-note"><b>启用入库前检查</b><p>该项从原“入库选项”移动到目录配置，与路径规则一起完成。</p></div></section>
+            </section>
+
+            <section class="page-view" data-view="metadata-config">
+                <div class="page-hero"><div><div class="eyebrow">第二步</div><h2>影视刮削配置</h2><p>承接旧“AI刮削 / 元数据源配置”，让新手先确认 Provider 和搜索策略。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>Provider 顺序</b><span>TMDB、Provider、文件名与 AI 数据源优先级。</span></article><article><b>搜索策略</b><span>标题清洗、年份匹配、结果数量与降级策略。</span></article><article><b>可用性检查</b><span>展示连接状态、API Key 状态和最近测试结果。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="ai-config">
+                <div class="page-hero"><div><div class="eyebrow">第三步</div><h2>AI 配置</h2><p>承接旧“AI刮削 / LLM配置”，集中配置模型、端点、密钥和测试入口。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>LLM 服务</b><span>Base URL、模型名、API Key 脱敏展示。</span></article><article><b>调用参数</b><span>温度、超时、重试和并发限制。</span></article><article><b>连接测试</b><span>发送最小请求，返回可读的成功或失败原因。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="schedule-config">
+                <div class="page-hero"><div><div class="eyebrow">第四步</div><h2>定时任务</h2><p>承接旧“高级配置 / 轮询监控配置”，只保留和自动扫描相关的设置。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>轮询监控</b><span>启用状态、扫描间隔、最大处理数量。</span></article><article><b>自动处理</b><span>扫描后是否自动刮削、是否自动入库。</span></article><article><b>运行窗口</b><span>保留给夜间扫描、NAS 低负载时段等策略。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="naming-config">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>入库名称规范</h2><p>承接旧“入库设置 / 入库选项”，但入库前检查已经移动到目录配置。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>电影命名</b><span>标题、年份、分辨率、版本、字幕命名模板。</span></article><article><b>剧集命名</b><span>季集号、集标题、剧集目录和字幕规则。</span></article><article><b>冲突策略</b><span>重名、覆盖、保留旧文件和回收站保护。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="dimensions-config">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>影视分类维度</h2><p>承接旧“入库设置 / 影视分类配置”，用于定义电影、剧集、动漫、纪录片等维度。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>分类维度</b><span>按文件、AI、Provider 组合判断分类。</span></article><article><b>Genre 映射</b><span>Provider 类型到本地目录分类的映射。</span></article><article><b>规则预览</b><span>用样例影片预览最终入库路径。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="prompt-config">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>AI刮削提示词</h2><p>承接旧“AI刮削 / AI刮削提示词”，后续提供提示词编辑、预览和恢复默认。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>纯 AI 提示词</b><span>Provider 不可用时直接从文件名识别。</span></article><article><b>Provider + AI 提示词</b><span>结合搜索结果进行结构化判断。</span></article><article><b>提示词预览</b><span>显示变量替换后的最终提示词。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="confidence-config">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>置信度计算配置</h2><p>承接旧“AI刮削 / 置信度计算配置”，解释阈值如何影响自动入库和人工确认。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>阈值</b><span>自动通过、需要确认、失败拦截的分界。</span></article><article><b>权重</b><span>标题、年份、维度、Provider 来源的权重。</span></article><article><b>计算说明</b><span>后续保留可视化过程，降低参数理解成本。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="security-config">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>安全配置</h2><p>承接旧“通知安全 / API安全配置”，面向访问控制、密钥和敏感信息保护。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>访问密钥</b><span>API Key、前端访问控制和脱敏展示。</span></article><article><b>路径安全</b><span>允许目录、路径穿越防护和写权限检测。</span></article><article><b>危险操作</b><span>删除、覆盖、永久清理的确认策略。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="hermes-config">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>Hermes通知</h2><p>承接旧“通知安全 / Hermes通知”，用于配置任务结果、失败和确认提醒。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>通知开关</b><span>启用状态、目标地址、消息格式。</span></article><article><b>事件范围</b><span>成功、失败、需要确认、源清理等事件。</span></article><article><b>发送测试</b><span>后续提供最小消息测试。</span></article></section>
+            </section>
+
+            <section class="page-view" data-view="system-settings">
+                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>系统设置</h2><p>承接旧“通知安全 / 高级配置”，同时放置系统健康和运行诊断。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
+                <section class="config-grid"><article><b>系统健康</b><span>源目录、中转目录、LLM API、日志路径和运行状态。</span></article><article><b>日志与诊断</b><span>日志路径、最近错误、诊断导出入口。</span></article><article><b>高级开关</b><span>仅保留确实需要人工调整的系统项。</span></article></section>
             </section>
         </main>
     </div>
@@ -123,8 +173,8 @@
     <nav class="bottom-nav">
         <button class="nav-item active" data-nav="dashboard"><strong>⌂</strong>首页</button>
         <button class="nav-item" data-nav="tasks"><strong>▣</strong>任务</button>
-        <button class="nav-item" data-nav="rules" data-view-target="config"><strong>⌁</strong>规则</button>
-        <button class="nav-item" data-nav="ai" data-view-target="config"><strong>✦</strong>AI</button>
+        <button class="nav-item" data-nav="rules" data-view-target="directory"><strong>⌁</strong>规则</button>
+        <button class="nav-item" data-nav="ai" data-view-target="ai-config"><strong>✦</strong>AI</button>
         <button class="nav-item" data-nav="system" data-view-target="config"><strong>☷</strong>系统</button>
     </nav>
     <div class="toast" id="toast" role="status"></div>

@@ -130,9 +130,10 @@
 
 .config-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .page-flow { margin-top: 16px; }
-.config-flow article, .config-note { padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); background: rgba(255,255,255,0.035); }
-.config-flow b, .config-note b { display: block; color: var(--gold-2); font-size: 13px; }
-.config-flow span, .config-note p { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.config-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.config-flow article, .config-grid article, .config-note { padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); background: rgba(255,255,255,0.035); }
+.config-flow b, .config-grid b, .config-note b { display: block; color: var(--gold-2); font-size: 13px; }
+.config-flow span, .config-grid span, .config-note p { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .config-note { margin-top: 10px; }
 
 @keyframes inviteFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
@@ -143,7 +144,7 @@
     .poster { min-height: 118px; }
     .poster:nth-child(2) { min-height: 148px; }
     .poster:nth-child(3) { min-height: 128px; }
-    .metrics, .setup-steps, .config-flow, .recycle-stats { grid-template-columns: 1fr; }
+    .metrics, .setup-steps, .config-flow, .config-grid, .recycle-stats { grid-template-columns: 1fr; }
     .workspaces { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .page-hero { align-items: stretch; flex-direction: column; }
     .page-hero .btn { width: 100%; }

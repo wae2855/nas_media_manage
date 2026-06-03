@@ -69,10 +69,10 @@ confidence: medium
 | Recycle | 回收文件卡片、恢复、删除、来源信息 | Static first, API later |
 | System Config | 01-04 主步骤 + 更多配置入口 | Static first |
 | Directory Config | 源目录、中转目录、回收站目录、入库规则 | Static first, config API later |
-| Metadata Config | 旧 AI刮削 / 元数据源配置承接页 | Later |
-| AI Config | 旧 AI刮削 / LLM配置承接页 | Later |
-| Schedule Config | 旧高级配置 / 轮询监控配置承接页 | Later |
-| More Config Pages | 名称规范、分类维度、提示词、置信度、安全、Hermes、系统设置 | Later |
+| Metadata Config | 旧 AI刮削 / 元数据源配置承接页 | Static skeleton, API later |
+| AI Config | 旧 AI刮削 / LLM配置承接页 | Static skeleton, API later |
+| Schedule Config | 旧高级配置 / 轮询监控配置承接页 | Static skeleton, API later |
+| More Config Pages | 名称规范、分类维度、提示词、置信度、安全、Hermes、系统设置 | Static skeleton, API later |
 
 ## Implementation Phases
 
@@ -103,6 +103,7 @@ confidence: medium
 
 ### Phase 3: 展示内容逐页验收
 
+- [x] 为配置 02-11 建立独立承接页骨架，便于逐页验收。
 - [ ] 首页展示内容对照旧 overview 做取舍验收。
 - [ ] 任务列表展示内容对照旧任务页做取舍验收。
 - [ ] 回收站展示内容对照旧回收站做取舍验收。
