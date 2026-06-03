@@ -7,6 +7,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/tasks/__init__.py` | Feature public API for `TaskManager`, lifecycle transitions, and task constants. |
+| `media_importer/features/tasks/list_service.py` | API-facing task list pagination, status validation, and status-count payload assembly. |
 | `media_importer/features/tasks/repository.py` | Task feature repo facade over task DB operations. |
 | `media_importer/core/task_manager.py` | Task creation, querying, and updates. |
 | `media_importer/core/task_lifecycle.py` | Centralized lifecycle transitions. |
@@ -21,6 +22,7 @@
 - Frontend: task list/detail, retry, confirm, progress, status filters.
 - Import flow: every processing step should use lifecycle helpers for state changes.
 - Public task DB helpers for feature/API consumers are exposed through `media_importer.features.tasks.repository`.
+- `/api/tasks` list payloads are assembled through `media_importer.features.tasks.list_service`.
 
 ## Tests
 

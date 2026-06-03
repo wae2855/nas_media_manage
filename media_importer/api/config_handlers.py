@@ -12,7 +12,7 @@ from media_importer.features.configuration import (
 )
 from media_importer.api import globals
 from media_importer.features.configuration import validate_config
-from media_importer.core.db import list_tasks as db_list
+from media_importer.features.tasks import list_tasks_for_api
 from .config_save import save_config
 from .utils import json_response
 
@@ -122,54 +122,18 @@ class ConfigHandlersMixin:
             json_response(self, 400, message="Invalid action: use pause/resume/status")
 
     def _list_tasks(self, query):
-        from media_importer.core.db import VALID_STATUSES
-        status = query.get("status", [None])[0]
-        limit = int(query.get("limit", [20])[0])
-        offset = int(query.get("offset", [0])[0])
-        show_all = query.get("all", ["false"])[0].lower() == "true"
-        page = query.get("page", [None])[0]
-        format_mode = query.get("format", ["json"])[0].lower()
-
-        if status:
-            status = status.strip().upper()
-        if status and status != "ALL" and status not in VALID_STATUSES:
-            if globals._global_logger:
-                globals._global_logger.warning(f"Invalid status filter: {status}, VALID_STATUSES={VALID_STATUSES}")
-            json_response(self, 400, message=f"Invalid status: {status}")
+        result = list_tasks_for_api(
+            query,
+            globals._global_task_manager,
+            logger=globals._global_logger,
+        )
+        if result.code != 200:
+            json_response(self, result.code, message=result.message)
             return
 
-        if status and status == "ALL":
-            status = None
-
-        if page is not None:
-            page_num = int(page)
-            page_size = limit
-        else:
-            page_num = (offset // limit) + 1 if limit > 0 else 1
-            page_size = limit
-
-        rows, total, total_pages = db_list(
-            globals._global_task_manager.conn,
-            page=page_num,
-            page_size=page_size,
-            status=status,
-        )
-        counts = globals._global_task_manager.count_by_status()
-        active_count = sum(counts.get(s, 0) for s in ("PENDING", "PROCESSING", "FAILED", "CONFIRMING"))
-
-        json_data = {
-            "tasks": rows,
-            "total": total,
-            "total_pages": total_pages,
-            "page": page_num,
-            "page_size": page_size,
-            "active_count": active_count,
-            "by_status": counts,
-        }
-
-        if format_mode == "text":
+        if result.format_mode == "text":
             from .utils import format_tasks_to_text
-            text_output = format_tasks_to_text(json_data)
+            text_output = format_tasks_to_text(result.data)
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(text_output.encode("utf-8"))))
@@ -178,7 +142,7 @@ class ConfigHandlersMixin:
             self.wfile.write(text_output.encode("utf-8"))
             self.wfile.flush()
         else:
-            json_response(self, 200, data=json_data)
+            json_response(self, 200, data=result.data)
 
     def _get_real_config_value(self, *path) -> str:
         if globals._config:

@@ -108,3 +108,12 @@ def test_config_handler_delegates_runtime_component_refresh():
     assert "restart_watcher" in source
     assert "from media_importer.notify.hermes_hook import HermesNotifier" not in source
     assert "from media_importer.monitor.file_watcher import FileWatcher" not in source
+
+
+def test_config_handler_delegates_task_listing_to_tasks_feature():
+    source = (
+        ROOT / "media_importer" / "api" / "config_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "from media_importer.features.tasks import list_tasks_for_api" in source
+    assert "from media_importer.core.db import list_tasks" not in source
+    assert "from media_importer.core.db import VALID_STATUSES" not in source

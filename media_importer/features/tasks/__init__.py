@@ -27,10 +27,12 @@ from media_importer.core.task_lifecycle import (
 )
 from media_importer.core.task_manager import TaskManager
 from .delete_service import DeleteTaskResult, delete_task
+from .list_service import TaskListResult, list_tasks_for_api
 
 __all__ = [
     "TaskManager",
     "DeleteTaskResult",
+    "TaskListResult",
     "CONFIRM_CONFIRMED",
     "CONFIRM_NONE",
     "CONFIRM_PENDING",
@@ -47,6 +49,7 @@ __all__ = [
     "STATUS_SUCCESS",
     "current_video_path",
     "delete_task",
+    "list_tasks_for_api",
     "mark_confirmed",
     "mark_confirming",
     "mark_failed",

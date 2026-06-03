@@ -9,7 +9,7 @@
 | `handler.py` | `features.tasks`, `features.import_flow`, `core.metrics`, `core.logger`, `notify`, `monitor`, `core.db` | Startup scan now uses feature import-flow entry; remaining startup wiring still needs application-service cleanup. |
 | `task_handlers.py` | `core.db`, `features.tasks`, `api.task_delete`, `core.safety` for path validation | Task delete proof slice moved to `features.tasks.delete_service`; path validation remains pending. |
 | `task_delete.py` | `features.tasks.delete_task` | Thin API wrapper after Phase 4 proof slice. |
-| `config_handlers.py` | `features.configuration`, `core.db`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, watcher status, and runtime refresh now route through `features.configuration`; task listing remains pending. |
+| `config_handlers.py` | `features.configuration`, `features.tasks`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, watcher status, runtime refresh, and task list payloads now route through feature services. |
 | `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
 | `dimension_handlers.py` | `features.scraping` | Dimension CRUD and tier checks now route through `features.scraping.dimensions_service`; handler no longer imports dimension DB functions directly. |
 | `provider_handlers.py` | `features.providers` | Acceptable direction. |
@@ -26,7 +26,7 @@ Startup scan in `api/handler.py` now imports `scan_source_dir` from `media_impor
 
 ## Next Candidates
 
-- Continue moving task listing/export API work behind task feature services.
+- Continue moving remaining task actions and file operations behind task/import-flow feature services.
 - Move dimension API DB calls behind a dimension feature/repository facade.
 - Continue thinning provider/config global orchestration after prompt file operations were moved into `features/prompts`.
 - Move config permission checks into configuration/infrastructure services.

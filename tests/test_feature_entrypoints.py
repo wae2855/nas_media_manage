@@ -49,6 +49,7 @@ def test_feature_consumers_use_feature_public_apis():
             "build_watcher_status_payload",
             "apply_runtime_config",
             "restart_watcher",
+            "from media_importer.features.tasks import list_tasks_for_api",
         ],
         root / "media_importer" / "api" / "tmdb_handlers.py": [
             "from media_importer.features.scraping import TMDbClient",
@@ -208,6 +209,7 @@ def test_feature_public_apis_are_importable():
         update_dimension_detail,
     )
     from media_importer.features.tasks import TaskManager, mark_imported
+    from media_importer.features.tasks import TaskListResult, list_tasks_for_api
     from media_importer.features.tasks.repository import create_task, update_task
     from media_importer.infrastructure.db import init_db
     from media_importer.infrastructure.filesystem import FileCopier
@@ -230,6 +232,8 @@ def test_feature_public_apis_are_importable():
     assert load_config is not None
     assert mask_sensitive is not None
     assert TaskManager is not None
+    assert TaskListResult.__module__ == "media_importer.features.tasks.list_service"
+    assert list_tasks_for_api.__module__ == "media_importer.features.tasks.list_service"
     assert mark_imported is not None
     assert create_task is not None
     assert update_task is not None
