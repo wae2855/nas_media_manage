@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>回收站 - Cinema UI Demo</title>
+    <link rel="stylesheet" href="cinema-dashboard-demo.css">
+    <link rel="stylesheet" href="cinema-subpage-demo.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">⌫</div>
+                <div>
+                    <h1>回收站</h1>
+                    <p class="brand-sub">Safe Restore Room</p>
+                </div>
+            </div>
+            <a class="ghost-link" href="cinema-dashboard-demo.html">返回首页</a>
+        </header>
+
+        <section class="page-hero compact">
+            <div>
+                <div class="eyebrow">安全恢复与永久删除</div>
+                <h2>所有危险操作先进入这里</h2>
+                <p>回收站页面优先让用户知道文件从哪来、为什么删除、还能不能恢复。</p>
+            </div>
+            <button class="btn btn-primary">清理过期</button>
+        </section>
+
+        <section class="recycle-stats">
+            <article><b>18</b><span>回收文件</span></article>
+            <article><b>72GB</b><span>占用空间</span></article>
+            <article><b>30天</b><span>保留策略</span></article>
+        </section>
+
+        <section class="task-list">
+            <article class="task-card">
+                <div class="cover cover-red"></div>
+                <div class="task-body">
+                    <div class="task-top"><h3>沙丘.旧版本.mkv</h3><span class="badge">可恢复</span></div>
+                    <p>来源：入库覆盖 · 原路径 /movies/Dune/</p>
+                    <div class="task-meta"><span>18.4GB</span><span>2 小时前</span></div>
+                </div>
+                <div class="task-actions"><button>恢复</button><button>删除</button></div>
+            </article>
+            <article class="task-card">
+                <div class="cover cover-gold"></div>
+                <div class="task-body">
+                    <div class="task-top"><h3>Sample.AD.trailer.mp4</h3><span class="badge">源清理</span></div>
+                    <p>来源：源目录清理 · 判断为广告/样片。</p>
+                    <div class="task-meta"><span>840MB</span><span>昨天</span></div>
+                </div>
+                <div class="task-actions"><button>恢复</button><button>删除</button></div>
+            </article>
+        </section>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item"><strong>⌂</strong>首页</button>
+        <button class="nav-item"><strong>▣</strong>任务</button>
+        <button class="nav-item"><strong>⌁</strong>规则</button>
+        <button class="nav-item"><strong>✦</strong>AI</button>
+        <button class="nav-item active"><strong>☷</strong>系统</button>
+    </nav>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影音库 AI 智能整理 - Cinema UI Demo</title>
+    <link rel="stylesheet" href="cinema-dashboard-demo.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">◆</div>
+                <div>
+                    <h1>影音库 AI</h1>
+                    <p class="brand-sub">Cinema Library Operator</p>
+                </div>
+            </div>
+            <div class="status-pill"><i class="dot"></i><span>运行中</span></div>
+        </header>
+
+        <section class="hero">
+            <div class="hero-copy">
+                <div>
+                    <div class="eyebrow">今晚片库整理进度</div>
+                    <h2 class="hero-title">把散落影片收进一座私人影院</h2>
+                    <p class="hero-text">首页只保留最该看的状态：待处理、需要确认、今日入库、正在处理和最近活动。复杂设置进入系统配置，移动端用大卡片快速进入核心页面。</p>
+                </div>
+                <div class="hero-actions">
+                    <button class="btn btn-primary">▶ 立即扫描</button>
+                    <button class="btn btn-secondary">Ⅱ 暂停队列</button>
+                    <button class="btn btn-secondary">↻ 重试失败</button>
+                </div>
+            </div>
+            <div class="spotlight">
+                <div class="poster-stack">
+                    <div class="poster poster-red"></div>
+                    <div class="poster poster-green"></div>
+                    <div class="poster poster-violet"></div>
+                </div>
+                <div class="now-strip">
+                    <strong>正在刮削：银河护卫队 / S01E03</strong>
+                    <div class="progress"><span></span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="metrics">
+            <article class="metric-card">
+                <div class="metric-icon">⏱</div>
+                <div><div class="metric-label">待处理</div><div class="metric-value">12</div></div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-icon">!</div>
+                <div><div class="metric-label">需要确认</div><div class="metric-value">3</div></div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-icon">✓</div>
+                <div><div class="metric-label">今日入库</div><div class="metric-value">9</div></div>
+            </article>
+        </section>
+
+        <section class="workspaces">
+            <a class="module-card module-poster" href="cinema-task-list-demo.html">
+                <div class="module-head"><div class="module-icon">▣</div><span class="badge">核心</span></div>
+                <div><h3>任务列表</h3><p>查看所有影片任务，处理失败、确认、重试、忽略和改名。</p></div>
+            </a>
+            <a class="module-card module-poster" href="cinema-recycle-demo.html">
+                <div class="module-head"><div class="module-icon">⌫</div><span class="badge">安全</span></div>
+                <div><h3>回收站</h3><p>恢复误删、永久删除、查看来源和清理记录。</p></div>
+            </a>
+            <a class="module-card module-poster" href="cinema-config-demo.html">
+                <div class="module-head"><div class="module-icon">☷</div><span class="badge">设置</span></div>
+                <div><h3>系统配置</h3><p>目录、入库规则、AI 元数据、源目录清理、通知和诊断。</p></div>
+            </a>
+        </section>
+
+        <section class="activity">
+            <div class="section-title"><h2>最近活动</h2><span class="badge">Live</span></div>
+            <div class="activity-list">
+                <div class="activity-row">
+                    <div class="state">✓</div>
+                    <div><b>《沙丘 2》已入库</b><small>TMDB 命中，字幕已重命名</small></div>
+                    <span class="time">2 分钟前</span>
+                </div>
+                <div class="activity-row failed">
+                    <div class="state">!</div>
+                    <div><b>《未知文件》需要人工确认</b><small>置信度 62%，等待选择类型</small></div>
+                    <span class="time">9 分钟前</span>
+                </div>
+                <div class="activity-row">
+                    <div class="state">✓</div>
+                    <div><b>源目录扫描完成</b><small>新增 8 个任务，跳过 2 个重复文件</small></div>
+                    <span class="time">14 分钟前</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active"><strong>⌂</strong>首页</button>
+        <button class="nav-item"><strong>▣</strong>任务</button>
+        <button class="nav-item"><strong>⌁</strong>规则</button>
+        <button class="nav-item"><strong>✦</strong>AI</button>
+        <button class="nav-item"><strong>☷</strong>系统</button>
+    </nav>
+</body>
+</html>

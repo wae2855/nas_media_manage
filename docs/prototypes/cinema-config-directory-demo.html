@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>目录配置 - Cinema UI Demo</title>
+    <link rel="stylesheet" href="cinema-dashboard-demo.css">
+    <link rel="stylesheet" href="cinema-subpage-demo.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">01</div>
+                <div>
+                    <h1>目录配置</h1>
+                    <p class="brand-sub">Directory Setup</p>
+                </div>
+            </div>
+            <a class="ghost-link" href="cinema-config-demo.html">返回配置</a>
+        </header>
+
+        <section class="page-hero compact">
+            <div>
+                <div class="eyebrow">第一步</div>
+                <h2>先告诉系统影片从哪里来、整理到哪里去</h2>
+                <p>目录配置是新手流程第一步，按源目录、中转目录、回收站目录、入库规则顺序完成。</p>
+            </div>
+            <button class="btn btn-primary">保存目录配置</button>
+        </section>
+
+        <section class="config-flow page-flow">
+            <article><b>源目录</b><span>/downloads/movies</span></article>
+            <article><b>中转目录</b><span>/tmp/nas_media_work</span></article>
+            <article><b>回收站目录</b><span>/recycle/media</span></article>
+            <article><b>入库规则</b><span>电影 / 剧集 / 动漫路径规则</span></article>
+        </section>
+
+        <section class="config-panel">
+            <div class="section-title"><h2>入库规则</h2><span class="badge">包含检查</span></div>
+            <div class="config-note">
+                <b>启用入库前检查</b>
+                <p>该项从原“入库选项”移动到目录配置，与路径规则一起完成，便于新手理解入库前置条件。</p>
+            </div>
+        </section>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item"><strong>⌂</strong>首页</button>
+        <button class="nav-item"><strong>▣</strong>任务</button>
+        <button class="nav-item"><strong>⌁</strong>规则</button>
+        <button class="nav-item"><strong>✦</strong>AI</button>
+        <button class="nav-item active"><strong>☷</strong>系统</button>
+    </nav>
+</body>
+</html>

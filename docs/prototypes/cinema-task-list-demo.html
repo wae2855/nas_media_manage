@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务列表 - Cinema UI Demo</title>
+    <link rel="stylesheet" href="cinema-dashboard-demo.css">
+    <link rel="stylesheet" href="cinema-subpage-demo.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">▣</div>
+                <div>
+                    <h1>任务列表</h1>
+                    <p class="brand-sub">Movie Import Queue</p>
+                </div>
+            </div>
+            <a class="ghost-link" href="cinema-dashboard-demo.html">返回首页</a>
+        </header>
+
+        <section class="page-hero compact">
+            <div>
+                <div class="eyebrow">今晚待处理影片</div>
+                <h2>像挑片一样处理入库任务</h2>
+                <p>任务页不做表格堆叠。每个任务是一张影片卡，优先展示状态、置信度、路径和下一步动作。</p>
+            </div>
+            <button class="btn btn-primary">↻ 重试失败</button>
+        </section>
+
+        <section class="filter-rail">
+            <button class="chip active">全部 24</button>
+            <button class="chip">待处理 12</button>
+            <button class="chip">待确认 3</button>
+            <button class="chip danger">失败 2</button>
+            <button class="chip">已完成 9</button>
+        </section>
+
+        <section class="task-list">
+            <article class="task-card">
+                <div class="cover cover-gold"></div>
+                <div class="task-body">
+                    <div class="task-top"><h3>沙丘 2</h3><span class="badge">已入库</span></div>
+                    <p>TMDB 命中 · 字幕已重命名 · 1080p / BluRay</p>
+                    <div class="task-meta"><span>置信度 96%</span><span>2 分钟前</span></div>
+                </div>
+                <div class="task-actions"><button>详情</button><button>打开目录</button></div>
+            </article>
+            <article class="task-card attention">
+                <div class="cover cover-red"></div>
+                <div class="task-body">
+                    <div class="task-top"><h3>Unknown.Movie.2024</h3><span class="badge danger">待确认</span></div>
+                    <p>AI 识别不确定 · 需要选择电影/剧集并确认标题。</p>
+                    <div class="task-meta"><span>置信度 62%</span><span>9 分钟前</span></div>
+                </div>
+                <div class="task-actions"><button>确认</button><button>改名</button></div>
+            </article>
+            <article class="task-card failed">
+                <div class="cover cover-cyan"></div>
+                <div class="task-body">
+                    <div class="task-top"><h3>银河护卫队 S01E03</h3><span class="badge danger">失败</span></div>
+                    <p>Provider 连接超时，保留临时文件等待重试。</p>
+                    <div class="task-meta"><span>重试 1 次</span><span>14 分钟前</span></div>
+                </div>
+                <div class="task-actions"><button>重试</button><button>忽略</button></div>
+            </article>
+        </section>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item"><strong>⌂</strong>首页</button>
+        <button class="nav-item active"><strong>▣</strong>任务</button>
+        <button class="nav-item"><strong>⌁</strong>规则</button>
+        <button class="nav-item"><strong>✦</strong>AI</button>
+        <button class="nav-item"><strong>☷</strong>系统</button>
+    </nav>
+</body>
+</html>

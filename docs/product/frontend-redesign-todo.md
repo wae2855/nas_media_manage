@@ -21,3 +21,10 @@
 ## Current Status
 
 Planning baseline is now available in [frontend-information-architecture.md](frontend-information-architecture.md) and [../architecture/frontend-api-dependency-map.md](../architecture/frontend-api-dependency-map.md). Do not treat old UI tests as final frontend acceptance criteria.
+
+Cinema theme proposal and implementation plan are available in:
+
+- [../proposals/2026-06-03-frontend-cinema-theme-proposal.md](../proposals/2026-06-03-frontend-cinema-theme-proposal.md)
+- [../plans/2026-06-03-frontend-cinema-redesign-plan.md](../plans/2026-06-03-frontend-cinema-redesign-plan.md)
+
+The user has accepted the black/gold cinema prototype as the first visual baseline. Current implementation focus is the real `webui` display shell; API wiring and full UI/E2E acceptance remain separate later phases.

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统配置 - Cinema UI Demo</title>
+    <link rel="stylesheet" href="cinema-dashboard-demo.css">
+    <link rel="stylesheet" href="cinema-subpage-demo.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">☷</div>
+                <div>
+                    <h1>系统配置</h1>
+                    <p class="brand-sub">Guided Setup Console</p>
+                </div>
+            </div>
+            <a class="ghost-link" href="cinema-dashboard-demo.html">返回首页</a>
+        </header>
+
+        <section class="page-hero compact">
+            <div>
+                <div class="eyebrow">按顺序完成基础设置</div>
+                <h2>先跑通入库，再调整高级能力</h2>
+                <p>配置页对新手优先展示 4 个必配步骤。每个卡片点击后进入一个完整配置页面，更多配置项用一行一卡片展示。</p>
+            </div>
+            <button class="btn btn-primary">保存配置</button>
+        </section>
+
+        <section class="setup-steps">
+            <a class="setup-card active" href="cinema-config-directory-demo.html">
+                <span class="step-no">01</span>
+                <div><h3>目录配置</h3><p>源目录 → 中转目录 → 回收站目录 → 入库规则</p></div>
+                <b>继续</b>
+            </a>
+            <a class="setup-card" href="#metadata-config">
+                <span class="step-no">02</span>
+                <div><h3>影视刮削配置</h3><p>加载旧页面 AI刮削 / 元数据源配置</p></div>
+                <b>配置</b>
+            </a>
+            <a class="setup-card" href="#llm-config">
+                <span class="step-no">03</span>
+                <div><h3>AI 配置</h3><p>加载旧页面 AI刮削 / LLM配置</p></div>
+                <b>配置</b>
+            </a>
+            <a class="setup-card" href="#schedule-config">
+                <span class="step-no">04</span>
+                <div><h3>定时任务</h3><p>加载旧页面 高级配置 / 轮询监控配置</p></div>
+                <b>配置</b>
+            </a>
+        </section>
+
+        <section class="more-config-list">
+            <button class="expand-more" type="button" aria-expanded="false" aria-controls="more-config-menu">
+                <span>⌄</span>
+                <b>点击展开更多配置</b>
+            </button>
+            <div class="more-config-menu" id="more-config-menu" aria-hidden="true">
+                <a class="setup-card row-card" href="#naming"><span class="step-no">05</span><div><h3>入库名称规范</h3><p>入库设置 / 入库选项；入库前检查已移动到目录配置。</p></div><b>配置</b></a>
+                <a class="setup-card row-card" href="#dimensions"><span class="step-no">06</span><div><h3>影视分类维度</h3><p>入库设置 / 影视分类配置。</p></div><b>配置</b></a>
+                <a class="setup-card row-card" href="#prompts"><span class="step-no">07</span><div><h3>AI刮削提示词</h3><p>AI刮削 / AI刮削提示词。</p></div><b>配置</b></a>
+                <a class="setup-card row-card" href="#confidence"><span class="step-no">08</span><div><h3>置信度计算配置</h3><p>AI刮削 / 置信度计算配置。</p></div><b>配置</b></a>
+                <a class="setup-card row-card" href="#security"><span class="step-no">09</span><div><h3>安全配置</h3><p>通知安全 / API安全配置。</p></div><b>配置</b></a>
+                <a class="setup-card row-card" href="#hermes"><span class="step-no">10</span><div><h3>Hermes通知</h3><p>通知安全 / Hermes通知。</p></div><b>配置</b></a>
+                <a class="setup-card row-card" href="#system"><span class="step-no">11</span><div><h3>系统设置</h3><p>通知安全 / 高级配置。</p></div><b>配置</b></a>
+            </div>
+        </section>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item"><strong>⌂</strong>首页</button>
+        <button class="nav-item"><strong>▣</strong>任务</button>
+        <button class="nav-item"><strong>⌁</strong>规则</button>
+        <button class="nav-item"><strong>✦</strong>AI</button>
+        <button class="nav-item active"><strong>☷</strong>系统</button>
+    </nav>
+    <script>
+        const moreSection = document.querySelector('.more-config-list');
+        const expandMore = document.querySelector('.expand-more');
+        const moreMenu = document.querySelector('#more-config-menu');
+        expandMore.addEventListener('click', () => {
+            moreSection.classList.add('is-expanded');
+            expandMore.setAttribute('aria-expanded', 'true');
+            moreMenu.setAttribute('aria-hidden', 'false');
+        });
+    </script>
+</body>
+</html>
