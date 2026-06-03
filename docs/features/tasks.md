@@ -7,6 +7,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/tasks/__init__.py` | Feature public API for `TaskManager`, lifecycle transitions, and task constants. |
+| `media_importer/features/tasks/detail_service.py` | API-facing task detail, subtitles, and status-count query payloads. |
 | `media_importer/features/tasks/file_lifecycle_service.py` | API-facing file lifecycle actions; currently owns same-directory task file rename and ignore flow cleanup/recycle decisions. |
 | `media_importer/features/tasks/list_service.py` | API-facing task list pagination, status validation, and status-count payload assembly. |
 | `media_importer/features/tasks/queue_service.py` | API-facing queue clear/retry/retry-all/pause/resume/status orchestration. |
@@ -26,6 +27,7 @@
 - Import flow: every processing step should use lifecycle helpers for state changes.
 - Public task DB helpers for feature/API consumers are exposed through `media_importer.features.tasks.repository`.
 - `/api/tasks` list payloads are assembled through `media_importer.features.tasks.list_service`.
+- Task detail, subtitles, and stats payloads are assembled through `media_importer.features.tasks.detail_service`.
 - Queue operations from `api/task_handlers.py` are delegated to `media_importer.features.tasks.queue_service`.
 - Manual review actions from `api/task_handlers.py` are delegated to `media_importer.features.tasks.review_service`.
 - Task rename and ignore are delegated to `media_importer.features.tasks.file_lifecycle_service`, including path-traversal filename rejection, temp cleanup boundaries, recycle handoff, and DB field updates.
@@ -33,6 +35,7 @@
 ## Tests
 
 - Task manager and lifecycle tests.
+- `tests/test_feature_task_detail.py` covers detail, subtitles, and stats feature responses.
 - Import flow tests that assert state transitions.
 - `tests/test_feature_task_queue.py` covers queue service behavior without starting real background workers.
 - `tests/test_feature_task_review.py` covers manual review action behavior with fake pipeline/task manager objects.
@@ -44,6 +47,7 @@
 - New app/API/import-flow code should import from `media_importer.features.tasks`.
 - New task repository usage should import from `media_importer.features.tasks.repository`.
 - Use `media_importer.infrastructure.db` for shared raw SQLite/repo infrastructure.
+- Detail/subtitles/stats API actions should use `media_importer.features.tasks.detail_service`; API handlers should not read task DB/subtitle DB directly.
 - Queue/retry/clear API actions should use `media_importer.features.tasks.queue_service`; do not reintroduce status validation in API handlers.
 - Confirm/reclassify/confirm-all API actions should use `media_importer.features.tasks.review_service`; API handlers should not call pipeline review methods directly.
 - Rename/ignore API actions should use `media_importer.features.tasks.file_lifecycle_service`; API handlers should not perform filesystem rename/delete or recycle decisions directly.

@@ -7,7 +7,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/import_flow/runner.py` | Pipeline runner and high-level task orchestration. |
-| `media_importer/features/import_flow/run_file_service.py` | API-facing single-file run action: path/ext validation, task creation, and background `process_one` start. |
+| `media_importer/features/import_flow/run_file_service.py` | API-facing manual run actions: batch `run_all` and single-file path/ext validation, task creation, and background `process_one` start. |
 | `media_importer/features/import_flow/context.py` | Task-scoped mutable context and update field extraction. |
 | `media_importer/features/import_flow/steps/` | File and scrape step mixins. |
 | `media_importer/features/import_flow/scan_service.py` | Source scan and task-aware scan filtering entrypoint for runner, CLI, and watcher. |
@@ -21,7 +21,7 @@
 ## Related Areas
 
 - API: task and import actions in `media_importer/api/`.
-- Manual single-file processing uses `media_importer.features.import_flow.run_file_service`.
+- Manual batch and single-file processing use `media_importer.features.import_flow.run_file_service`.
 - Database: task rows, status constants, scrape result fields.
 - Config: path rules, duplicate handling, review thresholds, source cleanup policy.
 - Frontend: task list, task detail, confirm/reclassify actions.
@@ -39,7 +39,7 @@
 - Classification rules and template rendering belong to `features/import_flow/services/classification_rules.py`; `storage/classifier.py` is only a compatibility alias.
 - Dedup rules belong to `features/import_flow/services/dedup_rules.py`; `storage/dedup_checker.py` is only a compatibility alias.
 - Scan orchestration belongs to `features/import_flow/scan_service.py`; `storage/file_scanner.py` is only a compatibility alias.
-- Single-file run orchestration belongs to `features/import_flow/run_file_service.py`; API handlers should not perform path/ext validation or direct task creation for run-file requests.
+- Manual run orchestration belongs to `features/import_flow/run_file_service.py`; API handlers should not call `run_all`, perform path/ext validation, or create tasks directly for manual run requests.
 - Filename and subtitle naming rules belong to `features/import_flow/services/naming.py`.
 - Import move/delete mechanics belong to `features/import_flow/services/file_operations.py`; `storage/file_mover.py` only keeps compatibility exports.
 - File copy infrastructure should be imported from `media_importer.infrastructure.filesystem`.

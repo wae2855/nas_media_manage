@@ -1,4 +1,4 @@
-from media_importer.features.import_flow import run_file_for_api
+from media_importer.features.import_flow import run_batch_for_api, run_file_for_api
 
 
 class FakeThread:
@@ -25,9 +25,32 @@ class FakeTaskManager:
 class FakePipeline:
     def __init__(self):
         self.processed = []
+        self.run_all_count = 0
 
     def process_one(self, task):
         self.processed.append(task)
+
+    def run_all(self):
+        self.run_all_count += 1
+
+
+def test_run_batch_starts_background_processing():
+    FakeThread.started_targets = []
+    pipeline = FakePipeline()
+
+    result = run_batch_for_api(pipeline, thread_factory=FakeThread)
+
+    assert result.code == 202
+    assert result.message == "Batch processing started in background"
+    assert len(FakeThread.started_targets) == 1
+    assert pipeline.run_all_count == 1
+
+
+def test_run_batch_requires_pipeline():
+    result = run_batch_for_api(None)
+
+    assert result.code == 500
+    assert result.message == "Pipeline not initialized"
 
 
 def test_run_file_starts_single_file_processing(tmp_path):

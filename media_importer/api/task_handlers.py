@@ -1,13 +1,14 @@
 import os
 import threading
 
-from media_importer.core.db import get_subtitles_by_task as db_get_subtitles
-from media_importer.features.import_flow import run_file_for_api
+from media_importer.features.import_flow import run_batch_for_api, run_file_for_api
 from media_importer.features.tasks import (
-    TaskManager,
     clear_tasks_for_api,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
+    get_task_for_api,
+    get_task_stats_for_api,
+    get_task_subtitles_for_api,
     get_queue_status_for_api,
     ignore_task_for_api,
     pause_queue_for_api,
@@ -24,11 +25,8 @@ from .utils import json_response
 
 class TaskHandlersMixin:
     def _get_task(self, task_id: str):
-        task = globals._global_task_manager.get_task(task_id)
-        if task is None:
-            json_response(self, 404, message=f"Task not found: {task_id}")
-            return
-        json_response(self, 200, data={"task": task})
+        result = get_task_for_api(globals._global_task_manager, task_id)
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _delete_task(self, task_id: str, delete_files: bool = False):
         delete_task(self, task_id, delete_files, globals_module=globals, respond=json_response)
@@ -95,8 +93,8 @@ class TaskHandlersMixin:
         json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_subtitles(self, task_id: str):
-        subs = db_get_subtitles(globals._global_task_manager.conn, task_id)
-        json_response(self, 200, data={"subtitles": subs, "total": len(subs)})
+        result = get_task_subtitles_for_api(globals._global_task_manager, task_id)
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_rename(self, task_id: str, body: dict):
         result = rename_task_file_for_api(
@@ -114,23 +112,12 @@ class TaskHandlersMixin:
         json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_stats(self):
-        if globals._global_task_manager is None:
-            json_response(self, 500, message="TaskManager not initialized")
-            return
-        counts = globals._global_task_manager.count_by_status()
-        json_response(self, 200, data={"by_status": counts})
+        result = get_task_stats_for_api(globals._global_task_manager)
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _run_batch(self):
-        if globals._global_pipeline is None:
-            json_response(self, 500, message="Pipeline not initialized")
-            return
-
-        def run_background():
-            globals._global_pipeline.run_all()
-
-        thread = threading.Thread(target=run_background, daemon=True)
-        thread.start()
-        json_response(self, 202, message="Batch processing started in background")
+        result = run_batch_for_api(globals._global_pipeline)
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _run_file(self, body: dict):
         result = run_file_for_api(

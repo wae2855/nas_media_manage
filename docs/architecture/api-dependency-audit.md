@@ -7,7 +7,7 @@
 | API Area | Current Direct Dependencies | Direction |
 |----------|-----------------------------|-----------|
 | `handler.py` | `features.tasks`, `features.import_flow`, `core.metrics`, `core.logger`, `notify`, `monitor`, `core.db` | Startup scan now uses feature import-flow entry; remaining startup wiring still needs application-service cleanup. |
-| `task_handlers.py` | `core.db`, `features.import_flow`, `features.tasks`, `api.task_delete` | Task delete, task list, queue actions, manual review actions, task rename, task ignore, and run-file now use feature services; subtitles/stats/run-batch/restart remain thin local adapters. |
+| `task_handlers.py` | `features.import_flow`, `features.tasks`, `api.task_delete` | Task detail/subtitles/stats, task delete, task list, queue actions, manual review actions, task rename, task ignore, run-batch, and run-file now use feature services; restart remains a thin local adapter. |
 | `task_delete.py` | `features.tasks.delete_task` | Thin API wrapper after Phase 4 proof slice. |
 | `config_handlers.py` | `features.configuration`, `features.tasks`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, watcher status, runtime refresh, and task list payloads now route through feature services. |
 | `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
@@ -32,10 +32,12 @@ Task ignore now also calls `media_importer.features.tasks.file_lifecycle_service
 
 Task run-file now calls `media_importer.features.import_flow.run_file_service`, which owns path safety, extension validation, task creation payload, and background `process_one` startup.
 
+Task detail/subtitles/stats now call `media_importer.features.tasks.detail_service`, and run-batch calls `media_importer.features.import_flow.run_file_service`. `media_importer/api/task_handlers.py` no longer imports task DB helpers directly.
+
 Startup scan in `api/handler.py` now imports `scan_source_dir` from `media_importer.features.import_flow`, instead of directly calling `storage.file_scanner`.
 
 ## Next Candidates
 
-- Continue thinning small residual task handler adapters where useful: subtitles, stats, run-batch, restart.
+- Optional remaining task handler cleanup is service restart, which is app/runtime lifecycle rather than task business logic.
 - Continue thinning provider/config global orchestration after prompt file operations were moved into `features/prompts`.
 - Move config permission checks into configuration/infrastructure services.

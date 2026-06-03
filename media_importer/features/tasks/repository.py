@@ -17,6 +17,7 @@ from media_importer.core.db.task_repo import (
     update_task,
 )
 from media_importer.core.db.subtitle_repo import update_subtitles_by_task
+from media_importer.core.db.subtitle_repo import get_subtitles_by_task
 
 __all__ = [
     "clear_tasks",
@@ -30,6 +31,7 @@ __all__ = [
     "find_by_source_path",
     "find_failed_too_many",
     "get_next_pending",
+    "get_subtitles_by_task",
     "get_task",
     "has_running_tasks",
     "list_all_tasks",

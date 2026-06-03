@@ -13,6 +13,21 @@ class RunFileResult:
     data: Optional[dict] = None
 
 
+def run_batch_for_api(
+    pipeline,
+    thread_factory: Callable = threading.Thread,
+) -> RunFileResult:
+    if pipeline is None:
+        return RunFileResult(code=500, message="Pipeline not initialized")
+
+    def run_background():
+        pipeline.run_all()
+
+    thread = thread_factory(target=run_background, daemon=True)
+    thread.start()
+    return RunFileResult(code=202, message="Batch processing started in background")
+
+
 def run_file_for_api(
     config: dict,
     task_manager,

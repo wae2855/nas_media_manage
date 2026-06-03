@@ -32,12 +32,15 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.tasks import delete_task as delete_task_service",
         ],
         root / "media_importer" / "api" / "task_handlers.py": [
-            "from media_importer.features.import_flow import run_file_for_api",
+            "from media_importer.features.import_flow import run_batch_for_api, run_file_for_api",
             "from media_importer.features.tasks import (",
             "clear_tasks_for_api",
             "confirm_all_tasks_for_api",
             "confirm_task_for_api",
             "get_queue_status_for_api",
+            "get_task_for_api",
+            "get_task_stats_for_api",
+            "get_task_subtitles_for_api",
             "ignore_task_for_api",
             "pause_queue_for_api",
             "reclassify_task_for_api",
@@ -193,7 +196,12 @@ def test_feature_public_apis_are_importable():
         apply_runtime_config,
         restart_watcher,
     )
-    from media_importer.features.import_flow import FileScanner, run_file_for_api, scan_source_dir
+    from media_importer.features.import_flow import (
+        FileScanner,
+        run_batch_for_api,
+        run_file_for_api,
+        scan_source_dir,
+    )
     from media_importer.features.import_flow.services.classification_rules import classify
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
     from media_importer.features.import_flow.services.file_operations import move_to_import
@@ -205,6 +213,9 @@ def test_feature_public_apis_are_importable():
         confirm_all_tasks_for_api,
         confirm_task_for_api,
         get_queue_status_for_api,
+        get_task_for_api,
+        get_task_stats_for_api,
+        get_task_subtitles_for_api,
         ignore_task_for_api,
         pause_queue_for_api,
         reclassify_task_for_api,
@@ -260,6 +271,7 @@ def test_feature_public_apis_are_importable():
     assert apply_runtime_config.__module__ == "media_importer.features.configuration.runtime_service"
     assert restart_watcher.__module__ == "media_importer.features.configuration.runtime_service"
     assert FileScanner.__module__ == "media_importer.features.import_flow.scan_service"
+    assert run_batch_for_api.__module__ == "media_importer.features.import_flow.run_file_service"
     assert run_file_for_api.__module__ == "media_importer.features.import_flow.run_file_service"
     assert scan_source_dir.__module__ == "media_importer.features.import_flow.scan_service"
     assert classify.__module__ == "media_importer.features.import_flow.services.classification_rules"
@@ -272,6 +284,9 @@ def test_feature_public_apis_are_importable():
     assert confirm_all_tasks_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert confirm_task_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert get_queue_status_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert get_task_for_api.__module__ == "media_importer.features.tasks.detail_service"
+    assert get_task_stats_for_api.__module__ == "media_importer.features.tasks.detail_service"
+    assert get_task_subtitles_for_api.__module__ == "media_importer.features.tasks.detail_service"
     assert ignore_task_for_api.__module__ == "media_importer.features.tasks.file_lifecycle_service"
     assert pause_queue_for_api.__module__ == "media_importer.features.tasks.queue_service"
     assert reclassify_task_for_api.__module__ == "media_importer.features.tasks.review_service"

@@ -26,6 +26,12 @@ from media_importer.core.task_lifecycle import (
     start_processing,
 )
 from media_importer.core.task_manager import TaskManager
+from .detail_service import (
+    TaskDetailResult,
+    get_task_for_api,
+    get_task_stats_for_api,
+    get_task_subtitles_for_api,
+)
 from .delete_service import DeleteTaskResult, delete_task
 from .file_lifecycle_service import (
     TaskFileLifecycleResult,
@@ -52,6 +58,7 @@ from .review_service import (
 __all__ = [
     "TaskManager",
     "DeleteTaskResult",
+    "TaskDetailResult",
     "TaskFileLifecycleResult",
     "TaskListResult",
     "TaskQueueActionResult",
@@ -76,6 +83,9 @@ __all__ = [
     "confirm_all_tasks_for_api",
     "confirm_task_for_api",
     "get_queue_status_for_api",
+    "get_task_for_api",
+    "get_task_stats_for_api",
+    "get_task_subtitles_for_api",
     "ignore_task_for_api",
     "list_tasks_for_api",
     "mark_confirmed",

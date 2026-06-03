@@ -174,9 +174,22 @@ def test_task_handler_delegates_run_file_to_import_flow_service():
     source = (
         ROOT / "media_importer" / "api" / "task_handlers.py"
     ).read_text(encoding="utf-8")
-    assert "from media_importer.features.import_flow import run_file_for_api" in source
+    assert "from media_importer.features.import_flow import run_batch_for_api, run_file_for_api" in source
+    assert "run_batch_for_api" in source
     assert "validate_path_safety" not in source
     assert "validate_file_ext" not in source
     assert "create_task(" not in source
     assert "process_one(task)" not in source
     assert "file_size_mb" not in source
+
+
+def test_task_handler_delegates_detail_queries_to_tasks_feature():
+    source = (
+        ROOT / "media_importer" / "api" / "task_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "get_task_for_api" in source
+    assert "get_task_subtitles_for_api" in source
+    assert "get_task_stats_for_api" in source
+    assert "_global_task_manager.get_task" not in source
+    assert "get_subtitles_by_task" not in source
+    assert "count_by_status()" not in source
