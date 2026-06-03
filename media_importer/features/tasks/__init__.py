@@ -27,6 +27,10 @@ from media_importer.core.task_lifecycle import (
 )
 from media_importer.core.task_manager import TaskManager
 from .delete_service import DeleteTaskResult, delete_task
+from .file_lifecycle_service import (
+    TaskFileLifecycleResult,
+    rename_task_file_for_api,
+)
 from .list_service import TaskListResult, list_tasks_for_api
 from .queue_service import (
     TaskQueueActionResult,
@@ -47,6 +51,7 @@ from .review_service import (
 __all__ = [
     "TaskManager",
     "DeleteTaskResult",
+    "TaskFileLifecycleResult",
     "TaskListResult",
     "TaskQueueActionResult",
     "TaskReviewActionResult",
@@ -83,6 +88,7 @@ __all__ = [
     "reset_for_retry",
     "resume_queue_for_api",
     "reclassify_task_for_api",
+    "rename_task_file_for_api",
     "retry_all_failed_for_api",
     "retry_task_for_api",
     "start_processing",

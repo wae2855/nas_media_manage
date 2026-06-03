@@ -14,6 +14,7 @@ from media_importer.features.tasks import (
     get_queue_status_for_api,
     pause_queue_for_api,
     reclassify_task_for_api,
+    rename_task_file_for_api,
     resume_queue_for_api,
     retry_all_failed_for_api,
     retry_task_for_api,
@@ -166,50 +167,12 @@ class TaskHandlersMixin:
         json_response(self, 200, data={"subtitles": subs, "total": len(subs)})
 
     def _task_rename(self, task_id: str, body: dict):
-        new_filename = (body.get("new_filename") or "").strip()
-        if not new_filename:
-            json_response(self, 400, message="new_filename 参数必填")
-            return
-        task = globals._global_task_manager.get_task(task_id)
-        if task is None:
-            json_response(self, 404, message=f"Task not found: {task_id}")
-            return
-        file_location = task.get("file_location", "source")
-        if file_location == "deleted":
-            json_response(self, 400, message="文件已删除，无法重命名")
-            return
-        if file_location == "import":
-            current_path = task.get("import_video_path", "")
-        elif file_location == "temp":
-            current_path = task.get("video_path", "")
-        elif file_location == "recycle":
-            current_path = task.get("source_path", "")
-        else:
-            current_path = task.get("source_path", "")
-        if not current_path or not os.path.exists(current_path):
-            json_response(self, 400, message=f"当前文件路径不存在: {current_path}")
-            return
-        current_dir = os.path.dirname(current_path)
-        new_path = os.path.join(current_dir, new_filename)
-        if os.path.exists(new_path) and new_path != current_path:
-            json_response(self, 400, message=f"目标文件名已存在: {new_filename}")
-            return
-        try:
-            os.rename(current_path, new_path)
-        except OSError as e:
-            json_response(self, 500, message=f"重命名失败: {e}")
-            return
-        update_fields = {"source_filename": new_filename}
-        if file_location == "import":
-            update_fields["import_video_path"] = new_path
-            update_fields["final_filename"] = new_filename
-        elif file_location == "temp":
-            update_fields["video_path"] = new_path
-        elif file_location in ("source", "recycle"):
-            update_fields["source_path"] = new_path
-        db_update_task(globals._global_task_manager.conn, task_id, **update_fields)
-        updated_task = globals._global_task_manager.get_task(task_id)
-        json_response(self, 200, data={"task": updated_task}, message="文件重命名成功")
+        result = rename_task_file_for_api(
+            globals._global_task_manager,
+            task_id,
+            body.get("new_filename"),
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_confirm_all(self):
         result = confirm_all_tasks_for_api(

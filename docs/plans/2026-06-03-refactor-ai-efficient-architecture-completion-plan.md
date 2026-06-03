@@ -184,6 +184,7 @@ confidence: medium
 - [x] 为 `/api/tasks` 列表建立 `features/tasks/list_service.py` proof slice，承接分页、状态校验和统计 payload。
 - [x] 为任务队列 clear/retry/retry-all/pause/resume/status 建立 `features/tasks/queue_service.py` proof slice。
 - [x] 为人工审核 confirm/reclassify/confirm-all 建立 `features/tasks/review_service.py` proof slice。
+- [x] 为任务文件重命名建立 `features/tasks/file_lifecycle_service.py` proof slice，并补文件名路径穿越校验。
 - [ ] 继续为其他高频 API 动作建立 feature service 或 application function。
 - [ ] 继续薄化其他 API handler，保留参数解析、错误包装、JSON 响应。
 - [x] CLI 和 watcher 的扫描入口改为通过 `features.import_flow.scan_source_dir`，不再直接调用 `storage.file_scanner`。

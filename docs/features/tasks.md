@@ -7,6 +7,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/tasks/__init__.py` | Feature public API for `TaskManager`, lifecycle transitions, and task constants. |
+| `media_importer/features/tasks/file_lifecycle_service.py` | API-facing file lifecycle actions; currently owns same-directory task file rename. |
 | `media_importer/features/tasks/list_service.py` | API-facing task list pagination, status validation, and status-count payload assembly. |
 | `media_importer/features/tasks/queue_service.py` | API-facing queue clear/retry/retry-all/pause/resume/status orchestration. |
 | `media_importer/features/tasks/review_service.py` | API-facing manual review actions: confirm, reclassify, and confirm-all orchestration. |
@@ -27,6 +28,7 @@
 - `/api/tasks` list payloads are assembled through `media_importer.features.tasks.list_service`.
 - Queue operations from `api/task_handlers.py` are delegated to `media_importer.features.tasks.queue_service`.
 - Manual review actions from `api/task_handlers.py` are delegated to `media_importer.features.tasks.review_service`.
+- Task rename is delegated to `media_importer.features.tasks.file_lifecycle_service`, including path-traversal filename rejection and DB field updates.
 
 ## Tests
 
@@ -34,6 +36,7 @@
 - Import flow tests that assert state transitions.
 - `tests/test_feature_task_queue.py` covers queue service behavior without starting real background workers.
 - `tests/test_feature_task_review.py` covers manual review action behavior with fake pipeline/task manager objects.
+- `tests/test_feature_task_file_lifecycle.py` covers task file rename behavior and filename safety checks.
 - API task tests.
 
 ## Migration Notes
@@ -43,4 +46,5 @@
 - Use `media_importer.infrastructure.db` for shared raw SQLite/repo infrastructure.
 - Queue/retry/clear API actions should use `media_importer.features.tasks.queue_service`; do not reintroduce status validation in API handlers.
 - Confirm/reclassify/confirm-all API actions should use `media_importer.features.tasks.review_service`; API handlers should not call pipeline review methods directly.
+- Rename API actions should use `media_importer.features.tasks.file_lifecycle_service`; API handlers should not perform filesystem renames directly.
 - Any status change must update lifecycle docs, tests, API/frontend display logic, and regression matrix.

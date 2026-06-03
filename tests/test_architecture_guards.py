@@ -148,3 +148,12 @@ def test_task_handler_delegates_review_actions_to_tasks_feature():
     assert "confirm_task(task_id)" not in source
     assert "reclassify_task(task_id" not in source
     assert "list_tasks(status=\"CONFIRMING\"" not in source
+
+
+def test_task_handler_delegates_rename_to_tasks_file_lifecycle_service():
+    source = (
+        ROOT / "media_importer" / "api" / "task_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "rename_task_file_for_api" in source
+    assert "os.rename" not in source
+    assert "new_filename 只能是文件名" not in source
