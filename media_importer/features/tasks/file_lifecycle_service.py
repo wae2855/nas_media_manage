@@ -2,7 +2,10 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from media_importer.features.tasks.repository import update_task as update_task_record
+from media_importer.features.tasks.repository import (
+    update_subtitles_by_task as update_subtitles_by_task_record,
+    update_task as update_task_record,
+)
 
 
 @dataclass
@@ -51,6 +54,35 @@ def rename_task_file_for_api(task_manager, task_id: str, new_filename: str) -> T
     )
 
 
+def ignore_task_for_api(task_manager, config: dict, task_id: str) -> TaskFileLifecycleResult:
+    task = task_manager.get_task(task_id) if task_manager else None
+    if task is None:
+        return TaskFileLifecycleResult(code=404, message=f"Task not found: {task_id}")
+
+    current_status = task.get("status", "")
+    if current_status not in ("FAILED", "CONFIRMING"):
+        return TaskFileLifecycleResult(code=400, message=f"当前状态不可忽略: {current_status}")
+
+    source_policy = config.get("source_policy", {}) if config else {}
+    recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
+    cleanup = source_policy.get("cleanup_source_after_done", True)
+    file_location = task.get("file_location", "source")
+
+    if file_location == "temp":
+        _cleanup_temp_task_files(task, config)
+        update_subtitles_by_task_record(
+            task_manager.conn,
+            task_id,
+            status="FAILED",
+            target_path="",
+        )
+        _ignore_temp_task(task_manager, task, task_id, cleanup, recycle_dir)
+    else:
+        _ignore_non_temp_task(task_manager, task, task_id, cleanup, recycle_dir)
+
+    return TaskFileLifecycleResult(code=200, message="任务已忽略")
+
+
 def _is_plain_filename(filename: str) -> bool:
     if filename in (".", ".."):
         return False
@@ -77,3 +109,88 @@ def _rename_update_fields(file_location: str, new_filename: str, new_path: str) 
     elif file_location in ("source", "recycle"):
         update_fields["source_path"] = new_path
     return update_fields
+
+
+def _cleanup_temp_task_files(task: dict, config: dict):
+    temp_dir = config.get("temp_dir", "") if config else ""
+    _remove_temp_path(task.get("video_path", ""), temp_dir)
+    for subtitle in task.get("subtitle_files") or []:
+        _remove_temp_path(str(subtitle) if subtitle else "", temp_dir)
+
+
+def _remove_temp_path(path: str, temp_dir: str):
+    if not path or not temp_dir or not _is_path_under_dir(path, temp_dir):
+        return
+    if not os.path.exists(path):
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _is_path_under_dir(path: str, base_dir: str) -> bool:
+    path_abs = os.path.abspath(path)
+    base_abs = os.path.abspath(base_dir)
+    return path_abs.startswith(base_abs + os.sep)
+
+
+def _ignore_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, recycle_dir: str):
+    source_path = task.get("source_path", "")
+    subtitle_paths = task.get("subtitle_files", [])
+    if cleanup and recycle_dir and source_path and os.path.exists(source_path):
+        _move_task_files_to_recycle(task_manager, task_id, source_path, subtitle_paths, recycle_dir)
+        update_task_record(
+            task_manager.conn,
+            task_id,
+            status="SKIPPED",
+            skip_reason="用户忽略",
+            file_location="recycle",
+            video_path="",
+            error_message=f"已移入回收站: {recycle_dir}",
+        )
+    else:
+        update_task_record(
+            task_manager.conn,
+            task_id,
+            status="SKIPPED",
+            skip_reason="用户忽略",
+            file_location="source",
+            video_path="",
+        )
+
+
+def _ignore_non_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, recycle_dir: str):
+    source_path = task.get("source_path", "")
+    subtitle_paths = task.get("subtitle_files", [])
+    if cleanup and recycle_dir and source_path and os.path.exists(source_path):
+        _move_task_files_to_recycle(task_manager, task_id, source_path, subtitle_paths, recycle_dir)
+        update_task_record(
+            task_manager.conn,
+            task_id,
+            status="SKIPPED",
+            skip_reason="用户忽略",
+            error_message=f"已移入回收站: {recycle_dir}",
+        )
+    else:
+        update_task_record(
+            task_manager.conn,
+            task_id,
+            status="SKIPPED",
+            skip_reason="用户忽略",
+        )
+
+
+def _move_task_files_to_recycle(
+    task_manager,
+    task_id: str,
+    source_path: str,
+    subtitle_paths,
+    recycle_dir: str,
+):
+    task_manager.move_to_recycle_bin(
+        task_id=task_id,
+        source_path=source_path,
+        subtitle_paths=subtitle_paths if isinstance(subtitle_paths, list) else [],
+        recycle_dir=recycle_dir,
+    )

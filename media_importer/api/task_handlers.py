@@ -1,17 +1,14 @@
 import os
 import threading
 
-from media_importer.core.db import (
-    update_task as db_update_task,
-    get_subtitles_by_task as db_get_subtitles,
-    update_subtitles_by_task as db_update_subtitles_by_task,
-)
+from media_importer.core.db import get_subtitles_by_task as db_get_subtitles
 from media_importer.features.tasks import (
     TaskManager,
     clear_tasks_for_api,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
     get_queue_status_for_api,
+    ignore_task_for_api,
     pause_queue_for_api,
     reclassify_task_for_api,
     rename_task_file_for_api,
@@ -89,78 +86,12 @@ class TaskHandlersMixin:
         json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_ignore(self, task_id: str):
-        task = globals._global_task_manager.get_task(task_id)
-        if task is None:
-            json_response(self, 404, message=f"Task not found: {task_id}")
-            return
-        current_status = task.get("status", "")
-        if current_status not in ("FAILED", "CONFIRMING"):
-            json_response(self, 400, message=f"当前状态不可忽略: {current_status}")
-            return
-        source_policy = globals._config.get("source_policy", {}) if globals._config else {}
-        recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
-        cleanup = source_policy.get("cleanup_source_after_done", True)
-        file_location = task.get("file_location", "source")
-
-        if file_location == "temp":
-            temp_video = task.get("video_path", "")
-            temp_dir = globals._config.get('temp_dir', '') if globals._config else ''
-            if temp_video and temp_dir and str(temp_video).startswith(temp_dir) and os.path.exists(temp_video):
-                try:
-                    os.remove(temp_video)
-                except OSError:
-                    pass
-            for sub in (task.get("subtitle_files") or []):
-                sub_str = str(sub) if sub else ""
-                if sub_str and temp_dir and sub_str.startswith(temp_dir) and os.path.exists(sub_str):
-                    try:
-                        os.remove(sub_str)
-                    except OSError:
-                        pass
-            db_update_subtitles_by_task(
-                globals._global_task_manager.conn, task_id,
-                status="FAILED", target_path="")
-
-            source_path = task.get("source_path", "")
-            subtitle_paths = task.get("subtitle_files", [])
-            if cleanup and recycle_dir and source_path and os.path.exists(source_path):
-                globals._global_task_manager.move_to_recycle_bin(
-                    task_id=task_id,
-                    source_path=source_path,
-                    subtitle_paths=subtitle_paths if isinstance(subtitle_paths, list) else [],
-                    recycle_dir=recycle_dir,
-                )
-                db_update_task(globals._global_task_manager.conn, task_id,
-                               status="SKIPPED",
-                               skip_reason="用户忽略",
-                               file_location="recycle",
-                               video_path="",
-                               error_message=f"已移入回收站: {recycle_dir}")
-            else:
-                db_update_task(globals._global_task_manager.conn, task_id,
-                               status="SKIPPED",
-                               skip_reason="用户忽略",
-                               file_location="source",
-                               video_path="")
-        else:
-            source_path = task.get("source_path", "")
-            subtitle_paths = task.get("subtitle_files", [])
-            if cleanup and recycle_dir and source_path and os.path.exists(source_path):
-                globals._global_task_manager.move_to_recycle_bin(
-                    task_id=task_id,
-                    source_path=source_path,
-                    subtitle_paths=subtitle_paths if isinstance(subtitle_paths, list) else [],
-                    recycle_dir=recycle_dir,
-                )
-                db_update_task(globals._global_task_manager.conn, task_id,
-                               status="SKIPPED",
-                               skip_reason="用户忽略",
-                               error_message=f"已移入回收站: {recycle_dir}")
-            else:
-                db_update_task(globals._global_task_manager.conn, task_id,
-                               status="SKIPPED",
-                               skip_reason="用户忽略")
-        json_response(self, 200, message="任务已忽略")
+        result = ignore_task_for_api(
+            globals._global_task_manager,
+            globals._config or {},
+            task_id,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_subtitles(self, task_id: str):
         subs = db_get_subtitles(globals._global_task_manager.conn, task_id)

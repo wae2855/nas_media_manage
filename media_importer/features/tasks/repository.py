@@ -16,6 +16,7 @@ from media_importer.core.db.task_repo import (
     list_tasks,
     update_task,
 )
+from media_importer.core.db.subtitle_repo import update_subtitles_by_task
 
 __all__ = [
     "clear_tasks",
@@ -34,4 +35,5 @@ __all__ = [
     "list_all_tasks",
     "list_tasks",
     "update_task",
+    "update_subtitles_by_task",
 ]

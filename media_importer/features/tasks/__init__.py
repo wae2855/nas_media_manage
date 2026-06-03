@@ -29,6 +29,7 @@ from media_importer.core.task_manager import TaskManager
 from .delete_service import DeleteTaskResult, delete_task
 from .file_lifecycle_service import (
     TaskFileLifecycleResult,
+    ignore_task_for_api,
     rename_task_file_for_api,
 )
 from .list_service import TaskListResult, list_tasks_for_api
@@ -75,6 +76,7 @@ __all__ = [
     "confirm_all_tasks_for_api",
     "confirm_task_for_api",
     "get_queue_status_for_api",
+    "ignore_task_for_api",
     "list_tasks_for_api",
     "mark_confirmed",
     "mark_confirming",

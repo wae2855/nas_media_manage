@@ -1,17 +1,21 @@
 from pathlib import Path
 
-from media_importer.features.tasks import rename_task_file_for_api
+from media_importer.features.tasks import ignore_task_for_api, rename_task_file_for_api
 
 
 class FakeTaskManager:
     def __init__(self, task):
         self.task = task
         self.conn = object()
+        self.recycle_calls = []
 
     def get_task(self, task_id):
         if self.task and self.task.get("task_id") == task_id:
             return self.task
         return None
+
+    def move_to_recycle_bin(self, **kwargs):
+        self.recycle_calls.append(kwargs)
 
 
 def test_rename_source_task_file_updates_source_path(tmp_path, monkeypatch):
@@ -160,6 +164,181 @@ def test_rename_rejects_deleted_task():
 
 def test_rename_rejects_missing_task():
     result = rename_task_file_for_api(FakeTaskManager(None), "missing", "new.mkv")
+
+    assert result.code == 404
+    assert result.message == "Task not found: missing"
+
+
+def test_ignore_temp_task_cleans_temp_files_and_recycles_source(tmp_path, monkeypatch):
+    temp_dir = tmp_path / "temp"
+    source_dir = tmp_path / "source"
+    recycle_dir = tmp_path / "recycle"
+    temp_dir.mkdir()
+    source_dir.mkdir()
+    recycle_dir.mkdir()
+    temp_video = temp_dir / "working.mkv"
+    temp_sub = temp_dir / "working.srt"
+    source_video = source_dir / "movie.mkv"
+    temp_video.write_text("temp video")
+    temp_sub.write_text("temp sub")
+    source_video.write_text("source video")
+    task = {
+        "task_id": "task-1",
+        "status": "CONFIRMING",
+        "file_location": "temp",
+        "video_path": str(temp_video),
+        "source_path": str(source_video),
+        "subtitle_files": [str(temp_sub)],
+    }
+    task_manager = FakeTaskManager(task)
+    task_updates = []
+    subtitle_updates = []
+
+    monkeypatch.setattr(
+        "media_importer.features.tasks.file_lifecycle_service.update_task_record",
+        lambda conn, task_id, **fields: task_updates.append(fields) or task.update(fields),
+    )
+    monkeypatch.setattr(
+        "media_importer.features.tasks.file_lifecycle_service.update_subtitles_by_task_record",
+        lambda conn, task_id, **fields: subtitle_updates.append((task_id, fields)),
+    )
+
+    result = ignore_task_for_api(
+        task_manager,
+        {
+            "temp_dir": str(temp_dir),
+            "source_policy": {
+                "cleanup_source_after_done": True,
+                "recycle_dir": str(recycle_dir),
+            },
+        },
+        "task-1",
+    )
+
+    assert result.code == 200
+    assert result.message == "任务已忽略"
+    assert not temp_video.exists()
+    assert not temp_sub.exists()
+    assert source_video.exists()
+    assert subtitle_updates == [("task-1", {"status": "FAILED", "target_path": ""})]
+    assert task_manager.recycle_calls == [
+        {
+            "task_id": "task-1",
+            "source_path": str(source_video),
+            "subtitle_paths": [str(temp_sub)],
+            "recycle_dir": str(recycle_dir),
+        }
+    ]
+    assert task_updates == [
+        {
+            "status": "SKIPPED",
+            "skip_reason": "用户忽略",
+            "file_location": "recycle",
+            "video_path": "",
+            "error_message": f"已移入回收站: {recycle_dir}",
+        }
+    ]
+
+
+def test_ignore_temp_task_does_not_delete_files_outside_temp_dir(tmp_path, monkeypatch):
+    temp_dir = tmp_path / "temp"
+    outside_dir = tmp_path / "temp-other"
+    temp_dir.mkdir()
+    outside_dir.mkdir()
+    outside_video = outside_dir / "outside.mkv"
+    outside_video.write_text("outside")
+    task = {
+        "task_id": "task-1",
+        "status": "CONFIRMING",
+        "file_location": "temp",
+        "video_path": str(outside_video),
+        "source_path": "",
+        "subtitle_files": [],
+    }
+    task_manager = FakeTaskManager(task)
+
+    monkeypatch.setattr(
+        "media_importer.features.tasks.file_lifecycle_service.update_task_record",
+        lambda conn, task_id, **fields: task.update(fields),
+    )
+    monkeypatch.setattr(
+        "media_importer.features.tasks.file_lifecycle_service.update_subtitles_by_task_record",
+        lambda conn, task_id, **fields: None,
+    )
+
+    result = ignore_task_for_api(task_manager, {"temp_dir": str(temp_dir)}, "task-1")
+
+    assert result.code == 200
+    assert outside_video.exists()
+    assert task["file_location"] == "source"
+    assert task["video_path"] == ""
+
+
+def test_ignore_source_task_recycles_source_when_cleanup_enabled(tmp_path, monkeypatch):
+    source_file = tmp_path / "movie.mkv"
+    source_file.write_text("source video")
+    recycle_dir = tmp_path / "recycle"
+    recycle_dir.mkdir()
+    task = {
+        "task_id": "task-1",
+        "status": "FAILED",
+        "file_location": "source",
+        "source_path": str(source_file),
+        "subtitle_files": ["subtitle.srt"],
+    }
+    task_manager = FakeTaskManager(task)
+    task_updates = []
+
+    monkeypatch.setattr(
+        "media_importer.features.tasks.file_lifecycle_service.update_task_record",
+        lambda conn, task_id, **fields: task_updates.append(fields) or task.update(fields),
+    )
+
+    result = ignore_task_for_api(
+        task_manager,
+        {
+            "source_policy": {
+                "cleanup_source_after_done": True,
+                "recycle_dir": str(recycle_dir),
+            }
+        },
+        "task-1",
+    )
+
+    assert result.code == 200
+    assert task_manager.recycle_calls == [
+        {
+            "task_id": "task-1",
+            "source_path": str(source_file),
+            "subtitle_paths": ["subtitle.srt"],
+            "recycle_dir": str(recycle_dir),
+        }
+    ]
+    assert task_updates == [
+        {
+            "status": "SKIPPED",
+            "skip_reason": "用户忽略",
+            "error_message": f"已移入回收站: {recycle_dir}",
+        }
+    ]
+
+
+def test_ignore_task_rejects_invalid_status():
+    task_manager = FakeTaskManager({
+        "task_id": "task-1",
+        "status": "PENDING",
+        "file_location": "source",
+    })
+
+    result = ignore_task_for_api(task_manager, {}, "task-1")
+
+    assert result.code == 400
+    assert result.message == "当前状态不可忽略: PENDING"
+    assert task_manager.recycle_calls == []
+
+
+def test_ignore_task_rejects_missing_task():
+    result = ignore_task_for_api(FakeTaskManager(None), {}, "missing")
 
     assert result.code == 404
     assert result.message == "Task not found: missing"

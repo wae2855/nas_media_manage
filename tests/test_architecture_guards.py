@@ -157,3 +157,14 @@ def test_task_handler_delegates_rename_to_tasks_file_lifecycle_service():
     assert "rename_task_file_for_api" in source
     assert "os.rename" not in source
     assert "new_filename 只能是文件名" not in source
+
+
+def test_task_handler_delegates_ignore_to_tasks_file_lifecycle_service():
+    source = (
+        ROOT / "media_importer" / "api" / "task_handlers.py"
+    ).read_text(encoding="utf-8")
+    assert "ignore_task_for_api" in source
+    assert "os.remove" not in source
+    assert "move_to_recycle_bin" not in source
+    assert "update_task as db_update_task" not in source
+    assert "update_subtitles_by_task as db_update_subtitles_by_task" not in source

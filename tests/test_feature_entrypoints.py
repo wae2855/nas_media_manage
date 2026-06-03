@@ -37,6 +37,7 @@ def test_feature_consumers_use_feature_public_apis():
             "confirm_all_tasks_for_api",
             "confirm_task_for_api",
             "get_queue_status_for_api",
+            "ignore_task_for_api",
             "pause_queue_for_api",
             "reclassify_task_for_api",
             "rename_task_file_for_api",
@@ -203,6 +204,7 @@ def test_feature_public_apis_are_importable():
         confirm_all_tasks_for_api,
         confirm_task_for_api,
         get_queue_status_for_api,
+        ignore_task_for_api,
         pause_queue_for_api,
         reclassify_task_for_api,
         rename_task_file_for_api,
@@ -268,6 +270,7 @@ def test_feature_public_apis_are_importable():
     assert confirm_all_tasks_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert confirm_task_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert get_queue_status_for_api.__module__ == "media_importer.features.tasks.queue_service"
+    assert ignore_task_for_api.__module__ == "media_importer.features.tasks.file_lifecycle_service"
     assert pause_queue_for_api.__module__ == "media_importer.features.tasks.queue_service"
     assert reclassify_task_for_api.__module__ == "media_importer.features.tasks.review_service"
     assert rename_task_file_for_api.__module__ == "media_importer.features.tasks.file_lifecycle_service"

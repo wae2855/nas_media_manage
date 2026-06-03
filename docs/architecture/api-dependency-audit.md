@@ -7,7 +7,7 @@
 | API Area | Current Direct Dependencies | Direction |
 |----------|-----------------------------|-----------|
 | `handler.py` | `features.tasks`, `features.import_flow`, `core.metrics`, `core.logger`, `notify`, `monitor`, `core.db` | Startup scan now uses feature import-flow entry; remaining startup wiring still needs application-service cleanup. |
-| `task_handlers.py` | `core.db`, `features.tasks`, `api.task_delete`, `core.safety` for path validation | Task delete, task list, queue actions, manual review actions, and task rename now use `features.tasks`; ignore/run-file still need file lifecycle/application services. |
+| `task_handlers.py` | `core.db`, `features.tasks`, `api.task_delete`, `core.safety` for path validation | Task delete, task list, queue actions, manual review actions, task rename, and task ignore now use `features.tasks`; run-file still needs an application service. |
 | `task_delete.py` | `features.tasks.delete_task` | Thin API wrapper after Phase 4 proof slice. |
 | `config_handlers.py` | `features.configuration`, `features.tasks`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, watcher status, runtime refresh, and task list payloads now route through feature services. |
 | `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
@@ -28,10 +28,12 @@ Task manual review actions now call `media_importer.features.tasks.review_servic
 
 Task rename now calls `media_importer.features.tasks.file_lifecycle_service`, which owns same-directory file rename, filename-only validation, and DB path field updates. This service rejects path-bearing filenames before filesystem operations.
 
+Task ignore now also calls `media_importer.features.tasks.file_lifecycle_service`, which owns temp-file cleanup boundaries, subtitle status reset, optional recycle handoff, and skipped-state DB updates.
+
 Startup scan in `api/handler.py` now imports `scan_source_dir` from `media_importer.features.import_flow`, instead of directly calling `storage.file_scanner`.
 
 ## Next Candidates
 
-- Move task ignore/run-file actions behind task/import-flow feature services.
+- Move task run-file action behind task/import-flow feature services.
 - Continue thinning provider/config global orchestration after prompt file operations were moved into `features/prompts`.
 - Move config permission checks into configuration/infrastructure services.
