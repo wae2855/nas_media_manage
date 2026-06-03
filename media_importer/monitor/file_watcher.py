@@ -3,7 +3,7 @@ import os
 import threading
 import logging
 from media_importer.features.import_flow import scan_source_dir
-from media_importer.core.safety import recycle_cleanup
+from media_importer.features.recycle import recycle_cleanup
 
 
 class FileWatcher:

@@ -6,7 +6,7 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 from media_importer.features.configuration import ConfigView
-from media_importer.core.safety import move_to_recycle, move_dir_to_recycle
+from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
 
 logger = logging.getLogger(__name__)
 

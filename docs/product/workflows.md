@@ -12,7 +12,7 @@ Feature ownership:
 - process orchestration: `features/import_flow`
 - scraping and confidence: `features/scraping`
 - provider metadata: `features/providers`
-- source cleanup after success: `features/import_flow` + `features/recycle`
+- source cleanup after success: `features/source_files` + `features/recycle`
 
 ## Manual Review Workflow
 

@@ -323,8 +323,8 @@ class TestSourceCleanupService(unittest.TestCase):
         }
         service = SourceCleanupService(config)
 
-        with patch("media_importer.features.import_flow.services.source_cleanup.move_to_recycle_with_companions", return_value=1), \
-             patch("media_importer.features.import_flow.services.source_cleanup.remove_empty_parent_dir"):
+        with patch("media_importer.features.source_files.cleanup_service.move_to_recycle_with_companions", return_value=1), \
+             patch("media_importer.features.source_files.cleanup_service.remove_empty_parent_dir"):
             result = service.recycle_source_after_skip(
                 {"task_id": "t1"},
                 "/source/Movie.mkv",
@@ -341,7 +341,7 @@ class TestSourceCleanupService(unittest.TestCase):
             "path_rules": [{"template": "/import"}],
         })
 
-        with patch("media_importer.features.import_flow.services.source_cleanup.delete_source_files") as delete_files:
+        with patch("media_importer.features.source_files.cleanup_service.delete_source_files") as delete_files:
             outside = service.cleanup_temp_file("/outside/Movie.mkv")
             inside = service.cleanup_temp_file("/temp/Movie.mkv")
 

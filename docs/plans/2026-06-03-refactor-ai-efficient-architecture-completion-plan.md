@@ -160,12 +160,12 @@ confidence: medium
 ### Phase 3: Storage / 文件系统边界收口
 
 - [x] 将 `FileCopier` 复制基础能力归入 `infrastructure/filesystem`，旧 `storage/file_copier.py` 保留 wrapper。
-- [ ] 继续评估路径校验、复制/移动、删除基础能力是否归入 `infrastructure/filesystem`。
+- [x] 继续评估路径校验、复制/移动、删除基础能力是否归入 `infrastructure/filesystem`；当前决策为 `infrastructure/filesystem/safety.py` 承载路径校验、安全移动/删除、权限检查和指纹。
 - [x] 将分类规则和模板渲染迁到 `features/import_flow/services/classification_rules.py`，旧 `storage/classifier.py` 保留 wrapper。
 - [x] 将去重策略迁到 `features/import_flow/services/dedup_rules.py`，旧 `storage/dedup_checker.py` 保留 wrapper。
 - [x] 将命名模板与字幕命名规则迁到 `features/import_flow/services/naming.py`，旧 `storage/file_mover.py` 复用该 service。
-- [x] 将入库移动、源文件删除、附属文件识别和空父目录清理迁到 `features/import_flow/services/file_operations.py`，旧 `storage/file_mover.py` 保留 wrapper。
-- [ ] 继续评估源文件处理策略是否迁到 `features/import_flow/services/` 或独立 feature service。
+- [x] 将入库移动迁到 `features/import_flow/services/file_operations.py`，旧 `storage/file_mover.py` 保留 wrapper。
+- [x] 继续评估源文件处理策略是否迁到 `features/import_flow/services/` 或独立 feature service；当前决策为独立 `features/source_files/`，承载源文件清理、伴生文件和临时文件策略。
 - [x] 将 `storage/source_cleaner.py` 的剩余旧入口继续对齐 `features/source_cleaning/`。
 - [x] 增加 storage boundary tests，防止 feature 继续直接依赖旧业务策略文件。
 - [x] 更新 `docs/architecture/storage-filesystem.md` 和 import-flow/source-cleaning feature 文档。

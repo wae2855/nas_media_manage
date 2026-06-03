@@ -73,6 +73,45 @@ def test_import_flow_rules_do_not_import_legacy_storage_business_helpers():
             assert banned not in source, f"{path.name} should not import {banned}"
 
 
+def test_filesystem_safety_lives_in_infrastructure():
+    source_paths = [
+        ROOT / "media_importer" / "features" / "import_flow" / "run_file_service.py",
+        ROOT / "media_importer" / "features" / "import_flow" / "services" / "file_operations.py",
+        ROOT / "media_importer" / "infrastructure" / "filesystem" / "file_copier.py",
+        ROOT / "media_importer" / "api" / "connectivity_handlers.py",
+    ]
+    for path in source_paths:
+        source = path.read_text(encoding="utf-8")
+        assert "media_importer.core.safety" not in source
+
+    safety_source = (
+        ROOT / "media_importer" / "core" / "safety.py"
+    ).read_text(encoding="utf-8")
+    assert "from media_importer.infrastructure.filesystem import (" in safety_source
+
+
+def test_source_file_strategy_lives_in_source_files_feature():
+    source_paths = [
+        ROOT / "media_importer" / "features" / "import_flow" / "runner.py",
+        ROOT / "media_importer" / "features" / "import_flow" / "services" / "dedup.py",
+        ROOT / "media_importer" / "features" / "import_flow" / "services" / "import_service.py",
+    ]
+    for path in source_paths:
+        source = path.read_text(encoding="utf-8")
+        assert "from media_importer.features.source_files import" in source
+
+    wrapper_source = (
+        ROOT / "media_importer" / "features" / "import_flow" / "services" / "source_cleanup.py"
+    ).read_text(encoding="utf-8")
+    assert "from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService" in wrapper_source
+
+
+def test_source_files_feature_does_not_depend_on_import_flow():
+    for path in (ROOT / "media_importer" / "features" / "source_files").glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        assert "media_importer.features.import_flow" not in source
+
+
 def test_source_cleaner_api_handler_uses_feature_application_service():
     source = (
         ROOT / "media_importer" / "api" / "source_cleaner_handlers.py"

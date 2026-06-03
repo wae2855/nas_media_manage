@@ -10,7 +10,8 @@
 | `media_importer/features/recycle/browser.py` | List, restore, delete, and cleanup recycle entries. |
 | `media_importer/features/recycle/__init__.py` | Public recycle feature API. |
 | `media_importer/core/recycle/` | Temporary wrapper for old imports. |
-| `media_importer/core/safety.py` | Safety facade used by older code paths. |
+| `media_importer/core/safety.py` | Compatibility facade used by older code paths. |
+| `media_importer/infrastructure/filesystem/safety.py` | Path validation and low-level safe filesystem primitives. |
 
 ## Related Areas
 

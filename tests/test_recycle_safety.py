@@ -3,11 +3,12 @@ import json
 import os
 import tempfile
 
-from media_importer.core.safety import (
+from media_importer.infrastructure.filesystem import (
     make_fingerprint,
     safe_delete,
     validate_path_safety,
 )
+from media_importer.core import safety as core_safety
 from media_importer.features.recycle import (
     list_recycle_dir,
     move_to_recycle,
@@ -105,3 +106,9 @@ def test_validate_path_safety_rejects_traversal():
 
     assert ok is False
     assert "穿越" in msg
+
+
+def test_core_safety_keeps_compatibility_exports():
+    assert core_safety.make_fingerprint is make_fingerprint
+    assert core_safety.safe_delete is safe_delete
+    assert core_safety.validate_path_safety is validate_path_safety

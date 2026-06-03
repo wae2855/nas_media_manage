@@ -9,7 +9,7 @@ from media_importer.core.db import (
 from media_importer.features.configuration import ConfigView
 from .file_operations import move_to_import
 from .paths import allowed_dirs_from_config
-from .source_cleanup import SourceCleanupResult, SourceCleanupService
+from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService
 
 
 @dataclass

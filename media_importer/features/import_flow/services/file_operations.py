@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 import os
 
-from media_importer.core.safety import (
+from media_importer.features.recycle import move_to_recycle
+from media_importer.infrastructure.filesystem import (
     check_write_permission,
     safe_delete,
     safe_move,
     validate_path_safety,
+)
+from media_importer.features.source_files import (
+    cleanup_source_non_media,
+    delete_source_files,
+    delete_source_with_companions,
+    find_companion_files,
+    remove_empty_parent_dir,
 )
 from .naming import (
     apply_filename_template,
@@ -39,11 +47,12 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
 
     if os.path.exists(dest_video):
         if overwrite:
-            from media_importer.core.safety import move_to_recycle
             recycle_dir = ""
             ok, _, msg = move_to_recycle(dest_video, recycle_dir, reason="import_overwrite")
             if not ok:
-                os.remove(dest_video)
+                ok, msg = safe_delete(dest_video, allowed_base_dirs)
+                if not ok:
+                    raise IOError(f"目标文件回收失败且无法安全删除: {msg}")
         else:
             raise IOError(
                 f"目标已存在同名文件: {final_video_filename}\n"
@@ -73,110 +82,6 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
         result['subtitles'].append(dest_sub)
 
     return result
-
-
-def delete_source_files(source_paths: list[str], allowed_base_dirs: list = None):
-    for path in source_paths:
-        ok, msg = safe_delete(path, allowed_base_dirs)
-        if not ok:
-            pass
-
-
-def find_companion_files(video_path: str, subtitle_paths: list,
-                         video_extensions: list, subtitle_extensions: list) -> list:
-    video_dir = os.path.dirname(video_path)
-    video_basename = os.path.splitext(os.path.basename(video_path))[0]
-    known_files = {os.path.basename(video_path)}
-    for subtitle_path in subtitle_paths:
-        known_files.add(os.path.basename(subtitle_path))
-
-    companion_files = []
-    if not os.path.isdir(video_dir):
-        return companion_files
-
-    for filename in os.listdir(video_dir):
-        if filename in known_files:
-            continue
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext in video_extensions or file_ext in subtitle_extensions:
-            continue
-        if filename.startswith(video_basename):
-            companion_files.append(os.path.join(video_dir, filename))
-
-    return companion_files
-
-
-def delete_source_with_companions(video_path: str, subtitle_paths: list,
-                                  video_extensions: list, subtitle_extensions: list,
-                                  allowed_base_dirs: list = None):
-    files_to_delete = [video_path]
-    files_to_delete.extend(subtitle_paths)
-    companions = find_companion_files(
-        video_path,
-        subtitle_paths,
-        video_extensions,
-        subtitle_extensions,
-    )
-    files_to_delete.extend(companions)
-    delete_source_files(files_to_delete, allowed_base_dirs)
-    return len(companions)
-
-
-def cleanup_source_non_media(source_dir: str, video_extensions: list, subtitle_extensions: list):
-    if not source_dir or not os.path.isdir(source_dir):
-        return 0, 0
-    media_exts = set(ext.lower() for ext in video_extensions) | set(
-        ext.lower() for ext in subtitle_extensions
-    )
-    deleted_files = 0
-    deleted_dirs = 0
-
-    for root, dirs, files in os.walk(source_dir, topdown=False):
-        for filename in files:
-            ext = os.path.splitext(filename)[1].lower()
-            if ext not in media_exts:
-                file_path = os.path.join(root, filename)
-                try:
-                    os.remove(file_path)
-                    deleted_files += 1
-                except OSError:
-                    pass
-        if root != os.path.normpath(source_dir):
-            try:
-                remaining = os.listdir(root)
-                if not remaining:
-                    os.rmdir(root)
-                    deleted_dirs += 1
-            except OSError:
-                pass
-
-    return deleted_files, deleted_dirs
-
-
-def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: list = None,
-                            video_extensions: list = None, subtitle_extensions: list = None):
-    if not source_root:
-        return
-    source_root_norm = os.path.normpath(source_root).rstrip('/')
-    current = os.path.dirname(os.path.normpath(file_path))
-
-    while current and current != source_root_norm:
-        if not current.startswith(source_root_norm):
-            break
-        if not os.path.isdir(current):
-            break
-        try:
-            remaining = os.listdir(current)
-        except OSError:
-            break
-        if not remaining:
-            try:
-                os.rmdir(current)
-            except OSError:
-                break
-            current = os.path.dirname(current)
-            continue
-        break
 
 
 def move_with_cross_device_fallback(src: str, dest: str) -> bool:

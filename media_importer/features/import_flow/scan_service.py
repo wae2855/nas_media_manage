@@ -113,7 +113,7 @@ class FileScanner:
         for g in groups:
             fingerprint = ""
             if os.path.isfile(g["video_path"]):
-                from media_importer.core.safety import make_fingerprint
+                from media_importer.infrastructure.filesystem import make_fingerprint
                 fingerprint = make_fingerprint(g["video_path"])
 
             dedup = self.task_manager.check_source_duplicate(

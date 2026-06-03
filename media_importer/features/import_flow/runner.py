@@ -20,7 +20,7 @@ from media_importer.features.tasks import (
 )
 from media_importer.features.import_flow.confirm import ConfirmMixin
 from media_importer.features.import_flow.context import TaskContext
-from media_importer.features.import_flow.services import SourceCleanupService
+from media_importer.features.source_files import SourceCleanupService
 from media_importer.features.import_flow.scan_service import FileScanner
 from media_importer.infrastructure.filesystem import FileCopier
 from media_importer.features.scraping import MetadataScraper

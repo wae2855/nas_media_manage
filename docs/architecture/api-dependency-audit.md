@@ -10,7 +10,7 @@
 | `task_handlers.py` | `features.import_flow`, `features.tasks`, `api.task_delete` | Task detail/subtitles/stats, task delete, task list, queue actions, manual review actions, task rename, task ignore, run-batch, and run-file now use feature services; restart remains a thin local adapter. |
 | `task_delete.py` | `features.tasks.delete_task` | Thin API wrapper after Phase 4 proof slice. |
 | `config_handlers.py` | `features.configuration`, `features.tasks`, config save utilities | UI config payloads, section save splitting, permission/path payload assembly, watcher status, runtime refresh, and task list payloads now route through feature services. |
-| `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `core.safety` | Connectivity calls mostly feature-backed; path write check remains infrastructure/safety. |
+| `connectivity_handlers.py` | `features.scraping`, `features.configuration`, `core.metrics`, `infrastructure.filesystem` | Connectivity calls mostly feature-backed; path write check uses filesystem infrastructure. |
 | `dimension_handlers.py` | `features.scraping` | Dimension CRUD and tier checks now route through `features.scraping.dimensions_service`; handler no longer imports dimension DB functions directly. |
 | `provider_handlers.py` | `features.providers` | Acceptable direction. |
 | `prompt_handlers.py` | `features.prompts`, API utilities | Global prompt file load/save/reset now routes through `features.prompts.application_service`. |

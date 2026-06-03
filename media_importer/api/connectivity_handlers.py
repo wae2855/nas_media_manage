@@ -84,7 +84,7 @@ class ConnectivityHandlersMixin:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
 
     def _health(self):
-        from media_importer.core.safety import check_write_permission
+        from media_importer.infrastructure.filesystem import check_write_permission
         checks = {}
         overall = "ok"
 

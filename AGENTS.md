@@ -73,10 +73,11 @@ PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python3 -m compileall 
 media_importer/
 ├── media_importer.py          # CLI 入口
 ├── api/                       # HTTP API 和静态文件服务
-├── core/                      # 配置、DB、任务、安全、回收站、日志、指标
-├── features/                  # feature-first 业务能力事实源
+├── core/                      # 配置、DB、任务、日志、指标和 legacy facade
+├── features/                  # feature-first 业务能力事实源，含 import_flow/source_files/tasks 等
+├── infrastructure/            # DB/filesystem 等基础设施；路径校验、安全移动/删除在 filesystem
 ├── scraper/                   # 待迁移到 features/scraping 与 features/providers
-├── storage/                   # 待拆分为 feature 服务与 infrastructure/filesystem
+├── storage/                   # legacy wrappers；新代码优先用 feature 或 infrastructure/filesystem
 ├── monitor/                   # 待并入 notification/monitoring feature 或 infrastructure
 ├── notify/                    # 待迁移到 notification/monitoring feature
 └── webui/                     # 原生前端
@@ -153,7 +154,8 @@ media_importer/
 
 - `features/` 是新业务入口，优先按业务能力检索和扩展。
 - `features/import_flow/` 已替代旧 `pipeline/` 包装层；旧包装层已归档，不作为可导入入口。
-- `storage/`、`core/recycle/` 等旧技术路径只作为待迁移目录，不作为新事实源。
+- 路径校验、复制/移动、删除基础能力属于 `infrastructure/filesystem/`；源文件处理策略属于 `features/source_files/`。
+- `storage/`、`core/recycle/`、`core/safety.py` 等旧技术路径只作为兼容入口或待迁移目录，不作为新事实源。
 - 历史文档、旧方案、旧测试脚本和生成物统一归档，当前文档不得引用归档内容作为事实。
 - 前端重做和深层 UI/E2E 测试在代码与文档架构稳定后单独展开。
 

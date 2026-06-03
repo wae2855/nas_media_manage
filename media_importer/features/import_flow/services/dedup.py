@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from media_importer.features.configuration import ConfigView
 from .dedup_rules import check_duplicate
 from .paths import import_roots_from_config
-from .source_cleanup import SourceCleanupService
+from media_importer.features.source_files import SourceCleanupService
 
 
 @dataclass

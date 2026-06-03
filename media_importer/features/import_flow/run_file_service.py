@@ -3,7 +3,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from media_importer.core.safety import validate_file_ext, validate_path_safety
+from media_importer.infrastructure.filesystem import validate_file_ext, validate_path_safety
 
 
 @dataclass

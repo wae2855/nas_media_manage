@@ -16,7 +16,7 @@ from .naming import (
     detect_subtitle_lang,
 )
 from .review import ReviewDecision, ReviewDecisionService
-from .source_cleanup import SourceCleanupResult, SourceCleanupService
+from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService
 
 __all__ = [
     "ClassificationResult",

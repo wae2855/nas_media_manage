@@ -17,6 +17,7 @@ Current feature docs:
 - [scraping.md](scraping.md)
 - [configuration.md](configuration.md)
 - [tasks.md](tasks.md)
+- [source-files.md](source-files.md)
 - [source-cleaning.md](source-cleaning.md)
 - [recycle.md](recycle.md)
 - [providers.md](providers.md)

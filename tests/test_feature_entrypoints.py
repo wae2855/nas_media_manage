@@ -78,6 +78,7 @@ def test_feature_consumers_use_feature_public_apis():
         ],
         root / "media_importer" / "features" / "import_flow" / "runner.py": [
             "from media_importer.infrastructure.filesystem import FileCopier",
+            "from media_importer.features.source_files import SourceCleanupService",
             "from media_importer.features.import_flow.scan_service import FileScanner",
             "from media_importer.features.import_flow.services.file_operations import delete_source_files",
         ],
@@ -85,16 +86,18 @@ def test_feature_consumers_use_feature_public_apis():
             "from .classification_rules import classify, render_template",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "dedup.py": [
+            "from media_importer.features.source_files import SourceCleanupService",
             "from .dedup_rules import check_duplicate",
         ],
         root / "media_importer" / "features" / "import_flow" / "steps" / "file.py": [
             "from media_importer.features.import_flow.services.naming import apply_filename_template",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "import_service.py": [
+            "from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService",
             "from .file_operations import move_to_import",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "source_cleanup.py": [
-            "from .file_operations import delete_source_files, remove_empty_parent_dir",
+            "from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService",
         ],
         root / "media_importer" / "storage" / "classifier.py": [
             "from media_importer.features.import_flow.services.classification_rules import",
@@ -206,6 +209,7 @@ def test_feature_public_apis_are_importable():
     from media_importer.features.import_flow.services.dedup_rules import check_duplicate
     from media_importer.features.import_flow.services.file_operations import move_to_import
     from media_importer.features.import_flow.services.naming import apply_filename_template
+    from media_importer.features.source_files import SourceCleanupService
     from media_importer.features.source_cleaning import SourceCleaner
     from media_importer.features.tasks import delete_task
     from media_importer.features.tasks import (
@@ -278,6 +282,7 @@ def test_feature_public_apis_are_importable():
     assert check_duplicate.__module__ == "media_importer.features.import_flow.services.dedup_rules"
     assert move_to_import.__module__ == "media_importer.features.import_flow.services.file_operations"
     assert apply_filename_template.__module__ == "media_importer.features.import_flow.services.naming"
+    assert SourceCleanupService.__module__ == "media_importer.features.source_files.cleanup_service"
     assert SourceCleaner.__module__ == "media_importer.features.source_cleaning.cleaner"
     assert delete_task.__module__ == "media_importer.features.tasks.delete_service"
     assert clear_tasks_for_api.__module__ == "media_importer.features.tasks.queue_service"
