@@ -280,7 +280,7 @@ def test_api_check_permission_endpoint():
     cfg_file = '/tmp/api_check_perm_test.yaml'
     shutil.copy(os.path.join(PROJ, 'config.yaml.example'), cfg_file)
     proc = subprocess.Popen(
-        ['python3', '-B', os.path.join(PROJ, 'media_importer', 'media_importer.py'),
+        [sys.executable, '-B', os.path.join(PROJ, 'media_importer', 'media_importer.py'),
          '-c', cfg_file, 'serve', '-p', '19859', '--host', '127.0.0.1'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )

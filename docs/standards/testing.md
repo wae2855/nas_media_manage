@@ -9,11 +9,13 @@
 ## Commands
 
 ```bash
-pytest tests/
-pytest tests/test_feature_import_flow.py
-pytest tests/test_architecture_guards.py
-pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
-PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python3 -m compileall -q media_importer tests
+./scripts/bootstrap_python_env.sh
+source .venv/bin/activate
+python -m pytest tests/
+python -m pytest tests/test_feature_import_flow.py
+python -m pytest tests/test_architecture_guards.py
+python -m pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
+PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python -m compileall -q media_importer tests
 ```
 
 ## Before Refactor
@@ -21,6 +23,7 @@ PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python3 -m compileall 
 - 先记录 baseline commit。
 - 先检查 `.pytest_cache/v/cache/lastfailed`。
 - 区分已知失败和新增失败。
+- 仓库默认开发解释器为 `.python-version` 指定的 Python 3.12；如测试内启动子进程，必须跟随当前解释器而不是硬编码系统 `python3`。
 
 ## Test Reporting
 

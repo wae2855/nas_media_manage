@@ -60,6 +60,8 @@ SERVER_DIR="${TRIM_APPDEST}/server"
 VENV_DIR="${TRIM_APPDEST}/venv"
 CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
 APP_PORT="${wizard_port:-9855}"
+REQUIRED_PYTHON_MAJOR=3
+REQUIRED_PYTHON_MINOR=12
 
 CMD="${VENV_DIR}/bin/python3 ${SERVER_DIR}/media_importer/media_importer.py -c ${CONFIG_FILE} serve --host 0.0.0.0 --port ${APP_PORT}"
 
@@ -75,8 +77,8 @@ start_process() {
 
     # check if dependencies are installed; reinstall if venv exists but deps missing
     if [ -x "${VENV_DIR}/bin/python3" ]; then
-        if ! "${VENV_DIR}/bin/python3" -c "import yaml" >/dev/null 2>&1; then
-            log_msg "venv exists but dependencies missing, will reinstall"
+        if ! "${VENV_DIR}/bin/python3" -c "import sys, yaml; raise SystemExit(0 if sys.version_info >= (${REQUIRED_PYTHON_MAJOR}, ${REQUIRED_PYTHON_MINOR}) else 1)" >/dev/null 2>&1; then
+            log_msg "venv exists but Python version is too old or dependencies are missing, will reinstall"
             rm -rf "${VENV_DIR}"
         fi
     fi
@@ -101,6 +103,11 @@ start_process() {
             exit 1
         fi
         log_msg "using python: ${PYTHON_BIN}"
+
+        if ! "${PYTHON_BIN}" -c "import sys; raise SystemExit(0 if sys.version_info >= (${REQUIRED_PYTHON_MAJOR}, ${REQUIRED_PYTHON_MINOR}) else 1)"; then
+            echo "当前 fnOS 环境的 Python 版本过低，至少需要 Python ${REQUIRED_PYTHON_MAJOR}.${REQUIRED_PYTHON_MINOR}" > "${TRIM_TEMP_LOGFILE}"
+            exit 1
+        fi
 
         if "${PYTHON_BIN}" -m venv "${VENV_DIR}" >> ${LOG_FILE} 2>&1; then
             log_msg "venv created successfully"

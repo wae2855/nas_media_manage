@@ -4,6 +4,9 @@
 
 项目运行在飞牛 fnOS NAS 环境，使用 Python 服务和原生 Web UI。
 
+当前仓库默认开发版本已升级到 Python 3.12.x，本地开发通过根目录 `.python-version` 和项目 `.venv/` 隔离全局解释器。
+fnOS 发布仍由 `deploy/build_fpk.sh` 在目标环境中创建独立 `venv`，但目标机器也必须提供 Python 3.12+。
+
 ## Important Rule
 
 `deploy/nas-media-importer/` 是 fnOS package workspace，不是应用源码入口。

@@ -7,12 +7,75 @@
     <link rel="stylesheet" href="css/cinema-tokens.css?v=1">
     <link rel="stylesheet" href="css/cinema-layout.css?v=1">
     <link rel="stylesheet" href="css/cinema-pages.css?v=1">
+    <link rel="stylesheet" href="css/cinema-config-flow.css?v=1">
+    <link rel="stylesheet" href="css/cinema-rules.css?v=1">
+    <link rel="stylesheet" href="css/dimensions.css?v=37">
+    <link rel="stylesheet" href="css/cinema-advanced.css?v=1">
+    <link rel="stylesheet" href="css/cinema-confidence.css?v=1">
+    <link rel="stylesheet" href="css/cinema-confidence-dimensions.css?v=1">
 </head>
 <body>
+    <svg width="0" height="0" style="position:absolute;opacity:0;pointer-events:none" aria-hidden="true" focusable="false">
+        <symbol id="icon-brand" viewBox="0 0 24 24">
+            <rect x="4" y="5" width="16" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M8 5v14M16 5v14" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor"/>
+            <path d="M5.5 8h1M5.5 12h1M5.5 16h1M17.5 8h1M17.5 12h1M17.5 16h1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="icon-scan" viewBox="0 0 24 24">
+            <path d="M5 9V6.8A1.8 1.8 0 0 1 6.8 5H9M15 5h2.2A1.8 1.8 0 0 1 19 6.8V9M19 15v2.2a1.8 1.8 0 0 1-1.8 1.8H15M9 19H6.8A1.8 1.8 0 0 1 5 17.2V15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/>
+        </symbol>
+        <symbol id="icon-pause" viewBox="0 0 24 24">
+            <rect x="7" y="5" width="3.5" height="14" rx="1.5" fill="currentColor"/>
+            <rect x="13.5" y="5" width="3.5" height="14" rx="1.5" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-retry" viewBox="0 0 24 24">
+            <path d="M20 11a8 8 0 1 0 2.1 5.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <path d="M20 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-clock" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.9"/>
+            <path d="M12 8v4l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-alert" viewBox="0 0 24 24">
+            <path d="M12 5.5l7 12.2a1.2 1.2 0 0 1-1 1.8H6a1.2 1.2 0 0 1-1-1.8Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+            <path d="M12 10v3.8M12 16.8h.01" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.9"/>
+            <path d="m8.5 12.2 2.2 2.2 4.8-5.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-home" viewBox="0 0 24 24">
+            <path d="m5 10.5 7-5.5 7 5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7.5 10.5V18h9v-7.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-clapper" viewBox="0 0 24 24">
+            <path d="M4 9.5h16v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+            <path d="M4 9.5 7.2 4h12.3L16.3 9.5ZM9 4l-3.2 5.5M14 4l-3.2 5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-archive" viewBox="0 0 24 24">
+            <rect x="4" y="6" width="16" height="4" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+            <path d="M6 10h12v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 18Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+            <path d="M10 13h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="icon-sliders" viewBox="0 0 24 24">
+            <path d="M5 7h14M5 17h14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <circle cx="9" cy="7" r="2" fill="currentColor"/>
+            <circle cx="15" cy="12" r="2" fill="currentColor"/>
+            <circle cx="11" cy="17" r="2" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+            <path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+            <path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+    </svg>
     <div class="app-shell">
         <header class="topbar">
             <div class="brand">
-                <div class="brand-mark">◆</div>
+                <div class="brand-mark"><svg class="icon icon-brand" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-brand"></use></svg></div>
                 <div>
                     <h1>影音库 AI</h1>
                     <p class="brand-sub">Cinema Library Operator</p>
@@ -24,161 +87,640 @@
         <main>
             <section class="page-view active" data-view="dashboard">
                 <section class="hero">
-                    <div class="hero-copy">
-                        <div>
-                            <div class="eyebrow">今晚片库整理进度</div>
-                            <h2 class="hero-title">把散落影片收进一座私人影院</h2>
-                            <p class="hero-text">首页只保留最该看的状态、核心入口和最近活动。系统健康、配置细节和诊断信息进入系统配置页。</p>
+                    <div class="hero-cinema-reels" aria-hidden="true">
+                        <!-- 调整 data-still 的文件编号或 DOM 顺序，即可自定义首页胶卷中的剧照排列 -->
+                        <div class="film-reel film-reel-ambient">
+                            <div class="film-frame" data-still="still-05"></div>
+                            <div class="film-frame" data-still="still-02"></div>
                         </div>
-                        <div class="hero-actions">
-                            <button class="btn btn-primary" data-action="scan">▶ 立即扫描</button>
-                            <button class="btn btn-secondary" data-action="pause">Ⅱ 暂停队列</button>
-                            <button class="btn btn-secondary" data-action="retry">↻ 重试失败</button>
+                        <div class="film-reel film-reel-primary">
+                            <div class="film-frame" data-still="still-03"></div>
+                            <div class="film-frame" data-still="still-04"></div>
+                        </div>
+                        <div class="film-reel film-reel-secondary">
+                            <div class="film-frame" data-still="still-01"></div>
+                            <div class="film-frame" data-still="still-06"></div>
                         </div>
                     </div>
-                    <div class="spotlight">
-                        <div class="poster-stack">
-                            <div class="poster poster-red"></div>
-                            <div class="poster poster-green"></div>
-                            <div class="poster poster-violet"></div>
+                    <div class="hero-copy">
+                        <div>
+                            <div class="eyebrow">首页</div>
+                            <h2 class="hero-title">片库总览</h2>
+                            <p class="hero-text">把散落影片收进一座私人影院。</p>
                         </div>
+                        <div class="hero-actions">
+                            <button class="btn btn-primary" data-action="scan"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"></use></svg>立即扫描</button>
+                            <button class="btn btn-secondary" data-action="pause"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"></use></svg>暂停处理</button>
+                            <button class="btn btn-secondary" data-action="retry"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg>重试失败项</button>
+                        </div>
+                    </div>
+                    <div class="spotlight hero-spotlight">
                         <div class="now-strip">
-                            <strong id="current-job">等待扫描新的影片任务</strong>
+                            <strong id="current-job">等待新影片进入队列</strong>
                             <div class="progress"><span></span></div>
                         </div>
                     </div>
                 </section>
 
                 <section class="metrics">
-                    <article class="metric-card"><div class="metric-icon">⏱</div><div><div class="metric-label">待处理</div><div class="metric-value" id="metric-pending">0</div></div></article>
-                    <article class="metric-card"><div class="metric-icon">!</div><div><div class="metric-label">需要确认</div><div class="metric-value" id="metric-confirm">0</div></div></article>
-                    <article class="metric-card"><div class="metric-icon">✓</div><div><div class="metric-label">今日入库</div><div class="metric-value" id="metric-success">0</div></div></article>
+                    <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="pending"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clock"></use></svg></div><div><div class="metric-label">待处理</div><div class="metric-value" id="metric-pending">0</div></div></button>
+                    <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="confirm"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-alert"></use></svg></div><div><div class="metric-label">需要确认</div><div class="metric-value" id="metric-confirm">0</div></div></button>
+                    <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="success"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></div><div><div class="metric-label">今日入库</div><div class="metric-value" id="metric-success">0</div></div></button>
                 </section>
 
                 <section class="workspaces">
                     <button class="module-card module-poster" data-nav="tasks">
-                        <div class="module-head"><div class="module-icon">▣</div><span class="badge">核心</span></div>
-                        <div><h3>任务列表</h3><p>处理失败、确认、重试、忽略、删除和改名。</p></div>
+                        <div class="module-head"><div class="module-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></div><span class="badge">核心</span></div>
+                        <div><h3>任务列表</h3><p>进入队列，继续确认、重试和整理影片。</p></div>
                     </button>
                     <button class="module-card module-poster" data-nav="recycle">
-                        <div class="module-head"><div class="module-icon">⌫</div><span class="badge">安全</span></div>
-                        <div><h3>回收站</h3><p>恢复误删、永久删除、查看来源和清理记录。</p></div>
+                        <div class="module-head"><div class="module-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></div><span class="badge">安全</span></div>
+                        <div><h3>回收站</h3><p>恢复文件，核对来源，再决定是否清理。</p></div>
                     </button>
                     <button class="module-card module-poster" data-nav="system" data-view-target="config">
-                        <div class="module-head"><div class="module-icon">☷</div><span class="badge">设置</span></div>
-                        <div><h3>系统配置</h3><p>目录、刮削、AI、定时任务和更多高级配置。</p></div>
+                        <div class="module-head"><div class="module-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></div><span class="badge">设置</span></div>
+                        <div><h3>系统配置</h3><p>完成基础配置，让片库开始稳定运转。</p></div>
                     </button>
                 </section>
 
                 <section class="activity">
                     <div class="section-title"><h2>最近活动</h2><span class="badge">Live</span></div>
                     <div class="activity-list" id="activity-list">
-                        <div class="activity-row"><div class="state">✓</div><div><b>前端展示壳已加载</b><small>功能接线将在下一阶段逐页完成</small></div><span class="time">刚刚</span></div>
+                        <div class="activity-row"><div class="state"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></div><div><b>本轮扫描已结束</b><small>当前片库没有待处理的新影片。</small></div><span class="time">刚刚</span></div>
                     </div>
                 </section>
             </section>
 
             <section class="page-view" data-view="tasks">
-                <div class="page-hero"><div><div class="eyebrow">影片入库队列</div><h2>任务列表</h2><p>任务页采用影片卡片而不是密集表格。当前阶段先确认展示与操作入口。</p></div><button class="btn btn-primary" data-action="retry">↻ 重试失败</button></div>
-                <div class="filter-rail"><button class="chip active">全部</button><button class="chip">待处理</button><button class="chip">待确认</button><button class="chip danger">失败</button><button class="chip">已完成</button></div>
+                <div class="page-hero task-hero">
+                    <div class="task-hero-copy">
+                        <div class="eyebrow">任务</div>
+                        <h2>任务工作台</h2>
+                        <p>把待处理影片继续推进下去。</p>
+                        <div class="hero-actions task-hero-actions">
+                            <button class="btn btn-primary" data-action="retry"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg>重试失败项</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-rail">
+                    <button class="chip active" data-task-filter-chip="all">全部</button>
+                    <button class="chip" data-task-filter-chip="pending">待处理</button>
+                    <button class="chip" data-task-filter-chip="confirm">待确认</button>
+                    <button class="chip danger" data-task-filter-chip="failed">失败</button>
+                    <button class="chip" data-task-filter-chip="success">已完成</button>
+                </div>
+                <div class="section-title section-title-stack task-panel-head">
+                    <div>
+                        <h2 id="task-panel-title">当前队列</h2>
+                        <p id="task-panel-copy">先从待确认和失败项开始，会更快把主流程跑顺。</p>
+                    </div>
+                    <span class="badge" id="task-panel-count">0 项</span>
+                </div>
                 <div class="task-list" id="task-list"></div>
             </section>
 
             <section class="page-view" data-view="recycle">
-                <div class="page-hero"><div><div class="eyebrow">安全恢复与永久删除</div><h2>回收站</h2><p>所有危险操作先进入这里。用户需要看清来源、原因、大小和恢复入口。</p></div><button class="btn btn-primary" data-action="placeholder">清理过期</button></div>
-                <section class="recycle-stats"><article><b id="recycle-count">0</b><span>回收文件</span></article><article><b id="recycle-size">--</b><span>占用空间</span></article><article><b>30天</b><span>保留策略</span></article></section>
+                <div class="page-hero"><div><div class="eyebrow">回收</div><h2>安全回收区</h2><p>所有危险操作先进入回收目录。</p></div><button class="btn btn-primary" data-action="placeholder">清理过期项</button></div>
+                <section class="recycle-stats"><article><b id="recycle-recoverable-count">0</b><span>可恢复</span></article><article><b id="recycle-cleanup-count">0</b><span>待清理</span></article><article><b id="recycle-size">--</b><span>占用空间</span></article></section>
+                <div class="section-title section-title-stack task-panel-head">
+                    <div>
+                        <h2>待恢复与待清理</h2>
+                        <p>先恢复误删或误替换文件，再处理已经确认无用的临时内容。</p>
+                    </div>
+                    <span class="badge">默认保留 30 天</span>
+                </div>
                 <div class="task-list" id="recycle-list"></div>
             </section>
 
             <section class="page-view" data-view="config">
-                <div class="page-hero"><div><div class="eyebrow">按顺序完成基础设置</div><h2>系统配置</h2><p>新手优先完成 01-04。更多配置项通过下方提示展开。</p></div><button class="btn btn-primary" data-action="placeholder">保存配置</button></div>
-                <section class="setup-steps">
-                    <button class="setup-card active" data-nav="system" data-view-target="directory"><span class="step-no">01</span><div><h3>目录配置</h3><p>源目录 → 中转目录 → 回收站目录 → 入库规则</p></div><b>继续</b></button>
-                    <button class="setup-card" data-nav="system" data-view-target="metadata-config"><span class="step-no">02</span><div><h3>影视刮削配置</h3><p>元数据源配置</p></div><b>配置</b></button>
-                    <button class="setup-card" data-nav="ai" data-view-target="ai-config"><span class="step-no">03</span><div><h3>AI 配置</h3><p>LLM 配置</p></div><b>配置</b></button>
-                    <button class="setup-card" data-nav="system" data-view-target="schedule-config"><span class="step-no">04</span><div><h3>定时任务</h3><p>轮询监控配置</p></div><b>配置</b></button>
+                <div class="page-hero">
+                    <div><div class="eyebrow">配置</div><h2>片库搭建</h2><p>先把片库跑起来，再继续做高级调整。</p></div>
+                    <div class="hero-actions">
+                        <a class="btn btn-secondary" href="legacy-config.html">旧版对照</a>
+                        <button class="btn btn-secondary" data-nav="config" data-view-target="config-simulator">运行模拟</button>
+                        <button class="btn btn-primary" data-nav="config" data-view-target="advanced-config">高级配置</button>
+                    </div>
+                </div>
+                <section class="config-stage-strip" id="config-stage-strip">
+                    <button class="config-stage-card active" data-config-stage="start">
+                        <div class="config-stage-copy"><strong>开始</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="source">
+                        <div class="config-stage-copy"><strong>源目录</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="temp">
+                        <div class="config-stage-copy"><strong>中转目录</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="recycle">
+                        <div class="config-stage-copy"><strong>回收目录</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="scrape">
+                        <div class="config-stage-copy"><strong>刮削配置</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="ai">
+                        <div class="config-stage-copy"><strong>AI配置</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="rules">
+                        <div class="config-stage-copy"><strong>入库规则</strong></div>
+                        <i aria-hidden="true"><span></span></i>
+                    </button>
                 </section>
-                <section class="more-config-list">
-                    <button class="expand-more" type="button" aria-expanded="false" aria-controls="more-config-menu"><span>⌄</span><b>点击展开更多配置</b></button>
-                    <div class="more-config-menu" id="more-config-menu" aria-hidden="true">
-                        <button class="setup-card row-card" data-nav="rules" data-view-target="naming-config"><span class="step-no">05</span><div><h3>入库名称规范</h3><p>入库设置 / 入库选项</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-nav="rules" data-view-target="dimensions-config"><span class="step-no">06</span><div><h3>影视分类维度</h3><p>影视分类配置</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-nav="ai" data-view-target="prompt-config"><span class="step-no">07</span><div><h3>AI刮削提示词</h3><p>提示词工作区</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-nav="ai" data-view-target="confidence-config"><span class="step-no">08</span><div><h3>置信度计算配置</h3><p>置信度规则</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-nav="system" data-view-target="security-config"><span class="step-no">09</span><div><h3>安全配置</h3><p>API 安全配置</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-nav="system" data-view-target="hermes-config"><span class="step-no">10</span><div><h3>Hermes通知</h3><p>通知配置</p></div><b>配置</b></button>
-                        <button class="setup-card row-card" data-nav="system" data-view-target="system-settings"><span class="step-no">11</span><div><h3>系统设置</h3><p>高级配置</p></div><b>配置</b></button>
+                <section class="config-stage-panel active" data-config-panel="start">
+                    <div class="section-title"><h2>开始</h2><button class="btn btn-primary btn-sm" type="button" data-config-stage-jump="source">开始配置</button></div>
+                    <div class="config-form-grid">
+                        <article class="form-card form-card-full start-hero-card">
+                            <div class="start-hero-eyebrow">首次使用引导</div>
+                            <h3>先把片库跑起来</h3>
+                            <p>先配目录，再开刮削和 AI，最后收口入库规则。第一次使用，先跑通主流程，再做高级微调。</p>
+                        </article>
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>三步完成基础配置</span>
+                            <div class="start-step-grid">
+                                <div class="start-step-card">
+                                    <b>第 1 步</b>
+                                    <strong>先把目录边界定清楚</strong>
+                                    <small>先完成授权，再配置源目录、中转目录和回收目录。</small>
+                                </div>
+                                <div class="start-step-card">
+                                    <b>第 2 步</b>
+                                    <strong>再打开识别能力</strong>
+                                    <small>配置刮削 Provider 和 AI，让系统开始识别、补全和判断。</small>
+                                </div>
+                                <div class="start-step-card">
+                                    <b>第 3 步</b>
+                                    <strong>最后决定落库方式</strong>
+                                    <small>设置入库规则、命名方式和兜底目录，确认最终落点。</small>
+                                </div>
+                            </div>
+                        </article>
+                        <article class="form-card form-card-full start-alert-card">
+                            <span>首次使用先记住这三条</span>
+                            <div class="start-alert-list">
+                                <div><b>所有目录都要先授权</b><small>在 fnOS 应用中心 → 本应用 → 设置 → 授权目录 中添加路径，并授予【读写】权限。</small></div>
+                                <div><b>AI 配置必须完成</b><small>影视刮削、识别补全和分类判断都依赖 AI，未配置时主流程无法完整工作。</small></div>
+                                <div><b>先跑模拟，再开任务</b><small>高级配置先保持默认，完成基础配置后先用【运行模拟】检查规则是否符合预期。</small></div>
+                            </div>
+                        </article>
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>这 6 个目录各管什么</span>
+                            <div class="start-directory-grid">
+                                <div class="start-directory-card">
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg></span>
+                                        <b>源目录</b>
+                                    </div>
+                                    <small>待整理影视资源的入口。不希望系统改动源文件时，不要开启【源目录智能清理】。</small>
+                                </div>
+                                <div class="start-directory-card">
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                                        <b>中转目录</b>
+                                    </div>
+                                    <small>整理入库前的缓冲区，避免直接在源目录改名、移动和覆盖。</small>
+                                </div>
+                                <div class="start-directory-card">
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></span>
+                                        <b>回收目录</b>
+                                    </div>
+                                    <small>系统自己的安全回收区。业务文件不会直接删除，都会先移动到这里。</small>
+                                </div>
+                                <div class="start-directory-card">
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></span>
+                                        <b>入库规则</b>
+                                    </div>
+                                    <small>决定影视文件最终进入哪个目标文件夹，以及命名和兜底路径。</small>
+                                </div>
+                                <div class="start-directory-card">
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clock"></use></svg></span>
+                                        <b>日志目录</b>
+                                    </div>
+                                    <small>系统运行日志的存储目录，安装后默认生成。</small>
+                                </div>
+                                <div class="start-directory-card">
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-brand"></use></svg></span>
+                                        <b>资源目录</b>
+                                    </div>
+                                    <small>系统使用的图片、缩略图、声音等资源文件目录。</small>
+                                </div>
+                            </div>
+                        </article>
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>跑通之后再做什么</span>
+                            <div class="config-guide-list compact">
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"></use></svg></span>
+                                        <b>MCP 联网搜索</b>
+                                    </div>
+                                    <small>AI 接入联网搜索后，通常能进一步提高刮削时的搜索精度和结果命中率。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                                        <b>高级配置</b>
+                                    </div>
+                                    <small>熟悉主流程后，再调整提示词、维度、置信度和系统策略，效率会更高。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                                        <b>运行模拟</b>
+                                    </div>
+                                    <small>开始真实任务前，先确认识别、判断和入库结果是否符合预期。</small>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+                <section class="config-stage-panel" data-config-panel="source">
+                    <div class="section-title"><h2>源目录</h2><button class="btn btn-primary btn-sm" type="button" data-config-save="source">保存</button></div>
+                    <div class="config-form-grid">
+                        <label class="form-card form-card-full">
+                            <span>源目录路径 <b class="required-mark">*</b></span>
+                            <div class="input-with-inline-action">
+                                <input id="cfg-source-inline" type="text" placeholder="/volume1/source" />
+                                <button class="btn btn-secondary btn-sm" type="button" data-path-test="source">测试权限</button>
+                            </div>
+                            <p>
+                                待整理的媒体文件源目录。如果使用 /vol1/、/vol2/ 等共享盘下的目录，必须在 fnOS 应用中心 → nas-media-importer → 设置 → 授权目录 中添加并赋予【读】权限。<br />
+                                注意：如果源目录是飞牛挂载的网盘目录，文件刷新时间可能较久，建议改用 Alist 网盘来实现短时刷新。
+                            </p>
+                        </label>
+                        <article class="form-card form-card-full">
+                            <span>递归扫描</span>
+                            <label class="toggle-row-inline">
+                                <input id="cfg-source-recursive-toggle-inline" type="checkbox" />
+                                <b>启用递归扫描</b>
+                            </label>
+                            <p>目录层级较深时再开启；只需要扫描当前目录时保持关闭即可。</p>
+                            <div class="nested-form-field" id="cfg-source-depth-group-inline">
+                                <span>最大扫描深度</span>
+                                <input id="cfg-source-depth-inline" type="number" min="1" max="20" value="5" />
+                            </div>
+                        </article>
+                    </div>
+                    <section class="source-cleaner-block">
+                        <div class="section-title source-cleaner-head">
+                            <div><h2>源目录智能清理</h2><p class="section-subnote">不选择代表全部清空</p></div>
+                            <label class="toggle-pill">
+                                <input id="cfg-source-cleaner-enabled-inline" type="checkbox" />
+                                <span class="toggle-pill-ui"></span>
+                            </label>
+                        </div>
+                        <div class="source-cleaner-panel" id="source-cleaner-panel">
+                            <div class="cleaner-stack">
+                                <article class="cleaner-card cleaner-card-full">
+                                    <span>清理模式</span>
+                                    <div class="mode-stack">
+                                        <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source_cleaner-cleanup_mode_inline" value="media_only" checked /><strong>仅保留影视+字幕</strong></div><small>删除其他所有文件</small></label>
+                                        <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source_cleaner-cleanup_mode_inline" value="media_and_related" /><strong>保留影视+字幕+相关文件</strong></div><small>仅删除垃圾文件</small></label>
+                                    </div>
+                                </article>
+                                <article class="cleaner-card cleaner-card-full">
+                                    <span>AI辅助判断</span>
+                                    <label class="toggle-row-inline">
+                                        <input id="cfg-source_cleaner-ai_enabled-inline" type="checkbox" />
+                                        <b>启用 AI 联合判断</b>
+                                    </label>
+                                    <p>规则和 AI 联合识别规则无法覆盖的垃圾文件。</p>
+                                    <div class="cleaner-inline-actions" id="sc-ai-actions-inline">
+                                        <button class="btn btn-secondary btn-sm" type="button" id="btn-sc-prompt-inline">AI清理提示词</button>
+                                    </div>
+                                </article>
+                            </div>
+                            <div class="prompt-inline-editor" id="sc-prompt-inline-editor">
+                                <div class="section-title"><h2>AI清理提示词</h2><button class="btn btn-secondary btn-sm" type="button" id="btn-sc-prompt-close-inline">收起</button></div>
+                                <textarea id="cfg-source_cleaner-ai_prompt-inline" rows="8" placeholder="留空使用默认提示词..."></textarea>
+                            </div>
+                            <div class="cleaner-grid">
+                                <article class="cleaner-card cleaner-card-full" id="sc-merge-inline-card">
+                                    <span>合并策略</span>
+                                    <select id="cfg-source_cleaner-merge_strategy-inline">
+                                        <option value="intersection">保守/交集（推荐）— 规则和AI都判定为垃圾才删除</option>
+                                        <option value="union">激进/并集 — 规则或AI任一判定为垃圾即删除</option>
+                                    </select>
+                                    <p>交集更安全，并集更激进。</p>
+                                </article>
+                            </div>
+                            <div class="cleaner-tabs">
+                                <div class="filter-rail cleaner-tab-rail">
+                                    <button class="chip active" data-cleaner-tab="delete">指定删除的后缀名</button>
+                                    <button class="chip" data-cleaner-tab="protect">指定保护的后缀名</button>
+                                    <button class="chip" data-cleaner-tab="blacklist">黑名单模式</button>
+                                </div>
+                                <div class="cleaner-tab-panel active" data-cleaner-panel="delete">
+                                    <textarea id="cfg-source_cleaner-delete_extensions-inline" rows="4" placeholder=".url&#10;.log&#10;.txt&#10;每行一个，或逗号分隔"></textarea>
+                                </div>
+                                <div class="cleaner-tab-panel" data-cleaner-panel="protect">
+                                    <textarea id="cfg-source_cleaner-protect_extensions-inline" rows="4" placeholder=".srt&#10;.ass&#10;.ssa&#10;每行一个，或逗号分隔"></textarea>
+                                </div>
+                                <div class="cleaner-tab-panel" data-cleaner-panel="blacklist">
+                                    <textarea id="cfg-source_cleaner-blacklist_patterns-inline" rows="4" placeholder="sample&#10;trailer&#10;预告&#10;每行一个，或逗号分隔"></textarea>
+                                </div>
+                            </div>
+                            <div class="cleaner-grid cleaner-grid-advanced">
+                                <label class="cleaner-card"><span>垃圾视频大小阈值(MB)</span><input id="cfg-source_cleaner-junk_video_max_size_mb-inline" type="number" min="0" value="0" /></label>
+                                <article class="cleaner-card">
+                                    <span>清理空目录</span>
+                                    <label class="toggle-row-inline">
+                                        <input id="cfg-source_cleaner-cleanup_empty_dirs-inline" type="checkbox" />
+                                        <b>清理完成后自动删除空目录</b>
+                                    </label>
+                                </article>
+                                <label class="cleaner-card"><span>定时执行</span><input id="cfg-source_cleaner-schedule-inline" type="text" placeholder="0 3 * * *" /></label>
+                            </div>
+                        </div>
+                    </section>
+                </section>
+                <section class="config-stage-panel" data-config-panel="temp">
+                    <div class="section-title"><h2>中转目录</h2><button class="btn btn-primary" type="button" data-config-save="temp">保存</button></div>
+                    <div class="config-form-grid">
+                        <label class="form-card form-card-full">
+                            <span>中转目录路径 <b class="required-mark">*</b></span>
+                            <div class="input-with-inline-action">
+                                <input id="cfg-temp-inline" type="text" placeholder="/volume1/temp" />
+                                <button class="btn secondary small" type="button" data-path-test="temp">测试权限</button>
+                            </div>
+                        </label>
+                        <article class="form-card form-card-full">
+                            <span>使用建议</span>
+                            <p>
+                                用于暂存正在处理的媒体文件，建议预留足够空间，并尽量放在读写更快的位置。<br />
+                                ⚠️ 中转目录不能与源目录或回收目录相同，否则会导致数据丢失。
+                            </p>
+                        </article>
+                    </div>
+                </section>
+                <section class="config-stage-panel" data-config-panel="recycle">
+                    <div class="section-title"><h2>回收目录</h2><button class="btn btn-primary" type="button" data-config-save="recycle">保存</button></div>
+                    <div class="config-form-grid">
+                        <label class="form-card form-card-full">
+                            <span>回收目录路径 <b class="required-mark">*</b></span>
+                            <div class="input-with-inline-action">
+                                <input id="cfg-recycle-inline" type="text" placeholder="/volume1/recycle" />
+                                <button class="btn secondary small" type="button" data-path-test="recycle">测试权限</button>
+                            </div>
+                        </label>
+                        <article class="form-card form-card-full">
+                            <span>使用建议</span>
+                            <p>
+                                处理失败、替换和清理产生的文件都会先进入这里，需确保路径存在且应用有读写权限。<br />
+                                ⚠️ 回收目录不能与源目录或中转目录相同，否则会导致数据丢失。
+                            </p>
+                        </article>
+                        <label class="form-card form-card-full">
+                            <span>回收站文件保留天数</span>
+                            <input id="cfg-recycle-retention-inline" type="number" min="0" max="365" value="30" />
+                            <p>超期后永久删除；填 0 代表永不过期。</p>
+                        </label>
+                    </div>
+                </section>
+                <section class="config-stage-panel" data-config-panel="scrape">
+                    <div class="section-title"><h2>刮削配置</h2><button class="btn btn-primary btn-sm" type="button" data-config-save="scrape">保存</button></div>
+                    <div class="config-form-grid">
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>这一页先做什么</span>
+                            <div class="config-guide-list compact">
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                                        <b>先启用需要的 Provider</b>
+                                    </div>
+                                    <small>只保留你准备实际使用的元数据源，后续维护会更轻。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                                        <b>再填写凭据和地址</b>
+                                    </div>
+                                    <small>把 Key、地址和开关补齐，再进入具体 Provider 细项。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                                        <b>最后逐个测试连通性</b>
+                                    </div>
+                                    <small>每个 Provider 保存后都建议单独测一次，避免进入任务后才发现不可用。</small>
+                                </div>
+                            </div>
+                        </article>
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>元数据源配置</span>
+                            <p>在这里启用 Provider、填写凭据和地址，并逐个测试连通性。</p>
+                        </article>
+                        <div class="provider-inline-stack form-card-full" id="provider-inline-stack">
+                            <article class="provider-inline-empty">正在读取 Provider 列表...</article>
+                        </div>
+                    </div>
+                </section>
+                <section class="config-stage-panel" data-config-panel="ai">
+                    <div class="section-title"><h2>AI配置</h2><button class="btn btn-primary btn-sm" type="button" data-config-save="ai">保存</button></div>
+                    <div class="config-form-grid">
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>这一页先做什么</span>
+                            <div class="config-guide-list compact">
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg></span>
+                                        <b>先填连接信息</b>
+                                    </div>
+                                    <small>先确定提供商、API Key 和接口地址，让 AI 服务可以连通。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></span>
+                                        <b>再设置模型策略</b>
+                                    </div>
+                                    <small>主要模型、备选模型和快速模型一起定，后面更容易排错。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                                        <b>保存前先测连通性</b>
+                                    </div>
+                                    <small>确认接口能通，再开始调提示词、维度和置信度相关配置。</small>
+                                </div>
+                            </div>
+                        </article>
+                        <label class="form-card form-card-full">
+                            <span>LLM 提供商</span>
+                            <select id="cfg-llm_provider-inline">
+                                <option value="openai">OpenAI</option>
+                                <option value="azure">Azure OpenAI</option>
+                            </select>
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>API Key</span>
+                            <input id="cfg-llm_api_key-inline" type="password" placeholder="sk-..." />
+                            <p>已配置时可以留空，保存后保持原值。</p>
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>接口地址</span>
+                            <input id="cfg-llm_base_url-inline" type="text" placeholder="https://api.openai.com/v1" />
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>主要模型ID</span>
+                            <input id="cfg-llm_model-inline" type="text" placeholder="gpt-4o-mini / deepseek-chat" />
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>备选模型ID</span>
+                            <input id="cfg-llm_fallback_model-inline" type="text" placeholder="主模型失败时降级使用" />
+                            <p>主模型失败时自动切换。</p>
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>快速模型ID</span>
+                            <input id="cfg-llm_fast_model-inline" type="text" placeholder="留空则使用主要模型" />
+                            <p>优先用于标题清洗和结果整理。</p>
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>超时时间（秒）</span>
+                            <input id="cfg-llm_timeout-inline" type="number" min="5" max="120" value="30" />
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>最大重试次数</span>
+                            <input id="cfg-llm_max_retries-inline" type="number" min="0" max="10" value="2" />
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>重试间隔（秒）</span>
+                            <input id="cfg-llm_retry_delay-inline" type="number" min="1" max="60" value="3" />
+                        </label>
+                        <label class="form-card form-card-full">
+                            <span>默认置信度阈值</span>
+                            <input id="cfg-llm_confidence_threshold-inline" type="number" min="0" max="1" step="0.1" value="0.8" />
+                            <p>用于默认判断边界；更复杂的调优放到高级配置里处理。</p>
+                        </label>
+                        <article class="form-card form-card-full">
+                            <span>连通性</span>
+                            <label class="toggle-row-inline">
+                                <input id="cfg-llm_verify_ssl-inline" type="checkbox" />
+                                <b>验证 SSL 证书</b>
+                            </label>
+                            <p>正式 HTTPS 环境建议开启；HTTP 或自签证书环境可关闭。</p>
+                            <div class="inline-action-row">
+                                <button class="btn btn-secondary btn-sm" type="button" data-llm-test="inline">测试 LLM 连通性</button>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+                <section class="config-stage-panel" data-config-panel="rules">
+                    <div class="section-title"><h2>入库规则</h2><button class="btn btn-primary" type="button" data-config-save="rules">保存</button></div>
+                    <div class="config-form-grid">
+                        <article class="form-card form-card-full config-guide-card">
+                            <span>这一页先做什么</span>
+                            <div class="config-guide-list compact">
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                                        <b>先排匹配顺序</b>
+                                    </div>
+                                    <small>先把最具体的规则放前面，通用规则放后面。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-brand"></use></svg></span>
+                                        <b>再用模板变量命名</b>
+                                    </div>
+                                    <small>确认目录模板和文件名模板里会用到哪些变量。</small>
+                                </div>
+                                <div>
+                                    <div class="start-directory-head">
+                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></span>
+                                        <b>最后补兜底目录</b>
+                                    </div>
+                                    <small>避免没有命中任何规则时，文件直接落成失败。</small>
+                                </div>
+                            </div>
+                        </article>
+                        <article class="form-card form-card-full">
+                            <span>入库规则 <b class="required-mark">*</b></span>
+                            <p>规则从上到下依次匹配，第一个满足条件的规则生效。具体规则放前面，通用规则放后面。</p>
+                            <div class="rules-inline-list" id="rules-inline-list">
+                                <button class="rule-inline-empty rule-inline-add" data-action="placeholder">+</button>
+                            </div>
+                            <div class="inline-actions-row">
+                                <button class="btn btn-secondary" type="button" data-rules-test="all">测试全部规则目录权限</button>
+                            </div>
+                            <p>如果入库目录位于 /vol1/、/vol2/ 等共享盘下，必须先授予【读】和【写】权限。</p>
+                        </article>
+                        <article class="form-card form-card-full">
+                            <span>可用模板变量</span>
+                            <div class="var-disclosure-list">
+                                <button class="var-disclosure-item active" data-var-group="basic">
+                                    <div><strong>基础变量</strong><small>标题、年份、扩展名</small></div>
+                                    <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+                                </button>
+                                <div class="var-disclosure-panel active" data-var-panel="basic">
+                                    <div class="var-token-line"><code>{title_cn}</code><span>中文标题</span></div>
+                                    <div class="var-token-line"><code>{title_en}</code><span>英文标题</span></div>
+                                    <div class="var-token-line"><code>{year}</code><span>年份</span></div>
+                                    <div class="var-token-line"><code>{ext}</code><span>文件扩展名（如 .mkv）</span></div>
+                                </div>
+                                <button class="var-disclosure-item" data-var-group="series">
+                                    <div><strong>剧集变量</strong><small>仅电视剧使用</small></div>
+                                    <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+                                </button>
+                                <div class="var-disclosure-panel" data-var-panel="series">
+                                    <div class="var-token-line"><code>{season}</code><span>季号（自动补零，如 01）</span></div>
+                                    <div class="var-token-line"><code>{episode}</code><span>集号（自动补零，如 05）</span></div>
+                                    <div class="var-token-line"><code>{season:02d}</code><span>季号（指定 2 位补零格式）</span></div>
+                                    <div class="var-token-line"><code>{episode:02d}</code><span>集号（指定 2 位补零格式）</span></div>
+                                </div>
+                                <button class="var-disclosure-item" data-var-group="quality">
+                                    <div><strong>画质变量</strong><small>分辨率与片源信息</small></div>
+                                    <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+                                </button>
+                                <div class="var-disclosure-panel" data-var-panel="quality">
+                                    <div class="var-token-line"><code>{resolution}</code><span>分辨率（如 1080p、4K）</span></div>
+                                    <div class="var-token-line"><code>{quality}</code><span>画质来源（如 BluRay、WEB-DL）</span></div>
+                                </div>
+                                <button class="var-disclosure-item" data-var-group="dimensions">
+                                    <div><strong>AI 维度变量</strong><small>按当前启用维度动态展示</small></div>
+                                    <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+                                </button>
+                                <div class="var-disclosure-panel" data-var-panel="dimensions">
+                                    <div class="var-token-stack" id="rules-dimension-vars">
+                                        <div class="rule-inline-empty">暂无启用的维度变量</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                        <label class="form-card form-card-full">
+                            <span>兜底入库目录</span>
+                            <div class="input-with-inline-action">
+                                <input id="cfg-fallback-inline" type="text" placeholder="/volume1/import/fallback" />
+                                <button class="btn secondary small" type="button" data-path-test="fallback">测试权限</button>
+                            </div>
+                            <p>当所有规则都不匹配时，文件会进入这里；不设置时，匹配不到默认记为失败。</p>
+                        </label>
                     </div>
                 </section>
             </section>
 
-            <section class="page-view" data-view="directory">
-                <div class="page-hero"><div><div class="eyebrow">第一步</div><h2>目录配置</h2><p>先告诉系统影片从哪里来、整理到哪里去。</p></div><div class="hero-actions"><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button><button class="btn btn-primary" data-action="placeholder">保存目录配置</button></div></div>
-                <section class="config-flow page-flow"><article><b>源目录</b><span id="dir-source">待读取</span></article><article><b>中转目录</b><span id="dir-temp">待读取</span></article><article><b>回收站目录</b><span id="dir-recycle">待读取</span></article><article><b>入库规则</b><span>电影 / 剧集 / 动漫路径规则</span></article></section>
-                <section class="config-panel"><div class="section-title"><h2>入库规则</h2><span class="badge">包含检查</span></div><div class="config-note"><b>启用入库前检查</b><p>该项从原“入库选项”移动到目录配置，与路径规则一起完成。</p></div></section>
-            </section>
-
-            <section class="page-view" data-view="metadata-config">
-                <div class="page-hero"><div><div class="eyebrow">第二步</div><h2>影视刮削配置</h2><p>承接旧“AI刮削 / 元数据源配置”，让新手先确认 Provider 和搜索策略。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>Provider 顺序</b><span>TMDB、Provider、文件名与 AI 数据源优先级。</span></article><article><b>搜索策略</b><span>标题清洗、年份匹配、结果数量与降级策略。</span></article><article><b>可用性检查</b><span>展示连接状态、API Key 状态和最近测试结果。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="ai-config">
-                <div class="page-hero"><div><div class="eyebrow">第三步</div><h2>AI 配置</h2><p>承接旧“AI刮削 / LLM配置”，集中配置模型、端点、密钥和测试入口。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>LLM 服务</b><span>Base URL、模型名、API Key 脱敏展示。</span></article><article><b>调用参数</b><span>温度、超时、重试和并发限制。</span></article><article><b>连接测试</b><span>发送最小请求，返回可读的成功或失败原因。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="schedule-config">
-                <div class="page-hero"><div><div class="eyebrow">第四步</div><h2>定时任务</h2><p>承接旧“高级配置 / 轮询监控配置”，只保留和自动扫描相关的设置。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>轮询监控</b><span>启用状态、扫描间隔、最大处理数量。</span></article><article><b>自动处理</b><span>扫描后是否自动刮削、是否自动入库。</span></article><article><b>运行窗口</b><span>保留给夜间扫描、NAS 低负载时段等策略。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="naming-config">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>入库名称规范</h2><p>承接旧“入库设置 / 入库选项”，但入库前检查已经移动到目录配置。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>电影命名</b><span>标题、年份、分辨率、版本、字幕命名模板。</span></article><article><b>剧集命名</b><span>季集号、集标题、剧集目录和字幕规则。</span></article><article><b>冲突策略</b><span>重名、覆盖、保留旧文件和回收站保护。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="dimensions-config">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>影视分类维度</h2><p>承接旧“入库设置 / 影视分类配置”，用于定义电影、剧集、动漫、纪录片等维度。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>分类维度</b><span>按文件、AI、Provider 组合判断分类。</span></article><article><b>Genre 映射</b><span>Provider 类型到本地目录分类的映射。</span></article><article><b>规则预览</b><span>用样例影片预览最终入库路径。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="prompt-config">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>AI刮削提示词</h2><p>承接旧“AI刮削 / AI刮削提示词”，后续提供提示词编辑、预览和恢复默认。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>纯 AI 提示词</b><span>Provider 不可用时直接从文件名识别。</span></article><article><b>Provider + AI 提示词</b><span>结合搜索结果进行结构化判断。</span></article><article><b>提示词预览</b><span>显示变量替换后的最终提示词。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="confidence-config">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>置信度计算配置</h2><p>承接旧“AI刮削 / 置信度计算配置”，解释阈值如何影响自动入库和人工确认。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>阈值</b><span>自动通过、需要确认、失败拦截的分界。</span></article><article><b>权重</b><span>标题、年份、维度、Provider 来源的权重。</span></article><article><b>计算说明</b><span>后续保留可视化过程，降低参数理解成本。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="security-config">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>安全配置</h2><p>承接旧“通知安全 / API安全配置”，面向访问控制、密钥和敏感信息保护。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>访问密钥</b><span>API Key、前端访问控制和脱敏展示。</span></article><article><b>路径安全</b><span>允许目录、路径穿越防护和写权限检测。</span></article><article><b>危险操作</b><span>删除、覆盖、永久清理的确认策略。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="hermes-config">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>Hermes通知</h2><p>承接旧“通知安全 / Hermes通知”，用于配置任务结果、失败和确认提醒。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>通知开关</b><span>启用状态、目标地址、消息格式。</span></article><article><b>事件范围</b><span>成功、失败、需要确认、源清理等事件。</span></article><article><b>发送测试</b><span>后续提供最小消息测试。</span></article></section>
-            </section>
-
-            <section class="page-view" data-view="system-settings">
-                <div class="page-hero"><div><div class="eyebrow">更多配置</div><h2>系统设置</h2><p>承接旧“通知安全 / 高级配置”，同时放置系统健康和运行诊断。</p></div><button class="btn btn-secondary" data-nav="system" data-view-target="config">返回配置</button></div>
-                <section class="config-grid"><article><b>系统健康</b><span>源目录、中转目录、LLM API、日志路径和运行状态。</span></article><article><b>日志与诊断</b><span>日志路径、最近错误、诊断导出入口。</span></article><article><b>高级开关</b><span>仅保留确实需要人工调整的系统项。</span></article></section>
-            </section>
+            <div id="advanced-pages-slot"></div>
         </main>
     </div>
 
     <nav class="bottom-nav">
-        <button class="nav-item active" data-nav="dashboard"><strong>⌂</strong>首页</button>
-        <button class="nav-item" data-nav="tasks"><strong>▣</strong>任务</button>
-        <button class="nav-item" data-nav="rules" data-view-target="directory"><strong>⌁</strong>规则</button>
-        <button class="nav-item" data-nav="ai" data-view-target="ai-config"><strong>✦</strong>AI</button>
-        <button class="nav-item" data-nav="system" data-view-target="config"><strong>☷</strong>系统</button>
+        <button class="nav-item active" data-nav="dashboard"><svg class="icon icon-nav" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg><span>首页</span></button>
+        <button class="nav-item" data-nav="tasks"><svg class="icon icon-nav" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg><span>任务</span></button>
+        <button class="nav-item" data-nav="recycle"><svg class="icon icon-nav" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg><span>回收</span></button>
+        <button class="nav-item" data-nav="config" data-view-target="config"><svg class="icon icon-nav" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg><span>配置</span></button>
     </nav>
     <div class="toast" id="toast" role="status"></div>
     <script src="js/api.js?v=1"></script>
+    <script src="js/dimensions.js?v=36"></script>
+    <script src="js/prompts.js?v=36"></script>
+    <script src="js/cinema-confidence.js?v=1"></script>
     <script src="js/cinema-app.js?v=1"></script>
 </body>
 </html>

@@ -28,7 +28,7 @@ def setup():
 
 def start_server():
     proc = subprocess.Popen(
-        ['python3', '-B', os.path.join(PROJ, 'media_importer', 'media_importer.py'),
+        [sys.executable, '-B', os.path.join(PROJ, 'media_importer', 'media_importer.py'),
          '-c', TEST_CONFIG, 'serve', '-p', str(PORT), '--host', '127.0.0.1'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )

@@ -86,6 +86,16 @@ h1 { font-size: 18px; }
     white-space: nowrap;
 }
 
+.icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    color: currentColor;
+}
+
+.icon-sm { width: 16px; height: 16px; }
+.icon-md { width: 22px; height: 22px; }
+.icon-lg { width: 24px; height: 24px; }
+
 .btn-primary {
     color: #16100a;
     background: linear-gradient(180deg, var(--gold-2), var(--gold));

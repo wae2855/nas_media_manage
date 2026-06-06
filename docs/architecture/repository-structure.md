@@ -54,8 +54,10 @@ media_importer/
 | `theme_preview.html` | archived | Moved to `_archive/2026-06-02-feature-first-reorg/root/theme_preview.html` when present locally. |
 | `config.yaml.example` | current | Root config example. Keep aligned with config docs. |
 | `README.md` | current | Human-facing project overview. |
+| `.python-version` | current | Project-local Python version pin for pyenv-based development. |
 | `pytest.ini` | current | Test configuration. |
 | `requirements.txt` | current | Dependency source. |
+| `requirements-dev.txt` | current | Local development and default test dependency source. |
 | `start.sh` | entrypoint | Keep until app entrypoints are reorganized. |
 | `AGENTS.md` | current | AI execution entry. Must point to current docs only. |
 

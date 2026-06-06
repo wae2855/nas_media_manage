@@ -17,7 +17,8 @@ Release rule:
 
 1. Make application changes in root source.
 2. Run the required tests from the repository root.
-3. Build the fnOS package with `./deploy/build_fpk.sh <version>`.
-4. Review generated package changes only as release artifacts.
+3. Confirm the target fnOS host has Python 3.12+ available for package venv creation.
+4. Build the fnOS package with `./deploy/build_fpk.sh <version>`.
+5. Review generated package changes only as release artifacts.
 
 Do not manually patch the generated package workspace to mirror root source.

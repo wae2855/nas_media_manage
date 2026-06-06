@@ -42,7 +42,7 @@
 - **Hermes集成** — Webhook通知推送至飞书，支持Skill对话式管理
 - **安全防护** — API认证、路径穿越防护、文件类型白名单、hooks命令注入防护、密钥掩码、目录操作白名单、权限预检查
 - **任务持久化** — 任务状态落盘，服务重启不丢失
-- **轻量设计** — 仅依赖 `pyyaml`，Python 3.9+ 即可运行
+- **轻量设计** — 运行时依赖保持精简，项目当前默认开发版本为 Python 3.12
 
 ## 4. 部署指南
 
@@ -51,7 +51,7 @@
 | 项目 | 要求 |
 |------|------|
 | 操作系统 | FNOS / Linux（systemd） |
-| Python | 3.9+ |
+| Python | 3.12.x（推荐 3.12.13） |
 | 依赖 | pyyaml >= 6.0 |
 | 网络 | 需访问LLM API（如 MiniMax / OpenAI） |
 
@@ -118,13 +118,22 @@ ssh root@nas 'git clone https://github.com/wae2855/nas_media_manage.git /opt/nas
 
 #### 安装依赖
 
-安装脚本会自动创建虚拟环境并安装依赖。如需手动安装：
+推荐先在项目根目录使用 pyenv + 本地虚拟环境，避免影响全局 Python：
+
+```bash
+pyenv install 3.12.13 -s
+pyenv local 3.12.13
+./scripts/bootstrap_python_env.sh
+source .venv/bin/activate
+```
+
+如需手动安装：
 
 ```bash
 cd /opt/nas-media-importer
-python3 -m venv venv
-venv/bin/pip install --quiet --upgrade pip
-venv/bin/pip install --quiet pyyaml
+python3.12 -m venv .venv
+.venv/bin/pip install --quiet --upgrade pip
+.venv/bin/pip install --quiet -r requirements-dev.txt
 ```
 
 #### 配置说明
@@ -203,14 +212,14 @@ bash deploy/install.sh
 
 **方式三：直接运行**
 ```bash
-python3 media_importer/media_importer.py -c config/config.yaml serve -p 9855 --host 0.0.0.0
+python -m media_importer.media_importer -c config/config.yaml serve -p 9855 --host 0.0.0.0
 ```
 
 #### 验证服务
 
 ```bash
 # 健康检查
-curl -s http://127.0.0.1:9855/api/health | python3 -m json.tool
+curl -s http://127.0.0.1:9855/api/health | python -m json.tool
 
 # 预期返回:
 # {
@@ -319,32 +328,32 @@ curl -X POST http://localhost:9855/api/run/file \
 
 ```bash
 # 执行一次批量处理
-python3 media_importer/media_importer.py -c config/config.yaml run
+python -m media_importer.media_importer -c config/config.yaml run
 
 # 仅扫描不处理（dry-run）
-python3 media_importer/media_importer.py -c config/config.yaml run --dry-run
+python -m media_importer.media_importer -c config/config.yaml run --dry-run
 
 # 查看任务列表
-python3 media_importer/media_importer.py -c config/config.yaml list --status all
+python -m media_importer.media_importer -c config/config.yaml list --status all
 
 # 查看任务详情
-python3 media_importer/media_importer.py -c config/config.yaml show <task_id>
+python -m media_importer.media_importer -c config/config.yaml show <task_id>
 
 # 重试失败任务
-python3 media_importer/media_importer.py -c config/config.yaml retry <task_id>
-python3 media_importer/media_importer.py -c config/config.yaml retry  # 重试所有
+python -m media_importer.media_importer -c config/config.yaml retry <task_id>
+python -m media_importer.media_importer -c config/config.yaml retry  # 重试所有
 
 # 查看队列状态
-python3 media_importer/media_importer.py -c config/config.yaml queue
+python -m media_importer.media_importer -c config/config.yaml queue
 
 # 查看日志
-python3 media_importer/media_importer.py -c config/config.yaml log -f --tail 50
+python -m media_importer.media_importer -c config/config.yaml log -f --tail 50
 
 # 健康检查
-python3 media_importer/media_importer.py -c config/config.yaml health
+python -m media_importer.media_importer -c config/config.yaml health
 
 # 运行指标
-python3 media_importer/media_importer.py -c config/config.yaml metrics
+python -m media_importer.media_importer -c config/config.yaml metrics
 ```
 
 ### 6.3 Hermes Skill（AI助手交互）
@@ -521,10 +530,10 @@ mkdir -p /vol1/网盘下载
 排查命令：
 ```bash
 # 查看失败任务详情
-curl -s "http://localhost:9855/api/tasks?status=FAILED" | python3 -m json.tool
+curl -s "http://localhost:9855/api/tasks?status=FAILED" | python -m json.tool
 
 # 查看日志
-curl -s "http://localhost:9855/api/logs?limit=50" | python3 -m json.tool
+curl -s "http://localhost:9855/api/logs?limit=50" | python -m json.tool
 ```
 
 ### Q: 同名文件被跳过
@@ -549,7 +558,7 @@ duplicate_handling:
 修改 `config.yaml` 中的 `server.port`，或启动时指定：
 
 ```bash
-python3 media_importer/media_importer.py serve -p 9090
+python -m media_importer.media_importer serve -p 9090
 ```
 
 > ⚠️ 修改端口影响面较大，需同步处理以下事项：

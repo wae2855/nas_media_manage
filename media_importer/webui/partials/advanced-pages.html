@@ -1,0 +1,727 @@
+<section class="page-view" data-view="advanced-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">系统配置扩展区</div>
+            <h2>高级配置</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><strong>高级配置</strong>
+            </div>
+            <p>主流程跑通后，再在这里微调提示词、维度、通知和系统策略。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="config">返回系统配置</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先处理真正会影响主流程的项</b>
+                        </div>
+                        <small>优先看入库名称规范、影视分类维度、AI 刮削提示词和置信度计算。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                            <b>再补安全、通知和系统策略</b>
+                        </div>
+                        <small>这些通常是低频配置，建议在主流程稳定后再逐项展开。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                            <b>改完后去跑一次模拟测试</b>
+                        </div>
+                        <small>提示词、维度和规则联动较多，最好先做一次整体试跑再开始真实任务。</small>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
+    <section class="advanced-card-list">
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="naming-config"><div><h3>入库名称规范</h3><p>决定电影、剧集、字幕和重名文件最后怎样命名。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="dimensions-config"><div><h3>影视分类维度</h3><p>控制哪些维度参与分类判断、变量输出和目录映射。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="prompt-config"><div><h3>AI刮削提示词</h3><p>分别调整纯 AI 推理与 LLM+TMDB 整理时使用的提示词。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="confidence-config"><div><h3>置信度计算</h3><p>决定哪些结果自动通过、哪些进入审核、确认或失败队列。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="security-config"><div><h3>安全配置</h3><p>控制 API 认证和监听端口，属于低频但高影响的设置。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="hermes-config"><div><h3>Hermes通知</h3><p>配置外部通知链路、重试策略和测试入口。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="system-settings"><div><h3>系统设置</h3><p>管理应用目录、并发数以及视频和字幕识别范围。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
+    </section>
+</section>
+
+<section class="page-view" data-view="config-simulator">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置工具</div>
+            <h2>配置模拟测试</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>模拟测试</strong>
+            </div>
+            <p>先在这里试跑提示词、置信度和入库规则，再把真实任务放进队列。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" type="button" id="btn-confidence-simulate">模拟判断</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel confidence-simulator-page">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先输入真实文件名</b>
+                        </div>
+                        <small>尽量使用你准备实际处理的文件名，这样模拟结果更接近真实任务流。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                            <b>再看联动解释</b>
+                        </div>
+                        <small>重点关注提示词、置信度边界和入库规则分别怎样影响最终判断。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                            <b>有偏差就回去微调</b>
+                        </div>
+                        <small>先改配置再回来重跑，直到结果和你预期的队列与落库位置一致。</small>
+                    </div>
+                </div>
+            </article>
+        </div>
+        <article class="confidence-simulator">
+            <div>
+                <span class="confidence-kicker">联合验证</span>
+                <h3>输入一个文件名，预估完整配置下的入库结果</h3>
+                <p>改完提示词、置信度或入库规则后，先在这里跑一遍，再决定是否进入真实任务流。</p>
+            </div>
+            <div class="confidence-sim-row">
+                <input id="confidence-sim-filename" type="text" placeholder="例如：Dune.Part.Two.2024.1080p.mkv">
+            </div>
+            <div class="confidence-sim-result" id="confidence-sim-result">输入文件名后，可以快速看到当前阈值下的演示判定。</div>
+        </article>
+        <section class="advanced-card-list simulator-explain-list">
+            <article class="setup-card row-card plain-row-card"><div><h3>AI 提示词</h3><p>说明当前提示词怎样影响识别方向、标题清洗和最终推理结果。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></article>
+            <article class="setup-card row-card plain-row-card"><div><h3>置信度边界</h3><p>展示当前通过、确认和审核阈值，并解释为什么落入当前队列。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></article>
+            <article class="setup-card row-card plain-row-card"><div><h3>入库规则</h3><p>标记最终命中了哪条规则，或者为什么没有命中任何规则。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></article>
+        </section>
+    </section>
+</section>
+
+<section class="page-view" data-view="metadata-config">
+    <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>影视刮削配置</h2><p>承接旧“AI刮削 / 元数据源配置”，让新手先确认 Provider 和搜索策略。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
+    <section class="config-grid"><article><b>Provider 顺序</b><span>TMDB、Provider、文件名与 AI 数据源优先级。</span></article><article><b>搜索策略</b><span>标题清洗、年份匹配、结果数量与降级策略。</span></article><article><b>可用性检查</b><span>展示连接状态、API Key 状态和最近测试结果。</span></article></section>
+</section>
+
+<section class="page-view" data-view="ai-config">
+    <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>AI 配置</h2><p>承接旧“AI刮削 / LLM配置”，集中配置模型、端点、密钥和测试入口。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
+    <section class="config-grid"><article><b>LLM 服务</b><span>Base URL、模型名、API Key 脱敏展示。</span></article><article><b>调用参数</b><span>温度、超时、重试和并发限制。</span></article><article><b>连接测试</b><span>发送最小请求，返回可读的成功或失败原因。</span></article></section>
+</section>
+
+<section class="page-view" data-view="schedule-config">
+    <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>定时任务</h2><p>承接旧“高级配置 / 轮询监控配置”，只保留和自动扫描相关的设置。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
+    <section class="config-grid"><article><b>轮询监控</b><span>启用状态、扫描间隔、最大处理数量。</span></article><article><b>自动处理</b><span>扫描后是否自动刮削、是否自动入库。</span></article><article><b>运行窗口</b><span>保留给夜间扫描、NAS 低负载时段等策略。</span></article></section>
+</section>
+
+<section class="page-view" data-view="naming-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>入库名称规范</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>入库名称规范</strong>
+            </div>
+            <p>承接旧“入库设置 / 入库选项”，但入库前检查已经移动到目录配置。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" data-action="placeholder">保存</button>
+        </div>
+    </div>
+    <section class="config-panel">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先定电影模板</b>
+                        </div>
+                        <small>先把电影和电视剧文件名格式定下来，再处理字幕和重名策略。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-brand"></use></svg></span>
+                            <b>再补字幕命名</b>
+                        </div>
+                        <small>保证视频和字幕能维持统一命名，后续媒体库更容易识别。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></span>
+                            <b>最后处理重名策略</b>
+                        </div>
+                        <small>提前决定遇到同名文件时如何保留、替换或重命名。</small>
+                    </div>
+                </div>
+            </article>
+            <label class="form-card form-card-full">
+                <span>电影文件名模板</span>
+                <input id="cfg-filename_templates-movie-inline" type="text" placeholder="{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}" />
+                <p>电影入库后的文件名格式。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>电视剧文件名模板</span>
+                <input id="cfg-filename_templates-tv-inline" type="text" placeholder="{title_cn}.{title_en}.{year}.S{season:02d}E{episode:02d}.{resolution}.{quality}.{ext}" />
+                <p>电视剧入库后的文件名格式。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>字幕文件名模板</span>
+                <input id="cfg-filename_templates-subtitle-inline" type="text" placeholder="{video_filename}.{lang}.{ext}" />
+                <p>字幕文件名格式，{video_filename} 为对应视频文件名，{lang} 为语言代码。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>入库同名文件处理策略</span>
+                <select id="cfg-duplicate_handling-strategy-inline">
+                    <option value="skip">跳过 - 同名文件已存在则跳过</option>
+                    <option value="replace">替换 - 用新文件替换已存在的文件</option>
+                    <option value="rename">重命名 - 两者都保留，新文件添加编号后缀</option>
+                    <option value="quality">质量优先 - 保留高质量版本</option>
+                </select>
+            </label>
+        </div>
+    </section>
+</section>
+
+<section class="page-view" data-view="dimensions-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>影视分类维度</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>影视分类维度</strong>
+            </div>
+            <p>承接旧“入库设置 / 影视分类配置”，直接使用原来的维度启用、禁用、映射和恢复默认控件。</p>
+        </div>
+        <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+    </div>
+    <section class="config-panel advanced-host-panel">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先确认启用哪些维度</b>
+                        </div>
+                        <small>只打开真正会参与分类和入库判断的维度，避免规则过度复杂。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                            <b>再调整映射规则</b>
+                        </div>
+                        <small>让维度值和你的目录结构、命名方式保持一致。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                            <b>最后回看变量联动</b>
+                        </div>
+                        <small>维度变化会影响提示词、入库规则和变量输出，调整后建议一起检查。</small>
+                    </div>
+                </div>
+            </article>
+        </div>
+        <div id="dimensions-container">
+            <div class="dim-section">
+                <h4 class="dim-section-title">已启用维度</h4>
+                <div id="dim-enabled-list" class="dim-list"></div>
+            </div>
+            <div class="dim-section">
+                <h4 class="dim-section-title">可添加维度</h4>
+                <div id="dim-available-list" class="dim-list"></div>
+            </div>
+        </div>
+    </section>
+</section>
+
+<section class="page-view" data-view="prompt-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>AI刮削提示词</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>AI刮削提示词</strong>
+            </div>
+            <p>把纯 AI 与 LLM+TMDB 提示词拆开配置，同时保留恢复默认、完整预览和编写指南。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" onclick="savePrompts(); saveTmdbPrompts();">保存全部</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg></span>
+                            <b>先改纯 AI 提示词</b>
+                        </div>
+                        <small>没有 TMDB 结果时，它决定 AI 如何直接从文件名推理。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></span>
+                            <b>再调 LLM+TMDB 提示词</b>
+                        </div>
+                        <small>有 TMDB 数据时，它主要负责整理、补全和纠偏。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>保存前先预览完整提示词</b>
+                        </div>
+                        <small>最终发送给模型的内容会自动拼上维度规则和 Schema，建议先看一遍。</small>
+                    </div>
+                </div>
+            </article>
+        </div>
+        <div class="advanced-disclosure-list">
+            <button class="advanced-disclosure-item active" data-advanced-disclosure="prompt-llm">
+                <div><strong>LLM纯AI</strong><small>无 TMDB 数据时，直接从文件名与维度规则推理</small></div>
+                <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+            </button>
+            <div class="advanced-disclosure-panel active" data-advanced-panel="prompt-llm">
+                <textarea id="prompt-system" class="prompt-editor-textarea" placeholder="系统提示词..."></textarea>
+                <div class="advanced-action-row">
+                    <button class="btn btn-secondary" onclick="resetPrompts()">恢复默认</button>
+                    <button class="btn btn-secondary" onclick="previewFullPrompt()">预览完整提示词</button>
+                </div>
+            </div>
+
+            <button class="advanced-disclosure-item" data-advanced-disclosure="prompt-tmdb">
+                <div><strong>LLM+TMDB</strong><small>有 TMDB 数据时，由 AI 负责整理、校验与维度补全</small></div>
+                <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+            </button>
+            <div class="advanced-disclosure-panel" data-advanced-panel="prompt-tmdb">
+                <textarea id="prompt-tmdb" class="prompt-editor-textarea" placeholder="LLM+TMDB 系统提示词..."></textarea>
+                <div class="advanced-action-row">
+                    <button class="btn btn-secondary" onclick="resetTmdbPrompts()">恢复默认</button>
+                    <button class="btn btn-secondary" onclick="previewTmdbFullPrompt()">预览完整提示词</button>
+                </div>
+            </div>
+
+            <button class="advanced-disclosure-item" data-advanced-disclosure="prompt-guide">
+                <div><strong>编写指南</strong><small>提示词结构、维度规则和优化建议</small></div>
+                <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
+            </button>
+            <div class="advanced-disclosure-panel" data-advanced-panel="prompt-guide">
+                <div class="guide-stack">
+                    <section class="guide-block">
+                        <h3>提示词结构</h3>
+                        <p>提示词分为上下两半：上半部是你可编辑的系统提示词，下半部是系统自动追加的维度列表与 JSON Schema。</p>
+                    </section>
+                    <section class="guide-block">
+                        <h3>维度判断规则</h3>
+                        <ul>
+                            <li>维度判断内容来自“影视分类维度”中的 AI 提示词。</li>
+                            <li>启用或禁用维度会自动影响最终拼接内容。</li>
+                            <li>使用“预览完整提示词”可以查看最终发送给模型的完整文本。</li>
+                        </ul>
+                    </section>
+                    <section class="guide-block">
+                        <h3>两种提示词区别</h3>
+                        <ul>
+                            <li><strong>LLM纯AI</strong>：没有 TMDB 结果时，AI 从文件名直接推理。</li>
+                            <li><strong>LLM+TMDB</strong>：已有 TMDB 数据时，AI 负责整理、补全与纠偏。</li>
+                        </ul>
+                    </section>
+                    <section class="guide-block">
+                        <h3>优化建议</h3>
+                        <ul>
+                            <li>给出标题翻译的正反例，减少多语言命名误差。</li>
+                            <li>把维度专属规则写在对应维度的 AI 提示词中，而不是全部堆在系统提示词里。</li>
+                            <li>在系统提示词中明确 confidence 的评分基准，方便后续自动入库与人工确认协作。</li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </section>
+</section>
+
+<section class="page-view" data-view="confidence-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>置信度计算配置</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>置信度计算</strong>
+            </div>
+            <p>把旧版复杂参数重组为移动端风险控制台：先看自动入库边界，再逐层调整搜索、AI 和维度来源策略。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" data-action="placeholder">保存</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel confidence-workbench" data-section="confidence">
+        <article class="confidence-summary-card">
+            <div>
+                <span class="confidence-kicker">当前策略摘要</span>
+                <h3>自动入库风险边界</h3>
+                <p>分数越高越可信；门槛调高会更保守，更多任务进入人工确认。</p>
+            </div>
+            <div class="confidence-score-grid">
+                <span><b data-confidence-value="pass_threshold">0.80</b><small>自动入库</small></span>
+                <span><b data-confidence-value="confirm_threshold">0.50</b><small>需要确认</small></span>
+                <span><b data-confidence-value="review_threshold">0.30</b><small>需要审核</small></span>
+            </div>
+            <div class="confidence-threshold-editor" id="confidence-threshold-editor">
+                <div class="threshold-bar confidence-bar" id="confidence-threshold-bar"></div>
+                <div class="confidence-threshold-handles" id="confidence-threshold-handles">
+                    <button type="button" class="confidence-threshold-handle review" data-threshold-handle="review_threshold" aria-label="拖动调整需审核阈值"><span>审核</span></button>
+                    <button type="button" class="confidence-threshold-handle confirm" data-threshold-handle="confirm_threshold" aria-label="拖动调整需确认阈值"><span>确认</span></button>
+                    <button type="button" class="confidence-threshold-handle pass" data-threshold-handle="pass_threshold" aria-label="拖动调整自动入库阈值"><span>通过</span></button>
+                </div>
+                <input type="hidden" value="0.8" data-key="pass_threshold">
+                <input type="hidden" value="0.5" data-key="confirm_threshold">
+                <input type="hidden" value="0.3" data-key="review_threshold">
+            </div>
+            <div class="threshold-labels confidence-labels" id="confidence-threshold-labels"></div>
+        </article>
+
+        <section class="confidence-slider-stack">
+            <label class="confidence-slider-card">
+                <span><b>Provider 最低匹配</b><small>低于此值时触发 AI 清洗回退</small></span>
+                <div class="confidence-slider-control"><output data-confidence-output="provider_match_threshold">0.70</output><input type="range" min="0" max="1" step="0.05" value="0.7" data-key="provider_match_threshold" oninput="updateThresholdBar()"></div>
+            </label>
+        </section>
+
+        <div class="confidence-section-stack">
+            <div class="cfg-section confidence-mobile-section">
+                <button class="cfg-section-header" type="button" onclick="toggleCfgSection(this)">
+                    <div><strong>搜索匹配策略</strong><small>标题、年份和搜索结果数量如何影响 Provider 命中可信度。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
+                </button>
+                <div class="cfg-section-body">
+                    <div class="confidence-param-grid">
+                        <label><span>精确+年份一致</span><input type="number" min="0" max="1" step="0.05" value="1.0" data-key="title_exact_with_year"></label>
+                        <label><span>精确+有季号</span><input type="number" min="0" max="1" step="0.05" value="0.9" data-key="title_exact_with_season"></label>
+                        <label><span>精确无年份</span><input type="number" min="0" max="1" step="0.05" value="0.7" data-key="title_exact_no_year"></label>
+                        <label><span>精确年份冲突</span><input type="number" min="0" max="1" step="0.05" value="0.4" data-key="title_exact_year_mismatch"></label>
+                        <label><span>模糊年份系数</span><input type="number" min="0" max="1" step="0.05" value="0.7" data-key="title_fuzzy_year_coeff"></label>
+                        <label><span>最低相似度</span><input type="number" min="0" max="1" step="0.05" value="0.3" data-key="title_min_similarity"></label>
+                    </div>
+                    <div class="r-formula-cards confidence-formula-cards">
+                        <button class="r-formula-card" type="button" onclick="selectRFormula(this, 'inverse')"><b>inverse</b><span>结果多时强惩罚</span></button>
+                        <button class="r-formula-card selected" type="button" onclick="selectRFormula(this, 'log')"><b>log</b><span>默认，温和惩罚</span></button>
+                        <button class="r-formula-card" type="button" onclick="selectRFormula(this, 'sqrt')"><b>sqrt</b><span>中等惩罚</span></button>
+                        <button class="r-formula-card" type="button" onclick="selectRFormula(this, 'flat')"><b>flat</b><span>不惩罚结果数</span></button>
+                    </div>
+                    <div class="confidence-param-grid compact">
+                        <label><span>结果数上限</span><input type="number" min="1" max="100" step="1" value="10" data-key="R_max_results_cap"></label>
+                        <label><span>R 下限</span><input type="number" min="0" max="1" step="0.05" value="0.1" data-key="R_min_value"></label>
+                        <label><span>R 调节下限</span><input type="number" min="0" max="1" step="0.05" value="0.5" data-key="R_T_floor"></label>
+                        <label><span>R 调节曲线</span><input type="number" min="0.5" max="5" step="0.1" value="1.5" data-key="R_T_curve"></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cfg-section confidence-mobile-section">
+                <button class="cfg-section-header" type="button" onclick="toggleCfgSection(this)">
+                    <div><strong>AI 推理保护</strong><small>Provider 无结果时，限制纯 AI 判断的最高可信度。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
+                </button>
+                <div class="cfg-section-body">
+                    <div class="confidence-param-grid compact">
+                        <label><span>高相似度上限</span><input type="number" min="0" max="1" step="0.05" value="0.7" data-key="ai_cap_high_similarity"></label>
+                        <label><span>低相似度上限</span><input type="number" min="0" max="1" step="0.05" value="0.3" data-key="ai_cap_low_similarity"></label>
+                        <label><span>AI 无标题上限</span><input type="number" min="0" max="1" step="0.05" value="0.3" data-key="ai_cap_no_title"></label>
+                        <label><span>AI 无匹配上限</span><input type="number" min="0" max="1" step="0.05" value="0.2" data-key="ai_cap_no_match"></label>
+                        <label><span>低相似度衰减</span><input type="number" min="0" max="1" step="0.05" value="0.5" data-key="ai_cap_low_coeff"></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cfg-section confidence-mobile-section">
+                <button class="cfg-section-header" type="button" onclick="toggleCfgSection(this)">
+                    <div><strong>维度来源信任</strong><small>每个分类维度允许哪些来源参与自动入库。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
+                </button>
+                <div class="cfg-section-body"><div id="dim-source-trust-container" class="dim-cards confidence-dim-cards"></div></div>
+            </div>
+        </div>
+
+        <div class="cfg-section confidence-mobile-section">
+            <button class="cfg-section-header" type="button" onclick="toggleCfgSection(this)">
+                <div><strong>高级参数与咨询助手</strong><small>保留旧版公式解释和可复制给 LLM 的调优上下文。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
+            </button>
+            <div class="cfg-section-body">
+                <div class="formula-preview" id="confidence-formula-preview">
+                    <div class="formula-preview-title">当前配置下的计算公式</div>
+                    <div class="formula-line"><span class="hl">Provider+AI</span>: final = search_conf × data_gate，search_conf = T × R_dynamic</div>
+                    <div class="formula-line"><span class="hl">纯 AI</span>: final = objective_cap × data_gate</div>
+                    <div class="formula-line"><span class="er">判定</span>: ≥ <span class="hl" id="formula-pass-val">0.80</span> 自动通过；≥ <span class="wn" id="formula-confirm-val">0.50</span> 需确认；≥ <span class="er" id="formula-review-val">0.30</span> 需审核；低于 <span class="er" id="formula-review-val2">0.30</span> 失败</div>
+                    <div class="formula-line">Provider 最低匹配阈值：<span class="hl" id="formula-threshold-val">0.70</span><span id="formula-threshold-val2" hidden>0.70</span></div>
+                </div>
+                <div class="ai-consult-box">
+                    <div class="ai-consult-header"><div><span class="ai-consult-title">配置咨询助手</span><span class="ai-consult-desc">复制当前配置上下文，粘贴到任意 LLM 获取调优建议</span></div></div>
+                    <textarea id="ai-consult-need" class="ai-consult-textarea" rows="10" placeholder="例如：我希望限制级分类必须人工确认，但普通电影可以更宽松地自动入库。"></textarea>
+                    <div class="advanced-action-row"><button class="btn btn-primary btn-sm" type="button" onclick="generateConsultPrompt()">生成咨询提示词</button><button class="btn btn-secondary btn-sm" type="button" onclick="copyConsultPrompt()">复制到剪贴板</button></div>
+                    <div id="ai-consult-output" class="ai-consult-output" style="display:none;"><pre id="ai-consult-prompt" class="ai-consult-prompt"></pre></div>
+                </div>
+            </div>
+        </div>
+    </section>
+</section>
+
+<section class="page-view" data-view="security-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>安全配置</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>安全配置</strong>
+            </div>
+            <p>承接旧“通知安全 / API安全配置”，复用原有字段与提醒文案。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" data-action="placeholder">保存</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先决定是否开启认证</b>
+                        </div>
+                        <small>没有外部访问需求时，可以先保持关闭，降低配置复杂度。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-alert"></use></svg></span>
+                            <b>再确认监听端口</b>
+                        </div>
+                        <small>一旦修改端口，浏览器入口、回调地址和部署配置都要一起同步。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                            <b>保存后安排重启验证</b>
+                        </div>
+                        <small>涉及端口和认证时，建议保存后立即验证访问和通知链路。</small>
+                    </div>
+                </div>
+            </article>
+            <label class="form-card form-card-full">
+                <span>API 认证密钥</span>
+                <input type="password" id="cfg-server_api_key-inline" placeholder="留空则不启用认证" />
+                <p>设置后所有 API 请求认证需要密码，留空则不启用认证，可以理解它是不需要用户名的密码。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>API 监听端口</span>
+                <input type="number" id="cfg-server_port-inline" min="1024" max="65535" placeholder="9855" />
+                <p>⚠️ 修改端口影响面较大：重启服务后生效，浏览器登录地址、Hermes 回调地址、fnOS 应用端口配置和防火墙规则都需同步修改。</p>
+            </label>
+        </div>
+    </section>
+</section>
+
+<section class="page-view" data-view="hermes-config">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>Hermes通知</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>Hermes通知</strong>
+            </div>
+            <p>承接旧“通知安全 / Hermes通知”，保留原有字段分组、测试入口和保存操作。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" data-action="placeholder">保存</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel" id="hermes-config-inline">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先确定是否开启通知</b>
+                        </div>
+                        <small>不需要外部通知时，可以先关闭，后续按需接入。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                            <b>再填 Webhook 信息</b>
+                        </div>
+                        <small>把地址、路由、签名和超时策略一次补齐，后面更容易测试。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
+                            <b>最后测试通知链路</b>
+                        </div>
+                        <small>保存前最好先发一次测试通知，确认 Hermes 端可以收到。</small>
+                    </div>
+                </div>
+            </article>
+            <article class="form-card form-card-full">
+                <span>启用通知</span>
+                <label class="toggle-row-inline">
+                    <input type="checkbox" id="cfg-hermes_enabled-inline" />
+                    <b>开启 Hermes 通知</b>
+                </label>
+            </article>
+            <div class="hermes-inline-fields active" id="hermes-inline-fields">
+                <label class="form-card form-card-full">
+                    <span>Webhook 地址</span>
+                    <input type="text" id="cfg-hermes_webhook_base_url-inline" placeholder="http://hermes:8644" />
+                </label>
+                <label class="form-card form-card-full">
+                    <span>路由名称</span>
+                    <input type="text" id="cfg-hermes_webhook_route_name-inline" placeholder="media-normalize" />
+                </label>
+                <label class="form-card form-card-full">
+                    <span>签名密钥</span>
+                    <input type="password" id="cfg-hermes_webhook_secret-inline" placeholder="secret" />
+                </label>
+                <label class="form-card">
+                    <span>超时时间（秒）</span>
+                    <input type="number" id="cfg-hermes_webhook_timeout-inline" min="5" max="120" value="30" />
+                </label>
+                <label class="form-card">
+                    <span>最大重试次数</span>
+                    <input type="number" id="cfg-hermes_webhook_max_retries-inline" min="0" max="10" value="3" />
+                </label>
+                <label class="form-card">
+                    <span>重试间隔（秒）</span>
+                    <input type="number" id="cfg-hermes_webhook_retry_delay-inline" min="1" max="60" value="5" />
+                </label>
+                <article class="form-card form-card-full">
+                    <span>验证 SSL 证书</span>
+                    <label class="toggle-row-inline">
+                        <input type="checkbox" id="cfg-hermes_webhook_verify_ssl-inline" />
+                        <b>HTTPS 且证书有效时开启</b>
+                    </label>
+                    <p>HTTP 或内网地址请关闭。</p>
+                </article>
+                <article class="form-card form-card-full">
+                    <span>通知事件</span>
+                    <div class="checkbox-grid">
+                        <label><input type="checkbox" id="cfg-hermes_event_batch_start-inline" /> 批量处理开始</label>
+                        <label><input type="checkbox" id="cfg-hermes_event_batch_complete-inline" /> 批量处理完成</label>
+                        <label><input type="checkbox" id="cfg-hermes_event_program_error-inline" /> 程序错误</label>
+                    </div>
+                </article>
+                <div class="advanced-action-row">
+                    <button class="btn btn-secondary" data-action="placeholder">测试 Hermes 通知</button>
+                </div>
+            </div>
+        </div>
+    </section>
+</section>
+
+<section class="page-view" data-view="system-settings">
+    <div class="page-hero">
+        <div>
+            <div class="eyebrow">高级配置</div>
+            <h2>系统设置</h2>
+            <div class="path-breadcrumb" aria-label="当前路径">
+                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>系统设置</strong>
+            </div>
+            <p>承接旧“通知安全 / 高级配置”，复用原有日志目录、并发任务数和后缀识别配置。</p>
+        </div>
+        <div class="hero-action-group">
+            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-primary" data-action="placeholder">保存</button>
+        </div>
+    </div>
+    <section class="config-panel advanced-host-panel">
+        <div class="config-form-grid">
+            <article class="form-card form-card-full config-guide-card">
+                <span>这一页先做什么</span>
+                <div class="config-guide-list compact">
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
+                            <b>先确认系统目录</b>
+                        </div>
+                        <small>日志目录和资源目录通常保持默认，只在确有需要时再自定义。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+                            <b>再控制并发与识别范围</b>
+                        </div>
+                        <small>最大并发、视频后缀和字幕后缀会直接影响处理压力和识别范围。</small>
+                    </div>
+                    <div>
+                        <div class="start-directory-head">
+                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-alert"></use></svg></span>
+                            <b>改路径前先确认授权</b>
+                        </div>
+                        <small>一旦自定义路径，记得先把新目录加入 fnOS 应用授权目录。</small>
+                    </div>
+                </div>
+            </article>
+        </div>
+        <div class="system-inline-tip">
+            💡 以下配置已自动设置为应用专属目录，一般用户无需修改。如确需自定义路径，请确保路径已在 fnOS 应用授权目录中。
+        </div>
+        <div class="config-form-grid">
+            <label class="form-card form-card-full">
+                <span>日志目录</span>
+                <div class="input-with-inline-action">
+                    <input type="text" id="cfg-log_dir-inline" placeholder="/vol3/@appdata/nas-media-importer/logs" />
+                    <button class="btn secondary small" data-action="placeholder">测试权限</button>
+                </div>
+                <p>应用运行日志的存储目录。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>资源目录</span>
+                <div class="input-with-inline-action">
+                    <input type="text" id="cfg-resource_dir-inline" placeholder="/vol3/@appdata/nas-media-importer/resources" />
+                    <button class="btn secondary small" data-action="placeholder">测试权限</button>
+                </div>
+                <p>应用使用的图片、声音等资源文件存储目录。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>最大并发任务数</span>
+                <input type="number" id="cfg-task_queue-max_concurrent-inline" min="1" max="5" value="1" />
+                <p>同时处理的最大任务数量，建议 1-2。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>视频识别后缀名</span>
+                <textarea id="cfg-video_extensions-inline" rows="4" placeholder="每行一个后缀名，如 .mkv"></textarea>
+                <p>每行一个后缀名，自动补“.”前缀。留空则不识别任何视频文件。</p>
+            </label>
+            <label class="form-card form-card-full">
+                <span>字幕识别后缀名</span>
+                <textarea id="cfg-subtitle_extensions-inline" rows="4" placeholder="每行一个后缀名，如 .srt"></textarea>
+                <p>每行一个后缀名，自动补“.”前缀。留空则不识别任何字幕文件。</p>
+            </label>
+        </div>
+    </section>
+</section>

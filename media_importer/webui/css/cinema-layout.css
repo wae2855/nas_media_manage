@@ -28,7 +28,11 @@
     background: #1b160d;
     box-shadow: inset 0 0 26px rgba(234, 191, 99, 0.12);
     color: var(--gold);
-    font-size: 22px;
+}
+
+.brand-mark .icon-brand {
+    width: 24px;
+    height: 24px;
 }
 
 .brand-sub { margin-top: 3px; color: var(--muted); font-size: 11px; }
@@ -63,7 +67,7 @@
     width: min(460px, calc(100% - 24px));
     transform: translateX(-50%);
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 4px;
     padding: 6px;
     border: 1px solid var(--line);
@@ -75,16 +79,26 @@
 
 .nav-item {
     min-height: 52px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 4px;
     border-radius: 14px;
     color: var(--muted);
     background: transparent;
     font-size: 10px;
 }
 
-.nav-item strong {
+.nav-item .icon-nav {
+    width: 18px;
+    height: 18px;
+    color: inherit;
+}
+
+.nav-item span {
     display: block;
     color: inherit;
-    font-size: 18px;
+    font-size: 10px;
     line-height: 1.1;
 }
 

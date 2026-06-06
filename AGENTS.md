@@ -36,35 +36,41 @@
 ## 2. Commands
 
 ```bash
-# 安装依赖
-pip install -r requirements.txt
+# 初始化项目 Python 3.12 环境
+pyenv install 3.12.13 -s
+pyenv local 3.12.13
+./scripts/bootstrap_python_env.sh
+source .venv/bin/activate
 
 # 启动开发服务，端口默认 9855
-PYTHONPATH="${PWD}" python3 -m media_importer.media_importer -c config/config.yaml serve -p 9855 --host 0.0.0.0
+PYTHONPATH="${PWD}" python -m media_importer.media_importer -c config/config.yaml serve -p 9855 --host 0.0.0.0
 
 # 或用封装脚本
 ./start.sh [config] [host] [port]
 
 # 全部测试，包含需要本地服务的 UI 测试
-pytest tests/
+python -m pytest tests/
 
 # 单个测试文件
-pytest tests/test_feature_import_flow.py
+python -m pytest tests/test_feature_import_flow.py
 
 # 架构/依赖方向护栏
-pytest tests/test_architecture_guards.py
+python -m pytest tests/test_architecture_guards.py
 
 # 非 UI 测试
-pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
+python -m pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
 
 # 编译检查
-PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python3 -m compileall -q media_importer tests
+PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python -m compileall -q media_importer tests
 ```
 
 测试前注意：
 
+- 仓库使用 `.python-version` 固定到 Python `3.12.13`；本地开发优先走项目 `.venv/`，不要依赖全局 `python3`。
 - 当前仍未新增 `pyproject.toml`；在 lint/formatter/typecheck 工具链明确前，继续使用 `pytest.ini` 和文档化命令。
 - UI 测试依赖 Playwright 模块、浏览器二进制和本地运行服务。
+- 在 Codex Desktop 的 macOS 环境里，优先使用右侧 `Browser` 工具做本地 `localhost` / `127.0.0.1` 检查；不要默认假设可以从沙箱内直接启动 Chromium。
+- 右侧工具若显示 GitHub CLI 不可用，优先使用 GitHub 插件/连接器路径，不要把本地 `gh` 当作默认前置条件。
 - 许多测试可能已有历史失败，改动前先看 `.pytest_cache/v/cache/lastfailed`。
 
 ## 3. Source Layout

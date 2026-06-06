@@ -12,7 +12,7 @@ Archived tests are not current product contracts. If a scenario is still valuabl
 
 ## Current Policy
 
-- `pytest tests/` must remain the default stable regression entry.
+- `python -m pytest tests/` from the project `.venv` must remain the default stable regression entry.
 - Environment-dependent UI suites stay gated through `tests/conftest.py`.
 - New failures in current tests are not covered by this file and must be investigated.
 - After frontend redesign, create a new UI/E2E plan before reintroducing deep browser tests.

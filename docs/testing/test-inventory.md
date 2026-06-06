@@ -58,7 +58,7 @@
 ## Default Command
 
 ```bash
-python3 -m pytest tests/
+python -m pytest tests/
 ```
 
 Default regression should remain usable during architecture work. Tests marked `rewrite_later` may still run if gated/skipped through `tests/conftest.py`, but they are not the final product contract.
