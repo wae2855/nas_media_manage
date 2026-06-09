@@ -1164,6 +1164,54 @@
     height: 18px;
 }
 
+/* 入库预览 */
+.cinema-modal-preview {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: rgba(234,191,99,0.06);
+    border: 1px solid rgba(234,191,99,0.18);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+.preview-path {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.preview-label {
+    color: var(--muted);
+    white-space: nowrap;
+}
+.preview-path code {
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+    padding: 1px 6px;
+    border-radius: 4px;
+    word-break: break-all;
+}
+.preview-warning {
+    color: var(--caution);
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+/* stage badge */
+.cinema-badge--queued,
+.cinema-badge--running,
+.cinema-badge--review,
+.cinema-badge--done {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.cinema-badge--queued { background: rgba(255,255,255,0.08); color: var(--muted); }
+.cinema-badge--running { background: rgba(234,191,99,0.15); color: #eabf63; }
+.cinema-badge--review { background: rgba(99,179,234,0.15); color: #63b3ea; }
+.cinema-badge--done { background: rgba(99,234,163,0.12); color: #63eaa3; }
+
 .config-stage-panel {
     display: none;
     margin-top: 16px;

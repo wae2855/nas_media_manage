@@ -1,22 +1,28 @@
 // cinema-tasks.js — 任务列表渲染与操作
 
-function getTaskStatusText(status) {
+function getTaskStatusText(status, stage) {
+    const s = String(status || "").toUpperCase();
+    const st = String(stage || "").toUpperCase();
+    if (s === "PENDING") {
+        if (st === "QUEUED") return "排队中";
+        if (st === "RUNNING") return "处理中";
+        if (st === "AWAIT_REVIEW") return "待确认";
+        return "待处理";
+    }
     const map = {
-        PENDING: "待处理",
-        PROCESSING: "处理中",
-        CONFIRMING: "待确认",
-        NEEDS_REVIEW: "待确认",
         FAILED: "失败",
         SUCCESS: "已完成",
         SKIPPED: "已跳过",
+        CANCELLED: "已取消",
     };
-    return map[String(status || "").toUpperCase()] || "未知状态";
+    return map[s] || "未知状态";
 }
 
 function getTaskTone(task) {
     const status = String(task.status || "").toUpperCase();
+    const stage = String(task.stage || "").toUpperCase();
     if (status === "FAILED") return "red";
-    if (status === "CONFIRMING" || status === "NEEDS_REVIEW") return "cyan";
+    if (status === "PENDING" && stage === "AWAIT_REVIEW") return "cyan";
     if (status === "SUCCESS" || status === "SKIPPED") return "gold";
     return "gold";
 }
@@ -41,10 +47,11 @@ function taskDisplayTitle(task) {
 
 function taskDescription(task) {
     const status = String(task.status || "").toUpperCase();
+    const stage = String(task.stage || "").toUpperCase();
     const scrape = task.scrape_result || {};
     if (task.error_message) return task.error_message;
     if (task.skip_reason) return task.skip_reason;
-    if (status === "CONFIRMING" || status === "NEEDS_REVIEW") {
+    if (status === "PENDING" && stage === "AWAIT_REVIEW") {
         return "AI 已给出候选结果，等待你确认最终入库方向。";
     }
     if (status === "FAILED") {
@@ -57,7 +64,7 @@ function taskDescription(task) {
     if (status === "SKIPPED") {
         return "该任务已被跳过，可按需要重新投入处理。";
     }
-    if (status === "PROCESSING") {
+    if (status === "PENDING" && stage === "RUNNING") {
         return "系统正在扫描、识别和整理这个文件。";
     }
     return "文件已经进入队列，等待系统开始扫描与识别。";
@@ -85,7 +92,8 @@ function taskMeta(task) {
 
 function taskPrimaryAction(task) {
     const status = String(task.status || "").toUpperCase();
-    if (status === "CONFIRMING" || status === "NEEDS_REVIEW") return { key: "confirm", label: "去确认" };
+    const stage = String(task.stage || "").toUpperCase();
+    if (status === "PENDING" && stage === "AWAIT_REVIEW") return { key: "confirm", label: "去确认" };
     if (status === "FAILED" || status === "SKIPPED") return { key: "retry-task", label: "去重试" };
     if (status === "SUCCESS") return { key: "view-task", label: "查看结果" };
     return { key: "view-task", label: "查看" };
@@ -93,10 +101,11 @@ function taskPrimaryAction(task) {
 
 function taskSecondaryAction(task) {
     const status = String(task.status || "").toUpperCase();
-    if (status === "CONFIRMING" || status === "NEEDS_REVIEW") return { key: "ignore-task", label: "忽略" };
+    const stage = String(task.stage || "").toUpperCase();
+    if (status === "PENDING" && stage === "AWAIT_REVIEW") return { key: "edit-task", label: "修改" };
     if (status === "FAILED") return { key: "delete-task", label: "移入回收" };
-    if (status === "PENDING" || status === "PROCESSING") return { key: "delete-task", label: "移入回收" };
-    return { key: "view-task", label: "查看详情" };
+    if (status === "PENDING" && stage === "QUEUED") return { key: "delete-task", label: "移入回收" };
+    return null;
 }
 
 function formatFileSizeMb(valueMb) {
@@ -122,7 +131,11 @@ function renderTaskSummary(task) {
 }
 
 function renderTaskCard(item, index = 0) {
-    const danger = String(item.status || "").includes("失败") || String(item.status || "").includes("确认") ? " danger" : "";
+    const status = String(item.status || "").toUpperCase();
+    const stage = String(item.stage || "").toUpperCase();
+    const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
+    const isFailed = status === "FAILED";
+    const danger = isFailed || isAwaitReview ? " danger" : "";
     const primaryAction = taskPrimaryAction(item);
     const secondaryAction = taskSecondaryAction(item);
     const title = taskDisplayTitle(item);
@@ -134,13 +147,13 @@ function renderTaskCard(item, index = 0) {
             <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" />
             <div class="cover cover-${getTaskTone(item)}"></div>
             <div class="task-body">
-                <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="badge${danger}">${escapeHtml(getTaskStatusText(item.status))}</span></div>
+                <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="badge${danger}">${escapeHtml(getTaskStatusText(item.status, item.stage))}</span></div>
                 <p>${escapeHtml(taskDescription(item))}</p>
                 <div class="task-meta"><span>${escapeHtml(filename)}</span><span>${escapeHtml(taskMeta(item))}</span></div>
             </div>
             <div class="task-actions">
                 <button data-task-action="${escapeHtml(primaryAction.key)}" data-task-id="${escapeHtml(item.task_id || "")}">${escapeHtml(primaryAction.label)}</button>
-                <button data-task-action="${escapeHtml(secondaryAction.key)}" data-task-id="${escapeHtml(item.task_id || "")}">${escapeHtml(secondaryAction.label)}</button>
+                ${secondaryAction ? `<button data-task-action="${escapeHtml(secondaryAction.key)}" data-task-id="${escapeHtml(item.task_id || "")}">${escapeHtml(secondaryAction.label)}</button>` : ""}
             </div>
         </article>`;
 }
@@ -195,36 +208,24 @@ function setTaskFilter(filter) {
     loadTaskList();
 }
 
-async function listTasksByStatuses(statuses) {
-    const normalized = Array.isArray(statuses) ? statuses : [];
-    if (normalized.length === 0) {
-        const result = await requestApi("GET", "/tasks?limit=20");
+async function listTasksByStatuses(params) {
+    if (!params || Object.keys(params).length === 0) {
+        const result = await requestApi("GET", "/tasks", { limit: 20 });
         if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [] };
         return { code: 200, tasks: result.data.tasks || [], total: result.data.total || 0 };
     }
-    const responses = await Promise.all(
-        normalized.map((status) => requestApi("GET", `/tasks?limit=20&status=${encodeURIComponent(status)}`)),
-    );
-    const failed = responses.find((result) => result.code !== 200 || !result.data);
-    if (failed) return { code: failed.code, message: failed.message, tasks: [] };
-    const tasks = responses.flatMap((result) => result.data.tasks || []);
-    tasks.sort((a, b) => {
-        const ta = a.completed_at || a.started_at || a.created_at || "";
-        const tb = b.completed_at || b.started_at || b.created_at || "";
-        return tb.localeCompare(ta);
-    });
-    const unique = [];
-    const seen = new Set();
-    tasks.forEach((task) => {
-        if (seen.has(task.task_id)) return;
-        seen.add(task.task_id);
-        unique.push(task);
-    });
-    return {
-        code: 200,
-        tasks: unique,
-        total: responses.reduce((sum, result) => sum + Number(result.data.total || 0), 0),
-    };
+    const query = {};
+    if (params.status) {
+        if (Array.isArray(params.status)) {
+            query.status = params.status[0];
+        } else {
+            query.status = params.status;
+        }
+    }
+    if (params.stage) query.stage = params.stage;
+    const result = await requestApi("GET", "/tasks", query);
+    if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [] };
+    return { code: 200, tasks: result.data.tasks || [], total: result.data.total || 0 };
 }
 
 async function loadTaskList() {
@@ -244,7 +245,7 @@ async function loadTaskList() {
                 </div>
             </article>`;
     }
-    const result = await listTasksByStatuses(TASK_FILTER_STATUS_MAP[currentTaskFilter]);
+    const result = await listTasksByStatuses(TASK_FILTER_PARAMS[currentTaskFilter]);
     if (result.code === 401) {
         currentTaskRecords = [];
         if (host) {
@@ -494,13 +495,15 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
 
     const dimSection = `<div class="cinema-modal-block">
             <h4>分类维度${isEditable ? "微调" : ""}</h4>
+            ${isEditable ? '<button id="btn-preview-classify" class="btn btn-sm btn-outline" style="float:right;margin-top:-28px">入库预览</button>' : ""}
             <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, isEditable)}</div>
+            ${isEditable ? '<div id="preview-classify-result" class="cinema-modal-preview" style="display:none"></div>' : ""}
         </div>`;
 
     const body = `
         <div class="cinema-modal-stack">
             <div class="cinema-modal-summary">
-                <div><strong>${escapeHtml(taskDisplayTitle(task))}</strong><span>${escapeHtml(getTaskStatusText(task.status))}</span></div>
+                <div><strong>${escapeHtml(taskDisplayTitle(task))}</strong><span>${escapeHtml(getTaskStatusText(task.status, task.stage))}</span></div>
                 <p>${escapeHtml(taskDescription(task))}</p>
                 <small>源文件：${escapeHtml(originalFilename)}</small>
                 ${task.source_path ? `<small>源路径：${escapeHtml(task.source_path)}</small>` : ""}
@@ -575,6 +578,41 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
         body,
         actions,
     });
+
+    // 入库预览按钮事件绑定
+    const previewBtn = document.getElementById("btn-preview-classify");
+    if (previewBtn) {
+        previewBtn.addEventListener("click", async () => {
+            const dims = {};
+            document.querySelectorAll("[data-task-dim]").forEach((input) => {
+                const v = input.value?.trim();
+                if (v) { dims[input.dataset.taskDim] = v; }
+            });
+            try {
+                const result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/classify-preview`, {
+                    dimensions: dims,
+                    filename: document.getElementById("task-rename-input")?.value?.trim() || originalFilename,
+                });
+                const previewDiv = document.getElementById("preview-classify-result");
+                if (result.code === 200 && result.data) {
+                    const d = result.data;
+                    previewDiv.style.display = "block";
+                    previewDiv.innerHTML = `<div class="preview-path"><span class="preview-label">入库目录：</span><code>${escapeHtml(d.import_path || "")}</code></div>
+                        <div class="preview-path"><span class="preview-label">最终文件：</span><code>${escapeHtml(d.full_path || "")}</code></div>
+                        ${d.warnings?.length ? `<div class="preview-warning">${escapeHtml(d.warnings.join("; "))}</div>` : ""}`;
+                } else {
+                    previewDiv.style.display = "block";
+                    previewDiv.innerHTML = `<div class="preview-warning">预览失败: ${result.message || "未知错误"}</div>`;
+                }
+            } catch (e) {
+                const previewDiv = document.getElementById("preview-classify-result");
+                if (previewDiv) {
+                    previewDiv.style.display = "block";
+                    previewDiv.innerHTML = `<div class="preview-warning">请求异常: ${e.message || e}</div>`;
+                }
+            }
+        });
+    }
 }
 
 async function performTaskAction(action, taskId) {
@@ -629,6 +667,11 @@ async function performTaskAction(action, taskId) {
                 await Promise.all([loadTaskList(), loadDashboardOverview()]);
             }
         });
+        return;
+    }
+    if (action === "edit-task") {
+        await openTaskDetail(taskId);
+        return;
     }
 }
 
@@ -638,8 +681,12 @@ function taskStatusOf(task) {
     return String(task?.status || "").toUpperCase();
 }
 
+function taskStageOf(task) {
+    return String(task?.stage || "").toUpperCase();
+}
+
 function isBatchableStatus(status) {
-    return ["FAILED", "SKIPPED", "PENDING", "PROCESSING", "CONFIRMING", "NEEDS_REVIEW"].includes(status);
+    return ["FAILED", "SKIPPED", "PENDING"].includes(status);
 }
 
 function getSelectedTaskRecords() {
@@ -666,12 +713,12 @@ function updateBatchToolbar() {
     const confirmBtn = document.getElementById("task-batch-confirm");
     const ignoreBtn = document.getElementById("task-batch-ignore");
     const deleteBtn = document.getElementById("task-batch-delete");
-    const hasFailed = selectedRecords.some((t) => ["FAILED", "SKIPPED"].includes(taskStatusOf(t)));
-    const hasConfirm = selectedRecords.some((t) => ["CONFIRMING", "NEEDS_REVIEW"].includes(taskStatusOf(t)));
+    const hasFailedOrSkipped = selectedRecords.some((t) => ["FAILED", "SKIPPED"].includes(taskStatusOf(t)));
+    const hasAwaitReview = selectedRecords.some((t) => taskStatusOf(t) === "PENDING" && taskStageOf(t) === "AWAIT_REVIEW");
     const hasProcessable = selectedRecords.some((t) => isBatchableStatus(taskStatusOf(t)));
-    if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailed);
-    if (confirmBtn) confirmBtn.hidden = !(count > 0 && hasConfirm);
-    if (ignoreBtn) ignoreBtn.hidden = !(count > 0 && (hasConfirm || hasFailed));
+    if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailedOrSkipped);
+    if (confirmBtn) confirmBtn.hidden = !(count > 0 && hasAwaitReview);
+    if (ignoreBtn) ignoreBtn.hidden = !(count > 0 && (hasAwaitReview || hasFailedOrSkipped));
     if (deleteBtn) deleteBtn.hidden = !(count > 0 && hasProcessable);
     const actionButtons = [retryBtn, confirmBtn, ignoreBtn, deleteBtn].filter(Boolean);
     actionButtons.forEach((btn) => { btn.disabled = count === 0; });

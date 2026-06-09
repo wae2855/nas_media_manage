@@ -2,18 +2,20 @@ const DASHBOARD_REFRESH_MS = 15000;
 
 const TASK_FILTER_META = {
     all: { title: "当前队列", copy: "先从待确认和失败项开始，会更快把主流程跑顺。" },
-    pending: { title: "等待系统继续处理", copy: "这些文件已经进入队列，下一步会开始扫描、识别和判断。" },
-    confirm: { title: "等待你来确认", copy: "先处理这些不确定条目，能最快减少后续误判和卡住的任务。" },
+    queued: { title: "等待系统继续处理", copy: "这些文件已经进入队列，下一步会开始扫描、识别和判断。" },
+    running: { title: "系统正在处理中", copy: "系统正在处理这批文件，目前不需要你操作。" },
+    review: { title: "等待你来确认", copy: "先处理这些不确定条目，能最快减少后续误判和卡住的任务。" },
     failed: { title: "等待重试或排错", copy: "先看失败原因，再决定重试、调整配置或手动处理。" },
     success: { title: "今天已完成的入库", copy: "这里是已经跑通的结果，可以快速回看最终入库状态。" },
 };
 
-const TASK_FILTER_STATUS_MAP = {
-    all: [],
-    pending: ["PENDING", "PROCESSING"],
-    confirm: ["CONFIRMING", "NEEDS_REVIEW"],
-    failed: ["FAILED"],
-    success: ["SUCCESS", "SKIPPED"],
+const TASK_FILTER_PARAMS = {
+    all: {},
+    queued: { status: "PENDING", stage: "QUEUED" },
+    running: { status: "PENDING", stage: "RUNNING" },
+    review: { status: "PENDING", stage: "AWAIT_REVIEW" },
+    failed: { status: "FAILED" },
+    success: { status: ["SUCCESS", "SKIPPED"] },
 };
 
 let currentTaskFilter = "all";
@@ -253,12 +255,10 @@ async function fetchQueueSnapshot() {
         }
         const byStatus = result.data.by_status || {};
         const pending = statusCount(byStatus, "PENDING", "pending");
-        const processing = statusCount(byStatus, "PROCESSING", "processing");
-        const confirm = statusCount(byStatus, "CONFIRMING", "confirming", "NEEDS_REVIEW", "needs_review");
         const failed = statusCount(byStatus, "FAILED", "failed");
         return {
             paused: !!result.data.paused,
-            totalOpen: pending + processing + confirm + failed,
+            totalOpen: pending + failed,
             failed,
         };
     } catch (e) {
@@ -355,7 +355,11 @@ async function loadDashboardMetrics() {
     }
     const queue = result.data.queue_by_status || {};
     document.getElementById("metric-pending").textContent = queue.PENDING || queue.pending || 0;
-    document.getElementById("metric-confirm").textContent = statusCount(queue, "CONFIRMING", "confirming", "NEEDS_REVIEW", "needs_review");
+    document.getElementById("metric-confirm").textContent = 0;
+    if (typeof queue.PENDING !== "undefined") {
+        const awr = queue[".stage_AWAIT_REVIEW"] || 0;
+        document.getElementById("metric-confirm").textContent = awr;
+    }
     document.getElementById("metric-success").textContent = queue.SUCCESS || queue.success || 0;
 }
 
@@ -371,28 +375,18 @@ async function loadDashboardQueueStatus() {
     }
     const byStatus = result.data.by_status || {};
     const pending = statusCount(byStatus, "PENDING", "pending");
-    const processing = statusCount(byStatus, "PROCESSING", "processing");
-    const confirm = statusCount(byStatus, "CONFIRMING", "confirming", "NEEDS_REVIEW", "needs_review");
     const failed = statusCount(byStatus, "FAILED", "failed");
-    const totalOpen = pending + processing + confirm + failed;
+    const totalOpen = pending + failed;
     if (result.data.paused) {
         setDashboardQueueStrip(`队列已暂停，仍有 ${totalOpen} 项待继续处理`, totalOpen > 0 ? 0.28 : 0);
         return;
     }
-    if (processing > 0) {
-        setDashboardQueueStrip(`当前有 ${processing} 项正在处理中，后面还有 ${Math.max(0, totalOpen - processing)} 项等待`, totalOpen > 0 ? processing / totalOpen : 0.52);
-        return;
-    }
-    if (confirm > 0) {
-        setDashboardQueueStrip(`当前有 ${confirm} 项等待确认，建议优先处理这些条目`, totalOpen > 0 ? confirm / totalOpen : 0.34);
+    if (pending > 0) {
+        setDashboardQueueStrip(`当前有 ${pending} 项等待处理或确认`, totalOpen > 0 ? pending / totalOpen : 0.52);
         return;
     }
     if (failed > 0) {
         setDashboardQueueStrip(`当前有 ${failed} 项处理失败，可直接发起重试`, totalOpen > 0 ? failed / totalOpen : 0.24);
-        return;
-    }
-    if (pending > 0) {
-        setDashboardQueueStrip(`当前有 ${pending} 项等待系统开始扫描与识别`, totalOpen > 0 ? pending / totalOpen : 0.18);
         return;
     }
     setDashboardQueueStrip("等待新影片进入队列", 0);
