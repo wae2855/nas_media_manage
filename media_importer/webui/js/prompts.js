@@ -152,7 +152,7 @@ async function previewFullPrompt() {
     overlay.innerHTML = '<div class="prompt-preview-dialog">' +
         '<div class="prompt-preview-header">' +
         '<span class="prompt-preview-title">LLM 直接刮削提示词预览</span>' +
-        '<button class="prompt-preview-close" onclick="this.closest(\'.prompt-preview-overlay\').remove()">' +
+        '<button class="prompt-preview-close" type="button">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
         '</button>' +
         '</div>' +
@@ -165,6 +165,9 @@ async function previewFullPrompt() {
         if (e.target === overlay) {
             overlay.remove();
         }
+    });
+    overlay.querySelector('.prompt-preview-close').addEventListener('click', function() {
+        overlay.remove();
     });
 
     document.body.appendChild(overlay);
@@ -181,18 +184,20 @@ function showSystemScrapeModal() {
         '<div class="modal" style="max-width:960px;width:95%;">' +
             '<div class="modal-header">' +
                 '<h3>刮削与置信度计算</h3>' +
-                '<button class="modal-close" onclick="closeScrapePreviewModal()">&times;</button>' +
+                '<button class="modal-close" type="button">&times;</button>' +
             '</div>' +
             '<div class="modal-body">' +
                 '<div style="display:flex;gap:8px;margin-bottom:16px;">' +
                     '<input type="text" id="scrape-preview-filename" placeholder="输入视频文件名，如 Inception.2010.1080p.BluRay.mkv" class="form-input" style="flex:1;">' +
-                    '<button class="btn btn-primary" id="btn-scrape-preview" onclick="doScrapePreview()">开始刮削</button>' +
+                    '<button class="btn btn-primary" id="btn-scrape-preview" type="button">开始刮削</button>' +
                 '</div>' +
                 '<div id="scrape-preview-result"></div>' +
             '</div>' +
         '</div>';
     document.body.appendChild(modal);
     document.getElementById('scrape-preview-filename').focus();
+    modal.querySelector('.modal-close').addEventListener('click', closeScrapePreviewModal);
+    modal.querySelector('#btn-scrape-preview').addEventListener('click', doScrapePreview);
 }
 
 function closeScrapePreviewModal() {
@@ -252,13 +257,13 @@ async function doScrapePreview() {
     if (data.provider_ai && data.provider_ai.scrape_trace) {
         var traceJson = escapeHtml(JSON.stringify(data.provider_ai.scrape_trace));
         html += '<div style="margin-top:12px;text-align:center;">';
-        html += '<button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(this.getAttribute(\'data-trace\')),this.getAttribute(\'data-filename\'))" data-trace="' + traceJson + '" data-filename="' + escapeHtml(filename) + '">查看 Provider+AI 置信度计算过程</button>';
+        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="' + escapeHtml(filename) + '">查看 Provider+AI 置信度计算过程</button>';
         html += '</div>';
     }
     if (data.ai_only && data.ai_only.scrape_trace) {
         var aiTraceJson = escapeHtml(JSON.stringify(data.ai_only.scrape_trace));
         html += '<div style="margin-top:8px;text-align:center;">';
-        html += '<button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(this.getAttribute(\'data-trace\')),this.getAttribute(\'data-filename\'))" data-trace="' + aiTraceJson + '" data-filename="' + escapeHtml(filename) + '">查看纯AI置信度计算过程</button>';
+        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + aiTraceJson + '" data-filename="' + escapeHtml(filename) + '">查看纯AI置信度计算过程</button>';
         html += '</div>';
     }
 
@@ -286,7 +291,7 @@ function _renderScrapeResultCard(result) {
     if (confidence !== undefined) {
         var confColor = confidence >= 0.8 ? 'var(--success-color,#22c55e)' : (confidence >= 0.5 ? 'var(--warning-color,#f59e0b)' : 'var(--error-color,#ef4444)');
         var traceJson = result.scrape_trace ? escapeHtml(JSON.stringify(result.scrape_trace)) : '';
-        html += '<div style="margin-bottom:6px;"><strong>置信度:</strong> <span class="conf-clickable" style="color:' + confColor + ';font-weight:600;cursor:pointer;text-decoration:underline dotted;" data-trace="' + traceJson + '" data-filename="" onclick="showConfidenceDetailModal(JSON.parse(this.getAttribute(\'data-trace\')),this.getAttribute(\'data-filename\'))">' + (typeof confidence === 'number' ? confidence.toFixed(3) : confidence) + '</span></div>';
+        html += '<div style="margin-bottom:6px;"><strong>置信度:</strong> <span class="conf-clickable" style="color:' + confColor + ';font-weight:600;cursor:pointer;text-decoration:underline dotted;" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="">' + (typeof confidence === 'number' ? confidence.toFixed(3) : confidence) + '</span></div>';
     }
 
     var dims = result.dimensions;
@@ -374,7 +379,7 @@ async function previewTmdbFullPrompt() {
     overlay.innerHTML = '<div class="prompt-preview-dialog">' +
         '<div class="prompt-preview-header">' +
         '<span class="prompt-preview-title">LLM+Provider 刮削提示词预览</span>' +
-        '<button class="prompt-preview-close" onclick="this.closest(\'.prompt-preview-overlay\').remove()">' +
+        '<button class="prompt-preview-close" type="button">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
         '</button>' +
         '</div>' +
@@ -389,6 +394,19 @@ async function previewTmdbFullPrompt() {
             overlay.remove();
         }
     });
+    overlay.querySelector('.prompt-preview-close').addEventListener('click', function() {
+        overlay.remove();
+    });
 
     document.body.appendChild(overlay);
 }
+
+document.addEventListener('click', function(event) {
+    var detail = event.target.closest('[data-confidence-detail-action="open"]');
+    if (!detail) return;
+    var trace = detail.getAttribute('data-trace');
+    var filename = detail.getAttribute('data-filename') || '';
+    if (!trace || typeof showConfidenceDetailModal !== 'function') return;
+    event.preventDefault();
+    showConfidenceDetailModal(JSON.parse(trace), filename);
+});

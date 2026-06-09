@@ -1,7 +1,7 @@
 import os
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
 from media_importer.features.configuration import load_config, mask_sensitive
@@ -26,6 +26,7 @@ from .prompt_handlers import PromptHandlersMixin
 from .provider_handlers import ProviderHandlersMixin
 from .source_cleaner_handlers import SourceCleanerHandlers
 from .recycle_handlers import RecycleHandlers
+from .thumbnail_handlers import ThumbnailHandlersMixin
 from .routes import match_route
 from . import globals
 
@@ -41,6 +42,7 @@ class APIHandler(
     ProviderHandlersMixin,
     SourceCleanerHandlers,
     RecycleHandlers,
+    ThumbnailHandlersMixin,
     BaseHTTPRequestHandler
 ):
     protocol_version = "HTTP/1.1"
@@ -256,38 +258,39 @@ def start_server(host: str, port: int, config: dict):
         globals._global_watcher = FileWatcher(config, on_new_files=on_new_files, logger=globals._global_logger)
         globals._global_watcher.start()
         globals._global_logger.info(f"文件监控已启用 (轮询间隔 {watcher_cfg.get('poll_interval', 60)}s)")
+
+        source_dir = config.get("source_dir", "")
+        if source_dir and os.path.isdir(source_dir):
+            from media_importer.features.import_flow import scan_source_dir
+            try:
+                groups = scan_source_dir(source_dir, config)
+                if groups:
+                    globals._global_logger.info(f"启动时发现 {len(groups)} 个待处理文件")
+                    def run_initial_batch():
+                        globals._global_pipeline.run_all()
+                        if globals._config_dirty and not globals._global_task_manager.has_running_tasks():
+                            globals._config_dirty = False
+                            try:
+                                config_path = globals._config.get("_config_path") if globals._config else None
+                                if config_path:
+                                    new_config = load_config(config_path)
+                                    globals._config.clear()
+                                    globals._config.update(new_config)
+                                    if globals._global_pipeline:
+                                        globals._global_pipeline.config = globals._config
+                                    globals._global_logger.info("任务完成后自动重载配置")
+                            except Exception as e:
+                                globals._global_logger.error(f"自动重载配置失败: {e}")
+                    threading.Thread(target=run_initial_batch, daemon=True).start()
+            except Exception as e:
+                globals._global_logger.error(f"启动扫描失败: {e}")
     else:
         globals._global_watcher = None
-        globals._global_logger.info("文件监控未启用")
-
-    source_dir = config.get("source_dir", "")
-    if source_dir and os.path.isdir(source_dir):
-        from media_importer.features.import_flow import scan_source_dir
-        try:
-            groups = scan_source_dir(source_dir, config)
-            if groups:
-                globals._global_logger.info(f"启动时发现 {len(groups)} 个待处理文件")
-                def run_initial_batch():
-                    globals._global_pipeline.run_all()
-                    if globals._config_dirty and not globals._global_task_manager.has_running_tasks():
-                        globals._config_dirty = False
-                        try:
-                            config_path = globals._config.get("_config_path") if globals._config else None
-                            if config_path:
-                                new_config = load_config(config_path)
-                                globals._config.clear()
-                                globals._config.update(new_config)
-                                if globals._global_pipeline:
-                                    globals._global_pipeline.config = globals._config
-                                globals._global_logger.info("任务完成后自动重载配置")
-                        except Exception as e:
-                            globals._global_logger.error(f"自动重载配置失败: {e}")
-                threading.Thread(target=run_initial_batch, daemon=True).start()
-        except Exception as e:
-            globals._global_logger.error(f"启动扫描失败: {e}")
+        globals._global_logger.info("文件监控未启用，跳过启动扫描")
 
     server_address = (host, port)
-    httpd = ThreadingHTTPServer(server_address, APIHandler)
+    server_cls = HTTPServer if os.environ.get("NAS_E2E_SINGLE_THREAD") == "1" else ThreadingHTTPServer
+    httpd = server_cls(server_address, APIHandler)
     print(f"HTTP API 服务启动: http://{host}:{port}")
     print("端点列表:")
     print("  GET  /                      - Web UI 首页")

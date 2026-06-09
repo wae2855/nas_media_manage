@@ -16,6 +16,9 @@
 | 查看代码/文档/测试规范 | [standards/](standards/) |
 | 按流程开发功能或重构 | [workflows/](workflows/) |
 | 查看待验收和完成事项 | [tracking/pending-acceptance.md](tracking/pending-acceptance.md), [tracking/completed-items.md](tracking/completed-items.md) |
+| 需求看板（活跃需求） | [tracking/requirements-board.md](tracking/requirements-board.md) |
+| 废弃需求记录 | [tracking/discarded-items.md](tracking/discarded-items.md) |
+| 需求管理规范 | [standards/requirement-management.md](standards/requirement-management.md) |
 | 查看架构决策记录 | [decisions/](decisions/) |
 | 查看测试策略和回归矩阵 | [testing/](testing/) |
 | 查看旧文档状态 | [legacy.md](legacy.md) |

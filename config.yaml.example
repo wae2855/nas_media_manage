@@ -221,7 +221,27 @@ llm:
   fast_api_key: ""                # 快速模型API密钥（留空则使用api_key）
   confidence_threshold: 0.8       # AI置信度阈值（低于此值的刮削结果将被拒绝）
   verify_ssl: true                # 是否验证SSL证书（代理环境可设为false）
-                                  # 如需自定义刮削提示词，请在 config/scraper_prompts.md 中配置
+  system_prompt: ""               # 如需自定义刮削提示词，请在 config/scraper_prompts.md 中配置
+  
+  # MCP (Model Context Protocol) 工具集成配置
+  mcp:
+    enabled: false                # 是否启用MCP工具集成
+    # MCP工具列表
+    tools:
+      - name: web_search
+        type: web_search          # 使用web_search_prime MCP
+        enabled: true
+        config: {}
+      - name: browser
+        type: integrated_browser
+        enabled: false
+        config: {}
+    # 哪些场景启用MCP
+    scenarios:
+      scrape: true                # 纯AI刮削时启用
+      scrape_with_context: false  # 已有Provider上下文时不启用
+      series_scrape: true         # 整剧刮削时启用
+      source_cleaner: false       # 源目录清理时不启用
 
 # ------------------------------------------------------------
 # 7.1 刮削提示词配置

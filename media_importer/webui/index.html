@@ -6,7 +6,7 @@
     <title>影音库AI智能整理</title>
     <link rel="stylesheet" href="css/cinema-tokens.css?v=1">
     <link rel="stylesheet" href="css/cinema-layout.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages.css?v=1">
+    <link rel="stylesheet" href="css/cinema-pages.css?v=3">
     <link rel="stylesheet" href="css/cinema-config-flow.css?v=1">
     <link rel="stylesheet" href="css/cinema-rules.css?v=1">
     <link rel="stylesheet" href="css/dimensions.css?v=37">
@@ -87,24 +87,8 @@
         <main>
             <section class="page-view active" data-view="dashboard">
                 <section class="hero">
-                    <div class="hero-cinema-reels" aria-hidden="true">
-                        <!-- 调整 data-still 的文件编号或 DOM 顺序，即可自定义首页胶卷中的剧照排列 -->
-                        <div class="film-reel film-reel-ambient">
-                            <div class="film-frame" data-still="still-05"></div>
-                            <div class="film-frame" data-still="still-02"></div>
-                        </div>
-                        <div class="film-reel film-reel-primary">
-                            <div class="film-frame" data-still="still-03"></div>
-                            <div class="film-frame" data-still="still-04"></div>
-                        </div>
-                        <div class="film-reel film-reel-secondary">
-                            <div class="film-frame" data-still="still-01"></div>
-                            <div class="film-frame" data-still="still-06"></div>
-                        </div>
-                    </div>
                     <div class="hero-copy">
                         <div>
-                            <div class="eyebrow">首页</div>
                             <h2 class="hero-title">片库总览</h2>
                             <p class="hero-text">把散落影片收进一座私人影院。</p>
                         </div>
@@ -113,11 +97,21 @@
                             <button class="btn btn-secondary" data-action="pause"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"></use></svg>暂停处理</button>
                             <button class="btn btn-secondary" data-action="retry"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg>重试失败项</button>
                         </div>
-                    </div>
-                    <div class="spotlight hero-spotlight">
                         <div class="now-strip">
                             <strong id="current-job">等待新影片进入队列</strong>
                             <div class="progress"><span></span></div>
+                        </div>
+                    </div>
+                    <div class="hero-right" id="hero-reel-right">
+                        <div class="reel-wheel-wrap">
+                            <div class="reel-glow"></div>
+                            <div class="reel-hub"></div>
+                            <div class="reel-wheel" id="reel-wheel"></div>
+                        </div>
+                        <div class="reel-empty-state" id="reel-empty-state" style="display:none;">
+                            <div class="reel-empty-icon">🎞</div>
+                            <div class="reel-empty-title">暂无影片</div>
+                            <div class="reel-empty-desc">点击「立即扫描」开始发现你的电影收藏</div>
                         </div>
                     </div>
                 </section>
@@ -169,6 +163,18 @@
                     <button class="chip danger" data-task-filter-chip="failed">失败</button>
                     <button class="chip" data-task-filter-chip="success">已完成</button>
                 </div>
+                <div class="task-batch-toolbar" id="task-batch-toolbar" hidden>
+                    <label>
+                        <input type="checkbox" id="task-select-all" data-task-select-all />
+                        <span>全选当前筛选</span>
+                    </label>
+                    <span class="batch-count" id="task-batch-count">已选 0 项</span>
+                    <button type="button" data-batch-task-action="batch-retry" id="task-batch-retry" hidden>批量重试</button>
+                    <button type="button" data-batch-task-action="batch-confirm" id="task-batch-confirm" hidden>批量确认</button>
+                    <button type="button" data-batch-task-action="batch-ignore" id="task-batch-ignore" hidden>批量忽略</button>
+                    <button type="button" class="danger" data-batch-task-action="batch-delete" id="task-batch-delete" hidden>批量移入回收</button>
+                    <button type="button" data-batch-task-action="batch-clear">清空选择</button>
+                </div>
                 <div class="section-title section-title-stack task-panel-head">
                     <div>
                         <h2 id="task-panel-title">当前队列</h2>
@@ -180,8 +186,18 @@
             </section>
 
             <section class="page-view" data-view="recycle">
-                <div class="page-hero"><div><div class="eyebrow">回收</div><h2>安全回收区</h2><p>所有危险操作先进入回收目录。</p></div><button class="btn btn-primary" data-action="placeholder">清理过期项</button></div>
+                <div class="page-hero"><div><div class="eyebrow">回收</div><h2>安全回收区</h2><p>所有危险操作先进入回收目录。</p></div><button class="btn btn-primary" data-action="clear-expired-recycle">清理过期项</button></div>
                 <section class="recycle-stats"><article><b id="recycle-recoverable-count">0</b><span>可恢复</span></article><article><b id="recycle-cleanup-count">0</b><span>待清理</span></article><article><b id="recycle-size">--</b><span>占用空间</span></article></section>
+                <div class="recycle-batch-toolbar" id="recycle-batch-toolbar" hidden>
+                    <label>
+                        <input type="checkbox" id="recycle-select-all" data-recycle-select-all />
+                        <span>全选当前页</span>
+                    </label>
+                    <span class="batch-count" id="recycle-batch-count">已选 0 项</span>
+                    <button type="button" data-batch-recycle-action="batch-restore" id="recycle-batch-restore" hidden>批量恢复</button>
+                    <button type="button" class="danger" data-batch-recycle-action="batch-delete" id="recycle-batch-delete" hidden>批量永久清理</button>
+                    <button type="button" data-batch-recycle-action="batch-clear">清空选择</button>
+                </div>
                 <div class="section-title section-title-stack task-panel-head">
                     <div>
                         <h2>待恢复与待清理</h2>
@@ -645,7 +661,7 @@
                             <span>入库规则 <b class="required-mark">*</b></span>
                             <p>规则从上到下依次匹配，第一个满足条件的规则生效。具体规则放前面，通用规则放后面。</p>
                             <div class="rules-inline-list" id="rules-inline-list">
-                                <button class="rule-inline-empty rule-inline-add" data-action="placeholder">+</button>
+                                <button class="rule-inline-empty rule-inline-add" type="button" data-rule-action="add">+</button>
                             </div>
                             <div class="inline-actions-row">
                                 <button class="btn btn-secondary" type="button" data-rules-test="all">测试全部规则目录权限</button>
@@ -718,9 +734,15 @@
     </nav>
     <div class="toast" id="toast" role="status"></div>
     <script src="js/api.js?v=1"></script>
-    <script src="js/dimensions.js?v=36"></script>
-    <script src="js/prompts.js?v=36"></script>
-    <script src="js/cinema-confidence.js?v=1"></script>
-    <script src="js/cinema-app.js?v=1"></script>
+    <script src="js/cinema-modals.js?v=1"></script>
+    <script src="js/dimensions.js?v=37"></script>
+    <script src="js/prompts.js?v=37"></script>
+    <script src="js/cinema-confidence.js?v=2"></script>
+    <script src="js/cinema-tasks.js?v=1"></script>
+    <script src="js/cinema-recycle.js?v=1"></script>
+    <script src="js/cinema-field.js?v=1"></script>
+    <script src="js/cinema-section.js?v=1"></script>
+    <script src="js/cinema-config.js?v=1"></script>
+    <script src="js/cinema-app.js?v=4"></script>
 </body>
 </html>

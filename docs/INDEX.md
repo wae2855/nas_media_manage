@@ -40,6 +40,7 @@
 | 修改前端页面 | `product/frontend-redesign-todo.md`, `product/frontend-information-architecture.md`, `architecture/frontend-api-dependency-map.md`, UI 测试 |
 | 新增或迁移 feature | 对应 `docs/features/` 文档、feature smoke 测试、ADR/plan 状态 |
 | 大架构重构 | 新增 ADR，更新 roadmap/plan 和相关架构文档 |
+| 新增/变更需求 | `tracking/requirements-board.md`, `standards/requirement-management.md`, 相关 plan/ADR/测试链接 |
 
 ## Current Plans
 

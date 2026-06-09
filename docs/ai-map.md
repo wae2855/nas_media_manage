@@ -6,6 +6,7 @@
 
 | 任务 | 先读 | 主要代码 | 必跑/优先测试 | 文档同步 |
 |------|------|----------|---------------|----------|
+| 启动任意需求 | [standards/requirement-management.md](standards/requirement-management.md), [tracking/requirements-board.md](../docs/tracking/requirements-board.md) | — | — | 注册需求到 Board，检查冲突 |
 | 新增 API 端点 | [architecture/api.md](architecture/api.md), [standards/api.md](standards/api.md) | `media_importer/api/handler.py`, 对应 `*_handlers.py` | API 集成/前端相关测试 | `docs/INDEX.md`, API 文档 |
 | 新增配置项 | [features/configuration.md](features/configuration.md), [architecture/configuration.md](architecture/configuration.md), [standards/configuration.md](standards/configuration.md) | `features/configuration/`, `features/configuration/application_service.py`, `core/config_loader.py`, `core/config_migrations.py`, `core/config_validator.py`, `api/config_handlers.py`, `webui/js/config.js` | 配置测试、UI 配置测试 | 配置 feature、架构和索引 |
 | 修改任务状态 | [features/tasks.md](features/tasks.md), [architecture/task-lifecycle.md](architecture/task-lifecycle.md) | `features/tasks/`, `core/db/constants.py`, `core/task_manager.py`, `features/import_flow/`, `api/task_handlers.py`, `webui/js/tasks.js` | 任务、import-flow、回归测试 | lifecycle 文档、测试矩阵 |

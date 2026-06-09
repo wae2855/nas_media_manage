@@ -874,7 +874,12 @@ async function deleteTask() {
         loadTasks(_currentTaskPage, _currentTaskStatus);
         if (typeof refreshOverview === 'function') refreshOverview();
     } else {
-        alert('操作失败: ' + (result.message || '未知错误'));
+        var message = '操作失败: ' + (result.message || '未知错误');
+        if (typeof showToast === 'function') {
+            showToast(message);
+        } else {
+            console.error(message);
+        }
     }
 }
 

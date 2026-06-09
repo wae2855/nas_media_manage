@@ -2,17 +2,17 @@
 title: "frontend: function migration from showcase shell to live workflow"
 type: plan
 date: 2026-06-06
-status: approved
+status: completed
 confidence: high
 ---
 
 # Frontend Function Migration Plan
 
-一句话：停止继续打磨展示细节，把新版影院风前端从“展示壳”迁移到“真实可操作工作台”；优先接读操作，再接保存与测试，最后接有副作用和危险性的任务动作。
+一句话：停止继续打磨展示细节，把新版影院风前端从"展示壳"迁移到"真实可操作工作台"；优先接读操作，再接保存与测试，最后接有副作用和危险性的任务动作。
 
 ## Problem Statement
 
-新版前端页面结构、视觉主题和信息架构已经基本稳定，但当前大量页面仍处于“展示先行”的半接线状态：
+新版前端页面结构、视觉主题和信息架构已经基本稳定，但当前大量页面仍处于"展示先行"的半接线状态：
 
 - 首页、任务、回收、配置页已经有新版 UI，但大量按钮仍走 `data-action="placeholder"` 或 demo 数据。
 - `media_importer/webui/js/cinema-app.js` 目前同时承担：
@@ -27,7 +27,7 @@ confidence: high
 - 后端 API 已经具备较完整能力，路由事实源在：
   - [media_importer/api/routes.py](/Users/wangwei/Documents/code/nas_media_manage/media_importer/api/routes.py)
 
-当前真正的主线任务已经从“继续探索页面长什么样”切换为：
+当前真正的主线任务已经从"继续探索页面长什么样"切换为：
 
 1. 把新 UI 壳层逐页接到真实数据；
 2. 把旧 JS 的真实能力迁移或薄封装到新壳层；
@@ -39,7 +39,7 @@ confidence: high
 
 - 首页、任务、回收、系统配置、高级配置、模拟测试都不再依赖 demo 数据或 placeholder 动作。
 - 新前端成为默认工作界面；旧页面只作为对照与低频兜底，不再是主操作面。
-- `cinema-app.js` 不再持续膨胀为“超级壳层文件”，而是拆分为：
+- `cinema-app.js` 不再持续膨胀为"超级壳层文件"，而是拆分为：
   - 壳层导航与通用交互；
   - 首页数据装配；
   - 任务页；
@@ -70,7 +70,7 @@ confidence: high
 - 重写后端 API 契约，除非接线时发现阻塞性的 API 缺口。
 - 一次性重做全部旧 JS 文件；旧逻辑允许在过渡期被新壳层调用。
 - 立即追求完整深度 E2E 覆盖；先建立稳定 smoke 和关键路径回归。
-- 改变既有危险操作规则，例如“删除必须先入回收站”。
+- 改变既有危险操作规则，例如"删除必须先入回收站"。
 
 ## Current Functional Baseline
 
@@ -139,17 +139,17 @@ confidence: high
 
 ## Migration Matrix Snapshot
 
-本节作为 Phase 1 的当前快照，帮助后续迁移时快速判断“新版页面现在用的是什么、下一步该从哪里接”。
+本节作为 Phase 1 的当前快照，帮助后续迁移时快速判断"新版页面现在用的是什么、下一步该从哪里接"。
 
 | 页面/模块 | 新壳层现状 | 旧能力来源 | 后端 API | 当前阶段 |
 |-----------|------------|------------|----------|----------|
 | 首页 Dashboard | 新版结构已完成；本轮开始接真实 metrics / queue / logs / 主按钮 | `webui/js/app.js` 中旧 overview 读取与运行按钮逻辑 | `/api/metrics`, `/api/queue/status`, `/api/logs`, `/api/run`, `/api/queue/pause`, `/api/queue/retry-all` | 进行中 |
-| 任务页 | 新版筛选、卡片和说明层已完成；列表和动作仍主要依赖 demo | `webui/js/tasks.js` | `/api/tasks`, `/api/tasks/stats`, `/api/tasks/{id}`, `/api/tasks/{id}/retry|confirm|ignore|rename|delete` | 待迁移 |
-| 回收站 | 新版卡片区与统计区已完成；列表和动作仍主要依赖 demo | `webui/js/config.js` 中 recycle 相关逻辑 | `/api/recycle/list`, `/api/recycle/restore`, `/api/recycle/delete` | 待迁移 |
+| 任务页 | 新版筛选、卡片、详情弹窗和核心动作已切到真实任务接口 | `webui/js/tasks.js` | `/api/tasks`, `/api/tasks/stats`, `/api/tasks/{id}`, `/api/tasks/{id}/retry|confirm|ignore|rename|delete` | 第一轮已迁移 |
+| 回收站 | 新版列表、统计、恢复、删除、过期清理和冲突处理已切到真实回收接口 | `webui/js/config.js` 中 recycle 相关逻辑 | `/api/recycle/list`, `/api/recycle/restore`, `/api/recycle/delete` | 第一轮已迁移 |
 | 基础配置 | 新版表单骨架与引导层完成；源目录/中转目录/回收目录/入库规则已接入真实保存与路径测试第一轮 | `webui/js/config.js` | `/api/config`, `/api/path/test`, `/api/config/check-permission` | 第一轮已迁移 |
-| 刮削配置 | Provider 卡片与折叠交互已完成；保存/测试/预览仍为 placeholder | `webui/js/config.js` | `/api/providers`, `/api/providers/{provider_type}/test`, `/api/providers/{provider_type}/preview` | 待迁移 |
-| AI 配置 | LLM 字段布局已完成；保存与连通性测试未接入 | `webui/js/config.js` | `/api/config` 及 LLM 相关校验接口 | 待迁移 |
-| 高级配置与模拟测试 | 说明层、页面骨架与导航已完成；真实保存与执行未迁入新壳 | `webui/js/config.js`, `webui/js/prompts.js`, `webui/js/dimensions.js` | prompts / dimensions / system / security / hermes 相关接口 | 待迁移 |
+| 刮削配置 | Provider 卡片与折叠交互、保存、测试、轻量预览均已迁入新壳 | `webui/js/config.js` | `/api/providers`, `/api/providers/{provider_type}/test`, `/api/providers/{provider_type}/preview` | 第一轮已迁移 |
+| AI 配置 | LLM 字段回填、保存与连通性测试已迁入新壳 | `webui/js/config.js` | `/api/config` 及 LLM 相关校验接口 | 第一轮已迁移 |
+| 高级配置与模拟测试 | 高级配置保存/测试和模拟测试真实预览已迁入新壳；复杂提示词/维度编辑继续复用原能力 | `webui/js/config.js`, `webui/js/prompts.js`, `webui/js/dimensions.js` | prompts / dimensions / system / security / hermes / scrape preview 相关接口 | 第一轮已迁移 |
 
 ## Execution Progress
 
@@ -164,17 +164,107 @@ confidence: high
 - [x] 回收站第一轮：接入 `restore / delete` 两个核心动作。
 - [x] 基础配置第一轮：源目录 / 中转目录 / 回收目录 / 入库规则已接入真实保存、单路径权限测试与规则目录权限检查。
 - [x] 刮削配置 / AI配置 第一轮：Provider 整段保存、单卡保存、连接测试、轻量预览与 LLM 保存、连通性测试已迁入新壳。
-- [ ] 任务详情、重命名、字幕、回收冲突处理等深层细节待下一轮迁移。
+- [x] 高级配置第一轮：入库名称规范 / 置信度 / 安全配置 / Hermes 通知 / 系统设置已接入真实保存；日志/资源目录与 Hermes 测试入口已接线。
+- [x] 配置模拟测试：已改为真实 `/api/scrape/preview` 预览，不再依赖本地演示评分逻辑。
+- [x] 回收站主动作：`清理过期项` 与恢复冲突处理已迁入真实回收接口。
+- [x] 入库规则主入口：规则新增 / 编辑 / 删除已在新壳层可操作，并回写当前配置快照等待保存。
+- [x] 任务深层操作第一轮：任务详情、重命名、字幕查看和重新分类已迁入新壳层弹窗工作流。
+- [x] 新壳层原生 `prompt / alert` 已替换为影院风弹窗；任务模块残留 `alert` 已清理。
+- [x] 提示词页的保存 / 恢复 / 预览按钮已切换为新壳层数据驱动事件入口，提示词预览与刮削测试弹窗也已去掉内联关闭/开始按钮。
+- [x] 置信度页的折叠头、公式卡和咨询助手按钮已切换为数据驱动事件入口。
+- [x] 维度页的启用/禁用、折叠、类型映射、添加/删除与拖拽入口已切换为数据驱动事件入口，不再依赖内联 `onclick` / `ondrag`。
+- [x] `cinema-app.js` 首轮拆分已开始：通用影院风模态/确认/输入/权限提示能力已提取到 `webui/js/cinema-modals.js`。
+
+### 2026-06-08 A 类收尾
+
+- [x] A1：原生 `prompt / alert` 已全部替换为影院风弹窗。
+- [x] A2：`runAction` fallback 已从"后续开放"改为 `console.warn` + 明确错误 toast。
+- [x] A3：提示词页无 `onclick` 残留，已通过 `data-prompt-action` 事件委托驱动。
+- [x] A4：维度/分类页 HTML `oninput="updateThresholdBar()"` 已清除，改为 `data-confidence-input` 事件委托。
+- [x] A5：`simulateConfidenceDecision()` 死代码已从 `cinema-confidence.js` 中删除。
+- [x] A6：`cinema-app.js` 已拆分为 4 个文件：
+  - `cinema-app.js`（633 行）— 核心 shell：导航、toast、工具、dashboard、事件绑定
+  - `cinema-tasks.js`（457 行）— 任务列表渲染与操作
+  - `cinema-recycle.js`（197 行）— 回收站渲染与操作
+  - `cinema-config.js`（830 行）— 配置页面构建、保存、测试与渲染
+- [x] A7：计划文档状态已同步，status 改为 `completed`。
+
+## Remaining Work Handoff Checklist
+
+本节用于把"剩下所有前端功能迁移收尾项"一次性交给下一个模型或开发者，优先保证：
+
+1. 新版前端完全摆脱"半展示半旧逻辑"的尴尬状态；
+2. 剩余事项有明确入口、文件位置、完成标准；
+3. 能区分"必须做完才能宣告收尾"和"可作为增强项延后"的边界。
+
+### A. ✅ 已完成：前端功能迁移收尾项（2026-06-08）
+
+> 以下 A1-A7 均已于 2026-06-08 完成并通过编译检查。详细变更记录见上方 "2026-06-08 A 类收尾" 小节。
+
+| 编号 | 标题 | 状态 | 关键变更 |
+|------|------|------|----------|
+| A1 | 替换残留的原生 prompt/alert | ✅ | 新壳层已无 window.prompt / window.alert 残留 |
+| A2 | 清除"后续开放"兜底入口 | ✅ | runAction fallback 已改为 console.warn + 错误 toast |
+| A3 | 提示词页迁移收尾 | ✅ | 无 onclick 残留，已通过 data-prompt-action 事件委托驱动 |
+| A4 | 维度/分类页迁移收尾 | ✅ | HTML oninput 已清除，改为 data-confidence-input 事件委托 |
+| A5 | 置信度页死代码清理 | ✅ | simulateConfidenceDecision() 已从 cinema-confidence.js 删除 |
+| A6 | cinema-app.js 拆分 | ✅ | 拆为 4 文件：app(633)、tasks(457)、recycle(197)、config(830) |
+| A7 | 计划文档状态收口 | ✅ | 本节即 A7 交付物 |
+
+### B. 建议本轮一并完成：功能增强
+
+> 详细实施方案、代码入口、实现步骤和 26 条测试清单见 [2026-06-08-frontend-bc-enhancement-plan.md](2026-06-08-frontend-bc-enhancement-plan.md)
+
+| 编号 | 标题 | 状态 | 要点 |
+|------|------|------|------|
+| B1 | 任务页批量动作 | 待实施 | 多选 checkbox + 批量重试/确认/忽略/移入回收 |
+| B2 | 任务详情弹窗增强 | 待实施 | 候选结果展示、失败原因高亮、重命名预览、分类后刷新 |
+| B3 | 回收页批量恢复/清理 | 待实施 | 多选 + 批量恢复（含冲突策略）+ 批量永久清理 |
+
+### C. 可延后优化
+
+> 详细实施方案和 22 条测试清单见 [2026-06-08-frontend-bc-enhancement-plan.md](2026-06-08-frontend-bc-enhancement-plan.md)
+
+| 编号 | 标题 | 状态 | 要点 |
+|------|------|------|------|
+| C1 | Hero 海报细化 | 待实施 | 页面差异化海报、响应式适配、文字遮罩优化 |
+| C2 | 提示词/维度页重写 | 待实施 | 旧全局函数迁移到新壳层模块，统一 DOM 结构 |
+| C3 | 模块化与设计系统 | 待实施 | 通用字段/区块渲染器，减少配置页重复代码 |
+
+### D. 建议交接顺序
+
+如果由别的模型接手，建议严格按以下顺序推进：
+
+1. ~~A1 - A5：清掉残留原生交互、旧演示逻辑和旧模块硬绑定~~ ✅ 已完成
+2. ~~A6：做 `cinema-app.js` 首轮拆分~~ ✅ 已完成
+3. ~~A7：同步计划文档状态~~ ✅ 已完成
+4. B2：任务详情弹窗增强（改动最小、价值最高）
+5. B1：任务页批量动作
+6. B3：回收页批量恢复/清理
+7. 验收 B 类
+8. C1 → C2 → C3：视觉打磨和架构优化
+9. 最终 smoke / UI 回归与验收文档收口
+
+### E. 最终收尾判定标准
+
+当以下条件同时满足时，可以认为"前端重构工作内容收尾结束"：
+
+- 新版前端所有主入口都不再依赖 demo 数据
+- 新版前端所有主入口都不再依赖 placeholder / prompt / alert
+- 提示词页、维度页至少完成壳层级迁移收编
+- `cinema-app.js` 完成首轮拆分，不再继续失控膨胀
+- 功能迁移计划文档与真实代码状态一致
+- 至少完成一轮 smoke / UI regression 验证
 
 ## Proposed Solution
 
-采用“**壳层保留、新功能逐页替换、旧逻辑薄适配迁移**”策略，而不是一次性重写全部前端逻辑。
+采用"**壳层保留、新功能逐页替换、旧逻辑薄适配迁移**"策略，而不是一次性重写全部前端逻辑。
 
 核心原则：
 
 1. **先读后写**
    - 先用真实 API 替换 demo 数据与空态。
-   - 每页先做到“看得对”，再做“存得对”。
+   - 每页先做到"看得对"，再做"存得对"。
 
 2. **先安全后危险**
    - 先接读取、展示、校验、预览、测试。
@@ -186,7 +276,7 @@ confidence: high
 
 4. **旧 JS 作为迁移矿井，不作为长期壳层事实源**
    - `tasks.js` / `config.js` 中成熟逻辑允许被提取、复用、改写。
-   - 但最终新前端不能继续依赖“大而全旧脚本 + 新壳层 DOM 拼接”长期共存。
+   - 但最终新前端不能继续依赖"大而全旧脚本 + 新壳层 DOM 拼接"长期共存。
 
 ## Architecture Direction For Migration
 
@@ -213,7 +303,7 @@ confidence: high
 
 ### 迁移方式
 
-- 从旧文件中迁出“纯能力函数”和“API 适配逻辑”，避免继续搬整段 DOM 拼接。
+- 从旧文件中迁出"纯能力函数"和"API 适配逻辑"，避免继续搬整段 DOM 拼接。
 - 新页面已经有稳定 HTML 骨架，迁移时优先：
   - 保留新 DOM 结构；
   - 迁移旧逻辑中的数据装配、校验、请求、结果处理；
@@ -223,7 +313,7 @@ confidence: high
 
 ### Phase 1: 功能迁移基线与壳层整理
 
-目标：把“新壳层接线入口”和“旧能力来源”对齐，避免后续边做边乱。
+目标：把"新壳层接线入口"和"旧能力来源"对齐，避免后续边做边乱。
 
 - [ ] 盘点所有 `data-action="placeholder"`、demo 数据、未接线入口，形成前端迁移矩阵。
 - [ ] 将 `cinema-app.js` 中现有展示壳、demo 数据、真实请求逻辑拆出最小模块边界。
@@ -310,7 +400,7 @@ confidence: high
 - [ ] 接通路径测试 / 基础校验：
   - `GET /api/config/validate`
   - 路径权限测试与必填校验
-- [ ] 确保敏感字段（如 API key）遵守后端脱敏规则，前端以“已保存，留空保持不变”方式承接。
+- [ ] 确保敏感字段（如 API key）遵守后端脱敏规则，前端以"已保存，留空保持不变"方式承接。
 
 退出标准：
 
@@ -319,7 +409,7 @@ confidence: high
 
 ### Phase 6: 刮削配置与 AI 配置迁移
 
-目标：让基础流程中的“刮削配置 / AI配置”变成真实工作区。
+目标：让基础流程中的"刮削配置 / AI配置"变成真实工作区。
 
 - [ ] 接入 `GET /api/providers` 渲染真实 Provider 卡片。
 - [ ] 迁移 Provider 字段回填、启停、保存。
@@ -336,7 +426,7 @@ confidence: high
 
 ### Phase 7: 高级配置与模拟测试迁移
 
-目标：把高级配置页面从“说明完成”推进到“功能可用”。
+目标：把高级配置页面从"说明完成"推进到"功能可用"。
 
 - [ ] 入库名称规范保存。
 - [ ] 分类维度页接通真实增删改与启用状态。
@@ -407,7 +497,7 @@ confidence: high
 
 因为这三块最直接影响：
 
-- 用户对产品是否“真的能用”的判断
+- 用户对产品是否"真的能用"的判断
 - 主流程是否能跑通
 - 后续配置动作是否有反馈闭环
 

@@ -24,10 +24,7 @@ function getConfidenceConfig() {
         conf[input.dataset.key] = Number.isFinite(parsed) ? parsed : value;
     });
     const selectedFormula = section.querySelector(".r-formula-card.selected");
-    if (selectedFormula) {
-        const match = selectedFormula.getAttribute("onclick").match(/'([a-z]+)'/);
-        conf.R_formula = match ? match[1] : "log";
-    }
+    if (selectedFormula) conf.R_formula = selectedFormula.dataset.rFormula || "log";
     const dimensions = {};
     section.querySelectorAll(".confidence-dim-card[data-dim]").forEach((card) => {
         const dim = card.dataset.dim;
@@ -54,8 +51,7 @@ function loadCinemaConfidenceConfig(config) {
     });
     const formula = conf.R_formula || "log";
     document.querySelectorAll('[data-section="confidence"] .r-formula-card').forEach((card) => {
-        const match = card.getAttribute("onclick").match(/'([a-z]+)'/);
-        card.classList.toggle("selected", Boolean(match && match[1] === formula));
+        card.classList.toggle("selected", (card.dataset.rFormula || "log") === formula);
     });
     renderConfidenceDimensions(conf);
     updateThresholdBar();
@@ -135,7 +131,7 @@ async function renderConfidenceDimensions(conf) {
             const seen = new Set(configured.map((item) => item.source));
             const sources = configured.concat(defaultSources.filter((key) => !seen.has(key)).map((key) => ({ source: key, trusted: true })));
             return `<article class="confidence-dim-card collapsed" data-dim="${escapeConfidenceHtml(name)}">
-                <button class="confidence-dim-head" type="button" onclick="toggleConfidenceDimCard(this)">
+                <button class="confidence-dim-head" type="button" data-confidence-action="toggle-dim">
                     <div><b>${escapeConfidenceHtml(label)}</b><small>${escapeConfidenceHtml(name)}</small></div><span>展开后配置可信来源和优先级</span><i class="confidence-dim-arrow">⌄</i>
                 </button>
                 <div class="confidence-source-list">${sources.map((item, index) => renderConfidenceSourceRow(item, index, sources.length, sourceMeta)).join("")}</div>
@@ -156,8 +152,8 @@ function renderConfidenceSourceRow(item, index, total, sourceMeta) {
     const checked = item.trusted !== false ? " checked" : "";
     return `<div class="confidence-source-row" data-source="${item.source}">
         <div class="confidence-source-order">
-            <button type="button" onclick="moveConfidenceSource(this, -1)" ${index === 0 ? "disabled" : ""}>↑</button>
-            <button type="button" onclick="moveConfidenceSource(this, 1)" ${index === total - 1 ? "disabled" : ""}>↓</button>
+            <button type="button" data-confidence-action="move-source" data-move-direction="-1" ${index === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" data-confidence-action="move-source" data-move-direction="1" ${index === total - 1 ? "disabled" : ""}>↓</button>
         </div>
         <div><strong>${meta.label}</strong><small>${meta.desc}</small></div>
         <label class="confidence-trust-switch"><input type="checkbox"${checked}><span></span></label>
@@ -242,21 +238,6 @@ document.addEventListener("pointerup", () => {
     activeThresholdHandle = null;
 });
 
-function simulateConfidenceDecision() {
-    const conf = getConfidenceConfig();
-    const filename = (document.getElementById("confidence-sim-filename").value || "").trim();
-    const result = document.getElementById("confidence-sim-result");
-    const pass = conf.pass_threshold || 0.8;
-    const confirm = conf.confirm_threshold || 0.5;
-    const review = conf.review_threshold || 0.3;
-    const hasYear = /(19|20)\d{2}/.test(filename);
-    const looksUnknown = /unknown|sample|trailer|预告/i.test(filename);
-    const base = looksUnknown ? 0.38 : (hasYear ? 0.86 : 0.64);
-    const score = Math.max(0.1, Math.min(0.98, base));
-    const state = score >= pass ? "自动入库" : score >= confirm ? "需要确认" : score >= review ? "需要审核" : "失败";
-    result.innerHTML = `<strong>${state}</strong> · 演示置信度 ${score.toFixed(2)}<br>${filename || "未输入文件名"}：${hasYear ? "检测到年份，标题锚点更稳定。" : "未检测到年份，建议进入确认或审核。"}${looksUnknown ? " 文件名像样片/预告，系统会更保守。" : ""}`;
-}
-
 function generateConsultPrompt() {
     const conf = getConfidenceConfig();
     const need = (document.getElementById("ai-consult-need").value || "请根据家庭影音库场景，给出更稳妥的自动入库阈值建议。").trim();
@@ -286,3 +267,39 @@ function copyConsultPrompt() {
         showToast("已复制咨询提示词");
     }).catch(() => showToast("复制失败"));
 }
+
+document.addEventListener("click", (event) => {
+    const confidenceAction = event.target.closest("[data-confidence-action]");
+    if (confidenceAction) {
+        const action = confidenceAction.dataset.confidenceAction;
+        if (action === "toggle-dim") {
+            toggleConfidenceDimCard(confidenceAction);
+            return;
+        }
+        if (action === "move-source") {
+            moveConfidenceSource(confidenceAction, Number(confidenceAction.dataset.moveDirection || 0));
+            return;
+        }
+    }
+    const sectionToggle = event.target.closest("[data-confidence-section-toggle]");
+    if (sectionToggle) {
+        toggleCfgSection(sectionToggle);
+        return;
+    }
+    const formulaCard = event.target.closest("[data-r-formula]");
+    if (formulaCard) {
+        selectRFormula(formulaCard);
+        return;
+    }
+    const consultAction = event.target.closest("[data-consult-action]");
+    if (consultAction) {
+        if (consultAction.dataset.consultAction === "generate") generateConsultPrompt();
+        if (consultAction.dataset.consultAction === "copy") copyConsultPrompt();
+    }
+});
+
+document.addEventListener("input", (event) => {
+    if (event.target.matches("[data-confidence-input]")) {
+        updateThresholdBar();
+    }
+});

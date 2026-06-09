@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>右侧海报区域 — 3种设计方案</title>
+<style>
+:root {
+    --bg: #0a0907;
+    --panel: #11100d;
+    --gold: #eabf63;
+    --gold-dim: rgba(234, 191, 99, 0.15);
+    --ink: #f8f1df;
+    --line: rgba(214, 170, 79, 0.18);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 40px 24px;
+}
+h1 {
+    text-align: center;
+    font-size: 22px;
+    color: var(--gold);
+    margin-bottom: 8px;
+}
+.subtitle {
+    text-align: center;
+    color: #7a7263;
+    font-size: 13px;
+    margin-bottom: 40px;
+}
+
+/* ===== 通用容器 ===== */
+.demo-box {
+    max-width: 1100px;
+    margin: 0 auto 50px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--panel);
+}
+.demo-label {
+    padding: 12px 20px;
+    font-size: 13px;
+    color: var(--gold);
+    border-bottom: 1px solid var(--line);
+    background: rgba(234,191,99,0.04);
+}
+.demo-label span {
+    color: #7a7263;
+    font-size: 11px;
+    margin-left: 8px;
+}
+
+/* ===== Hero 通用骨架 ===== */
+.hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2fr;
+    gap: 0;
+    min-height: 360px;
+    padding: 30px;
+    background: linear-gradient(115deg, rgba(17,16,13,0.98), rgba(17,16,13,0.84) 52%, rgba(78,45,16,0.38)), #11100d;
+    overflow: hidden;
+}
+.hero-left {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding-right: 20px;
+}
+.eyebrow { color: rgba(234,191,99,0.82); font-size: 11px; font-weight: 600; }
+.hero-title { font-size: 42px; line-height: 1; margin-top: 10px; }
+.hero-text { color: #c9beaa; font-size: 13px; margin-top: 10px; max-width: 26ch; }
+.hero-actions { display: flex; gap: 10px; margin-top: 24px; }
+.btn {
+    padding: 9px 18px; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; background: rgba(255,255,255,0.05);
+    color: var(--ink); font-size: 12px; font-weight: 600;
+}
+.btn-primary {
+    background: linear-gradient(135deg, rgba(234,191,99,0.24), rgba(234,191,99,0.12));
+    border-color: rgba(234,191,99,0.3);
+}
+.hero-right {
+    position: relative;
+    overflow: hidden;
+}
+
+/* ============================================================
+   方案A：放映机光束 + 悬浮海报
+   ============================================================ */
+.hero-right-a {
+    background:
+        radial-gradient(ellipse 80% 100% at 30% 50%, rgba(234,191,99,0.06), transparent 60%),
+        radial-gradient(ellipse 60% 80% at 70% 30%, rgba(234,179,88,0.04), transparent 50%);
+}
+/* 光束 */
+.projector-beam {
+    position: absolute;
+    top: -20%; left: -10%;
+    width: 70%; height: 140%;
+    background: conic-gradient(from 180deg at 0% 50%,
+        transparent 0deg,
+        rgba(234,191,99,0.03) 15deg,
+        rgba(234,191,99,0.08) 30deg,
+        rgba(234,191,99,0.04) 45deg,
+        transparent 60deg);
+    transform: rotate(-15deg);
+    pointer-events: none;
+    z-index: 1;
+}
+/* 悬浮海报 */
+.float-poster {
+    position: absolute;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(234,191,99,0.08);
+    transition: transform 0.4s ease;
+}
+.float-poster img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: saturate(0.8) contrast(1.05) brightness(0.85);
+}
+.fp1 { width: 140px; height: 210px; top: 8%; left: 55%; transform: rotate(-6deg); z-index: 3; }
+.fp2 { width: 120px; height: 180px; top: 45%; left: 72%; transform: rotate(8deg); z-index: 4; }
+.fp3 { width: 100px; height: 150px; top: 15%; left: 82%; transform: rotate(-12deg); z-index: 2; opacity: 0.7; }
+.fp4 { width: 90px; height: 135px; top: 60%; left: 48%; transform: rotate(15deg); z-index: 2; opacity: 0.6; }
+/* 放映机图标 */
+.projector-icon {
+    position: absolute; bottom: 8%; left: 5%;
+    width: 50px; height: 40px;
+    opacity: 0.25;
+    z-index: 1;
+}
+
+/* ============================================================
+   方案B：3D 旋转海报轮盘
+   ============================================================ */
+.hero-right-b {
+    perspective: 800px;
+    display: flex; align-items: center; justify-content: center;
+}
+.poster-wheel {
+    position: relative;
+    width: 260px; height: 260px;
+    transform-style: preserve-3d;
+    animation: wheelSpin 20s linear infinite;
+}
+@keyframes wheelSpin {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(360deg); }
+}
+.wheel-poster {
+    position: absolute;
+    width: 100px; height: 150px;
+    left: 50%; top: 50%;
+    margin-left: -50px; margin-top: -75px;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    backface-visibility: hidden;
+}
+.wheel-poster img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: saturate(0.75) brightness(0.8);
+}
+.wp1 { transform: rotateY(0deg) translateZ(140px); }
+.wp2 { transform: rotateY(72deg) translateZ(140px); }
+.wp3 { transform: rotateY(144deg) translateZ(140px); }
+.wp4 { transform: rotateY(216deg) translateZ(140px); }
+.wp5 { transform: rotateY(288deg) translateZ(140px); }
+/* 中心光晕 */
+.wheel-glow {
+    position: absolute; left: 50%; top: 50%;
+    width: 60px; height: 60px;
+    margin-left: -30px; margin-top: -30px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(234,191,99,0.2), transparent 70%);
+    z-index: 0;
+}
+
+/* ============================================================
+   方案C：胶片瀑布流（错落的水平胶片条）
+   ============================================================ */
+.hero-right-c {
+    position: relative;
+    overflow: hidden;
+}
+.film-cascade {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 24px;
+    background: linear-gradient(170deg, rgba(255,255,255,0.015), transparent),
+        rgba(10,9,7,0.45);
+    border: 1px solid rgba(225,183,88,0.06);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+.film-cascade::before, .film-cascade::after {
+    content: ""; position: absolute;
+    left: 12px; right: 12px; height: 8px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='8' viewBox='0 0 22 8'%3E%3Crect x='3' y='1' width='7' height='6' rx='2' fill='%23f1dec0' fill-opacity='.45'/%3E%3C/svg%3E");
+    background-repeat: repeat-x; background-size: 22px 8px;
+    opacity: 0.4; pointer-events: none;
+}
+.film-cascade::before { top: 6px; }
+.film-cascade::after { bottom: 6px; }
+.fc-frame {
+    width: 110px; height: 62px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    position: relative;
+}
+.fc-frame img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: saturate(0.7) contrast(1.05) brightness(0.75);
+}
+.fc1 { top: 5%; left: 15%; transform: rotate(-4deg); z-index: 3; }
+.fc2 { top: 30%; left: 40%; transform: rotate(6deg); z-index: 4; width: auto; }
+.fc2 .fc-frame { width: 90px; }
+.fc3 { top: 55%; left: 10%; transform: rotate(-8deg); z-index: 2; opacity: 0.7; }
+.fc4 { top: 70%; left: 50%; transform: rotate(3deg); z-index: 5; }
+.fc5 { top: 20%; left: 65%; transform: rotate(-2deg); z-index: 2; opacity: 0.5; }
+
+/* 浮动光点 */
+.dust {
+    position: absolute;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: var(--gold);
+    opacity: 0;
+    animation: dustFloat 4s ease-in-out infinite;
+}
+.d1 { top: 20%; left: 30%; animation-delay: 0s; }
+.d2 { top: 50%; left: 70%; animation-delay: 1.2s; }
+.d3 { top: 75%; left: 40%; animation-delay: 2.5s; }
+.d4 { top: 35%; left: 85%; animation-delay: 0.8s; }
+@keyframes dustFloat {
+    0%, 100% { opacity: 0; transform: translateY(0); }
+    50% { opacity: 0.6; transform: translateY(-20px); }
+}
+
+/* 通知条（通用） */
+.notice-bar {
+    position: absolute;
+    top: 12px; right: 12px;
+    z-index: 10;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: rgba(17,16,13,0.9);
+    border: 1px solid rgba(234,191,99,0.15);
+    font-size: 11px;
+    color: var(--gold);
+    backdrop-filter: blur(8px);
+}
+.notice-bar::before {
+    content: ""; display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--gold);
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+</style>
+</head>
+<body>
+
+<h1>右侧海报区域 — 3 种设计方案</h1>
+<p class="subtitle">基于现有配色（深色底 + 金色强调），与电影/片库主题呼应</p>
+
+<!-- ===== 方案A：放映机光束 + 悬浮海报 ===== -->
+<div class="demo-box">
+    <div class="demo-label">方案 A：放映机光束 + 悬浮海报 <span>温馨影院氛围，光束中漂浮经典海报</span></div>
+    <div class="hero">
+        <div class="hero-left">
+            <div>
+                <div class="eyebrow">首页</div>
+                <h2 class="hero-title">片库总览</h2>
+                <p class="hero-text">把散落影片收进一座私人影院。</p>
+            </div>
+            <div class="hero-actions">
+                <button class="btn btn-primary">立即扫描</button>
+                <button class="btn">暂停处理</button>
+                <button class="btn">重试失败项</button>
+            </div>
+        </div>
+        <div class="hero-right hero-right-a">
+            <div class="notice-bar">当前有 47 项等待确认</div>
+            <div class="projector-beam"></div>
+            <div class="float-poster fp1">
+                <img src="https://picsum.photos/seed/movieA1/280/420" alt="">
+            </div>
+            <div class="float-poster fp2">
+                <img src="https://picsum.photos/seed/movieA2/240/360" alt="">
+            </div>
+            <div class="float-poster fp3">
+                <img src="https://picsum.photos/seed/movieA3/200/300" alt="">
+            </div>
+            <div class="float-poster fp4">
+                <img src="https://picsum.photos/seed/movieA4/180/270" alt="">
+            </div>
+            <!-- 放映机 SVG -->
+            <svg class="projector-icon" viewBox="0 0 60 40">
+                <rect x="5" y="12" width="30" height="20" rx="4" fill="none" stroke="#eabf63" stroke-width="1.5"/>
+                <circle cx="42" cy="22" r="8" fill="none" stroke="#eabf63" stroke-width="1.5"/>
+                <line x1="35" y1="22" x2="20" y2="22" stroke="#eabf63" stroke-width="1.5"/>
+                <rect x="8" y="32" width="8" height="6" rx="1" fill="none" stroke="#eabf63" stroke-width="1"/>
+                <rect x="24" y="32" width="8" height="6" rx="1" fill="none" stroke="#eabf63" stroke-width="1"/>
+            </svg>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 方案B：3D 旋转海报轮盘 ===== -->
+<div class="demo-box">
+    <div class="demo-label">方案 B：3D 旋转海报轮盘 <span>五张海报环绕旋转，动态吸睛</span></div>
+    <div class="hero">
+        <div class="hero-left">
+            <div>
+                <div class="eyebrow">首页</div>
+                <h2 class="hero-title">片库总览</h2>
+                <p class="hero-text">把散落影片收进一座私人影院。</p>
+            </div>
+            <div class="hero-actions">
+                <button class="btn btn-primary">立即扫描</button>
+                <button class="btn">暂停处理</button>
+                <button class="btn">重试失败项</button>
+            </div>
+        </div>
+        <div class="hero-right hero-right-b">
+            <div class="notice-bar">当前有 47 项等待确认</div>
+            <div class="wheel-glow"></div>
+            <div class="poster-wheel">
+                <div class="wheel-poster wp1"><img src="https://picsum.photos/seed/w1/200/300" alt=""></div>
+                <div class="wheel-poster wp2"><img src="https://picsum.photos/seed/w2/200/300" alt=""></div>
+                <div class="wheel-poster wp3"><img src="https://picsum.photos/seed/w3/200/300" alt=""></div>
+                <div class="wheel-poster wp4"><img src="https://picsum.photos/seed/w4/200/300" alt=""></div>
+                <div class="wheel-poster wp5"><img src="https://picsum.photos/seed/w5/200/300" alt=""></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 方案C：胶片瀑布流 ===== -->
+<div class="demo-box">
+    <div class="demo-label">方案 C：胶片瀑布流 <span>多条胶片条错落排列，经典电影美学</span></div>
+    <div class="hero">
+        <div class="hero-left">
+            <div>
+                <div class="eyebrow">首页</div>
+                <h2 class="hero-title">片库总览</h2>
+                <p class="hero-text">把散落影片收进一座私人影院。</p>
+            </div>
+            <div class="hero-actions">
+                <button class="btn btn-primary">立即扫描</button>
+                <button class="btn">暂停处理</button>
+                <button class="btn">重试失败项</button>
+            </div>
+        </div>
+        <div class="hero-right hero-right-c">
+            <div class="notice-bar">当前有 47 项等待确认</div>
+            <div class="dust d1"></div><div class="dust d2"></div><div class="dust d3"></div><div class="dust d4"></div>
+
+            <div class="film-cascade fc1">
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f1/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f2/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f3/220/124" alt=""></div>
+            </div>
+            <div class="film-cascade fc2">
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f4/180/100" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f5/180/100" alt=""></div>
+            </div>
+            <div class="film-cascade fc3">
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f6/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f7/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f8/220/124" alt=""></div>
+            </div>
+            <div class="film-cascade fc4">
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f9/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f10/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f11/220/124" alt=""></div>
+            </div>
+            <div class="film-cascade fc5">
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f12/220/124" alt=""></div>
+                <div class="fc-frame"><img src="https://picsum.photos/seed/f13/220/124" alt=""></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

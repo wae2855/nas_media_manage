@@ -93,6 +93,7 @@ class LLMConfig:
     confidence_threshold: float = 0.8
     verify_ssl: bool = True
     system_prompt: str = ""
+    mcp: dict = field(default_factory=dict)  # MCP configuration
 
     @property
     def effective_fast_model(self) -> str:
@@ -208,6 +209,7 @@ class ConfigView:
                 confidence_threshold=llm.get("confidence_threshold", 0.8),
                 verify_ssl=llm.get("verify_ssl", True),
                 system_prompt=llm.get("system_prompt", ""),
+                mcp=_dict(llm.get("mcp", {})),
             ),
             scanner=ScannerConfig(
                 scan_source=config.get("scan_source", True),

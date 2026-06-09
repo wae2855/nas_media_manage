@@ -2,6 +2,8 @@
 
 本流程适用于 bug、新需求、重构、文档治理和前端工作。目标是让每项工作从发现到验收再到规范沉淀形成闭环。
 
+需求注册、并行隔离、状态门禁、废弃回退等规则见 [requirement-management.md](../standards/requirement-management.md)。
+
 ## Lifecycle
 
 1. Discovery: 记录问题、目标、约束、用户关注点和可选方向。

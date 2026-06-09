@@ -25,7 +25,7 @@ def run_batch_for_api(
 
     thread = thread_factory(target=run_background, daemon=True)
     thread.start()
-    return RunFileResult(code=202, message="Batch processing started in background")
+    return RunFileResult(code=202, message="已启动批量扫描，新任务稍后会出现在工作台")
 
 
 def run_file_for_api(
@@ -51,7 +51,7 @@ def run_file_for_api(
         return RunFileResult(code=400, message=f"文件类型校验失败: {message}")
 
     if not os.path.isfile(file_path):
-        return RunFileResult(code=404, message=f"File not found: {file_path}")
+        return RunFileResult(code=404, message=f"文件不存在: {file_path}")
 
     def run_one():
         video_file = os.path.basename(file_path)
@@ -65,7 +65,7 @@ def run_file_for_api(
 
     thread = thread_factory(target=run_one, daemon=True)
     thread.start()
-    return RunFileResult(code=202, message=f"Processing started: {file_path}")
+    return RunFileResult(code=202, message=f"已启动处理: {file_path}")
 
 
 def _media_extensions(config: dict) -> set:

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import json
 from media_importer.api.utils import json_response
 from media_importer.api import globals
 from media_importer.features.recycle import (
@@ -24,15 +23,8 @@ class RecycleHandlers:
         result = list_recycle_dir(recycle_dir, zone=zone, reason=reason, limit=limit, offset=offset)
         return json_response(handler, 200, result)
 
-    def recycle_restore(self, handler):
-        body = {}
-        try:
-            content_length = int(handler.headers.get("Content-Length", 0))
-            if content_length > 0:
-                body = json.loads(handler.rfile.read(content_length).decode("utf-8"))
-        except (json.JSONDecodeError, ValueError):
-            pass
-
+    def recycle_restore(self, handler, body=None):
+        body = body or {}
         items = body.get("items", [])
         conflict_mode = body.get("conflict_mode", "skip")
 
@@ -42,6 +34,9 @@ class RecycleHandlers:
                 restore_items.append({"recycle_path": it})
             elif isinstance(it, dict):
                 restore_items.append(it)
+
+        if not restore_items:
+            return json_response(handler, 400, {"restored": [], "failed": []}, "未指定要恢复的回收项")
 
         result = restore_from_recycle(restore_items, conflict_mode=conflict_mode)
         restored_count = len(result.get("restored", []))
@@ -53,15 +48,8 @@ class RecycleHandlers:
         else:
             return json_response(handler, 207, result, f"恢复 {restored_count} 个成功，{failed_count} 个失败")
 
-    def recycle_delete(self, handler):
-        body = {}
-        try:
-            content_length = int(handler.headers.get("Content-Length", 0))
-            if content_length > 0:
-                body = json.loads(handler.rfile.read(content_length).decode("utf-8"))
-        except (json.JSONDecodeError, ValueError):
-            pass
-
+    def recycle_delete(self, handler, body=None):
+        body = body or {}
         items = body.get("items", [])
 
         delete_items = []
@@ -70,6 +58,9 @@ class RecycleHandlers:
                 delete_items.append({"recycle_path": it})
             elif isinstance(it, dict):
                 delete_items.append(it)
+
+        if not delete_items:
+            return json_response(handler, 400, {"deleted": [], "failed": []}, "未指定要删除的回收项")
 
         result = delete_from_recycle(delete_items)
         deleted_count = len(result.get("deleted", []))

@@ -17,7 +17,7 @@ class LLMScrapeError(Exception):
 class LLMScraper:
     DEFAULT_SYSTEM_PROMPT = LLMPromptBuilder.DEFAULT_SYSTEM_PROMPT
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, mcp_client=None):
         llm_config = ConfigView.from_dict(config).llm
         self.api_key = llm_config.api_key
         self.base_url = llm_config.base_url
@@ -25,13 +25,19 @@ class LLMScraper:
         self.timeout = llm_config.timeout
         self.max_retries = llm_config.max_retries
         self.retry_delay = llm_config.retry_delay
-        self.fallback_model = llm_config.fallback_model or None
+        self.fallback_model = llm_config.fallback_model
         self.confidence_threshold = llm_config.confidence_threshold
         self.verify_ssl = llm_config.verify_ssl
 
         self.fast_model = llm_config.effective_fast_model
         self.fast_base_url = llm_config.effective_fast_base_url
         self.fast_api_key = llm_config.effective_fast_api_key
+        
+        # MCP integration
+        self.mcp_client = mcp_client
+        self._use_mcp = False
+        if self.mcp_client and hasattr(self.mcp_client, 'is_available'):
+            self._use_mcp = self.mcp_client.is_available()
         default_dimensions = [
             {'name': 'media_type', 'label': '影视类型', 'values': ['movie', 'tv'], 'ai_prompt': '请判断这是电影（movie）还是电视剧（tv）。判断依据：如果文件名中包含季集编号（如S01E01、S2E03等格式），则为电视剧（tv）；如果是完整独立的影视故事，则为电影（movie）。电视电影/网络电影仍归为movie。'},
             {'name': 'documentary', 'label': '是否纪录片', 'values': ['true', 'false'], 'ai_prompt': '请判断是否为纪录片（true/false）。纪录片是以真实事件、人物、历史、社会等为主题的非虚构影视作品，包括自然纪录片（如《地球脉动》）、历史纪录片、社会纪录片、科学纪录片等。TMDB genres 包含 Documentary (id=99) 则为 true；如 TMDB 未标注，请根据标题和简介判断。真人出演+虚构剧情的作品（如《辛德勒的名单》）应选 false。'},
@@ -286,3 +292,168 @@ class LLMScraper:
         system_prompt = self.prompt_builder._build_series_prompt_with_provider(provider_name=provider_name)
 
         return self._retry_with_fallback(system_prompt, user_content)
+    
+    # === MCP Tool Integration ===
+    
+    def _call_llm_with_tools(self, system_prompt: str, user_content: str, 
+                             use_fast: bool = False, scenario: str = "scrape") -> Dict[str, Any]:
+        """
+        Call LLM with tool calling support, handling MCP tool execution.
+        
+        Args:
+            system_prompt: System prompt
+            user_content: User content
+            use_fast: Whether to use fast model
+            scenario: Scenario name for MCP configuration
+            
+        Returns:
+            Parsed result
+        """
+        # Check if MCP should be used for this scenario
+        use_mcp = self._use_mcp
+        if use_mcp and self.mcp_client:
+            use_mcp = self.mcp_client.should_use_mcp_for(scenario)
+        
+        if not use_mcp or not self.mcp_client:
+            # Fallback to regular LLM call without tools
+            return self._retry_with_fallback(system_prompt, user_content, use_fast=use_fast)
+        
+        try:
+            import asyncio
+            # Try tool-augmented scraping
+            return asyncio.run(self._scrape_with_tools_async(system_prompt, user_content, use_fast))
+        except Exception as e:
+            # Fallback to regular scraping if tool calling fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Tool calling failed, falling back to regular scraping: {e}")
+            return self._retry_with_fallback(system_prompt, user_content, use_fast=use_fast)
+    
+    async def _scrape_with_tools_async(self, system_prompt: str, user_content: str, 
+                                      use_fast: bool = False) -> Dict[str, Any]:
+        """
+        Async version of scrape with tools (for internal use).
+        """
+        import json
+        
+        # Get tool definitions
+        tools = self.mcp_client.get_tool_definitions() if self.mcp_client else []
+        if not tools:
+            return self._retry_with_fallback(system_prompt, user_content, use_fast=use_fast)
+        
+        # First LLM call - may request tool use
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ]
+        
+        # Call LLM with tool definitions
+        raw_response = self._call_api_with_tools(
+            system_prompt, 
+            user_content, 
+            tools,
+            use_fast
+        )
+        
+        # Check if response contains tool calls (placeholder)
+        # For now, we'll just parse the response normally
+        # A full implementation would handle tool calling protocol
+        return self._parse_response(raw_response)
+    
+    def _call_api_with_tools(self, system_prompt: str, user_content: str, 
+                           tools: list, use_fast: bool = False) -> str:
+        """
+        Call LLM API with tool definitions (placeholder implementation).
+        """
+        # For now, just call regular API without tool support
+        # Full implementation would handle function calling protocol
+        return self._call_api(system_prompt, user_content, self.model if not use_fast else self.fast_model)
+    
+    # === Scenario-specific methods with MCP support ===
+    
+    def scrape_with_mcp(self, video_filename: str, subtitle_filenames: List[str] = None,
+                       conn=None) -> Dict[str, Any]:
+        """
+        Scrape with MCP tool support (if available).
+        """
+        if subtitle_filenames is None:
+            subtitle_filenames = []
+
+        if conn:
+            self.load_dimensions_from_db(conn)
+
+        user_content_parts = [
+            "视频文件名:",
+            video_filename,
+            ""
+        ]
+
+        if subtitle_filenames:
+            user_content_parts.append("字幕文件名:")
+            for sub_file in subtitle_filenames:
+                user_content_parts.append(f"- {sub_file}")
+        else:
+            user_content_parts.append("字幕文件: 无")
+
+        user_content = '\n'.join(user_content_parts)
+        system_prompt = self.prompt_builder._build_system_prompt()
+
+        return self._call_llm_with_tools(system_prompt, user_content, scenario="scrape")
+    
+    def scrape_series_with_mcp(self, series_name: str) -> Dict[str, Any]:
+        """
+        Scrape series with MCP tool support (if available).
+        """
+        user_content = f"剧名:\n{series_name}"
+        system_prompt = self.prompt_builder._build_series_prompt()
+        return self._call_llm_with_tools(system_prompt, user_content, scenario="series_scrape")
+    
+    def scrape_with_context_mcp(self, video_filename: str, subtitle_filenames: List[str],
+                               provider_context: str, provider_dimensions: dict = None,
+                               conn=None, provider_name: str = None,
+                               exclude_dims: set = None) -> Dict[str, Any]:
+        """
+        Scrape with context and MCP tool support (if available).
+        """
+        if conn:
+            self.load_dimensions_from_db(conn)
+
+        if exclude_dims is None:
+            exclude_dims = set(provider_dimensions.keys()) if provider_dimensions else set()
+
+        user_content_parts = [
+            "视频文件名:",
+            video_filename,
+            ""
+        ]
+
+        if subtitle_filenames:
+            user_content_parts.append("字幕文件名:")
+            for sub_file in subtitle_filenames:
+                user_content_parts.append(f"- {sub_file}")
+        else:
+            user_content_parts.append("字幕文件: 无")
+
+        user_content_parts.append("")
+        user_content_parts.append(provider_context)
+
+        user_content = '\n'.join(user_content_parts)
+        system_prompt = self.prompt_builder._build_system_prompt_with_provider(
+            exclude_dims=exclude_dims, 
+            provider_name=provider_name
+        )
+
+        result = self._call_llm_with_tools(
+            system_prompt, 
+            user_content, 
+            use_fast=True, 
+            scenario="scrape_with_context"
+        )
+
+        if provider_dimensions:
+            ai_dims = result.get('dimensions', {})
+            for dim_name, dim_info in provider_dimensions.items():
+                ai_dims[dim_name] = dim_info
+            result['dimensions'] = ai_dims
+
+        return result

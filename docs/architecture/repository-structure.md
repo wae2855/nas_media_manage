@@ -41,7 +41,7 @@ media_importer/
 | `media_importer/` | current | Main package. Will be reshaped into feature-first code. |
 | `tests/` | current | Keep only current/gated tests; archive historical scripts after inventory. |
 | `docs/` | current | Rebuild around current facts; archive old documents. |
-| `config/` | current | Runtime config examples and local config. Configuration feature must document it. |
+| `config/` | current | Runtime config examples, active local config, and prompt config. Historical config backups should move to `docs/_archive/` instead of staying beside the active runtime config. |
 | `deploy/` | generated_ignored | Package tooling stays; generated package workspace remains ignored. |
 | `data/` | generated_ignored | Local runtime data, not source truth. |
 | `logs/` | generated_ignored | Local logs, not source truth. |

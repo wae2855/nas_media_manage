@@ -189,7 +189,10 @@ def load_config(config_path: str = None) -> dict:
     source_cleaner.setdefault("cleanup_empty_dirs", True)
     source_cleaner.setdefault("schedule", "0 3 * * *")
 
-    if trim_pkgvar:
+    env_data_dir = os.environ.get("NAS_MEDIA_IMPORTER_DATA_DIR")
+    if env_data_dir:
+        data_dir = env_data_dir
+    elif trim_pkgvar:
         data_dir = os.path.join(trim_pkgvar, "data")
     else:
         data_dir = os.path.join(project_root, "data")

@@ -136,13 +136,13 @@ function _renderDimCard(dim, isEnabled) {
     }
 
     var barActionsHtml = isEnabled
-        ? '<button class="dim-btn-disable" onclick="event.stopPropagation();disableDimension(\'' + dim.name + '\')">禁用</button>'
-        : '<button class="dim-btn-enable" onclick="event.stopPropagation();enableDimension(\'' + dim.name + '\')">启用</button>';
+        ? '<button class="dim-btn-disable" type="button" data-dimension-action="disable" data-dimension-name="' + dim.name + '">禁用</button>'
+        : '<button class="dim-btn-enable" type="button" data-dimension-action="enable" data-dimension-name="' + dim.name + '">启用</button>';
 
     var bodyHtml = isExpanded ? _renderDimBody(dim) : '';
 
     return '<div class="dim-card' + expandedClass + '" id="dim-card-' + dim.name + '">' +
-        '<div class="dim-card-bar" onclick="toggleDimCard(\'' + dim.name + '\')">' +
+        '<div class="dim-card-bar" data-dimension-action="toggle-card" data-dimension-name="' + dim.name + '">' +
             '<span class="dim-card-color-dot" style="background:' + dim.color + '"></span>' +
             '<span class="dim-card-name">' + _escapeHtml(dim.label) + '</span>' +
             '<span class="dim-card-source">' + _escapeHtml(sourceLabel) + '</span>' +
@@ -237,9 +237,9 @@ function _renderDimBody(dim) {
             mappingHtml +
             autoRuleHtml +
             '<div class="dim-edit-actions">' +
-                '<button class="btn btn-primary btn-sm" onclick="saveDimensionEdit(\'' + dim.name + '\')">保存</button>' +
-                (hasGenreMapping && dim.name !== 'documentary' && dim.name !== 'animation' ? '<button class="btn btn-warning btn-sm" onclick="resetDimension(\'' + dim.name + '\')">恢复默认</button>' : '') +
-                '<button class="btn btn-secondary btn-sm" onclick="toggleDimCard(\'' + dim.name + '\')">收起</button>' +
+                '<button class="btn btn-primary btn-sm" type="button" data-dimension-action="save" data-dimension-name="' + dim.name + '">保存</button>' +
+                (hasGenreMapping && dim.name !== 'documentary' && dim.name !== 'animation' ? '<button class="btn btn-warning btn-sm" type="button" data-dimension-action="reset" data-dimension-name="' + dim.name + '">恢复默认</button>' : '') +
+                '<button class="btn btn-secondary btn-sm" type="button" data-dimension-action="collapse" data-dimension-name="' + dim.name + '">收起</button>' +
             '</div>' +
         '</div>';
     } catch(e) {
@@ -281,7 +281,7 @@ function _renderGenreRowHTML(dimName, item, origIdx, displayOrderNum) {
 
     var dragHandleHtml = isOther
         ? '<span class="dim-drag-placeholder"></span>'
-        : '<span class="dim-drag-handle" draggable="true" ondragstart="event.stopPropagation();genreDragStart(event,\'' + dimName + '\',' + origIdx + ')" ondragend="genreDragEnd(event)"></span>';
+        : '<span class="dim-drag-handle" draggable="true" data-dimension-action="genre-drag-handle" data-dim-name="' + dimName + '" data-genre-idx="' + origIdx + '"></span>';
 
     var priorityHtml = isOther
         ? '<span class="dim-genre-priority dim-genre-priority-other">-</span>'
@@ -293,12 +293,13 @@ function _renderGenreRowHTML(dimName, item, origIdx, displayOrderNum) {
 
     var deleteHtml = isOther
         ? ''
-        : '<button class="dim-genre-remove" onclick="event.stopPropagation();removeGenreValue(\'' + dimName + '\',' + origIdx + ')" title="删除此类型值">×</button>';
+        : '<button class="dim-genre-remove" type="button" data-dimension-action="remove-genre-value" data-dim-name="' + dimName + '" data-genre-idx="' + origIdx + '" title="删除此类型值">×</button>';
 
     return '<tr class="dim-genre-row" id="dim-genre-row-' + dimName + '-' + origIdx + '"' +
+        ' data-dim-name="' + dimName + '"' +
+        ' data-genre-idx="' + origIdx + '"' +
         ' data-genre-value="' + _escapeHtml(item.value) + '"' +
-        ' data-genre-ids=\'' + idsJson + '\'' +
-        ' ondragover="genreDragOver(event)" ondragleave="genreDragLeave(event)" ondrop="genreDrop(event,\'' + dimName + '\',' + origIdx + ')">' +
+        ' data-genre-ids=\'' + idsJson + '\'>' +
         '<td class="dim-genre-td-drag">' + dragHandleHtml + '</td>' +
         '<td class="dim-genre-td-priority">' + priorityHtml + '</td>' +
         '<td class="dim-genre-td-label"><span class="dim-genre-label-text">' + _escapeHtml(item.label) + '</span></td>' +
@@ -322,7 +323,7 @@ function _renderGenreEditable(dimName, valueList) {
         '<div class="dim-mapping-header">' +
             '<div style="display:flex;align-items:center;gap:6px;">' +
                 '<h5>类型映射规则</h5>' +
-                '<span class="dim-help-trigger" onclick="event.stopPropagation();toggleGenreHelp()" title="映射说明">?</span>' +
+                '<span class="dim-help-trigger" data-dimension-action="toggle-genre-help" title="映射说明">?</span>' +
             '</div>' +
             '<span class="dim-mapping-hint">每行定义一个题材类型，选择它包含的 Provider 原始类型；拖拽 ≡ 调整优先级</span>' +
         '</div>' +
@@ -349,7 +350,7 @@ function _renderGenreEditable(dimName, valueList) {
             '<tbody class="dim-genre-rows" id="dim-genre-rows-' + dimName + '">' + _renderGenreRows(dimName, valueList) + '</tbody>' +
         '</table>' +
         '<div class="dim-genre-add-row" id="dim-genre-add-row-' + dimName + '">' +
-            '<button class="dim-genre-add-btn" onclick="event.stopPropagation();startAddGenre(\'' + dimName + '\')">+ 添加类型值</button>' +
+            '<button class="dim-genre-add-btn" type="button" data-dimension-action="start-add-genre" data-dim-name="' + dimName + '">+ 添加类型值</button>' +
         '</div>' +
     '</div>';
 }
@@ -359,7 +360,7 @@ function _renderGenrePickerTrigger(dimName, idx, selectedIds) {
         ? selectedIds.map(function(id) { return _getGenreNameById(id); }).join(', ')
         : '点击选择 Provider 类型...';
 
-    return '<div class="dim-genre-picker-trigger" onclick="event.stopPropagation();toggleGenrePicker(\'' + dimName + '\',' + idx + ')">' +
+    return '<div class="dim-genre-picker-trigger" data-dimension-action="toggle-genre-picker" data-dim-name="' + dimName + '" data-genre-idx="' + idx + '">' +
         '<span class="dim-genre-picker-text">' + _escapeHtml(displayText) + '</span>' +
         '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>' +
         '<div class="dim-genre-picker-dropdown" id="dim-genre-picker-' + dimName + '-' + idx + '" style="display:none;"></div>' +
@@ -615,8 +616,8 @@ function startAddGenre(dimName) {
                 '<input type="text" class="dim-genre-add-input" id="dim-genre-add-label" placeholder="中文名称，如：音乐">' +
             '</div>' +
             '<div class="dim-genre-add-btns">' +
-                '<button class="dim-genre-add-confirm" onclick="event.stopPropagation();var l=document.getElementById(\'dim-genre-add-label\').value.trim();var v=document.getElementById(\'dim-genre-add-value\').value.trim();if(!l)return;if(!v)v=l.toLowerCase().replace(/[\\s\\u4e00-\\u9fff]+/g,\'_\').replace(/_+/g,\'_\').replace(/^_|_$/g,\'\')||l;confirmAddGenre(\'' + dimName + '\',l,v)">✓</button>' +
-                '<button class="dim-genre-remove" onclick="event.stopPropagation();cancelAddGenre(\'' + dimName + '\')" title="取消">×</button>' +
+                '<button class="dim-genre-add-confirm" type="button" data-dimension-action="confirm-add-genre" data-dim-name="' + dimName + '">✓</button>' +
+                '<button class="dim-genre-remove" type="button" data-dimension-action="cancel-add-genre" data-dim-name="' + dimName + '" title="取消">×</button>' +
             '</div>' +
         '</div>';
 
@@ -726,7 +727,7 @@ function cancelAddGenre(dimName) {
 function _resetAddRowButton(dimName) {
     var addRow = document.getElementById('dim-genre-add-row-' + dimName);
     if (addRow) {
-        addRow.innerHTML = '<button class="dim-genre-add-btn" onclick="event.stopPropagation();startAddGenre(\'' + dimName + '\')">+ 添加类型值</button>';
+        addRow.innerHTML = '<button class="dim-genre-add-btn" type="button" data-dimension-action="start-add-genre" data-dim-name="' + dimName + '">+ 添加类型值</button>';
     }
 }
 
@@ -963,6 +964,35 @@ async function saveDimensionEdit(name) {
 }
 
 document.addEventListener('click', function(e) {
+    var actionEl = e.target.closest('[data-dimension-action]');
+    if (actionEl) {
+        e.stopPropagation();
+        var action = actionEl.getAttribute('data-dimension-action');
+        var dimName = actionEl.getAttribute('data-dim-name') || actionEl.getAttribute('data-dimension-name');
+        var genreIdx = parseInt(actionEl.getAttribute('data-genre-idx') || '-1', 10);
+
+        if (action === 'enable' && dimName) { enableDimension(dimName); return; }
+        if (action === 'disable' && dimName) { disableDimension(dimName); return; }
+        if ((action === 'toggle-card' || action === 'collapse') && dimName) { toggleDimCard(dimName); return; }
+        if (action === 'save' && dimName) { saveDimensionEdit(dimName); return; }
+        if (action === 'reset' && dimName) { resetDimension(dimName); return; }
+        if (action === 'toggle-genre-help') { toggleGenreHelp(); return; }
+        if (action === 'start-add-genre' && dimName) { startAddGenre(dimName); return; }
+        if (action === 'cancel-add-genre' && dimName) { cancelAddGenre(dimName); return; }
+        if (action === 'confirm-add-genre' && dimName) {
+            var labelInput = document.getElementById('dim-genre-add-label');
+            var valueInput = document.getElementById('dim-genre-add-value');
+            var label = labelInput ? labelInput.value.trim() : '';
+            var value = valueInput ? valueInput.value.trim() : '';
+            if (!label) return;
+            if (!value) value = label.toLowerCase().replace(/[\s\u4e00-\u9fff]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || label;
+            confirmAddGenre(dimName, label, value);
+            return;
+        }
+        if (action === 'remove-genre-value' && dimName && genreIdx >= 0) { removeGenreValue(dimName, genreIdx); return; }
+        if (action === 'toggle-genre-picker' && dimName && genreIdx >= 0) { toggleGenrePicker(dimName, genreIdx); return; }
+    }
+
     if (_openGenrePicker) {
         var picker = document.getElementById(_openGenrePicker);
         if (picker && !picker.parentElement.contains(e.target)) {
@@ -971,4 +1001,41 @@ document.addEventListener('click', function(e) {
             _openGenrePicker = null;
         }
     }
+});
+
+document.addEventListener('dragstart', function(e) {
+    var handle = e.target.closest('[data-dimension-action="genre-drag-handle"]');
+    if (!handle) return;
+    e.stopPropagation();
+    var dimName = handle.getAttribute('data-dim-name');
+    var genreIdx = parseInt(handle.getAttribute('data-genre-idx') || '-1', 10);
+    if (!dimName || genreIdx < 0) return;
+    genreDragStart(e, dimName, genreIdx);
+});
+
+document.addEventListener('dragend', function(e) {
+    var handle = e.target.closest('[data-dimension-action="genre-drag-handle"]');
+    if (!handle) return;
+    genreDragEnd(e);
+});
+
+document.addEventListener('dragover', function(e) {
+    var row = e.target.closest('.dim-genre-row');
+    if (!row) return;
+    genreDragOver(e);
+});
+
+document.addEventListener('dragleave', function(e) {
+    var row = e.target.closest('.dim-genre-row');
+    if (!row) return;
+    genreDragLeave(e);
+});
+
+document.addEventListener('drop', function(e) {
+    var row = e.target.closest('.dim-genre-row');
+    if (!row) return;
+    var dimName = row.getAttribute('data-dim-name');
+    var genreIdx = parseInt(row.getAttribute('data-genre-idx') || '-1', 10);
+    if (!dimName || genreIdx < 0) return;
+    genreDrop(e, dimName, genreIdx);
 });

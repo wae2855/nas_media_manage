@@ -302,7 +302,7 @@ def main():
         prog="media_importer",
         description="影音库AI智能整理 - 自动刮削、分类、入库影视文件"
     )
-    parser.add_argument("-c", "--config", help="配置文件路径 (默认: media_importer/config.yaml)")
+    parser.add_argument("-c", "--config", help="配置文件路径 (默认: config/config.yaml)")
 
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
 

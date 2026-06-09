@@ -12,3 +12,4 @@
 | [configuration.md](configuration.md) | 配置新增、迁移、校验 |
 | [safety.md](safety.md) | 文件操作安全规则 |
 | [git.md](git.md) | 分支、提交、基线规则 |
+| [requirement-management.md](requirement-management.md) | 需求注册、并行隔离、状态流转、验收和废弃 |

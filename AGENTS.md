@@ -17,6 +17,8 @@
 | 功能开发流程 | [docs/workflows/feature-development.md](docs/workflows/feature-development.md) |
 | 重构流程 | [docs/workflows/refactor-development.md](docs/workflows/refactor-development.md) |
 | 项目闭环流程 | [docs/workflows/project-lifecycle.md](docs/workflows/project-lifecycle.md) |
+| 需求管理规范 | [docs/standards/requirement-management.md](docs/standards/requirement-management.md) |
+| 需求看板 | [docs/tracking/requirements-board.md](docs/tracking/requirements-board.md) |
 | 待验收/完成事项 | [docs/tracking/pending-acceptance.md](docs/tracking/pending-acceptance.md), [docs/tracking/completed-items.md](docs/tracking/completed-items.md) |
 | 仓库结构与归档 | [docs/architecture/repository-structure.md](docs/architecture/repository-structure.md), [docs/architecture/archive-policy.md](docs/architecture/archive-policy.md) |
 | 旧文档说明 | [docs/legacy.md](docs/legacy.md) |

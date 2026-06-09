@@ -66,6 +66,8 @@ API_ROUTES = [
     _route("GET", "/api/source-cleaner/records", "source_cleaner_records", pass_self=True),
     _route("GET", "/api/source-cleaner/status", "source_cleaner_status", pass_self=True),
     _route("GET", "/api/source-cleaner/ai-preview", "source_cleaner_ai_preview", pass_self=True),
+    _route("GET", "/api/thumbnails", "_thumbnails_list"),
+    _route("GET", "/api/thumbnails/{filename}", "_thumbnails_serve"),
     _route("GET", "/api/recycle/list", "recycle_list", pass_self=True),
 
     _route("POST", "/api/run", "_run_batch"),
@@ -103,8 +105,8 @@ API_ROUTES = [
     _route("POST", "/api/dimensions/{dim_name}/disable", "_dimension_disable"),
     _route("POST", "/api/dimensions/{dim_name}/reset", "_dimension_reset"),
     _route("POST", "/api/source-cleaner/execute", "source_cleaner_execute", pass_self=True),
-    _route("POST", "/api/recycle/restore", "recycle_restore", pass_self=True),
-    _route("POST", "/api/recycle/delete", "recycle_delete", pass_self=True),
+    _route("POST", "/api/recycle/restore", "recycle_restore", pass_self=True, pass_body=True),
+    _route("POST", "/api/recycle/delete", "recycle_delete", pass_self=True, pass_body=True),
 
     _route("PUT", "/api/dimensions/{dim_name}", "_dimension_update", pass_body=True),
 
