@@ -359,6 +359,137 @@
     color: var(--gold-2);
 }
 
+/* Simulator timeline — flow-style process display */
+.sim-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.sim-step {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 0;
+}
+
+.sim-step-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.sim-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.sim-step-line {
+    width: 2px;
+    flex: 1;
+    min-height: 8px;
+}
+
+.sim-step-content {
+    padding: 0 0 16px 12px;
+}
+
+.sim-step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sim-step-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.sim-step-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+
+.sim-kv {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 3px 0;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.sim-k {
+    color: var(--muted);
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.sim-v {
+    color: var(--ink);
+    text-align: right;
+    word-break: break-all;
+}
+
+.sim-v-highlight {
+    color: #06B6D4;
+    font-weight: 600;
+}
+
+.sim-v-score {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.sim-dim-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.sim-dim-tag {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--ink);
+}
+
+.sim-error {
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.sim-warn-icon {
+    color: #F59E0B;
+    font-weight: 700;
+}
+
+.sim-queue-decision {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
 .formula-preview {
     font-size: 12px;
 }
