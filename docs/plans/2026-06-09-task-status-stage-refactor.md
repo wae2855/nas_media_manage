@@ -682,53 +682,365 @@ async function previewClassify(taskId, dimensions, filename) {
 
 ---
 
-### Phase 3：测试
+### Phase 3：测试清单
 
-#### 3.1 conftest.py fixture 适配
+> 测试分类说明：
+> - **U（Unit）**：单函数/单类隔离测试，不依赖 DB 或外部服务
+> - **I（Integration）**：多组件协作测试，使用真实 SQLite 或 mock API
+> - **R（Regression/E2E）**：端到端回归测试，Playwright + 真实 HTTP 服务
 
-**文件**: `tests/conftest.py`
+#### 3.1 基础设施适配
 
-所有创建 task 的 fixture 需设置 `stage` 字段。默认 `stage="QUEUED"`。
+| # | 类型 | 测试文件 | 适配内容 |
+|---|------|---------|---------|
+| 3.1.1 | 基础 | `tests/conftest.py` | `_build_e2e_config` 和 `e2e_server` fixture 无需改动（不涉及 status），但 `_create_terminal_task` 等辅助函数的 INSERT 语句需新增 `stage` 列 |
 
-#### 3.2 新增 stage 转换测试
+#### 3.2 新增测试：stage 转换（Unit）
 
 **新文件**: `tests/test_stage_lifecycle.py`
 
-测试内容：
-- 每个转换函数正确设置 status + stage
-- `mark_confirming()` 和 `mark_needs_review()` 都映射到 `PENDING/AWAIT_REVIEW`
-- `reset_for_retry()` 设置 `stage=QUEUED`
-- 无效转换被拒绝
+| # | 测试用例 | 验证点 | 对应旧测试 |
+|---|---------|--------|-----------|
+| 3.2.1 | `test_start_processing_sets_status_pending_stage_running` | `start_processing()` → status=PENDING, stage=RUNNING, started_at 被设置 | 原 test_task_context_lifecycle 中 `test_start_processing_sets_status_and_started_at`（断言从 PROCESSING 改为 PENDING+RUNNING） |
+| 3.2.2 | `test_mark_processing_step_keeps_stage_running` | `mark_processing_step()` → status=PENDING, stage=RUNNING, step 字段更新 | 新增（验证 step 更新不改变 status/stage） |
+| 3.2.3 | `test_mark_confirming_sets_stage_await_review` | `mark_confirming()` → status=PENDING, stage=AWAIT_REVIEW | 原 `test_mark_confirming_can_preserve_error_message_when_no_reason` |
+| 3.2.4 | `test_mark_confirming_records_reason` | `mark_confirming(reason=...)` → error_message 被设置 | 原 `test_mark_confirming_records_reason_when_provided` |
+| 3.2.5 | `test_mark_needs_review_same_stage_as_confirming` | `mark_needs_review()` → status=PENDING, stage=AWAIT_REVIEW（与 mark_confirming 相同 stage） | 原 `test_mark_needs_review_records_temp_location` + **新增验证 stage 一致性** |
+| 3.2.6 | `test_mark_failed_sets_stage_done` | `mark_failed()` → status=FAILED, stage=DONE, completed_at 被设置 | 原 `test_mark_failed_can_clear_or_preserve_video_path` |
+| 3.2.7 | `test_mark_skipped_sets_stage_done` | `mark_skipped()` → status=SKIPPED, stage=DONE, skip_reason 被记录 | 原 `test_mark_skipped_records_completion_and_location` |
+| 3.2.8 | `test_mark_imported_sets_stage_done` | `mark_imported()` → status=SUCCESS, stage=DONE, import_success=1 | 原 `test_mark_imported_records_success_fields` |
+| 3.2.9 | `test_reset_for_retry_sets_stage_queued` | `reset_for_retry()` → status=PENDING, stage=QUEUED, retry_count+1 | 原 `test_reset_for_retry_resets_runtime_fields` |
+| 3.2.10 | `test_mark_temp_ready_does_not_change_stage` | `mark_temp_ready()` → status 和 stage 不变，只改 file_location | 原 `test_mark_temp_ready_tracks_current_temp_video` |
+| 3.2.11 | `test_lifecycle_transition_table_records_stage` | 综合验证所有转换函数的 stage 字段记录 | 原 `test_lifecycle_transition_table_records_core_contract` 扩展 |
+| 3.2.12 | `test_terminal_statuses_have_stage_done` | 直接构造 SUCCESS/FAILED/SKIPPED/CANCELLED 状态的任务，验证 stage=DONE | **新增** |
 
-#### 3.3 新增 classify-preview 测试
+#### 3.3 新增测试：入库预览（Unit + Integration）
 
 **新文件**: `tests/test_classify_preview.py`
 
-测试内容：
-- 不带覆盖参数的预览
-- 带 dimensions 覆盖的预览
-- 带 filename 覆盖的预览
-- 不存在的 task_id 返回 404
-- 不执行任何文件操作（mock 验证）
+| # | 类型 | 测试用例 | 验证点 |
+|---|------|---------|--------|
+| 3.3.1 | U | `test_preview_uses_existing_dimensions` | 不带覆盖参数，使用任务现有 scrape_dimensions 返回正确路径 |
+| 3.3.2 | U | `test_preview_with_override_dimensions` | 传入 `{"media_type": "tv"}`，返回 TV 剧集路径而非电影路径 |
+| 3.3.3 | U | `test_preview_with_override_filename` | 传入不同文件名，final_filename 随之改变 |
+| 3.3.4 | U | `test_preview_returns_matched_rule_info` | 返回 matched_rule.conditions 和 matched_rule.template |
+| 3.3.5 | U | `test_preview_returns_warnings_for_missing_fields` | 缺少必要维度时 warnings 包含提示 |
+| 3.3.6 | U | `test_preview_does_not_modify_task` | 调用前后 task 对象无变化（mock 验证无 update_task 调用） |
+| 3.3.7 | U | `test_preview_uses_fallback_dir_when_no_rule_matches` | 无匹配规则时使用 fallback_dir |
+| 3.3.8 | I | `test_classify_preview_api_returns_200` | POST /api/tasks/{id}/classify-preview 返回 200 + 正确数据 |
+| 3.3.9 | I | `test_classify_preview_api_returns_404_for_missing_task` | 不存在的 task_id 返回 404 |
+| 3.3.10 | I | `test_classify_preview_api_rejects_non_pending_task` | SUCCESS/FAILED 任务返回 400（只允许 PENDING/AWAIT_REVIEW） |
 
-#### 3.4 现有测试适配
+#### 3.4 新增测试：DB 迁移（Integration）
 
-需要检查并适配的测试文件：
+**新文件**: `tests/test_stage_db_migration.py`
 
-| 文件 | 适配内容 |
-|------|---------|
-| `tests/test_task_context_lifecycle.py` | 状态断言改为 status+stage |
-| `tests/test_task_operations.py` | 操作前置条件改为 stage 感知 |
-| `tests/test_feature_task_list.py` | 列表查询参数新增 stage |
-| `tests/test_feature_task_queue.py` | 队列操作状态检查 |
-| `tests/test_feature_task_review.py` | 确认操作改为 stage 检查 |
-| `tests/test_feature_task_delete.py` | 删除状态校验 |
-| `tests/test_feature_task_detail.py` | 任务详情返回 stage 字段 |
-| `tests/test_feature_task_file_lifecycle.py` | ignore 操作需设置 stage |
-| `tests/test_architecture_guards.py` | 导入检查新增 stage 相关 |
-| `tests/test_e2e_02_scan.py` | E2E 扫描后状态验证 |
-| `tests/test_e2e_03_task_actions.py` | E2E 操作按钮验证 |
-| `tests/test_e2e_06_batch.py` | E2E 批量操作验证 |
+| # | 测试用例 | 验证点 |
+|---|---------|--------|
+| 3.4.1 | `test_migration_adds_stage_column` | 迁移后 tasks 表包含 stage 列 |
+| 3.4.2 | `test_migration_converts_pending_to_queued` | 旧 PENDING → PENDING/QUEUED |
+| 3.4.3 | `test_migration_converts_processing_to_running` | 旧 PROCESSING → PENDING/RUNNING |
+| 3.4.4 | `test_migration_converts_confirming_to_await_review` | 旧 CONFIRMING → PENDING/AWAIT_REVIEW |
+| 3.4.5 | `test_migration_converts_needs_review_to_await_review` | 旧 NEEDS_REVIEW → PENDING/AWAIT_REVIEW |
+| 3.4.6 | `test_migration_converts_success_to_done` | 旧 SUCCESS → SUCCESS/DONE |
+| 3.4.7 | `test_migration_converts_failed_to_done` | 旧 FAILED → FAILED/DONE |
+| 3.4.8 | `test_migration_converts_skipped_to_done` | 旧 SKIPPED → SKIPPED/DONE |
+| 3.4.9 | `test_migration_is_idempotent` | 重复运行迁移不改变数据 |
+| 3.4.10 | `test_new_task_default_stage_is_queued` | 迁移后新建任务 stage 默认 QUEUED |
+
+#### 3.5 现有测试适配：单元测试
+
+##### 3.5.1 `tests/test_task_context_lifecycle.py`（12 个用例）
+
+**当前**: 直接构造 dict 模拟任务，断言 `status == "PROCESSING"` / `"CONFIRMING"` / `"NEEDS_REVIEW"` 等
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.1.1 | `test_lifecycle_transition_table_records_core_contract` | 全部 7 种状态的断言改为 status+stage 联合断言 |
+| 3.5.1.2 | `test_start_processing_sets_status_and_started_at` | `status == "PROCESSING"` → `status == "PENDING" and stage == "RUNNING"` |
+| 3.5.1.3 | `test_mark_confirming_can_preserve_error_message_when_no_reason` | `status == "CONFIRMING"` → `status == "PENDING" and stage == "AWAIT_REVIEW"` |
+| 3.5.1.4 | `test_mark_confirming_records_reason_when_provided` | 同上 |
+| 3.5.1.5 | `test_mark_needs_review_records_temp_location` | `status == "NEEDS_REVIEW"` → `status == "PENDING" and stage == "AWAIT_REVIEW"` |
+| 3.5.1.6 | `test_mark_failed_can_clear_or_preserve_video_path` | `status == "FAILED"` 不变，新增 `stage == "DONE"` |
+| 3.5.1.7 | `test_mark_skipped_records_completion_and_location` | `status == "SKIPPED"` 不变，新增 `stage == "DONE"` |
+| 3.5.1.8 | `test_mark_imported_records_success_fields` | `status == "SUCCESS"` 不变，新增 `stage == "DONE"` |
+| 3.5.1.9 | `test_reset_for_retry_resets_runtime_fields` | `status == "PENDING"` 不变，新增 `stage == "QUEUED"` |
+| 3.5.1.10 | `test_mark_temp_ready_tracks_current_temp_video` | 无需改（不涉及 status/stage） |
+
+##### 3.5.2 `tests/test_task_operations.py`（~15 个用例）
+
+**当前**: 使用真实 SQLite DB，通过 `_create_task` + `update_task` 设置状态
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.2.1 | `test_retry_failed_task` | 重试后断言 `status == "PENDING" and stage == "QUEUED"` |
+| 3.5.2.2 | `test_retry_pending_task_should_fail` | 条件不变（PENDING 不允许重试） |
+| 3.5.2.3 | `test_retry_success_task_should_fail` | 条件不变 |
+| 3.5.2.4 | `test_retry_confirming_task_should_fail` | 改为 `test_retry_await_review_task_should_fail`：stage=AWAIT_REVIEW 不允许重试 |
+| 3.5.2.5 | `test_ignore_task` | ignore 后断言 `status == "SKIPPED" and stage == "DONE"` |
+| 3.5.2.6 | `test_check_source_duplicate_processing_file` | PROCESSING → `status=PENDING, stage=RUNNING` 时 action=SKIP |
+| 3.5.2.7 | `test_check_source_duplicate_confirming_file` | CONFIRMING → `status=PENDING, stage=AWAIT_REVIEW` 时 action=SKIP |
+| 3.5.2.8 | `test_pagination_with_status_filter` | `status=FAILED` 不变，新增 `test_pagination_with_stage_filter` |
+| 3.5.2.9 | `test_retry_all_failed` | 重试后全部为 PENDING/QUEUED |
+| 3.5.2.10 | `test_api_confirm_all_finds_confirming_tasks` | `list_tasks(status="CONFIRMING")` → `list_tasks(status="PENDING", stage="AWAIT_REVIEW")` |
+
+**辅助函数适配**: `_create_task` 需在 `update_task` 时同时设置 `stage` 字段
+
+##### 3.5.3 `tests/test_feature_task_queue.py`（7 个用例）
+
+**当前**: 使用 FakeTaskManager 伪对象
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.3.1 | `test_clear_tasks_normalizes_all_status` | 不变 |
+| 3.5.3.2 | `test_clear_tasks_rejects_invalid_status` | 新增 `test_clear_tasks_rejects_invalid_stage` |
+| 3.5.3.3 | `test_retry_task_starts_pipeline_when_available` | 返回值 status=PENDING 不变，新增 stage=QUEUED |
+| 3.5.3.4 | `test_pause_resume_and_status_payloads` | `FakeTaskManager.counts` 改为按 status+stage 分组 |
+
+##### 3.5.4 `tests/test_feature_task_list.py`（3 个用例）
+
+**当前**: mock `db_list_tasks`，验证 status 过滤
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.4.1 | `test_list_tasks_for_api_builds_pagination_payload` | 新增 `stage` 参数传递验证 |
+| 3.5.4.2 | `test_list_tasks_for_api_rejects_invalid_status` | 新增 `test_list_tasks_for_api_rejects_invalid_stage` |
+| 3.5.4.3 | 新增 `test_list_tasks_for_api_filters_by_status_and_stage` | 验证 `status=PENDING&stage=AWAIT_REVIEW` 组合过滤 |
+| 3.5.4.4 | 新增 `test_list_tasks_for_api_supports_multi_status` | 验证 `status=SUCCESS&status=SKIPPED` 多值过滤 |
+
+##### 3.5.5 `tests/test_feature_task_review.py`（5 个用例）
+
+**当前**: FakeTaskManager + FakePipeline
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.5.1 | `test_confirm_task_returns_success_message` | 任务数据改为 `status=PENDING, stage=AWAIT_REVIEW` |
+| 3.5.5.2 | `test_reclassify_task_returns_updated_task_payload` | 断言 `status == "CONFIRMING"` → 断言 `stage == "AWAIT_REVIEW"` |
+| 3.5.5.3 | `test_confirm_all_tasks_returns_success_and_failure_counts` | `list_tasks(status="CONFIRMING")` → `list_tasks(status="PENDING", stage="AWAIT_REVIEW")` |
+| 3.5.5.4 | 新增 `test_confirm_rejects_non_await_review_task` | stage != AWAIT_REVIEW 时返回 400 |
+
+##### 3.5.6 `tests/test_feature_task_delete.py`（2 个用例）
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.6.1 | `test_delete_task_rejects_processing_task` | `status=PROCESSING` → `status=PENDING, stage=RUNNING` |
+| 3.5.6.2 | `test_delete_task_cleans_temp_file_and_deletes_record` | 任务数据改为 `status=PENDING, stage=QUEUED` |
+
+##### 3.5.7 `tests/test_feature_task_detail.py`（3 个用例）
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.7.1 | `test_get_task_returns_payload` | 返回 payload 包含 `stage` 字段 |
+| 3.5.7.2 | `test_get_task_stats_returns_status_counts` | 统计结果包含 stage 维度 |
+
+##### 3.5.8 `tests/test_feature_task_file_lifecycle.py`（6 个用例）
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.8.1 | `test_ignore_temp_task_cleans_temp_files_and_recycles_source` | 断言 `status == "SKIPPED"` + `stage == "DONE"` |
+| 3.5.8.2 | `test_ignore_source_task_recycles_source_when_cleanup_enabled` | 同上 |
+| 3.5.8.3 | `test_ignore_task_rejects_invalid_status` | PENDING/QUEUED 不可忽略，PENDING/RUNNING 不可忽略，PENDING/AWAIT_REVIEW 可忽略 |
+| 3.5.8.4 | 新增 `test_ignore_sets_stage_done_via_mark_skipped` | 验证 ignore 调用了 `mark_skipped()` 而非直接写 status |
+
+##### 3.5.9 `tests/test_architecture_guards.py`
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.9.1 | 导入检查 | 确认 `STAGE_*` 常量可从 `features.tasks` 正确导入 |
+| 3.5.9.2 | 依赖方向 | 确认新文件 classify_preview_handler 的导入方向合规 |
+
+##### 3.5.10 `tests/test_import_flow_services.py`（~10 个用例）
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.10.1 | `test_gate_blocked_requires_review` | FakeConfidenceEngine("NEEDS_REVIEW") → 决策仍为 needs_review，但最终映射到 stage=AWAIT_REVIEW |
+| 3.5.10.2 | `test_low_confidence_fails` | FakeConfidenceEngine("FAILED") → 决策为 failed，映射到 status=FAILED, stage=DONE |
+| 3.5.10.3 | `test_missing_required_fields_requires_confirm` | 决策为 confirm → 映射到 status=PENDING, stage=AWAIT_REVIEW |
+
+##### 3.5.11 `tests/test_confidence_engine.py`（3 个用例）
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.5.11.1 | `test_confidence_levels` | "CONFIRMING" 和 "NEEDS_REVIEW" 等级名称保持不变（这是置信度等级，不是任务状态），但需添加注释说明映射关系 |
+
+#### 3.6 现有测试适配：集成测试
+
+##### 3.6.1 `tests/test_integration_recycle.py`（~8 个用例，需 `--run-service-integration`）
+
+**当前**: 启动真实 HTTP 服务器，通过 DB repo 直接操作
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.6.1.1 | `test_tasks_return_provider_type_and_id` | `_db_create_task` 新增 stage 参数 |
+| 3.6.1.2 | `test_task_with_recycle_file_location_returned` | status=FAILED 不变，新增 stage=DONE |
+| 3.6.1.3 | `test_task_with_source_file_location_shows_correctly` | status=PENDING + stage=QUEUED |
+| 3.6.1.4 | `test_task_ignore_moves_file_to_recycle` | ignore 后断言 `status == "SKIPPED" and stage == "DONE"` |
+| 3.6.1.5 | `test_delete_task_with_delete_files_preserves_recycle_file` | stage=DONE |
+| 3.6.1.6 | `test_duplicate_fingerprint_gets_rename_detected` | SUCCESS+PENDING → SUCCESS/DONE + PENDING/QUEUED |
+
+**辅助函数适配**: `_db_create_task` 的 INSERT 语句需新增 `stage` 列
+
+##### 3.6.2 `tests/test_api_routes.py`
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.6.2.1 | 路由匹配测试 | 新增 classify-preview 路由匹配验证 |
+
+#### 3.7 现有测试适配：E2E 回归测试
+
+##### 3.7.1 `tests/test_e2e_02_scan.py`（9 个用例，需 `--run-live-e2e`）
+
+**当前**: 扫描源文件 → 等待处理 → 验证最终状态
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.7.1.1 | `test_t01_new_task_shows_pending` | 新任务断言 stage=QUEUED |
+| 3.7.1.2 | `test_t02_success_after_processing` | 成功后 stage=DONE |
+| 3.7.1.3 | `test_t03_failed_shows_error_info` | 失败后 stage=DONE |
+| 3.7.1.4 | `test_t04_low_confidence_shows_confirming` | 断言 stage=AWAIT_REVIEW（前端显示"待确认"） |
+| 3.7.1.5 | `test_t05_confirm_confirming_task_to_success` | 确认后 status=SUCCESS, stage=DONE |
+| 3.7.1.6 | `test_t06_ignore_confirming_task_to_skipped` | 忽略后 status=SKIPPED, stage=DONE |
+| 3.7.1.7 | `test_t07_retry_failed_task` | 重试后 status=PENDING, stage=QUEUED → RUNNING |
+| 3.7.1.8 | `test_t08_failed_beyond_retry_to_recycle` | 不变（FAILED 终态） |
+| 3.7.1.9 | `test_t09_success_is_terminal` | 不变 |
+
+##### 3.7.2 `tests/test_e2e_03_task_actions.py`（~12 个用例，需 `--run-live-e2e`）
+
+**当前**: 通过 SQLite INSERT 构造指定状态任务，Playwright 验证前端行为
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.7.2.1 | `test_A01_click_task_card_opens_detail_modal` | INSERT 新增 stage=DONE |
+| 3.7.2.2 | `test_A03_failed_task_shows_error_highlighted` | INSERT 新增 stage=DONE |
+| 3.7.2.3 | `test_A09_retry_failed_task_changes_status` | 验证重试后前端显示"排队中" |
+| 3.7.2.4 | `test_A10_confirm_confirming_task_succeeds` | INSERT 改为 `status=PENDING, stage=AWAIT_REVIEW`，验证确认成功 |
+| 3.7.2.5 | `test_A11_ignore_confirming_task_skipped` | INSERT 改为 `status=PENDING, stage=AWAIT_REVIEW` |
+| 3.7.2.6 | `test_A12_delete_task_confirm_removes` | 不变 |
+| 3.7.2.7 | `test_A14_filter_all_shows_all_tasks` | 不变 |
+| 3.7.2.8 | `test_A15_filter_pending_shows_pending_tasks` | 筛选条件改为 PENDING/QUEUED + PENDING/RUNNING |
+| 3.7.2.9 | `test_A16_filter_confirm_shows_confirming_tasks` | 筛选条件改为 PENDING/AWAIT_REVIEW |
+| 3.7.2.10 | `test_A17_filter_failed_shows_failed_tasks` | 不变 |
+| 3.7.2.11 | `test_A18_filter_success_shows_success_tasks` | 不变 |
+| 3.7.2.12 | `test_A20_switch_filter_clears_selection` | 不变 |
+
+**辅助函数适配**: `_create_terminal_task` 的 INSERT 语句需新增 `stage` 列
+
+##### 3.7.3 `tests/test_e2e_06_batch.py`（~7 个用例，需 `--run-live-e2e`）
+
+**当前**: 批量操作测试
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.7.3.1 | `test_B01_select_single_task_shows_count` | INSERT 新增 stage=DONE |
+| 3.7.3.2 | `test_B06_batch_retry_failed_tasks` | 重试 SKIPPED 任务，验证变为 QUEUED |
+| 3.7.3.3 | `test_B07_batch_confirm_confirming_tasks` | INSERT 改为 `status=PENDING, stage=AWAIT_REVIEW` |
+| 3.7.3.4 | `test_B08_batch_ignore_tasks` | FAILED 任务 ignore 后 stage=DONE |
+| 3.7.3.5 | `test_B09_batch_delete_tasks` | 不变 |
+| 3.7.3.6 | `test_B12_filter_all_retry_hidden` | 不变 |
+| 3.7.3.7 | `test_B13_filter_failed_retry_visible` | 不变 |
+
+**辅助函数适配**: `_create_terminal_task` 和 `_set_task_status` 需同时设置 `stage`
+
+##### 3.7.4 `tests/test_frontend_recycle.py`（2 个用例，需 `--run-ui`）
+
+| # | 用例 | 适配内容 |
+|---|------|---------|
+| 3.7.4.1 | `test_tasks_file_location_labels` | mock 数据新增 stage 字段 |
+| 3.7.4.2 | `test_tasks_recycle_css_class` | 不变 |
+
+#### 3.8 新增测试：前端 E2E 回归
+
+##### 3.8.1 筛选 Chip 验证（新增用例到 test_e2e_03_task_actions.py）
+
+| # | 用例 | 验证点 |
+|---|------|--------|
+| 3.8.1.1 | `test_filter_queued_shows_queued_tasks` | 排队中 Chip 只显示 PENDING/QUEUED 任务 |
+| 3.8.1.2 | `test_filter_running_shows_running_tasks` | 处理中 Chip 只显示 PENDING/RUNNING 任务 |
+| 3.8.1.3 | `test_filter_review_shows_await_review_tasks` | 待确认 Chip 只显示 PENDING/AWAIT_REVIEW 任务 |
+
+##### 3.8.2 按钮逻辑验证（新增用例到 test_e2e_03_task_actions.py）
+
+| # | 用例 | 验证点 |
+|---|------|--------|
+| 3.8.2.1 | `test_running_task_has_no_secondary_action` | PENDING/RUNNING 任务卡片无次按钮 |
+| 3.8.2.2 | `test_await_review_task_shows_confirm_and_edit` | PENDING/AWAIT_REVIEW 任务显示"确认"+"修改" |
+| 3.8.2.3 | `test_edit_button_opens_modal_with_preview` | "修改"按钮打开编辑弹窗，包含入库预览按钮 |
+| 3.8.2.4 | `test_classify_preview_shows_correct_path` | 入库预览返回正确的目录路径和文件名 |
+
+##### 3.8.3 批量操作规则验证（新增用例到 test_e2e_06_batch.py）
+
+| # | 用例 | 验证点 |
+|---|------|--------|
+| 3.8.3.1 | `test_batch_confirm_only_for_await_review` | 只有 PENDING/AWAIT_REVIEW 任务可批量确认 |
+| 3.8.3.2 | `test_batch_ignore_for_await_review_and_failed` | AWAIT_REVIEW 和 FAILED 可批量忽略 |
+| 3.8.3.3 | `test_batch_recycle_hidden_when_all_success` | 全部 SUCCESS 时批量移入回收按钮隐藏 |
+
+#### 3.9 不需要适配的测试文件
+
+以下文件不涉及 status/stage 逻辑，无需修改：
+
+| 文件 | 原因 |
+|------|------|
+| `tests/test_config_consumers.py` | 配置消费测试，不涉及任务状态 |
+| `tests/test_config_save_load_e2e.py` | 配置保存加载，不涉及任务状态 |
+| `tests/test_feature_entrypoints.py` | feature 入口点检查，不涉及具体状态值 |
+| `tests/test_recycle_safety.py` | 回收安全测试，使用固定 file_location |
+| `tests/test_feature_import_flow_run_file.py` | 使用 FakeTaskManager，不检查具体 status 值 |
+| `tests/test_feature_configuration_runtime.py` | 配置运行时测试 |
+| `tests/test_feature_prompts_application.py` | 提示词测试 |
+| `tests/test_feature_dimensions_service.py` | 维度服务测试 |
+| `tests/test_feature_configuration_application.py` | 配置应用测试 |
+| `tests/test_feature_source_cleaning.py` | 源文件清理测试 |
+| `tests/test_feature_providers.py` | Provider 测试 |
+| `tests/test_feature_import_flow.py` | 导入流程测试（不直接断言 status 值） |
+| `tests/test_config_view.py` | ConfigView 测试 |
+| `tests/test_consult_prompt.py` | 提示词咨询测试 |
+| `tests/test_e2e_01_config.py` | 配置 E2E 测试 |
+| `tests/test_e2e_04_recycle.py` | 回收站 E2E（不依赖 status） |
+| `tests/test_e2e_05_navigation.py` | 导航 E2E |
+| `tests/test_e2e_07_visual.py` | 视觉 E2E |
+| `tests/test_confidence_v2_ui.py` | 置信度 UI（外部服务） |
+| `tests/test_confidence_ui.py` | 置信度 UI（外部服务） |
+| `tests/test_scrape_ui.py` | 刮削 UI（外部服务） |
+| `tests/test_confidence_config_ui.py` | 置信度配置 UI（外部服务） |
+
+#### 3.10 测试执行命令
+
+```bash
+# Phase 1 完成后：运行非 UI/E2E 测试
+python -m pytest tests/ \
+  --ignore=tests/test_*_ui.py \
+  --ignore=tests/test_frontend_*.py \
+  --ignore=tests/test_scrape_ui.py \
+  --ignore=tests/test_e2e_*.py \
+  --ignore=tests/test_integration_recycle.py \
+  -v
+
+# Phase 1 完成后：集成测试
+python -m pytest tests/test_integration_recycle.py --run-service-integration -v
+
+# Phase 2 完成后：E2E 回归测试
+python -m pytest tests/test_e2e_02_scan.py tests/test_e2e_03_task_actions.py tests/test_e2e_06_batch.py \
+  --run-live-e2e -v
+
+# Phase 3 完成后：全量测试
+python -m pytest tests/ -v
+
+# 编译检查
+PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python -m compileall -q media_importer tests
+```
+
+#### 3.11 测试统计
+
+| 类别 | 文件数 | 用例数（估） | 新增用例 |
+|------|--------|-------------|---------|
+| 新增 Unit | 3 | ~30 | 全部 |
+| 适配 Unit | 10 | ~55 | ~8 |
+| 适配 Integration | 2 | ~10 | 0 |
+| 适配 E2E | 3 | ~28 | 0 |
+| 新增 E2E | 0（追加到现有文件） | ~10 | 全部 |
+| 不需修改 | 22 | - | 0 |
+| **合计** | **40** | **~133** | **~48** |
 
 ---
 
