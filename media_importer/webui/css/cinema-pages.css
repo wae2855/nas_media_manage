@@ -634,21 +634,22 @@
         linear-gradient(
             90deg,
             rgba(6, 5, 3, 0.995) 0%,
-            rgba(8, 7, 5, 0.97) 22%,
-            rgba(10, 8, 5, 0.82) 38%,
-            rgba(12, 9, 5, 0.48) 54%,
-            rgba(14, 10, 5, 0.14) 68%,
-            rgba(16, 11, 5, 0.04) 78%,
-            rgba(18, 12, 5, 0.38) 100%
+            rgba(8, 7, 5, 0.96) 16%,
+            rgba(10, 8, 5, 0.78) 30%,
+            rgba(12, 9, 5, 0.46) 42%,
+            rgba(14, 10, 5, 0.20) 52%,
+            rgba(16, 11, 5, 0.04) 60%,
+            rgba(18, 12, 5, 0) 68%
         );
     --hero-poster-wash:
-        radial-gradient(circle at 78% 52%, rgba(234, 191, 99, 0.14), transparent 28%),
-        radial-gradient(circle at 88% 40%, rgba(200, 140, 50, 0.08), transparent 36%),
-        linear-gradient(90deg, rgba(6, 5, 3, 0) 42%, rgba(8, 6, 3, 0.08) 62%, rgba(12, 8, 3, 0.22) 82%, rgba(18, 10, 3, 0.52) 100%);
-    --hero-poster-position: 96% 50%;
+        radial-gradient(ellipse at 22% 50%, rgba(0, 0, 0, 0.55), transparent 60%),
+        radial-gradient(circle at 4% 50%, rgba(6, 5, 3, 0.85), transparent 30%),
+        radial-gradient(circle at 50% 50%, rgba(6, 5, 3, 0.18), transparent 38%),
+        radial-gradient(circle at 78% 50%, rgba(234, 191, 99, 0.10), transparent 26%);
+    --hero-poster-position: 100% 50%;
     --hero-poster-size: contain;
-    --hero-accent: rgba(234, 191, 99, 0.18);
-    --hero-glow: rgba(180, 130, 40, 0.32);
+    --hero-accent: rgba(234, 191, 99, 0.16);
+    --hero-glow: rgba(180, 130, 40, 0.28);
     --hero-shadow: rgba(0, 0, 0, 0.6);
     --hero-layer-opacity: 1.0;
 }
