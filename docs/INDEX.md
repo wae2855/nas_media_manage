@@ -12,10 +12,10 @@
 | `media_importer/core/db/` | SQLite connection/repo/migrations | [architecture/data-flow.md](architecture/data-flow.md) | [architecture/data-flow.md](architecture/data-flow.md) | `tests/test_task_operations.py` |
 | `media_importer/infrastructure/db/` | SQLite/repo infrastructure facade | [architecture/data-flow.md](architecture/data-flow.md) | [architecture/repository-structure.md](architecture/repository-structure.md) | `tests/test_feature_entrypoints.py` |
 | `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏和 ConfigView 业务入口 | [features/configuration.md](features/configuration.md) | [architecture/configuration.md](architecture/configuration.md) | `tests/test_config_view.py`、`tests/test_config_consumers.py`、`tests/test_feature_entrypoints.py` |
-| `media_importer/features/tasks/` | 任务管理、任务状态和生命周期业务入口 | [features/tasks.md](features/tasks.md) | [architecture/task-lifecycle.md](architecture/task-lifecycle.md) | `tests/test_task_context_lifecycle.py`、`tests/test_task_operations.py`、`tests/test_feature_entrypoints.py` |
+| `media_importer/features/tasks/` | 任务管理、任务状态和生命周期业务入口 | [features/tasks.md](features/tasks.md) | [architecture/task-lifecycle.md](architecture/task-lifecycle.md) | `tests/test_task_context_lifecycle.py`、`tests/test_stage_lifecycle.py`、`tests/test_stage_db_migration.py`、`tests/test_task_operations.py`、`tests/test_feature_entrypoints.py` |
 | `media_importer/features/recycle/` | 回收站移动、浏览、恢复、清理业务域 | [features/recycle.md](features/recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_feature_recycle.py`、`tests/test_recycle_safety.py` |
 | `media_importer/core/recycle/` | 回收站 legacy import 入口，薄转发到 `features/recycle/` | [features/recycle.md](features/recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_feature_recycle.py` |
-| `media_importer/features/import_flow/` | 入库流程业务域，持有 PipelineRunner、steps、确认和 services 实现 | [features/import-flow.md](features/import-flow.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_feature_import_flow.py`、`tests/test_import_flow_services.py` |
+| `media_importer/features/import_flow/` | 入库流程业务域，持有 PipelineRunner、steps、确认和 services 实现 | [features/import-flow.md](features/import-flow.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_feature_import_flow.py`、`tests/test_import_flow_services.py`、`tests/test_classify_preview.py` |
 | `media_importer/features/source_files/` | 源文件处理策略，持有成功入库、跳过、临时文件和伴生文件清理规则 | [features/source-files.md](features/source-files.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_import_flow_services.py`、`tests/test_recycle_safety.py`、`tests/test_architecture_guards.py` |
 | `media_importer/features/source_cleaning/` | 源目录清理业务域，持有清理器实现和记录入口 | [features/source-cleaning.md](features/source-cleaning.md) | [architecture/source-cleaner.md](architecture/source-cleaner.md) | `tests/test_feature_source_cleaning.py` |
 | `media_importer/features/scraping/` | 刮削、LLM、置信度、TMDB 和维度匹配业务入口 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_confidence_engine.py`、`tests/test_feature_entrypoints.py` |
@@ -44,6 +44,7 @@
 
 ## Current Plans
 
+- [Status+Stage 双层任务状态模型重构](plans/2026-06-09-task-status-stage-refactor.md) — Phase 1-4 开发完成，待验收
 - [AI-efficient architecture completion](plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md) — complete, product full-flow acceptance deferred until frontend redesign
 - [Feature-first 代码和文档结构重组](plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md) — complete, pending user acceptance
 

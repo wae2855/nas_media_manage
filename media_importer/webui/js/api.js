@@ -61,11 +61,24 @@ async function apiRequest(method, endpoint, body = null) {
             options.headers['Authorization'] = 'Bearer ' + apiKey;
         }
 
+        let url = getApiBase() + '/api' + endpoint;
+
         if (body) {
-            options.body = JSON.stringify(body);
+            if (method === 'GET') {
+                const params = new URLSearchParams();
+                for (const [key, value] of Object.entries(body)) {
+                    if (value !== undefined && value !== null) {
+                        params.append(key, value);
+                    }
+                }
+                const qs = params.toString();
+                if (qs) url += '?' + qs;
+            } else {
+                options.body = JSON.stringify(body);
+            }
         }
 
-        const response = await fetch(getApiBase() + '/api' + endpoint, options);
+        const response = await fetch(url, options);
 
         if (response.status === 401) {
             if (!_apiKeyPending) {

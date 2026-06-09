@@ -2,6 +2,17 @@
 
 任务能力负责扫描任务的创建、状态流转、重试、失败记录、人工确认状态和任务查询。
 
+## Status + Stage Model
+
+任务状态采用双层模型：
+
+- **status**（终态）：`PENDING` / `SUCCESS` / `FAILED` / `SKIPPED` / `CANCELLED`
+- **stage**（处理环节，仅 status=PENDING 时有意义）：`QUEUED` / `RUNNING` / `AWAIT_REVIEW` / `DONE`
+
+旧状态映射：`PROCESSING` → `PENDING+RUNNING`，`CONFIRMING` / `NEEDS_REVIEW` → `PENDING+AWAIT_REVIEW`。
+
+详细转换表见 [architecture/task-lifecycle.md](../architecture/task-lifecycle.md)。
+
 ## Current Code Entrypoints
 
 | Path | Role |

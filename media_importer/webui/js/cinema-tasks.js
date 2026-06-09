@@ -214,14 +214,24 @@ async function listTasksByStatuses(params) {
         if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [] };
         return { code: 200, tasks: result.data.tasks || [], total: result.data.total || 0 };
     }
-    const query = {};
-    if (params.status) {
-        if (Array.isArray(params.status)) {
-            query.status = params.status[0];
-        } else {
-            query.status = params.status;
+    // Handle array status by making separate requests and merging
+    if (params.status && Array.isArray(params.status)) {
+        const allTasks = [];
+        let totalSum = 0;
+        let anyError = false;
+        for (const s of params.status) {
+            const query = { status: s };
+            if (params.stage) query.stage = params.stage;
+            const result = await requestApi("GET", "/tasks", query);
+            if (result.code !== 200 || !result.data) { anyError = true; continue; }
+            allTasks.push(...(result.data.tasks || []));
+            totalSum += result.data.total || 0;
         }
+        if (anyError && allTasks.length === 0) return { code: 500, message: "请求失败", tasks: [] };
+        return { code: 200, tasks: allTasks, total: totalSum };
     }
+    const query = {};
+    if (params.status) query.status = params.status;
     if (params.stage) query.stage = params.stage;
     const result = await requestApi("GET", "/tasks", query);
     if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [] };

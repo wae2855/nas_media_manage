@@ -48,6 +48,59 @@ Phase 4 dependency inventory is tracked in [api-dependency-audit.md](api-depende
 
 `handler.py` 不再扩展长 `if/elif` API 分支；未匹配 API 返回 404，非 API GET 继续走静态文件 fallback。
 
+## Task API Details
+
+### GET /api/tasks
+
+任务列表查询，支持 status + stage 双参数过滤。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `status` | string | null | 过滤任务终态：PENDING / SUCCESS / FAILED / SKIPPED / CANCELLED |
+| `stage` | string | null | 过滤处理环节（仅 status=PENDING 时有意义）：QUEUED / RUNNING / AWAIT_REVIEW / DONE |
+| `limit` | int | 20 | 每页条数 |
+| `offset` | int | 0 | 偏移量 |
+| `page` | int | null | 页码（优先于 offset） |
+| `format` | string | json | 输出格式：json / text |
+
+前端筛选映射：
+
+| 前端 Chip | status | stage |
+|-----------|--------|-------|
+| 全部 | - | - |
+| 排队中 | PENDING | QUEUED |
+| 处理中 | PENDING | RUNNING |
+| 待确认 | PENDING | AWAIT_REVIEW |
+| 失败 | FAILED | - |
+| 已完成 | SUCCESS + SKIPPED | - |
+
+注意：`SUCCESS + SKIPPED` 由前端分别请求后合并，后端单次查询只支持单个 status 值。
+
+### POST /api/tasks/{task_id}/classify-preview
+
+入库预览，返回分类结果但不执行文件操作。
+
+请求体：
+
+```json
+{
+  "dimensions": {"media_type": "tv", "season": "1"},
+  "filename": "Inception.2010.mkv"
+}
+```
+
+响应体：
+
+```json
+{
+  "import_path": "/vol1/影视/电视剧/盗梦空间/Season 1/",
+  "final_filename": "Inception.2010.mkv",
+  "full_path": "/vol1/影视/电视剧/盗梦空间/Season 1/Inception.2010.mkv",
+  "matched_rule": null,
+  "warnings": []
+}
+```
+
 ## Standards
 
 见 [../standards/api.md](../standards/api.md)。
