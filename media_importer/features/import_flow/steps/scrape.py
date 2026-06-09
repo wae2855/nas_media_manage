@@ -134,7 +134,6 @@ class ScrapeStepsMixin:
             return
 
         if decision.action == "needs_review":
-            task["status"] = "NEEDS_REVIEW"
             task["skip_reason"] = decision.reason
             task["_needs_review"] = True
             confidence = scraped.get('confidence', 0)

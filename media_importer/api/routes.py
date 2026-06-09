@@ -79,6 +79,7 @@ API_ROUTES = [
     _route("POST", "/api/tasks/{task_id}/retry", "_retry_task"),
     _route("POST", "/api/tasks/{task_id}/confirm", "_task_confirm"),
     _route("POST", "/api/tasks/{task_id}/reclassify", "_task_reclassify", pass_body=True),
+    _route("POST", "/api/tasks/{task_id}/classify-preview", "_task_classify_preview", pass_body=True),
     _route("POST", "/api/tasks/{task_id}/ignore", "_task_ignore"),
     _route("POST", "/api/tasks/{task_id}/rename", "_task_rename", pass_body=True),
     _route("POST", "/api/tasks/{task_id}/delete", "_delete_task", body_delete_files=True),

@@ -48,7 +48,8 @@ def reclassify_task_for_api(pipeline, task_id: str, dimensions: dict) -> TaskRev
 def confirm_all_tasks_for_api(
     pipeline,
     task_manager,
-    status: str = "CONFIRMING",
+    status: str = "PENDING",
+    stage: str = "AWAIT_REVIEW",
     limit: int = 1000,
 ) -> TaskReviewActionResult:
     if pipeline is None:
@@ -56,7 +57,7 @@ def confirm_all_tasks_for_api(
     if task_manager is None:
         return TaskReviewActionResult(code=500, message="TaskManager not initialized")
 
-    confirming_tasks = task_manager.list_tasks(status=status, limit=limit)
+    confirming_tasks = task_manager.list_tasks(status=status, limit=limit, stage=stage)
     results = []
     for task in confirming_tasks:
         task_id = task.get("task_id", "")

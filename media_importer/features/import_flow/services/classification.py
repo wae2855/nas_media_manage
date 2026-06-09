@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 
 from media_importer.features.configuration import ConfigView
@@ -63,3 +64,40 @@ class ClassificationService:
             )
             rules.append(f"规则{index + 1}: [{conditions_text}]")
         return "; ".join(rules) if rules else "无规则配置"
+
+    def preview_classify(self, task: dict, override_dimensions: dict = None,
+                         override_filename: str = None) -> dict:
+        """预览分类结果，不执行任何文件操作。"""
+        path_rules = self.config.paths.path_rules
+        scraped = task.get("scrape_result", {})
+        dimensions = override_dimensions if override_dimensions else task.get("scrape_dimensions", {})
+        dimensions_text = self._format_dimensions(dimensions)
+
+        import_path = classify(scraped, path_rules)
+        used_fallback = False
+        if not import_path:
+            fallback_dir = self.config.paths.fallback_dir
+            if fallback_dir:
+                import_path = render_template(fallback_dir, scraped)
+                used_fallback = True
+            if not import_path:
+                return {
+                    "import_path": "",
+                    "final_filename": "",
+                    "full_path": "",
+                    "matched_rule": None,
+                    "warnings": ["未匹配到任何入库规则"],
+                }
+
+        import_path = resolve_project_path(import_path, self.config)
+
+        final_filename = override_filename or task.get("final_filename", "") or task.get("source_filename", "")
+        full_path = os.path.join(import_path, final_filename) if import_path and final_filename else ""
+
+        return {
+            "import_path": import_path,
+            "final_filename": final_filename,
+            "full_path": full_path,
+            "matched_rule": None,
+            "warnings": [],
+        }

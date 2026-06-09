@@ -60,7 +60,9 @@ def ignore_task_for_api(task_manager, config: dict, task_id: str) -> TaskFileLif
         return TaskFileLifecycleResult(code=404, message=f"Task not found: {task_id}")
 
     current_status = task.get("status", "")
-    if current_status not in ("FAILED", "CONFIRMING"):
+    current_stage = task.get("stage", "")
+    allowed = (current_status == "FAILED") or (current_status == "PENDING" and current_stage == "AWAIT_REVIEW")
+    if not allowed:
         return TaskFileLifecycleResult(code=400, message=f"当前状态不可忽略: {current_status}")
 
     source_policy = config.get("source_policy", {}) if config else {}
@@ -144,6 +146,7 @@ def _ignore_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, rec
             task_manager.conn,
             task_id,
             status="SKIPPED",
+            stage="DONE",
             skip_reason="用户忽略",
             file_location="recycle",
             video_path="",
@@ -154,6 +157,7 @@ def _ignore_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, rec
             task_manager.conn,
             task_id,
             status="SKIPPED",
+            stage="DONE",
             skip_reason="用户忽略",
             file_location="source",
             video_path="",
@@ -169,6 +173,7 @@ def _ignore_non_temp_task(task_manager, task: dict, task_id: str, cleanup: bool,
             task_manager.conn,
             task_id,
             status="SKIPPED",
+            stage="DONE",
             skip_reason="用户忽略",
             error_message=f"已移入回收站: {recycle_dir}",
         )
@@ -177,6 +182,7 @@ def _ignore_non_temp_task(task_manager, task: dict, task_id: str, cleanup: bool,
             task_manager.conn,
             task_id,
             status="SKIPPED",
+            stage="DONE",
             skip_reason="用户忽略",
         )
 

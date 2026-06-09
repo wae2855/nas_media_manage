@@ -17,8 +17,8 @@ from media_importer.features.import_flow.utils import PipelineError, PipelineSki
 class ConfirmMixin:
     def confirm_task(self, task_id: str) -> bool:
         task = self.task_manager.get_task(task_id)
-        if not task or task.get("status") != "CONFIRMING":
-            raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN')}")
+        if not task or task.get("stage") != "AWAIT_REVIEW":
+            raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN')}/{task.get('stage', '')}")
         ctx = TaskContext(task)
         tid = task_id
         original_source_video = task.get("source_path", "")

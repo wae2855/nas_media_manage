@@ -77,6 +77,14 @@ def _migrate_schema(conn: sqlite3.Connection):
         conn.execute("UPDATE tasks SET status='SKIPPED' WHERE status='DUPLICATE_REVIEW'")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='FAILED' AND import_success=0")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='SKIPPED'")
+        if "stage" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN stage TEXT DEFAULT 'QUEUED'")
+            conn.execute("UPDATE tasks SET status='CONFIRMING' WHERE status='NEEDS_REVIEW'")
+            conn.execute("UPDATE tasks SET stage='QUEUED' WHERE status='PENDING'")
+            conn.execute("UPDATE tasks SET stage='RUNNING' WHERE status='PROCESSING'")
+            conn.execute("UPDATE tasks SET stage='AWAIT_REVIEW' WHERE status='CONFIRMING'")
+            conn.execute("UPDATE tasks SET stage='DONE' WHERE status IN ('SUCCESS','FAILED','SKIPPED')")
+            conn.execute("UPDATE tasks SET status='PENDING' WHERE status IN ('PROCESSING','CONFIRMING')")
     if "dimensions" in tables:
         dim_existing = {row[1] for row in conn.execute("PRAGMA table_info(dimensions)").fetchall()}
         if "default_value_list" not in dim_existing:

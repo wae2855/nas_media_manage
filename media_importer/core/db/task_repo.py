@@ -96,18 +96,22 @@ def find_by_fingerprint(conn: sqlite3.Connection, fingerprint: str,
 
 
 def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
-               status: str = None) -> tuple:
+               status: str = None, stage: str = None) -> tuple:
     offset = (page - 1) * page_size
     conditions = []
     params = []
     if status:
         status = status.strip().upper()
     if status and status != "ALL" and status in VALID_STATUSES:
-        conditions.append("status=?")
+        conditions.append("t.status=?")
         params.append(status)
+    if stage:
+        stage = stage.strip().upper()
+        conditions.append("t.stage=?")
+        params.append(stage)
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
-    count_sql = "SELECT COUNT(*) FROM tasks" + where_clause
-    data_sql = ("SELECT t.task_id, t.source_path, t.source_filename, t.status, "
+    count_sql = "SELECT COUNT(*) FROM tasks t" + where_clause
+    data_sql = ("SELECT t.task_id, t.source_path, t.source_filename, t.status, t.stage, "
                 "t.percentage, t.file_size_mb, t.retry_count, "
                 "t.scrape_title_cn, t.scrape_title_en, t.scrape_year, "
                 "t.scrape_media_type, t.scrape_season, t.scrape_episode, "
@@ -138,7 +142,7 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
 def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
     valid_columns = {
         "source_path", "source_filename", "file_size_mb", "status",
-        "retry_count", "created_at", "started_at", "completed_at",
+        "stage", "retry_count", "created_at", "started_at", "completed_at",
         "last_seen_at", "current_step", "total_steps", "step_name",
         "percentage", "bytes_copied", "total_bytes",
         "scrape_result", "scrape_title_cn", "scrape_title_en",
@@ -216,7 +220,7 @@ def clear_tasks(conn: sqlite3.Connection, status: str = None) -> int:
 def has_running_tasks(conn: sqlite3.Connection) -> bool:
     with _sqlite_conn_lock:
         cur = conn.execute(
-            "SELECT COUNT(*) FROM tasks WHERE status IN ('PROCESSING')"
+            "SELECT COUNT(*) FROM tasks WHERE status='PENDING' AND stage='RUNNING'"
         )
         return cur.fetchone()[0] > 0
 
@@ -242,7 +246,7 @@ def find_failed_too_many(conn: sqlite3.Connection, max_retries: int) -> list:
 def get_next_pending(conn: sqlite3.Connection) -> dict:
     with _sqlite_conn_lock:
         cur = conn.execute(
-            "SELECT task_id FROM tasks WHERE status='PENDING' ORDER BY created_at ASC LIMIT 1"
+            "SELECT task_id FROM tasks WHERE status='PENDING' AND stage='QUEUED' ORDER BY created_at ASC LIMIT 1"
         )
         row = cur.fetchone()
     if row is None:

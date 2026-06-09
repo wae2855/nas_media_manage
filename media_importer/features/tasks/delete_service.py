@@ -18,7 +18,8 @@ def delete_task(task_manager, config: dict, task_id: str, delete_files: bool = F
         return DeleteTaskResult(404, f"Task not found: {task_id}")
 
     current_status = task.get("status", "")
-    if current_status == "PROCESSING":
+    current_stage = task.get("stage", "")
+    if current_status == "PENDING" and current_stage == "RUNNING":
         return DeleteTaskResult(400, "任务正在处理中，无法删除，请等待处理完成")
 
     deleted_files = []

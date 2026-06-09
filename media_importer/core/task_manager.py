@@ -99,7 +99,8 @@ class TaskManager:
             )
 
     def list_tasks(self, status: str = None, limit: int = 20,
-                   offset: int = 0, exclude_completed: bool = None) -> list:
+                   offset: int = 0, exclude_completed: bool = None,
+                   stage: str = None) -> list:
         page = (offset // limit) + 1 if limit > 0 else 1
         page_size = limit
         if exclude_completed is True and not status:
@@ -108,12 +109,11 @@ class TaskManager:
             )
             result = []
             for r in rows:
-                if r["status"] in ("PENDING", "PROCESSING", "FAILED",
-                                   "CONFIRMING"):
+                if r["status"] in ("PENDING", "FAILED"):
                     result.append(r)
             return result[offset:offset + limit]
         rows, _, _ = db_list_tasks(
-            self.conn, page=page, page_size=page_size, status=status
+            self.conn, page=page, page_size=page_size, status=status, stage=stage
         )
         return rows
 
@@ -154,13 +154,14 @@ class TaskManager:
                 fp_hit = db_find_by_fingerprint(self.conn, source_fingerprint)
                 if fp_hit:
                     old_status = fp_hit.get("status", "")
-                    if old_status in ("PROCESSING", "CONFIRMING"):
+                    old_stage = fp_hit.get("stage", "")
+                    if old_status == "PENDING" and old_stage in ("RUNNING", "AWAIT_REVIEW"):
                         return {
                             "exists": True,
                             "task_id": fp_hit["task_id"],
                             "old_status": old_status,
                             "action": "SKIP",
-                            "reason": f"指纹匹配到正在处理的任务 ({old_status})",
+                            "reason": f"指纹匹配到正在处理的任务 ({old_status}/{old_stage})",
                         }
                     if old_status == "SUCCESS":
                         return {
@@ -178,13 +179,14 @@ class TaskManager:
                 "reason": "新文件，无历史记录",
             }
         old_status = history.get("status", "")
-        if old_status in ("PROCESSING", "CONFIRMING"):
+        old_stage = history.get("stage", "")
+        if old_status == "PENDING" and old_stage in ("RUNNING", "AWAIT_REVIEW"):
             return {
                 "exists": True,
                 "task_id": history["task_id"],
                 "old_status": old_status,
                 "action": "SKIP",
-                "reason": f"任务正在处理/待确认，跳过 ({old_status})",
+                "reason": f"任务正在处理/待确认，跳过 ({old_status}/{old_stage})",
             }
         if old_status == "SUCCESS" and self._is_file_changed(source_path, history):
             current_size = os.path.getsize(source_path) if os.path.isfile(source_path) else 0

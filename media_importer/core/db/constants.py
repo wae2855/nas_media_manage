@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     source_filename TEXT NOT NULL,
     file_size_mb REAL DEFAULT 0,
     status TEXT DEFAULT 'PENDING',
+    stage TEXT DEFAULT 'QUEUED',
     retry_count INTEGER DEFAULT 0,
     created_at TEXT,
     started_at TEXT,
@@ -334,5 +335,5 @@ DEFAULT_DIMENSIONS = [
 ]
 
 VALID_STATUSES = [
-    "PENDING", "PROCESSING", "SUCCESS", "FAILED", "SKIPPED", "CONFIRMING", "NEEDS_REVIEW",
+    "PENDING", "SUCCESS", "FAILED", "SKIPPED", "CANCELLED",
 ]

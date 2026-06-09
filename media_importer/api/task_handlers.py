@@ -18,6 +18,7 @@ from media_importer.features.tasks import (
     retry_all_failed_for_api,
     retry_task_for_api,
 )
+from media_importer.features.import_flow.services.classification import ClassificationService
 from media_importer.api import globals
 from .task_delete import delete_task
 from .utils import json_response
@@ -83,6 +84,20 @@ class TaskHandlersMixin:
             body.get("dimensions", {}),
         )
         json_response(self, result.code, data=result.data, message=result.message)
+
+    def _task_classify_preview(self, task_id: str, body: dict):
+        task = get_task_for_api(globals._global_task_manager, task_id) if globals._global_task_manager else None
+        if not task or task.code != 200:
+            json_response(self, 404, message=f"Task not found: {task_id}")
+            return
+        task_data = task.data.get("task", {})
+        svc = ClassificationService(globals._config or {})
+        result = svc.preview_classify(
+            task_data,
+            override_dimensions=body.get("dimensions"),
+            override_filename=body.get("filename"),
+        )
+        json_response(self, 200, data=result)
 
     def _task_ignore(self, task_id: str):
         result = ignore_task_for_api(

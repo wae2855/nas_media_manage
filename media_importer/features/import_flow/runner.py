@@ -283,7 +283,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 self.notifier.notify_batch_start(source_dir, video_count, subtitle_count)
 
         batch_stats = {
-            "PROCESSING": 0, "SUCCESS": 0, "FAILED": 0, "SKIPPED": 0,
+            "PENDING": 0, "SUCCESS": 0, "FAILED": 0, "SKIPPED": 0,
             "total": 0, "subtitle_count": 0, "video_count": 0,
         }
 

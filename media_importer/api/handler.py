@@ -148,9 +148,11 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
 
     for task in all_tasks:
         status = task.get("status", "")
+        stage = task.get("stage", "")
         tid = task.get("task_id", "")
 
-        if status == "PROCESSING":
+        # 旧 PROCESSING 任务 → 重置为 QUEUED
+        if status == "PROCESSING" or (status == "PENDING" and stage == "RUNNING"):
             temp_video = task.get("video_path", "")
             if temp_video and os.path.exists(temp_video):
                 try:
@@ -166,11 +168,13 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
                     except OSError:
                         pass
             db_update_task(task_manager.conn, tid,
-                           status="PENDING", file_location="source",
+                           status="PENDING", stage="QUEUED",
+                           file_location="source",
                            video_path="", current_step=0, percentage=0)
             reset_count += 1
 
-        elif status == "CONFIRMING":
+        # 旧 CONFIRMING / AWAIT_REVIEW 任务 → 保护 temp 文件不被清理
+        elif status == "CONFIRMING" or (status == "PENDING" and stage == "AWAIT_REVIEW"):
             temp_video = task.get("video_path", "")
             if temp_video:
                 active_temp_files.add(os.path.abspath(temp_video))

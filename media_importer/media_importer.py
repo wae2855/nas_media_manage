@@ -84,10 +84,10 @@ def cmd_list(args):
     status_map = {
         "all": None,
         "pending": "PENDING",
-        "processing": "PROCESSING",
-        "success": "SUCCESS",
         "failed": "FAILED",
-        "skipped": "SKIPPED"
+        "success": "SUCCESS",
+        "skipped": "SKIPPED",
+        "cancelled": "CANCELLED",
     }
     status = status_map.get(args.status, None)
     tasks = task_manager.list_tasks(status=status, limit=args.limit)
@@ -99,8 +99,8 @@ def cmd_list(args):
         print(f"{task.status:<12} {task.task_id:<14} {task.video_file:<40} {pct:<8} {task.retry_count}x")
 
     counts = task_manager.count_by_status()
-    print(f"\n统计: PENDING={counts.get('PENDING',0)} PROCESSING={counts.get('PROCESSING',0)} "
-          f"SUCCESS={counts.get('SUCCESS',0)} FAILED={counts.get('FAILED',0)} SKIPPED={counts.get('SKIPPED',0)}")
+    print(f"\n统计: PENDING={counts.get('PENDING',0)} SUCCESS={counts.get('SUCCESS',0)} "
+          f"FAILED={counts.get('FAILED',0)} SKIPPED={counts.get('SKIPPED',0)}")
 
 
 def cmd_show(args):
@@ -160,7 +160,6 @@ def cmd_queue(args):
     counts = task_manager.count_by_status()
     print("\n队列状态:")
     print(f"  PENDING:    {counts.get('PENDING', 0)}")
-    print(f"  PROCESSING: {counts.get('PROCESSING', 0)}")
     print(f"  SUCCESS:    {counts.get('SUCCESS', 0)}")
     print(f"  FAILED:     {counts.get('FAILED', 0)}")
     print(f"  SKIPPED:    {counts.get('SKIPPED', 0)}")
@@ -174,10 +173,10 @@ def cmd_clear(args):
     status_map = {
         "all": None,
         "pending": "PENDING",
-        "processing": "PROCESSING",
-        "success": "SUCCESS",
         "failed": "FAILED",
-        "skipped": "SKIPPED"
+        "success": "SUCCESS",
+        "skipped": "SKIPPED",
+        "cancelled": "CANCELLED",
     }
     status = status_map.get(args.status, None)
     task_manager.clear_tasks(status=status)
@@ -279,7 +278,6 @@ def cmd_metrics(args):
     print(f"  运行时间:   {metrics.uptime}")
     print(f"\n队列状态:")
     print(f"  待处理:     {counts.get('PENDING', 0)}")
-    print(f"  处理中:     {counts.get('PROCESSING', 0)}")
     print()
 
 

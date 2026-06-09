@@ -1,13 +1,25 @@
 from datetime import datetime
 
 
+# --- 任务终态（status） ---
 STATUS_PENDING = "PENDING"
-STATUS_PROCESSING = "PROCESSING"
-STATUS_CONFIRMING = "CONFIRMING"
-STATUS_NEEDS_REVIEW = "NEEDS_REVIEW"
 STATUS_FAILED = "FAILED"
 STATUS_SKIPPED = "SKIPPED"
 STATUS_SUCCESS = "SUCCESS"
+STATUS_CANCELLED = "CANCELLED"
+
+# 旧状态常量保留为向后兼容别名
+STATUS_PROCESSING = "PENDING"       # 旧 PROCESSING → 现在由 stage=RUNNING 表达
+STATUS_CONFIRMING = "PENDING"       # 旧 CONFIRMING → 现在由 stage=AWAIT_REVIEW 表达
+STATUS_NEEDS_REVIEW = "PENDING"     # 旧 NEEDS_REVIEW → 现在由 stage=AWAIT_REVIEW 表达
+
+# --- 处理环节（stage，仅 status=PENDING 时有意义） ---
+STAGE_QUEUED = "QUEUED"
+STAGE_RUNNING = "RUNNING"
+STAGE_AWAIT_REVIEW = "AWAIT_REVIEW"
+STAGE_DONE = "DONE"
+
+VALID_STAGES = [STAGE_QUEUED, STAGE_RUNNING, STAGE_AWAIT_REVIEW, STAGE_DONE]
 
 CONFIRM_NONE = "NONE"
 CONFIRM_PENDING = "PENDING"
@@ -48,7 +60,8 @@ def current_video_path(task) -> str:
 def start_processing(task, *, started_at: str = None) -> dict:
     return _apply(
         task,
-        status=STATUS_PROCESSING,
+        status=STATUS_PENDING,
+        stage=STAGE_RUNNING,
         started_at=started_at or _now(),
     )
 
@@ -57,7 +70,8 @@ def mark_processing_step(task, *, current_step: int, step_name: str,
                          percentage: int) -> dict:
     return _apply(
         task,
-        status=STATUS_PROCESSING,
+        status=STATUS_PENDING,
+        stage=STAGE_RUNNING,
         current_step=current_step,
         step_name=step_name,
         percentage=percentage,
@@ -83,7 +97,8 @@ def mark_confirmed(task, *, confirmed_at: str = None) -> dict:
 def mark_confirming(task, reason=_NO_FIELD, *, video_path: str = None) -> dict:
     return _apply(
         task,
-        status=STATUS_CONFIRMING,
+        status=STATUS_PENDING,
+        stage=STAGE_AWAIT_REVIEW,
         confirm_status=CONFIRM_PENDING,
         video_path=video_path if video_path is not None else current_video_path(task),
         file_location=FILE_LOCATION_TEMP,
@@ -94,7 +109,8 @@ def mark_confirming(task, reason=_NO_FIELD, *, video_path: str = None) -> dict:
 def mark_needs_review(task, reason: str, *, video_path: str = None) -> dict:
     return _apply(
         task,
-        status=STATUS_NEEDS_REVIEW,
+        status=STATUS_PENDING,
+        stage=STAGE_AWAIT_REVIEW,
         error_message=reason,
         video_path=video_path if video_path is not None else current_video_path(task),
         file_location=FILE_LOCATION_TEMP,
@@ -106,6 +122,7 @@ def mark_failed(task, error_message: str, *, file_location: str = FILE_LOCATION_
     return _apply(
         task,
         status=STATUS_FAILED,
+        stage=STAGE_DONE,
         error_message=error_message,
         completed_at=_now() if completed else _NO_FIELD,
         file_location=file_location,
@@ -118,6 +135,7 @@ def mark_skipped(task, reason: str, *, file_location: str = FILE_LOCATION_SOURCE
     return _apply(
         task,
         status=STATUS_SKIPPED,
+        stage=STAGE_DONE,
         skip_reason=reason,
         completed_at=_now(),
         file_location=file_location,
@@ -129,6 +147,7 @@ def mark_imported(task, *, import_video_path: str = None) -> dict:
     return _apply(
         task,
         status=STATUS_SUCCESS,
+        stage=STAGE_DONE,
         completed_at=_now(),
         import_success=1,
         file_location=FILE_LOCATION_IMPORT,
@@ -142,6 +161,7 @@ def reset_for_retry(task) -> dict:
     return _apply(
         task,
         status=STATUS_PENDING,
+        stage=STAGE_QUEUED,
         retry_count=data.get("retry_count", 0) + 1,
         error_code=0,
         error_message="",

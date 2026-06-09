@@ -69,12 +69,12 @@ def format_tasks_to_text(json_data: dict) -> str:
                 return "成功"
             if s == "FAILED":
                 return "失败"
-            if s == "PROCESSING":
-                return "处理中"
             if s == "PENDING":
                 return "待处理"
             if s == "SKIPPED":
                 return "跳过"
+            if s == "CANCELLED":
+                return "已取消"
             return s
 
         def format_error(msg, max_len=20):

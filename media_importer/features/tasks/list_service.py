@@ -15,6 +15,7 @@ class TaskListResult:
 
 def list_tasks_for_api(query: dict, task_manager, logger=None) -> TaskListResult:
     status = query.get("status", [None])[0]
+    stage = query.get("stage", [None])[0]
     limit = int(query.get("limit", [20])[0])
     offset = int(query.get("offset", [0])[0])
     page = query.get("page", [None])[0]
@@ -32,6 +33,9 @@ def list_tasks_for_api(query: dict, task_manager, logger=None) -> TaskListResult
     if status and status == "ALL":
         status = None
 
+    if stage:
+        stage = stage.strip().upper()
+
     if page is not None:
         page_num = int(page)
         page_size = limit
@@ -44,11 +48,12 @@ def list_tasks_for_api(query: dict, task_manager, logger=None) -> TaskListResult
         page=page_num,
         page_size=page_size,
         status=status,
+        stage=stage,
     )
     counts = task_manager.count_by_status()
     active_count = sum(
         counts.get(status_name, 0)
-        for status_name in ("PENDING", "PROCESSING", "FAILED", "CONFIRMING")
+        for status_name in ("PENDING", "FAILED")
     )
 
     return TaskListResult(
