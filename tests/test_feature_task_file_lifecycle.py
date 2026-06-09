@@ -184,7 +184,8 @@ def test_ignore_temp_task_cleans_temp_files_and_recycles_source(tmp_path, monkey
     source_video.write_text("source video")
     task = {
         "task_id": "task-1",
-        "status": "CONFIRMING",
+        "status": "PENDING",
+        "stage": "AWAIT_REVIEW",
         "file_location": "temp",
         "video_path": str(temp_video),
         "source_path": str(source_video),
@@ -232,6 +233,7 @@ def test_ignore_temp_task_cleans_temp_files_and_recycles_source(tmp_path, monkey
     assert task_updates == [
         {
             "status": "SKIPPED",
+            "stage": "DONE",
             "skip_reason": "用户忽略",
             "file_location": "recycle",
             "video_path": "",
@@ -249,7 +251,8 @@ def test_ignore_temp_task_does_not_delete_files_outside_temp_dir(tmp_path, monke
     outside_video.write_text("outside")
     task = {
         "task_id": "task-1",
-        "status": "CONFIRMING",
+        "status": "PENDING",
+        "stage": "AWAIT_REVIEW",
         "file_location": "temp",
         "video_path": str(outside_video),
         "source_path": "",
@@ -317,6 +320,7 @@ def test_ignore_source_task_recycles_source_when_cleanup_enabled(tmp_path, monke
     assert task_updates == [
         {
             "status": "SKIPPED",
+            "stage": "DONE",
             "skip_reason": "用户忽略",
             "error_message": f"已移入回收站: {recycle_dir}",
         }

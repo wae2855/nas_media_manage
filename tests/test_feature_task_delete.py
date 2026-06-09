@@ -13,7 +13,7 @@ class FakeTaskManager:
 
 
 def test_delete_task_rejects_processing_task():
-    task_manager = FakeTaskManager({"task_id": "t1", "status": "PROCESSING"})
+    task_manager = FakeTaskManager({"task_id": "t1", "status": "PENDING", "stage": "RUNNING"})
 
     result = delete_task(task_manager, {}, "t1")
 

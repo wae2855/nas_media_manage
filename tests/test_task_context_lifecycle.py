@@ -247,7 +247,7 @@ class TestTaskLifecycle(unittest.TestCase):
 
         fields = mark_needs_review(task, "来源不可信")
 
-        self.assertEqual(fields["status"], "NEEDS_REVIEW")
+        self.assertEqual(fields["status"], "PENDING")
         self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
         self.assertEqual(fields["video_path"], "/temp/movie.mkv")
 

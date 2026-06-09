@@ -34,13 +34,17 @@
 
 ## Tests
 
+- `tests/test_task_context_lifecycle.py` — legacy lifecycle transition contract tests.
+- `tests/test_stage_lifecycle.py` — stage transition unit tests for status+stage dual model.
+- `tests/test_stage_db_migration.py` — DB migration tests for stage column.
+- `tests/test_classify_preview.py` — classify-preview API unit and integration tests.
 - Task manager and lifecycle tests.
 - `tests/test_feature_task_detail.py` covers detail, subtitles, and stats feature responses.
 - Import flow tests that assert state transitions.
 - `tests/test_feature_task_queue.py` covers queue service behavior without starting real background workers.
 - `tests/test_feature_task_review.py` covers manual review action behavior with fake pipeline/task manager objects.
 - `tests/test_feature_task_file_lifecycle.py` covers task file rename behavior, filename safety checks, ignore cleanup, recycle handoff, and invalid status handling.
-- API task tests.
+- `tests/test_feature_task_list.py` covers pagination, status validation, and active-count assembly.
 
 ## Migration Notes
 

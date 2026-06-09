@@ -39,10 +39,11 @@ def test_list_tasks_for_api_builds_pagination_payload():
         page=3,
         page_size=10,
         status="PENDING",
+        stage=None,
     )
     assert result.code == 200
     assert result.data["tasks"] == [{"task_id": "t1"}]
-    assert result.data["active_count"] == 10
+    assert result.data["active_count"] == 4
 
 
 def test_list_tasks_for_api_rejects_invalid_status():

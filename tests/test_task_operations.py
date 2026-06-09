@@ -201,14 +201,14 @@ class TestTaskOperations(unittest.TestCase):
         self.assertEqual(result["action"], "CREATE")
 
     def test_check_source_duplicate_processing_file(self):
-        self._create_task(status="PROCESSING", source_path="/test/processing.mkv",
+        self._create_task(status="PENDING", stage="RUNNING", source_path="/test/processing.mkv",
                           source_filename="processing.mkv")
         result = self.tm.check_source_duplicate("/test/processing.mkv")
         self.assertTrue(result["exists"])
         self.assertEqual(result["action"], "SKIP")
 
     def test_check_source_duplicate_confirming_file(self):
-        self._create_task(status="CONFIRMING", source_path="/test/confirming.mkv",
+        self._create_task(status="PENDING", stage="AWAIT_REVIEW", source_path="/test/confirming.mkv",
                           source_filename="confirming.mkv")
         result = self.tm.check_source_duplicate("/test/confirming.mkv")
         self.assertTrue(result["exists"])
@@ -404,13 +404,13 @@ class TestAPIOperations(unittest.TestCase):
 
     def test_api_confirm_all_finds_confirming_tasks(self):
         for i in range(3):
-            self._create_task(status="CONFIRMING", confirm_status="PENDING",
+            self._create_task(status="PENDING", stage="AWAIT_REVIEW", confirm_status="PENDING",
                               source_path=f"/test/confirm_{i}.mkv",
                               source_filename=f"confirm_{i}.mkv")
         self._create_task(status="PENDING",
                           source_path="/test/pending.mkv",
                           source_filename="pending.mkv")
-        confirming = self.tm.list_tasks(status="CONFIRMING", limit=1000)
+        confirming = self.tm.list_tasks(status="PENDING", stage="AWAIT_REVIEW", limit=1000)
         self.assertEqual(len(confirming), 3)
 
     def test_api_list_tasks_pagination_params(self):

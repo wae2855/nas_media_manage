@@ -20,8 +20,8 @@ class FakeTaskManager:
             return self.task
         return None
 
-    def list_tasks(self, status=None, limit=20):
-        self.list_args = {"status": status, "limit": limit}
+    def list_tasks(self, status=None, stage=None, limit=20):
+        self.list_args = {"status": status, "stage": stage, "limit": limit}
         return self.confirming_tasks
 
 
@@ -122,7 +122,7 @@ def test_confirm_all_tasks_returns_success_and_failure_counts():
         "failed": 2,
     }
     assert result.message == "批量确认完成: 成功 1, 失败 2"
-    assert task_manager.list_args == {"status": "CONFIRMING", "limit": 1000}
+    assert task_manager.list_args == {"status": "PENDING", "stage": "AWAIT_REVIEW", "limit": 1000}
 
 
 def test_confirm_all_tasks_requires_task_manager():
