@@ -238,7 +238,6 @@ class TMDbHandlersMixin:
             json_response(self, 400, message="请输入视频文件名")
             return
 
-        from media_importer.features.scraping import LLMScraper
         from media_importer.features.scraping import MetadataScraper
         from media_importer.features.scraping import FilenameCleaner
         from media_importer.features.providers import create_providers
@@ -246,84 +245,83 @@ class TMDbHandlersMixin:
         logger = globals._global_logger
         cleaner = FilenameCleaner()
         clean_result = cleaner.clean(filename)
-
-        ai_result = None
-        provider_ai_result = None
-        ai_elapsed = 0
-        provider_ai_elapsed = 0
         providers = create_providers(globals._config)
         provider_enabled = bool(providers)
-        preview_timeout = 60
+        current_mode = "hybrid"
+        if globals._config:
+            current_mode = globals._config.get("metadata", {}).get("scrape_mode", "hybrid")
+
+        llm_config = globals._config.get("llm", {}) if globals._config else {}
+        llm_timeout = int(llm_config.get("timeout", 30))
+        llm_max_retries = int(llm_config.get("max_retries", 2))
+        preview_timeout = (llm_max_retries + 1) * llm_timeout + 15
 
         if logger:
-            logger.info(f"[scrape_preview] 开始: filename={filename}, provider_enabled={provider_enabled}")
+            logger.info(
+                f"[scrape_preview] 开始: filename={filename}, "
+                f"provider_enabled={provider_enabled}, current_mode={current_mode}"
+            )
 
-        def _run_ai_only():
+        def _run_mode(mode_key):
             try:
                 if logger:
-                    logger.info("[scrape_preview] 纯AI刮削开始")
-                llm_scraper = LLMScraper(globals._config)
-                t0 = time.time()
-                result = llm_scraper.scrape(filename)
-                elapsed = round(time.time() - t0, 2)
-                if logger:
-                    logger.info(f"[scrape_preview] 纯AI刮削完成: {elapsed}s")
-                return result, elapsed
-            except Exception as e:
-                if logger:
-                    logger.error(f"[scrape_preview] 纯AI刮削异常: {e}")
-                return {"error": str(e)}, 0
-
-        def _run_provider_ai():
-            try:
-                if logger:
-                    logger.info("[scrape_preview] Provider+AI刮削开始")
+                    logger.info(f"[scrape_preview] {mode_key} 开始")
                 metadata_scraper = MetadataScraper(globals._config)
                 conn = getattr(globals._global_task_manager, 'conn', None) if globals._global_task_manager else None
                 t0 = time.time()
-                result = metadata_scraper.scrape(filename, conn=conn)
+                result = metadata_scraper.scrape(filename, conn=conn, force_mode=mode_key)
                 elapsed = round(time.time() - t0, 2)
                 if logger:
-                    logger.info(f"[scrape_preview] Provider+AI刮削完成: {elapsed}s")
+                    logger.info(f"[scrape_preview] {mode_key} 完成: {elapsed}s")
                 return result, elapsed
             except Exception as e:
                 if logger:
-                    logger.error(f"[scrape_preview] Provider+AI刮削异常: {e}")
+                    logger.error(f"[scrape_preview] {mode_key} 异常: {e}")
                 return {"error": str(e)}, 0
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            futures = {}
-            futures['ai'] = executor.submit(_run_ai_only)
-            if provider_enabled:
-                futures['provider'] = executor.submit(_run_provider_ai)
+        modes_result = {}
+        executor = ThreadPoolExecutor(max_workers=3)
+        try:
+            futures = {
+                "provider_first": executor.submit(_run_mode, "provider_first"),
+                "ai_only": executor.submit(_run_mode, "ai_only"),
+                "hybrid": executor.submit(_run_mode, "hybrid"),
+            }
 
-            for key, future in futures.items():
+            for mode_key, future in futures.items():
                 try:
                     result, elapsed = future.result(timeout=preview_timeout)
-                    if key == 'ai':
-                        ai_result = result
-                        ai_elapsed = elapsed
-                    else:
-                        provider_ai_result = result
-                        provider_ai_elapsed = elapsed
+                    modes_result[mode_key] = {
+                        "result": result,
+                        "elapsed": elapsed,
+                    }
                 except FuturesTimeout:
                     if logger:
-                        logger.warning(f"[scrape_preview] {key} 超时 ({preview_timeout}s)")
-                    if key == 'ai':
-                        ai_result = {"error": f"纯 AI 刮削超时（{preview_timeout} 秒），请检查 LLM 连接配置"}
-                    else:
-                        provider_ai_result = {"error": f"Provider+AI 刮削超时（{preview_timeout} 秒），可能原因：元数据源 API 不可达或 LLM 响应过慢，请参考「纯 AI 刮削」结果"}
+                        logger.warning(f"[scrape_preview] {mode_key} 超时 ({preview_timeout}s)")
+                    modes_result[mode_key] = {
+                        "result": {"error": f"{mode_key} 刮削超时（{preview_timeout} 秒）"},
+                        "elapsed": preview_timeout,
+                    }
                 except Exception as e:
                     if logger:
-                        logger.error(f"[scrape_preview] {key} 异常: {e}")
-                    if key == 'ai':
-                        ai_result = {"error": str(e)}
-                    else:
-                        provider_ai_result = {"error": str(e)}
+                        logger.error(f"[scrape_preview] {mode_key} 异常: {e}")
+                    modes_result[mode_key] = {
+                        "result": {"error": str(e)},
+                        "elapsed": 0,
+                    }
+        finally:
+            executor.shutdown(wait=False)
+
+        for mode_data in modes_result.values():
+            self._decorate_scrape_preview_mode(mode_data)
+
+        recommendation = self._build_scrape_preview_recommendation(modes_result)
 
         if logger:
-            logger.info(f"[scrape_preview] 完成: ai={ai_elapsed}s, provider_ai={provider_ai_elapsed}s")
+            logger.info("[scrape_preview] 完成")
 
+        ai_only = modes_result.get("ai_only", {})
+        hybrid = modes_result.get("hybrid", {})
         json_response(self, 200, data={
             "filename": filename,
             "clean_result": {
@@ -334,8 +332,57 @@ class TMDbHandlersMixin:
                 "method": clean_result.method,
                 "removed_items": clean_result.removed_items,
             },
-            "ai_only": ai_result,
-            "ai_only_elapsed": ai_elapsed,
-            "provider_ai": provider_ai_result,
-            "provider_ai_elapsed": provider_ai_elapsed,
+            "modes": modes_result,
+            "current_mode": current_mode,
+            "recommendation": recommendation,
+            "ai_only": ai_only.get("result"),
+            "ai_only_elapsed": ai_only.get("elapsed", 0),
+            "provider_ai": hybrid.get("result"),
+            "provider_ai_elapsed": hybrid.get("elapsed", 0),
         })
+
+    def _decorate_scrape_preview_mode(self, mode_data: dict):
+        result = mode_data.get("result") or {}
+        trace = result.get("scrape_trace", {}) if isinstance(result, dict) else {}
+        confidence_detail = result.get("confidence_detail", {}) if isinstance(result, dict) else {}
+        if not confidence_detail:
+            confidence_calc = trace.get("confidence_calc", {}) if isinstance(trace, dict) else {}
+            confidence_detail = {
+                "formula": confidence_calc.get("formula", ""),
+                "final_confidence": confidence_calc.get("final_confidence", result.get("confidence", 0)),
+                "search_conf": result.get("confidence_search"),
+                "data_gate": result.get("confidence_data_gate"),
+                "detail": confidence_calc,
+            }
+        mode_data["confidence_detail"] = confidence_detail
+        mode_data["ai_invoked"] = trace.get("ai_invoked", False)
+        mode_data["ai_invoke_reason"] = trace.get("ai_invoke_reason")
+        mode_data["search_enhanced"] = result.get("search_enhanced", trace.get("search_enhanced", False))
+        mode_data["provider_type"] = result.get("provider_type", "")
+        mode_data["provider_id"] = result.get("provider_id", "")
+
+    def _build_scrape_preview_recommendation(self, modes_result: dict):
+        best_mode = None
+        best_confidence = -1
+        for mode_key in ("provider_first", "ai_only", "hybrid"):
+            result = modes_result.get(mode_key, {}).get("result", {})
+            if not isinstance(result, dict) or result.get("error"):
+                continue
+            confidence = result.get("confidence", 0)
+            if isinstance(confidence, (int, float)) and confidence > best_confidence:
+                best_confidence = confidence
+                best_mode = mode_key
+
+        if not best_mode:
+            return None
+
+        reasons = {
+            "provider_first": "置信度最高且优先使用 Provider，AI 调用最少，成本最低",
+            "ai_only": "纯 AI 刮削置信度最高，适合冷门影片或 Provider 数据不完整的场景",
+            "hybrid": "联合刮削置信度最高，数据最完整，但 API 调用成本较高",
+        }
+        return {
+            "best_mode": best_mode,
+            "best_confidence": round(best_confidence, 4),
+            "reason": reasons.get(best_mode, ""),
+        }

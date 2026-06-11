@@ -220,6 +220,7 @@ class ConfidenceEngine:
             dimensions=dim_results,
             final_confidence=final_confidence,
             llm_raw_confidence=llm_raw_confidence,
+            search_enhanced=scrape_result.get("search_enhanced", False),
         )
 
         veto = None
@@ -246,6 +247,19 @@ class ConfidenceEngine:
                 agg_method = self._config.get("aggregation_method", "geometric_mean")
                 data_conf = _aggregate(values, weights, agg_method)
 
+        confidence_detail = {
+            "formula": "T × R × data_gate",
+            "T": round(T, 4),
+            "R": round(R, 4),
+            "R_formula": R_formula,
+            "R_base": round(R_base, 4),
+            "total_results": total_results,
+            "search_conf": round(search_conf, 4),
+            "data_gate": data_gate,
+            "gate_blocked": gate_blocked is not None,
+            "final_confidence": final_confidence,
+        }
+
         return ConfidenceResult(
             final_confidence=final_confidence,
             search_conf=search_conf,
@@ -256,6 +270,7 @@ class ConfidenceEngine:
             llm_raw_confidence=llm_raw_confidence,
             dimensions=dim_results,
             scrape_trace=trace,
+            confidence_detail=confidence_detail,
         )
 
     def calculate_ai_only(
@@ -292,6 +307,7 @@ class ConfidenceEngine:
 
         trace = {
             "mode": "ai",
+            "search_enhanced": scrape_result.get("search_enhanced", False),
             "filename_clean": {
                 "original": clean_result.clean_title,
                 "clean_title": clean_result.clean_title,
@@ -322,6 +338,16 @@ class ConfidenceEngine:
             "final_confidence": final_confidence,
         }
 
+        confidence_detail = {
+            "formula": "objective_cap × data_gate",
+            "objective_cap": round(objective_cap, 4),
+            "clean_title": clean_result.clean_title,
+            "llm_title": llm_title,
+            "data_gate": data_gate,
+            "gate_blocked": gate_blocked is not None,
+            "final_confidence": final_confidence,
+        }
+
         return ConfidenceResult(
             final_confidence=final_confidence,
             search_conf=objective_cap,
@@ -329,6 +355,7 @@ class ConfidenceEngine:
             gate_blocked=gate_blocked,
             dimensions=dim_results,
             scrape_trace=trace,
+            confidence_detail=confidence_detail,
         )
 
     def _compute_ai_cap(self, clean_title: str, llm_title: str) -> float:

@@ -554,3 +554,337 @@
         grid-template-columns: 1fr;
     }
 }
+
+.sim-compare {
+    display: grid;
+    gap: 16px;
+}
+
+.sim-clean-summary {
+    padding: 14px 18px;
+    border: 1px solid rgba(234,191,99,0.14);
+    border-radius: var(--radius);
+    background: rgba(234,191,99,0.06);
+}
+
+.sim-clean-title {
+    color: var(--gold);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+}
+
+.sim-clean-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.sim-clean-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sim-clean-full {
+    grid-column: 1 / -1;
+}
+
+.sim-clean-label {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.sim-clean-value {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.sim-modes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.sim-mode-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius);
+    background: rgba(0,0,0,0.18);
+    overflow: hidden;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.sim-mode-card:hover {
+    border-color: rgba(255,255,255,0.14);
+}
+
+.sim-mode-current {
+    border-color: rgba(234,191,99,0.35);
+    box-shadow: 0 0 0 1px rgba(234,191,99,0.12);
+}
+
+.sim-mode-error {
+    border-color: rgba(239,68,68,0.25);
+}
+
+.sim-mode-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.sim-mode-icon {
+    display: inline-grid;
+    place-items: center;
+    min-width: 34px;
+    height: 28px;
+    border-radius: 999px;
+    background: rgba(234,191,99,0.12);
+    color: var(--gold);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.sim-mode-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.sim-mode-label {
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sim-mode-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(234,191,99,0.18);
+    color: var(--gold);
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.sim-mode-desc {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.sim-mode-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px 14px;
+    flex: 1;
+}
+
+.sim-mode-result {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sim-mode-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.sim-mode-fk {
+    color: var(--muted);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.sim-mode-fv {
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: right;
+    word-break: break-all;
+}
+
+.sim-mode-fv-sub {
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.sim-mode-dims {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.sim-mode-confidence {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 0 6px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.sim-mode-score {
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.sim-mode-decision {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.sim-mode-calc {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.15);
+    font-size: 11px;
+}
+
+.sim-mode-formula {
+    color: var(--gold-2);
+    font-weight: 700;
+    font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.sim-mode-calc-row {
+    color: var(--muted);
+    font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.sim-mode-detail-btn {
+    margin-top: 4px;
+    align-self: flex-start;
+    font-size: 11px;
+    padding: 4px 10px;
+}
+
+.sim-mode-ai-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sim-ai-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.sim-ai-tag-active {
+    background: rgba(139,92,246,0.15);
+    color: #A78BFA;
+}
+
+.sim-ai-tag-idle {
+    background: rgba(148,163,184,0.1);
+    color: #94A3B8;
+}
+
+.sim-ai-tag-reason {
+    background: rgba(148,163,184,0.08);
+    color: var(--muted);
+}
+
+.sim-ai-tag-search {
+    background: rgba(6,182,212,0.15);
+    color: #06B6D4;
+}
+
+.sim-ai-tag-local {
+    background: rgba(148,163,184,0.1);
+    color: #94A3B8;
+}
+
+.sim-mode-elapsed {
+    color: var(--muted);
+    font-size: 10px;
+    margin-top: auto;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.sim-mode-error-msg {
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(239,68,68,0.08);
+    color: #FCA5A5;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.sim-recommendation {
+    padding: 14px 18px;
+    border: 1px solid rgba(34,197,94,0.2);
+    border-radius: var(--radius);
+    background: rgba(34,197,94,0.06);
+}
+
+.sim-recommend-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.sim-recommend-head strong {
+    color: #22C55E;
+}
+
+.sim-recommend-body {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+@media (max-width: 1200px) {
+    .sim-modes-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .sim-clean-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .sim-modes-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .sim-clean-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .sim-mode-score {
+        font-size: 24px;
+    }
+}
+CSS; __tr_native_ec=$?; pwd -P >| '/var/folders/sb/7442zjc57l9_32xkn24gwnsw0000gn/T/agent-toolhost/jobs/job-c149752a81894224b16a6dda8ab96343/cwd.txt'; exit "$__tr_native_ec"

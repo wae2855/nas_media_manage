@@ -306,8 +306,8 @@ class MetadataScraper:
         return self._map_provider_dimensions(provider, details, conn)
 
     def scrape(self, video_filename: str, subtitle_filenames: List[str] = None,
-               conn=None) -> Dict[str, Any]:
-        return scrape_metadata(self, video_filename, subtitle_filenames, conn)
+               conn=None, force_mode: str = None) -> Dict[str, Any]:
+        return scrape_metadata(self, video_filename, subtitle_filenames, conn, force_mode=force_mode)
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
         return scrape_series_metadata(self, series_name)

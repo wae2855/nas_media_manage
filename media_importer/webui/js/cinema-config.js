@@ -130,22 +130,36 @@ function buildProvidersPayloadFor(providerType) {
 
 function buildLlmConfigPayload() {
     const currentLlm = currentConfigSnapshot?.llm || {};
-    const apiKeyValue = String(document.getElementById("cfg-llm_api_key-inline")?.value || "").trim();
-    return {
+    const apiKeyValue = String(document.getElementById("cfg-llm_api_key")?.value || "").trim();
+    const fastApiKeyValue = String(document.getElementById("cfg-llm_fast_api_key")?.value || "").trim();
+    const payload = {
         llm: {
-            provider: document.getElementById("cfg-llm_provider-inline")?.value || "openai",
+            // `enabled` field is ignored since 2026-06; AI availability is
+            // determined by api_key + base_url + model completeness.
+            enabled: true,
             api_key: apiKeyValue || currentLlm.api_key || "***",
-            base_url: String(document.getElementById("cfg-llm_base_url-inline")?.value || "").trim(),
-            model: String(document.getElementById("cfg-llm_model-inline")?.value || "").trim(),
-            fallback_model: String(document.getElementById("cfg-llm_fallback_model-inline")?.value || "").trim(),
-            fast_model: String(document.getElementById("cfg-llm_fast_model-inline")?.value || "").trim(),
-            timeout: Number(document.getElementById("cfg-llm_timeout-inline")?.value || 30) || 30,
-            max_retries: Number(document.getElementById("cfg-llm_max_retries-inline")?.value || 2) || 2,
-            retry_delay: Number(document.getElementById("cfg-llm_retry_delay-inline")?.value || 3) || 3,
-            confidence_threshold: Number(document.getElementById("cfg-llm_confidence_threshold-inline")?.value || 0.8) || 0.8,
-            verify_ssl: !!document.getElementById("cfg-llm_verify_ssl-inline")?.checked,
+            fast_api_key: fastApiKeyValue || currentLlm.fast_api_key || "***",
+            base_url: String(document.getElementById("cfg-llm_base_url")?.value || "").trim(),
+            model: String(document.getElementById("cfg-llm_model")?.value || "").trim(),
+            fallback_model: String(document.getElementById("cfg-llm_fallback_model")?.value || "").trim(),
+            fast_model: String(document.getElementById("cfg-llm_fast_model")?.value || "").trim(),
+            fast_base_url: String(document.getElementById("cfg-llm_fast_base_url")?.value || "").trim(),
+            source_cleaner_model: String(document.getElementById("cfg-llm_source_cleaner_model")?.value || "").trim(),
+            timeout: Number(document.getElementById("cfg-llm_timeout")?.value || 30) || 30,
+            max_retries: Number(document.getElementById("cfg-llm_max_retries")?.value || 2) || 2,
+            retry_delay: Number(document.getElementById("cfg-llm_retry_delay")?.value || 3) || 3,
+            confidence_threshold: Number(document.getElementById("cfg-llm_confidence_threshold")?.value || 0.8) || 0.8,
+            verify_ssl: !!document.getElementById("cfg-llm_verify_ssl")?.checked,
+            web_search: {
+                enabled: !!document.getElementById("cfg-llm_web_search_enabled")?.checked,
+            },
         },
     };
+    const sourceCleanerModel = document.getElementById("cfg-llm_source_cleaner_model")?.value?.trim();
+    if (sourceCleanerModel) {
+        payload.llm.source_cleaner_model = sourceCleanerModel;
+    }
+    return payload;
 }
 
 function buildServerConfigPayload() {
@@ -276,12 +290,8 @@ async function saveProvidersConfig(providerType = "") {
 
 async function saveLlmConfig() {
     const payload = buildLlmConfigPayload();
-    if (!payload.llm.base_url) {
-        showToast("接口地址为必填项");
-        return;
-    }
-    if (!payload.llm.model) {
-        showToast("主要模型ID为必填项");
+    if (!payload.llm.base_url && !payload.llm.model) {
+        showToast("AI 刮削接口地址为必填项");
         return;
     }
     const result = await requestApi("POST", "/config/section", {
@@ -289,6 +299,61 @@ async function saveLlmConfig() {
         data: payload,
     });
     showToast(result.message || "AI 配置已保存");
+    if (result.code === 200) {
+        await loadDirectoryConfig();
+    }
+}
+
+function buildScrapeModeConfigPayload() {
+    return {
+        metadata: {
+            scrape_mode: String(document.getElementById("cfg-metadata_scrape_mode")?.value || "hybrid").trim(),
+        },
+    };
+}
+
+async function saveScrapeModeConfig() {
+    const payload = buildScrapeModeConfigPayload();
+    const result = await requestApi("POST", "/config/section", {
+        section: "metadata.providers",
+        data: payload,
+    });
+    showToast(result.message || "刮削模式已保存");
+    if (result.code === 200) {
+        await loadDirectoryConfig();
+    }
+}
+
+async function saveAiAssistConfig() {
+    const payload = buildLlmConfigPayload();
+    const fastModel = String(document.getElementById("cfg-llm_fast_model")?.value || "").trim();
+    if (!fastModel) {
+        showToast("辅助模型ID为必填项");
+        return;
+    }
+    const result = await requestApi("POST", "/config/section", {
+        section: "llm",
+        data: payload,
+    });
+    showToast(result.message || "AI 辅助配置已保存");
+    if (result.code === 200) {
+        await loadDirectoryConfig();
+    }
+}
+
+async function saveAiScrapeConfig() {
+    const payload = buildLlmConfigPayload();
+    const model = String(document.getElementById("cfg-llm_model")?.value || "").trim();
+    const baseUrl = String(document.getElementById("cfg-llm_base_url")?.value || "").trim();
+    if (!model || !baseUrl) {
+        showToast("AI 刮削接口地址和模型ID为必填项");
+        return;
+    }
+    const result = await requestApi("POST", "/config/section", {
+        section: "llm",
+        data: payload,
+    });
+    showToast(result.message || "AI 刮削配置已保存");
     if (result.code === 200) {
         await loadDirectoryConfig();
     }
@@ -525,12 +590,11 @@ async function doProviderPreviewSearch() {
     let html = "";
     for (let i = 0; i < maxItems; i++) {
         const item = items[i];
-        const titleField = type === "tv" ? (item.name || item.original_name) : (item.title || item.original_title);
-        const origTitle = type === "tv" ? item.original_name : item.original_title;
-        const dateField = type === "tv" ? item.first_air_date : item.release_date;
-        const year = dateField ? dateField.substring(0, 4) : "";
-        const posterUrl = item.poster_path ? (`https://image.tmdb.org/t/p/w92${item.poster_path}`) : "";
-        const rating = item.vote_average != null ? item.vote_average.toFixed(1) : "--";
+        const titleField = item.title || item.name || item.original_title || item.original_name || "";
+        const origTitle = item.original_title || item.original_name || "";
+        const year = item.year || (item.release_date || item.first_air_date || "").substring(0, 4) || "";
+        const posterUrl = item.poster_url || (item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : "");
+        const rating = item.vote_average != null ? Number(item.vote_average).toFixed(1) : "--";
         let overview = item.overview || "";
         if (overview.length > 80) overview = overview.substring(0, 80) + "...";
 
@@ -712,13 +776,121 @@ async function testLlmConnection() {
     }
     showToast("正在测试 LLM 连通性...");
     const result = await requestApi("POST", "/config/test-llm", {
-        provider: payload.provider,
         api_key: payload.api_key,
         base_url: payload.base_url,
         model: payload.model,
     });
     const data = result.data || {};
     showToast(data.message || result.message || "LLM 测试已完成");
+}
+
+function openAiScrapeDemoModal() {
+    document.getElementById("ai-scrape-demo-modal").style.display = "flex";
+    document.getElementById("ai-scrape-demo-result").style.display = "none";
+    document.getElementById("ai-scrape-demo-loading").style.display = "none";
+}
+
+function closeAiScrapeDemoModal() {
+    document.getElementById("ai-scrape-demo-modal").style.display = "none";
+}
+
+function openAiAssistDemoModal() {
+    document.getElementById("ai-assist-demo-modal").style.display = "flex";
+    document.getElementById("ai-assist-demo-result").style.display = "none";
+    document.getElementById("ai-assist-demo-loading").style.display = "none";
+}
+
+function closeAiAssistDemoModal() {
+    document.getElementById("ai-assist-demo-modal").style.display = "none";
+}
+
+async function runAiScrapeDemo(scenario, demoFile) {
+    const resultArea = document.getElementById("ai-scrape-demo-result");
+    const loadingEl = document.getElementById("ai-scrape-demo-loading");
+    const resultTitle = document.getElementById("ai-scrape-demo-result-title");
+    const resultElapsed = document.getElementById("ai-scrape-demo-result-elapsed");
+    const resultBody = document.getElementById("ai-scrape-demo-result-body");
+
+    resultArea.style.display = "none";
+    loadingEl.style.display = "flex";
+
+    const payload = buildLlmConfigPayload();
+
+    try {
+        const result = await requestApi("POST", "/config/ai-demo", {
+            scenario: scenario,
+            demo_content: demoFile,
+            config_override: payload,
+        });
+        const data = result.data || {};
+
+        loadingEl.style.display = "none";
+        resultArea.style.display = "block";
+
+        const labels = { scrape: "电影刮削", series_scrape: "剧集刮削" };
+        resultTitle.textContent = (labels[scenario] || scenario) + " · " + demoFile;
+
+        let elapsedText = data.elapsed_ms != null ? (data.elapsed_ms + "ms") : "";
+        if (data.search_enhanced) {
+            elapsedText += " 🔍 联网搜索增强";
+        } else {
+            elapsedText += " 📴 纯本地分析";
+        }
+        resultElapsed.textContent = elapsedText;
+
+        if (data.success) {
+            resultBody.textContent = JSON.stringify(data.result, null, 2);
+        } else {
+            resultBody.textContent = "执行失败: " + (data.message || "未知错误");
+        }
+    } catch (e) {
+        loadingEl.style.display = "none";
+        resultArea.style.display = "block";
+        resultTitle.textContent = "执行异常";
+        resultElapsed.textContent = "";
+        resultBody.textContent = "请求异常: " + (e.message || e);
+    }
+}
+
+async function runAiAssistDemo(scenario, demoFile) {
+    const resultArea = document.getElementById("ai-assist-demo-result");
+    const loadingEl = document.getElementById("ai-assist-demo-loading");
+    const resultTitle = document.getElementById("ai-assist-demo-result-title");
+    const resultElapsed = document.getElementById("ai-assist-demo-result-elapsed");
+    const resultBody = document.getElementById("ai-assist-demo-result-body");
+
+    resultArea.style.display = "none";
+    loadingEl.style.display = "flex";
+
+    const payload = buildLlmConfigPayload();
+
+    try {
+        const result = await requestApi("POST", "/config/ai-demo", {
+            scenario: scenario,
+            demo_content: demoFile,
+            config_override: payload,
+        });
+        const data = result.data || {};
+
+        loadingEl.style.display = "none";
+        resultArea.style.display = "block";
+
+        const labels = { extract_title: "标题提取", source_cleaner: "源目录清理" };
+        resultTitle.textContent = (labels[scenario] || scenario) + " · " + demoFile;
+        resultElapsed.textContent = data.elapsed_ms != null ? (data.elapsed_ms + "ms") : "";
+
+        if (data.success) {
+            resultBody.textContent = JSON.stringify(data.result, null, 2);
+        } else {
+            resultBody.textContent = "执行失败: " + (data.message || "未知错误");
+        }
+    } catch (e) {
+        loadingEl.style.display = "none";
+        resultArea.style.display = "block";
+        resultTitle.textContent = "执行异常";
+        resultElapsed.textContent = "";
+        resultBody.textContent = "请求异常: " + (e.message || e);
+    }
 }
 
 async function testHermesConnection() {
@@ -801,30 +973,70 @@ function renderInlineProviderConfigs(providerDefs, savedProviders) {
     host.innerHTML = providerDefs.map((provider) => {
         const savedConfig = (savedProviders || []).find((item) => item.type === provider.type) || {};
         const enabled = savedConfig.enabled !== false && provider.enabled !== false;
+        const defaultCollapsed = String(provider.type || "").toLowerCase() === "tmdb";
+        const collapsedClass = defaultCollapsed ? " is-collapsed" : "";
         const mergedConfig = { ...(provider.config || {}), ...(savedConfig || {}) };
         const fields = ((provider.config_schema || {}).fields || []).map((field) => buildProviderField(provider.type, field, mergedConfig[field.key])).join("");
+        const statusText = enabled ? "已启用" : "未启用";
+        const statusClass = enabled ? "is-enabled" : "is-disabled-status";
         return `
-            <article class="provider-inline-card${enabled ? "" : " is-disabled"}" data-provider-card="${escapeHtml(provider.type)}">
-                <div class="provider-inline-head">
-                    <div>
-                        <strong>${escapeHtml(provider.display_name || provider.type)}</strong>
+            <article class="provider-inline-card${enabled ? "" : " is-disabled"}${collapsedClass}" data-provider-card="${escapeHtml(provider.type)}">
+                <div class="provider-inline-head" data-toggle-provider-card="${escapeHtml(provider.type)}">
+                    <div class="provider-inline-head-main">
+                        <div class="provider-inline-title-row">
+                            <strong>${escapeHtml(provider.display_name || provider.type)}</strong>
+                            <span class="provider-inline-status ${statusClass}" data-provider-status="${escapeHtml(provider.type)}">${statusText}</span>
+                            <label class="toggle-pill provider-inline-toggle" title="启用或停用该 Provider">
+                                <input type="checkbox"${enabled ? " checked" : ""} data-provider-toggle="${escapeHtml(provider.type)}" />
+                                <span class="toggle-pill-ui"></span>
+                            </label>
+                        </div>
                         <p>${escapeHtml(provider.description || "配置元数据源地址、凭据和连接参数。")}</p>
                     </div>
-                    <label class="toggle-pill">
-                        <input type="checkbox"${enabled ? " checked" : ""} data-provider-toggle="${escapeHtml(provider.type)}" />
-                        <span class="toggle-pill-ui"></span>
-                    </label>
+                    <div class="provider-inline-head-right">
+                        <span class="provider-inline-chevron" aria-hidden="true"></span>
+                        <button class="btn btn-primary btn-xs" type="button" data-provider-action="save" data-provider-type="${escapeHtml(provider.type)}">保存</button>
+                    </div>
                 </div>
                 <div class="provider-inline-grid">
                     ${fields || '<article class="provider-inline-empty">该 Provider 暂无可配置字段</article>'}
                 </div>
                 <div class="provider-inline-actions">
-                    <button class="btn btn-primary btn-sm" type="button" data-provider-action="save" data-provider-type="${escapeHtml(provider.type)}">保存当前 Provider</button>
                     <button class="btn btn-secondary btn-sm" type="button" data-provider-action="test" data-provider-type="${escapeHtml(provider.type)}">测试连接</button>
                     <button class="btn btn-secondary btn-sm" type="button" data-provider-action="preview" data-provider-type="${escapeHtml(provider.type)}">刮削预览</button>
                 </div>
             </article>`;
     }).join("");
+    bindProviderCardToggles(host);
+}
+
+function bindProviderCardToggles(host) {
+    if (!host || host.dataset.toggleBound === "1") return;
+    host.dataset.toggleBound = "1";
+    host.addEventListener("click", (event) => {
+        const toggle = event.target.closest("[data-toggle-provider-card]");
+        if (!toggle) return;
+        if (event.target.closest("label, input, button, select, textarea, [data-provider-toggle], [data-provider-action]")) return;
+        const card = toggle.closest(".provider-inline-card");
+        if (!card) return;
+        card.classList.toggle("is-collapsed");
+    });
+    host.addEventListener("change", (event) => {
+        const input = event.target.closest("[data-provider-toggle]");
+        if (!input) return;
+        const providerType = input.getAttribute("data-provider-toggle");
+        const card = input.closest(".provider-inline-card");
+        const status = host.querySelector(`[data-provider-status="${providerType}"]`);
+        const enabled = !!input.checked;
+        if (card) {
+            card.classList.toggle("is-disabled", !enabled);
+        }
+        if (status) {
+            status.textContent = enabled ? "已启用" : "未启用";
+            status.classList.toggle("is-enabled", enabled);
+            status.classList.toggle("is-disabled-status", !enabled);
+        }
+    });
 }
 
 async function loadInlineProviderConfigs(metadata) {
@@ -850,21 +1062,59 @@ function renderRuleList(pathRules) {
         list.innerHTML = '<button class="rule-inline-empty rule-inline-add" type="button" data-rule-action="add">+</button>';
         return;
     }
+    const dims = currentEnabledDimensions.length ? currentEnabledDimensions : [];
+    const palette = [
+        "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6",
+        "#10b981", "#06b6d4", "#f97316", "#ef4444",
+        "#14b8a6", "#a855f7", "#eab308", "#22c55e",
+    ];
     list.innerHTML = pathRules.map((rule, index) => {
+        const titleText = (rule.name && String(rule.name).trim()) || `规则 ${index + 1}`;
         const template = rule.template || "未设置模板";
-        const conditions = Object.entries(rule.conditions || {});
-        const conditionText = conditions.length
-            ? conditions.map(([key, value]) => `${key}=${Array.isArray(value) ? value.join("/") : value}`).join(" · ")
-            : "无条件，作为通用规则";
+        const conditions = rule.conditions || {};
+        const entries = Object.entries(conditions);
+        const templateChip = `<span class="rule-chip rule-chip--template" title="${escapeHtml(template)}">${escapeHtml(template)}</span>`;
+        let conditionsHTML;
+        if (entries.length === 0) {
+            conditionsHTML = '<span class="rule-chip rule-chip--empty">无条件</span>';
+        } else {
+            conditionsHTML = entries.map(([key, value]) => {
+                const dim = dims.find((d) => d.name === key);
+                const dimLabel = dim ? (dim.label || dim.name) : key;
+                const dimColor = dim && dim.color ? dim.color : palette[index % palette.length];
+                const vals = String(value).split("|").map((v) => v.trim()).filter(Boolean);
+                const valueChips = vals.length
+                    ? vals.map((v) => {
+                        const label = dim ? _dimValueToLabel(dim, v) : v;
+                        return `<span class="rule-chip rule-chip--val" style="--chip-color:${escapeHtml(dimColor)}">${escapeHtml(label)}</span>`;
+                    }).join("")
+                    : '<span class="rule-chip rule-chip--val rule-chip--val-any" style="--chip-color:' + escapeHtml(dimColor) + '">(不限制)</span>';
+                return `<span class="rule-chip-group">` +
+                    `<span class="rule-chip rule-chip--key" style="--chip-color:${escapeHtml(dimColor)}" title="${escapeHtml(dim.name)}">${escapeHtml(dimLabel)}</span>` +
+                    valueChips +
+                    `</span>`;
+            }).join("");
+        }
         return `
             <article class="rule-inline-item">
-                <div>
-                    <strong>规则 ${index + 1}</strong>
-                    <small>${template}</small>
-                    <p>${conditionText}</p>
+                <div class="rule-inline-main">
+                    <div class="rule-inline-title-row">
+                        <strong>${escapeHtml(titleText)}</strong>
+                        <span class="rule-inline-index">#${index + 1}</span>
+                    </div>
+                    <div class="rule-inline-rows">
+                        <div class="rule-inline-row">
+                            <span class="rule-inline-row-label">规则</span>
+                            <div class="rule-inline-chips">${conditionsHTML}</div>
+                        </div>
+                        <div class="rule-inline-row">
+                            <span class="rule-inline-row-label">入库目录</span>
+                            <div class="rule-inline-chips">${templateChip}</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="rule-inline-meta">
-                    <b>${conditions.length} 个条件</b>
+                    <b>${entries.length} 个条件</b>
                     <span>命中即止</span>
                 </div>
                 <div class="rule-inline-actions">
@@ -884,8 +1134,8 @@ function renderDimensionVarList(dimensions) {
     }
     container.innerHTML = dimensions.map((dim) => {
         const label = dim.label || dim.display_name || dim.name || "未命名维度";
-        const options = Array.isArray(dim.options) ? dim.options : [];
-        const valuesHint = options
+        const valueList = Array.isArray(dim.value_list) ? dim.value_list : [];
+        const valuesHint = valueList
             .filter((item) => item && item.value !== "")
             .map((item) => item.label || item.value)
             .join(" / ");
@@ -925,26 +1175,61 @@ function parseRuleConditionValue(value) {
     return raw;
 }
 
+// MULTI_SELECT_DIMS is declared in cinema-tasks.js; reuse the global
+
+function _dimValueToLabel(dim, val) {
+    const list = Array.isArray(dim.value_list) ? dim.value_list : [];
+    for (const item of list) {
+        if (item.value === val) return item.label || item.value;
+    }
+    return val;
+}
+
 function openRuleEditor(index = -1) {
     const pathRules = getEditablePathRules();
     const target = index >= 0 ? (pathRules[index] || {}) : {};
     const dimensions = currentEnabledDimensions.length ? currentEnabledDimensions : [];
     const fields = dimensions.map((dim) => {
         const value = target.conditions?.[dim.name] || "";
-        const hint = Array.isArray(dim.value_list) && dim.value_list.length
-            ? dim.value_list.map((item) => item.label || item.value).join(" / ")
-            : "留空表示不限制";
+        const valueList = Array.isArray(dim.value_list) ? dim.value_list : [];
+        const isMulti = MULTI_SELECT_DIMS.includes(dim.name);
+        const dimLabel = escapeHtml(dim.label || dim.name);
+
+        if (isMulti) {
+            const selectedValues = value ? String(value).split("|").map((s) => s.trim()).filter(Boolean) : [];
+            const checkboxes = valueList.map((item) => {
+                const checked = selectedValues.includes(item.value) ? " checked" : "";
+                return `<label class="rule-editor-checkbox-label"><input type="checkbox" data-rule-dim="${escapeHtml(dim.name)}" value="${escapeHtml(item.value)}"${checked} />${escapeHtml(item.label || item.value)}</label>`;
+            }).join("");
+            return `
+                <label class="cinema-modal-field cinema-modal-field--multi">
+                    <span>${dimLabel}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small>（可多选）</span>
+                    <div class="rule-editor-checkbox-group">${checkboxes}</div>
+                </label>`;
+        }
+
+        const options = ['<option value="">(不限制)</option>'].concat(
+            valueList.map((item) => {
+                const selected = value === item.value ? " selected" : "";
+                return `<option value="${escapeHtml(item.value)}"${selected}>${escapeHtml(item.label || item.value)}</option>`;
+            })
+        ).join("");
         return `
             <label class="cinema-modal-field">
-                <span>${escapeHtml(dim.label || dim.name)}</span>
-                <input type="text" data-rule-dim="${escapeHtml(dim.name)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(hint)}" />
-                <small>${escapeHtml(dim.name)}${hint ? ` · ${hint}` : ""}</small>
+                <span>${dimLabel}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
+                <select data-rule-dim="${escapeHtml(dim.name)}">${options}</select>
             </label>`;
     }).join("");
+    const ruleName = target.name || "";
     const overlay = showAppModal({
-        title: index >= 0 ? `编辑规则 ${index + 1}` : "新增入库规则",
+        title: index >= 0 ? `编辑规则 ${ruleName || index + 1}` : "新增入库规则",
         body: `
             <div class="cinema-modal-stack">
+                <label class="cinema-modal-field">
+                    <span>规则名称（可选）</span>
+                    <input type="text" id="rule-name-input" value="${escapeHtml(ruleName)}" placeholder="如：家庭向动漫剧集" maxlength="40" />
+                    <small>用于在卡片上区分多条规则，留空时回退显示"规则 N"。</small>
+                </label>
                 <label class="cinema-modal-field">
                     <span>入库路径模板</span>
                     <input type="text" id="rule-template-input" value="${escapeHtml(target.template || "")}" placeholder="/vol1/影视/电影/{year}/{title_cn}/" />
@@ -964,12 +1249,25 @@ function openRuleEditor(index = -1) {
                         showToast("入库路径模板不能为空");
                         return;
                     }
+                    const name = String(document.getElementById("rule-name-input")?.value || "").trim();
                     const conditions = {};
-                    overlay.querySelectorAll("[data-rule-dim]").forEach((input) => {
-                        const nextValue = parseRuleConditionValue(input.value);
-                        if (nextValue) conditions[input.dataset.ruleDim] = nextValue;
+                    overlay.querySelectorAll("[data-rule-dim]").forEach((el) => {
+                        if (el.tagName === "SELECT") {
+                            const v = el.value;
+                            if (v) conditions[el.dataset.ruleDim] = v;
+                        } else if (el.type === "checkbox") {
+                            if (!conditions[el.dataset.ruleDim]) conditions[el.dataset.ruleDim] = [];
+                            if (el.checked) conditions[el.dataset.ruleDim].push(el.value);
+                        }
+                    });
+                    Object.keys(conditions).forEach((key) => {
+                        if (Array.isArray(conditions[key])) {
+                            if (conditions[key].length) conditions[key] = conditions[key].join("|");
+                            else delete conditions[key];
+                        }
                     });
                     const nextRule = { conditions, template };
+                    if (name) nextRule.name = name;
                     if (index >= 0) pathRules[index] = nextRule;
                     else pathRules.push(nextRule);
                     currentConfigSnapshot = {
@@ -983,6 +1281,16 @@ function openRuleEditor(index = -1) {
             },
         ],
     });
+    if (index >= 0) {
+        const nameInput = overlay.querySelector("#rule-name-input");
+        const titleEl = overlay.querySelector(".cinema-modal-header h3");
+        if (nameInput && titleEl) {
+            nameInput.addEventListener("input", () => {
+                const trimmed = nameInput.value.trim();
+                titleEl.textContent = `编辑规则 ${trimmed || index + 1}`;
+            });
+        }
+    }
     return overlay;
 }
 
@@ -1015,119 +1323,159 @@ function renderSimulatorPreview(data) {
     const result = document.getElementById("confidence-sim-result");
     if (!result) return;
 
-    const ai = data.ai_only || {};
-    const provider = data.provider_ai || {};
     const clean = data.clean_result || {};
-    const aiScore = Number(ai.confidence);
-    const providerScore = Number(provider.confidence);
-    const finalScore = Number.isFinite(providerScore) ? providerScore : aiScore;
-    const finalTitle = provider.title_cn || provider.title_en || ai.title_cn || ai.title_en || clean.clean_title || data.filename;
-    const finalType = provider.type || ai.type || "-";
+    const modes = data.modes || {};
+    const currentMode = data.current_mode || "hybrid";
+    const recommendation = data.recommendation;
+    const removedStr = (clean.removed_items && clean.removed_items.length > 0) ? clean.removed_items.join(" · ") : "—";
 
-    // Build timeline steps
-    const steps = [];
+    let html = '<div class="sim-compare">';
+    html += '<div class="sim-clean-summary">';
+    html += '<div class="sim-clean-title">文件名清洗结果</div>';
+    html += '<div class="sim-clean-grid">';
+    html += `<div class="sim-clean-item"><span class="sim-clean-label">clean_title</span><span class="sim-clean-value">${escapeHtml(clean.clean_title || "—")}</span></div>`;
+    html += `<div class="sim-clean-item"><span class="sim-clean-label">year</span><span class="sim-clean-value">${clean.year || "—"}</span></div>`;
+    html += `<div class="sim-clean-item"><span class="sim-clean-label">season / episode</span><span class="sim-clean-value">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`;
+    html += `<div class="sim-clean-item"><span class="sim-clean-label">method</span><span class="sim-clean-value">${escapeHtml(clean.method || "regex")}</span></div>`;
+    html += `<div class="sim-clean-item sim-clean-full"><span class="sim-clean-label">去除项</span><span class="sim-clean-value">${escapeHtml(removedStr)}</span></div>`;
+    html += '</div></div>';
 
-    // Step 1: 文件名输入
-    steps.push({
-        title: "文件名输入", tag: "INPUT", color: "#06B6D4",
-        html: `<div class="sim-kv"><span class="sim-k">原始文件名</span><span class="sim-v">${escapeHtml(data.filename || "-")}</span></div>`
-    });
+    const modeDefs = [
+        { key: "provider_first", label: "Provider 优先", mark: "PF", desc: "Provider 权威，AI 仅补缺", formula: "T × R × data_gate" },
+        { key: "ai_only", label: "纯 AI 刮削", mark: "AI", desc: "完全依赖 LLM", formula: "objective_cap × data_gate" },
+        { key: "hybrid", label: "Provider + AI 联合", mark: "HY", desc: "两者全量联合", formula: "T × R × data_gate" },
+    ];
 
-    // Step 2: 规则清洗
-    const removedStr = (clean.removed_items && clean.removed_items.length > 0) ? clean.removed_items.join(" ") : "-";
-    steps.push({
-        title: "规则清洗", tag: "REGEX", color: "#F59E0B",
-        html: `<div class="sim-kv"><span class="sim-k">清洗方法</span><span class="sim-v">${escapeHtml(clean.method || "regex")}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">去除项</span><span class="sim-v">${escapeHtml(removedStr)}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">clean_title</span><span class="sim-v sim-v-highlight">${escapeHtml(clean.clean_title || "-")}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">year</span><span class="sim-v sim-v-highlight">${clean.year || "—"}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">season / episode</span><span class="sim-v">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`
-    });
+    html += '<div class="sim-modes-grid">';
+    for (const def of modeDefs) {
+        const modeData = modes[def.key] || {};
+        const res = modeData.result || {};
+        const hasError = Boolean(res.error);
+        const isCurrent = def.key === currentMode;
+        const score = Number(res.confidence);
+        const hasScore = Number.isFinite(score);
+        const detail = modeData.confidence_detail || res.confidence_detail || {};
 
-    // Step 3: 纯 AI 刮削
-    const aiHasError = ai.error;
-    steps.push({
-        title: "纯 AI 刮削", tag: "AI",
-        color: aiHasError ? "#EF4444" : "#F59E0B",
-        html: aiHasError
-            ? `<div class="sim-error"><span class="sim-warn-icon">⚠</span> ${escapeHtml(ai.error)}</div>`
-            : `<div class="sim-kv"><span class="sim-k">标题</span><span class="sim-v">${escapeHtml(ai.title_cn || ai.title_en || "-")}</span></div>` +
-              (ai.title_en && ai.title_cn && ai.title_en !== ai.title_cn
-                  ? `<div class="sim-kv"><span class="sim-k">英文</span><span class="sim-v">${escapeHtml(ai.title_en)}</span></div>` : "") +
-              `<div class="sim-kv"><span class="sim-k">年份</span><span class="sim-v">${ai.year || "-"}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${ai.type || "-"}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">置信度</span><span class="sim-v sim-v-score" style="color:${_simConfColor(aiScore)}">${Number.isFinite(aiScore) ? aiScore.toFixed(3) : "--"}</span></div>` +
-              (ai.dimensions ? `<div class="sim-dims">${_renderSimDims(ai.dimensions)}</div>` : "") +
-              (ai.scrape_trace ? `<div style="margin-top:8px"><button class="btn btn-secondary btn-sm" data-confidence-detail-action="open" data-trace="${escapeHtml(JSON.stringify(ai.scrape_trace))}" data-filename="${escapeHtml(data.filename || "")}">查看纯AI置信度计算过程</button></div>` : "") +
-              `<div class="sim-kv"><span class="sim-k">耗时</span><span class="sim-v">${Number(data.ai_only_elapsed || 0).toFixed(2)}s</span></div>`
-    });
+        html += `<div class="sim-mode-card${isCurrent ? " sim-mode-current" : ""}${hasError ? " sim-mode-error" : ""}">`;
+        html += '<div class="sim-mode-head">';
+        html += `<span class="sim-mode-icon">${escapeHtml(def.mark)}</span>`;
+        html += '<div class="sim-mode-head-text">';
+        html += `<span class="sim-mode-label">${escapeHtml(def.label)}${isCurrent ? '<span class="sim-mode-badge">当前配置</span>' : ""}</span>`;
+        html += `<span class="sim-mode-desc">${escapeHtml(def.desc)}</span>`;
+        html += '</div></div>';
 
-    // Step 4: Provider+AI 刮削
-    const providerHasError = provider.error;
-    const hasProvider = data.provider_ai !== null && data.provider_ai !== undefined;
-    if (hasProvider) {
-        steps.push({
-            title: "Provider+AI 刮削", tag: "PROVIDER",
-            color: providerHasError ? "#EF4444" : "#8B5CF6",
-            html: providerHasError
-                ? `<div class="sim-error"><span class="sim-warn-icon">⚠</span> ${escapeHtml(provider.error)}</div>`
-                : `<div class="sim-kv"><span class="sim-k">标题</span><span class="sim-v">${escapeHtml(provider.title_cn || provider.title_en || "-")}</span></div>` +
-                  (provider.title_en && provider.title_cn && provider.title_en !== provider.title_cn
-                      ? `<div class="sim-kv"><span class="sim-k">英文</span><span class="sim-v">${escapeHtml(provider.title_en)}</span></div>` : "") +
-                  `<div class="sim-kv"><span class="sim-k">年份</span><span class="sim-v">${provider.year || "-"}</span></div>` +
-                  `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${provider.type || "-"}</span></div>` +
-                  `<div class="sim-kv"><span class="sim-k">置信度</span><span class="sim-v sim-v-score" style="color:${_simConfColor(providerScore)}">${Number.isFinite(providerScore) ? providerScore.toFixed(3) : "--"}</span></div>` +
-                  (provider.dimensions ? `<div class="sim-dims">${_renderSimDims(provider.dimensions)}</div>` : "") +
-                  (provider.scrape_trace ? `<div style="margin-top:8px"><button class="btn btn-secondary btn-sm" data-confidence-detail-action="open" data-trace="${escapeHtml(JSON.stringify(provider.scrape_trace))}" data-filename="${escapeHtml(data.filename || "")}">查看 Provider+AI 置信度计算过程</button></div>` : "") +
-                  `<div class="sim-kv"><span class="sim-k">耗时</span><span class="sim-v">${Number(data.provider_ai_elapsed || 0).toFixed(2)}s</span></div>`
-        });
-    }
+        if (hasError) {
+            html += '<div class="sim-mode-body">';
+            html += `<div class="sim-mode-error-msg">${escapeHtml(res.error)}</div>`;
+            html += `<div class="sim-mode-elapsed">耗时 ${Number(modeData.elapsed || 0).toFixed(2)}s</div>`;
+            html += '</div></div>';
+            continue;
+        }
 
-    // Step 5: 最终判断
-    const queueExplanation = explainSimulatedQueue(finalScore, getConfidenceConfig());
-    steps.push({
-        title: "最终判断", tag: "RESULT",
-        color: _simConfColor(finalScore),
-        html: `<div class="sim-kv"><span class="sim-k">最终标题</span><span class="sim-v sim-v-highlight">${escapeHtml(finalTitle || "未识别标题")}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${escapeHtml(finalType)}</span></div>` +
-              `<div class="sim-kv"><span class="sim-k">最终置信度</span><span class="sim-v sim-v-score" style="color:${_simConfColor(finalScore)}">${Number.isFinite(finalScore) ? finalScore.toFixed(3) : "--"}</span></div>` +
-              `<div class="sim-queue-decision" style="border-color:${_simConfColor(finalScore)}30;background:${_simConfColor(finalScore)}08;color:${_simConfColor(finalScore)}">${escapeHtml(queueExplanation)}</div>`
-    });
+        html += '<div class="sim-mode-body">';
+        html += '<div class="sim-mode-result">';
+        html += `<div class="sim-mode-field"><span class="sim-mode-fk">标题</span><span class="sim-mode-fv">${escapeHtml(res.title_cn || res.title_en || res.title || "—")}</span></div>`;
+        if (res.title_en && res.title_cn && res.title_en !== res.title_cn) {
+            html += `<div class="sim-mode-field"><span class="sim-mode-fk">英文</span><span class="sim-mode-fv sim-mode-fv-sub">${escapeHtml(res.title_en)}</span></div>`;
+        }
+        html += `<div class="sim-mode-field"><span class="sim-mode-fk">年份</span><span class="sim-mode-fv">${res.year || "—"}</span></div>`;
+        html += `<div class="sim-mode-field"><span class="sim-mode-fk">类型</span><span class="sim-mode-fv">${escapeHtml(res.type || res.media_type || "—")}</span></div>`;
+        if (modeData.provider_type || res.provider_type) {
+            const providerText = `${modeData.provider_type || res.provider_type}${(modeData.provider_id || res.provider_id) ? " · " + (modeData.provider_id || res.provider_id) : ""}`;
+            html += `<div class="sim-mode-field"><span class="sim-mode-fk">Provider</span><span class="sim-mode-fv">${escapeHtml(providerText)}</span></div>`;
+        }
+        if (res.dimensions) {
+            html += `<div class="sim-mode-dims">${_renderSimDims(res.dimensions)}</div>`;
+        }
+        html += '</div>';
 
-    // Render timeline
-    let html = '<div class="sim-timeline">';
-    for (let i = 0; i < steps.length; i++) {
-        const s = steps[i];
-        const isLast = i === steps.length - 1;
-        html += `<div class="sim-step">`;
-        html += `<div class="sim-step-rail">`;
-        html += `<div class="sim-step-dot" style="background:${s.color}18;color:${s.color}">${i + 1}</div>`;
-        html += `<div class="sim-step-line" style="${isLast ? "background:transparent" : "background:" + s.color + "30"}"></div>`;
-        html += `</div>`;
-        html += `<div class="sim-step-content">`;
-        html += `<div class="sim-step-header"><span class="sim-step-title" style="color:${s.color}">${escapeHtml(s.title)}</span><span class="sim-step-tag" style="background:${s.color}18;color:${s.color}">${s.tag}</span></div>`;
-        html += s.html;
-        html += `</div></div>`;
+        html += '<div class="sim-mode-confidence">';
+        html += `<span class="sim-mode-score" style="color:${_simConfColor(score)}">${hasScore ? score.toFixed(3) : "--"}</span>`;
+        html += `<span class="sim-mode-decision" style="color:${_simConfColor(score)}">${_simDecisionLabel(score, res.confidence_gate_blocked)}</span>`;
+        html += '</div>';
+
+        html += '<div class="sim-mode-calc">';
+        html += `<span class="sim-mode-formula">公式：${escapeHtml(detail.formula || def.formula)}</span>`;
+        html += _simConfidenceBreakdown(detail, res);
+        if (res.scrape_trace) {
+            html += `<button class="btn btn-secondary btn-xs sim-mode-detail-btn" data-confidence-detail-action="open" data-trace="${escapeHtml(JSON.stringify(res.scrape_trace))}" data-filename="${escapeHtml(data.filename || "")}">查看完整计算过程</button>`;
+        }
+        html += '</div>';
+
+        html += '<div class="sim-mode-ai-tags">';
+        if (modeData.ai_invoked) {
+            html += '<span class="sim-ai-tag sim-ai-tag-active">AI 已调用</span>';
+            if (modeData.ai_invoke_reason) {
+                html += `<span class="sim-ai-tag sim-ai-tag-reason">${escapeHtml(modeData.ai_invoke_reason)}</span>`;
+            }
+        } else {
+            html += '<span class="sim-ai-tag sim-ai-tag-idle">AI 未调用</span>';
+        }
+        if (modeData.search_enhanced === true) {
+            html += '<span class="sim-ai-tag sim-ai-tag-search">联网搜索增强</span>';
+        } else if (modeData.search_enhanced === false && modeData.ai_invoked) {
+            html += '<span class="sim-ai-tag sim-ai-tag-local">AI 本地刮削</span>';
+        }
+        html += '</div>';
+        html += `<div class="sim-mode-elapsed">耗时 ${Number(modeData.elapsed || 0).toFixed(2)}s</div>`;
+        html += '</div></div>';
     }
     html += '</div>';
 
-    result.innerHTML = html;
+    if (recommendation) {
+        html += '<div class="sim-recommendation">';
+        html += '<div class="sim-recommend-head">';
+        html += `<span>推荐使用 <strong>${escapeHtml(_modeLabel(recommendation.best_mode))}</strong></span>`;
+        html += '</div>';
+        html += '<div class="sim-recommend-body">';
+        html += `<span>置信度 ${Number(recommendation.best_confidence || 0).toFixed(3)} · ${escapeHtml(recommendation.reason || "")}</span>`;
+        html += '</div></div>';
+    }
 
-    // Update sidebar explain cards
-    const aiCopy = document.getElementById("simulator-ai-copy");
-    if (aiCopy) {
-        aiCopy.textContent = aiHasError
-            ? `纯 AI 预览失败：${ai.error}`
-            : `纯 AI 识别为「${ai.title_cn || ai.title_en || clean.clean_title || "未识别"}」，耗时 ${Number(data.ai_only_elapsed || 0).toFixed(2)} 秒。`;
+    html += '</div>';
+    result.innerHTML = html;
+}
+
+function _simDecisionLabel(score, gateBlocked) {
+    if (gateBlocked) return "维度否决";
+    if (score >= 0.8) return "自动入库";
+    if (score >= 0.5) return "需确认";
+    if (score >= 0.3) return "需审核";
+    return "失败";
+}
+
+function _modeLabel(modeKey) {
+    const map = {
+        provider_first: "Provider 优先",
+        ai_only: "纯 AI 刮削",
+        hybrid: "Provider + AI 联合",
+    };
+    return map[modeKey] || modeKey || "—";
+}
+
+function _simConfidenceBreakdown(detail, result) {
+    const d = detail || {};
+    const source = d.detail && Object.keys(d.detail).length ? d.detail : d;
+    const rows = [];
+    if (source.T !== undefined || source.R !== undefined) {
+        rows.push(`T=${_simFormatNumber(source.T)}`);
+        rows.push(`R=${_simFormatNumber(source.R)}`);
+        rows.push(`gate=${_simFormatNumber(source.data_gate ?? d.data_gate ?? result.confidence_data_gate)}`);
+    } else if (source.objective_cap !== undefined) {
+        rows.push(`cap=${_simFormatNumber(source.objective_cap)}`);
+        rows.push(`gate=${_simFormatNumber(source.data_gate ?? d.data_gate ?? result.confidence_data_gate)}`);
+    } else if (d.search_conf !== undefined || d.data_gate !== undefined) {
+        rows.push(`search=${_simFormatNumber(d.search_conf)}`);
+        rows.push(`gate=${_simFormatNumber(d.data_gate)}`);
     }
-    const confidenceCopy = document.getElementById("simulator-confidence-copy");
-    if (confidenceCopy) confidenceCopy.textContent = queueExplanation;
-    const rulesCopy = document.getElementById("simulator-rules-copy");
-    if (rulesCopy) {
-        const year = provider.year || ai.year || clean.year || "";
-        const cleanTitle = clean.clean_title || finalTitle || "未识别标题";
-        rulesCopy.textContent = `标题清洗得到「${cleanTitle}」${year ? `，年份 ${year}` : ""}。真实入库目录仍以当前规则与兜底目录匹配结果为准。`;
-    }
+    if (!rows.length) return '';
+    return `<span class="sim-mode-calc-row">${escapeHtml(rows.join(" · "))}</span>`;
+}
+
+function _simFormatNumber(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "—";
+    return num.toFixed(3);
 }
 
 function _simConfColor(value) {

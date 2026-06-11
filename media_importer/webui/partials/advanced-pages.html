@@ -61,7 +61,7 @@
             <div class="path-breadcrumb" aria-label="当前路径">
                 <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>模拟测试</strong>
             </div>
-            <p>先在这里试跑提示词、置信度和入库规则，再把真实任务放进队列。</p>
+            <p>输入文件名，横向对比三种刮削模式的完整结果，再决定使用哪种模式。</p>
         </div>
         <div class="hero-action-group">
             <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
@@ -75,44 +75,39 @@
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                            <b>先输入真实文件名</b>
+                            <b>输入真实文件名</b>
                         </div>
-                        <small>尽量使用你准备实际处理的文件名，这样模拟结果更接近真实任务流。</small>
+                        <small>三种模式会同时跑一遍，横向对比刮削结果和置信度。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                            <b>再看联动解释</b>
+                            <b>对比三种模式</b>
                         </div>
-                        <small>重点关注提示词、置信度边界和入库规则分别怎样影响最终判断。</small>
+                        <small>Provider 优先、纯 AI、联合刮削，看哪个模式在你的文件上表现最好。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
                             <b>有偏差就回去微调</b>
                         </div>
-                        <small>先改配置再回来重跑，直到结果和你预期的队列与落库位置一致。</small>
+                        <small>调整提示词、置信度阈值或 Provider 配置后回来重跑。</small>
                     </div>
                 </div>
             </article>
         </div>
         <article class="confidence-simulator">
             <div>
-                <span class="confidence-kicker">联合验证</span>
-                <h3>输入一个文件名，预估完整配置下的入库结果</h3>
-                <p>改完提示词、置信度或入库规则后，先在这里跑一遍，再决定是否进入真实任务流。</p>
+                <span class="confidence-kicker">三模式对比</span>
+                <h3>输入一个文件名，横向对比三种刮削模式</h3>
+                <p>Provider 优先 / 纯 AI 刮削 / Provider+AI 联合，三种模式同时执行，对比置信度和入库决策。</p>
             </div>
             <div class="confidence-sim-row">
                 <input id="confidence-sim-filename" type="text" placeholder="例如：Dune.Part.Two.2024.1080p.mkv">
-                <button class="btn btn-primary" type="button" id="btn-confidence-simulate">模拟判断</button>
+                <button class="btn btn-primary" type="button" id="btn-confidence-simulate">开始对比</button>
             </div>
-            <div class="confidence-sim-result" id="confidence-sim-result">输入文件名后，可以快速看到当前配置链路下的真实预览结果。</div>
+            <div class="confidence-sim-result" id="confidence-sim-result">输入文件名后，三种刮削模式将同时执行并横向对比展示。</div>
         </article>
-        <section class="advanced-card-list simulator-explain-list">
-            <article class="setup-card row-card plain-row-card"><div><h3>AI 提示词</h3><p id="simulator-ai-copy">说明当前提示词怎样影响识别方向、标题清洗和最终推理结果。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></article>
-            <article class="setup-card row-card plain-row-card"><div><h3>置信度边界</h3><p id="simulator-confidence-copy">展示当前通过、确认和审核阈值，并解释为什么落入当前队列。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></article>
-            <article class="setup-card row-card plain-row-card"><div><h3>入库规则</h3><p id="simulator-rules-copy">标记最终命中了哪条规则，或者为什么没有命中任何规则。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></article>
-        </section>
     </section>
 </section>
 
@@ -629,10 +624,47 @@
                 </article>
                 <article class="form-card form-card-full">
                     <span>通知事件</span>
-                    <div class="checkbox-grid">
-                        <label><input type="checkbox" id="cfg-hermes_event_batch_start-inline" /> 批量处理开始</label>
-                        <label><input type="checkbox" id="cfg-hermes_event_batch_complete-inline" /> 批量处理完成</label>
-                        <label><input type="checkbox" id="cfg-hermes_event_program_error-inline" /> 程序错误</label>
+                    <small class="form-card-hint">勾选需要通过 Hermes Webhook 推送的事件类型</small>
+                    <div class="event-grid">
+                        <label class="event-tile" for="cfg-hermes_event_batch_start-inline">
+                            <input type="checkbox" id="cfg-hermes_event_batch_start-inline" />
+                            <span class="event-tile-icon" aria-hidden="true">
+                                <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-clapper"></use></svg>
+                            </span>
+                            <span class="event-tile-body">
+                                <b class="event-tile-title">批量处理开始</b>
+                                <small class="event-tile-desc">任务启动时立即推送一条通知</small>
+                            </span>
+                            <span class="event-tile-check" aria-hidden="true">
+                                <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                            </span>
+                        </label>
+                        <label class="event-tile" for="cfg-hermes_event_batch_complete-inline">
+                            <input type="checkbox" id="cfg-hermes_event_batch_complete-inline" />
+                            <span class="event-tile-icon" aria-hidden="true">
+                                <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                            </span>
+                            <span class="event-tile-body">
+                                <b class="event-tile-title">批量处理完成</b>
+                                <small class="event-tile-desc">整批任务结束时汇报汇总结果</small>
+                            </span>
+                            <span class="event-tile-check" aria-hidden="true">
+                                <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                            </span>
+                        </label>
+                        <label class="event-tile" for="cfg-hermes_event_program_error-inline">
+                            <input type="checkbox" id="cfg-hermes_event_program_error-inline" />
+                            <span class="event-tile-icon event-tile-icon-danger" aria-hidden="true">
+                                <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-alert"></use></svg>
+                            </span>
+                            <span class="event-tile-body">
+                                <b class="event-tile-title">程序错误</b>
+                                <small class="event-tile-desc">运行期出现异常时立即告警</small>
+                            </span>
+                            <span class="event-tile-check" aria-hidden="true">
+                                <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                            </span>
+                        </label>
                     </div>
                 </article>
                 <div class="advanced-action-row">
