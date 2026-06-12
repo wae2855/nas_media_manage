@@ -262,8 +262,8 @@ def reset_database(db_path, dry_run=False):
         cursor.execute(f"DELETE FROM {table}")
         logger.info("  - %s: 已清空 %d 条记录", table, count)
 
-    cursor.execute("VACUUM")
     conn.commit()
+    conn.execute("VACUUM")
     conn.close()
     logger.info("  - VACUUM 完成")
 
