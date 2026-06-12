@@ -143,10 +143,27 @@ function renderTaskCard(item, index = 0) {
     const filename = taskFileName(item);
     const taskId = String(item.task_id || "");
     const checked = selectedTaskIds.has(taskId) ? "checked" : "";
+    const scrape = item.scrape_result || {};
+    const thumbnailPath = item.thumbnail_path || "";
+    const posterUrl = scrape.poster_url || "";
+    const toneClass = `cover-${getTaskTone(item)}`;
+    let coverClass, coverContent;
+    if (thumbnailPath) {
+        const thumbFilename = thumbnailPath.split("/").pop().split("\\").pop();
+        const thumbUrl = `/api/thumbnails/${encodeURIComponent(thumbFilename)}`;
+        coverClass = "cover cover-img";
+        coverContent = `<img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy" data-fallback="${escapeHtml(posterUrl)}" onerror="var d=this.parentNode;var pu=this.dataset.fallback;if(pu){d.className='cover cover-img';this.src=pu;}else{d.className='cover ${toneClass}';this.remove();}" />`;
+    } else if (posterUrl) {
+        coverClass = "cover cover-img";
+        coverContent = `<img src="${escapeHtml(posterUrl)}" alt="" loading="lazy" onerror="this.parentNode.className='cover ${toneClass}';this.remove();" />`;
+    } else {
+        coverClass = `cover ${toneClass}`;
+        coverContent = "";
+    }
     return `
         <article class="task-card" data-task-row="${escapeHtml(taskId)}" style="--card-index: ${index}">
             <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" onclick="event.stopPropagation()" />
-            <div class="cover cover-${getTaskTone(item)}" aria-hidden="true"></div>
+            <div class="${coverClass}" aria-hidden="true">${coverContent}</div>
             <div class="task-body">
                 <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="badge${danger}">${escapeHtml(getTaskStatusText(item.status, item.stage))}</span></div>
                 <p>${escapeHtml(taskDescription(item))}</p>

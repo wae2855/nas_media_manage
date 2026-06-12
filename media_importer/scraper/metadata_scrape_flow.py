@@ -89,7 +89,7 @@ def _build_minimal_result(clean_result, confidence_engine, enabled_dims_set=None
         "episode": None,
         "media_type": "movie",
         "confidence": 0,
-        "provider_type": "",
+        "provider_type": "ai",
         "provider_id": "",
         "scrape_trace": {},
         "confidence_gate_blocked": False,
@@ -498,7 +498,7 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
             provider_fallback_reasons=last_provider_statuses if last_provider_statuses else None,
         )
         _apply_confidence_result(result, confidence_result)
-        result["provider_type"] = ""
+        result["provider_type"] = "ai"
         result["provider_id"] = ""
         _inject_trace_fields(result, "provider_first", ai_invoked=True,
                              ai_invoke_reason="Provider无结果")
@@ -542,7 +542,7 @@ def _do_ai_fallback(scraper, video_filename, subtitle_filenames, conn,
         provider_fallback_reasons=provider_fallback_reasons,
     )
     _apply_confidence_result(result, confidence_result)
-    result["provider_type"] = ""
+    result["provider_type"] = "ai"
     result["provider_id"] = ""
     _inject_trace_fields(result, scrape_mode, ai_invoked=True,
                          ai_invoke_reason=ai_invoke_reason)
@@ -595,7 +595,7 @@ def _scrape_ai_only(scraper, video_filename: str, subtitle_filenames: List[str],
         ai_clean_result=ai_clean_result,
     )
     _apply_confidence_result(result, confidence_result)
-    result["provider_type"] = ""
+    result["provider_type"] = "ai"
     result["provider_id"] = ""
     _inject_trace_fields(result, "ai_only", ai_invoked=True,
                          ai_invoke_reason="标题清洗" if ai_clean_result else "纯AI刮削")

@@ -978,6 +978,8 @@
 .cover-gold { background: linear-gradient(150deg, #19100a, #eabf63); }
 .cover-red { background: linear-gradient(150deg, #210d0b, #a43228); }
 .cover-cyan { background: linear-gradient(150deg, #061818, #43c7b7); }
+.cover-img { background: transparent; }
+.cover-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .task-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .task-actions { display: flex; gap: 8px; }
 .task-actions button {

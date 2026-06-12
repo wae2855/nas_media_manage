@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     provider_id TEXT DEFAULT '',
     source_fingerprint TEXT DEFAULT '',
     source_file_size INTEGER DEFAULT 0,
-    source_mtime TEXT DEFAULT ''
+    source_mtime TEXT DEFAULT '',
+    thumbnail_path TEXT DEFAULT ''
 )
 """
 

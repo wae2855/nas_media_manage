@@ -119,10 +119,11 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.percentage, t.file_size_mb, t.retry_count, "
                 "t.scrape_title_cn, t.scrape_title_en, t.scrape_year, "
                 "t.scrape_media_type, t.scrape_season, t.scrape_episode, "
-                "t.scrape_confidence, t.scrape_trace, t.import_path, t.final_filename, "
+                "t.scrape_confidence, t.scrape_trace, t.scrape_result, t.import_path, t.final_filename, "
                 "t.skip_reason, t.error_message, t.import_success, "
                 "t.confirm_status, t.video_path, t.file_location, "
                 "t.import_video_path, t.provider_type, t.provider_id, "
+                "t.thumbnail_path, "
                 "t.created_at, t.started_at, t.completed_at, "
                 "(SELECT COUNT(*) FROM task_subtitles ts WHERE ts.task_id=t.task_id) AS subtitle_total, "
                 "(SELECT COUNT(*) FROM task_subtitles ts WHERE ts.task_id=t.task_id AND ts.status='SUCCESS') AS subtitle_success "
@@ -137,6 +138,11 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
         if row.get('scrape_trace'):
             try:
                 row['scrape_trace'] = json.loads(row['scrape_trace'])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if row.get('scrape_result'):
+            try:
+                row['scrape_result'] = json.loads(row['scrape_result'])
             except (json.JSONDecodeError, TypeError):
                 pass
     total_pages = max(1, (total + page_size - 1) // page_size)
@@ -159,6 +165,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "skip_reason", "error_code", "error_message",
         "provider_type", "provider_id",
         "source_fingerprint", "source_file_size", "source_mtime",
+        "thumbnail_path",
     }
     update_fields = {}
     for k, v in fields.items():

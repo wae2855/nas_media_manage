@@ -74,6 +74,8 @@ def _migrate_schema(conn: sqlite3.Connection):
             conn.execute("ALTER TABLE tasks ADD COLUMN source_file_size INTEGER DEFAULT 0")
         if "source_mtime" not in existing:
             conn.execute("ALTER TABLE tasks ADD COLUMN source_mtime TEXT DEFAULT ''")
+        if "thumbnail_path" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN thumbnail_path TEXT DEFAULT ''")
         conn.execute("UPDATE tasks SET status='SKIPPED' WHERE status='DUPLICATE_REVIEW'")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='FAILED' AND import_success=0")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='SKIPPED'")
