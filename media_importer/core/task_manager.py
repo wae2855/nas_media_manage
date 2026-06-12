@@ -4,7 +4,7 @@ import shutil
 import threading
 from datetime import datetime
 
-from .task_lifecycle import reset_for_retry
+from .task_lifecycle import mark_cancelled, reset_for_retry
 from .db import (
     init_db, create_task as db_create_task,
     get_task as db_get_task,
@@ -14,6 +14,7 @@ from .db import (
     list_tasks as db_list_tasks,
     list_all_tasks as db_list_all_tasks,
     count_by_status as db_count_by_status,
+    count_by_status_and_stage as db_count_by_status_and_stage,
     has_running_tasks as db_has_running_tasks,
     get_next_pending as db_get_next_pending,
     count_all_tasks as db_count_all_tasks,
@@ -123,25 +124,40 @@ class TaskManager:
 
     def retry_task(self, task_id: str) -> dict:
         task = db_get_task(self.conn, task_id)
-        if not task or task.get("status") not in ("FAILED", "SKIPPED"):
+        if not task or task.get("status") not in ("FAILED", "SKIPPED", "CANCELLED"):
             return None
         db_update_task(self.conn, task_id, **reset_for_retry(task))
         return db_get_task(self.conn, task_id)
+
+    def cancel_task(self, task_id: str, reason: str = "用户取消") -> dict:
+        with self._lock:
+            task = db_get_task(self.conn, task_id)
+            if not task:
+                return None
+            status = task.get("status", "")
+            stage = task.get("stage", "")
+            if status != "PENDING" or stage != "QUEUED":
+                return {"error": f"当前状态不可取消: {status}/{stage}"}
+            db_update_task(self.conn, task_id, **mark_cancelled(task, reason))
+            return db_get_task(self.conn, task_id)
 
     def retry_all_failed(self) -> list:
         rows = db_list_all_tasks(self.conn, limit=10000)
         retried = []
         for task in rows:
-            if task["status"] in ("FAILED", "SKIPPED"):
+            if task["status"] in ("FAILED", "SKIPPED", "CANCELLED"):
                 db_update_task(self.conn, task["task_id"], **reset_for_retry(task))
                 retried.append(task)
         return retried
 
-    def clear_tasks(self, status: str = None):
-        db_clear_tasks(self.conn, status=status)
+    def clear_tasks(self, status: str = None, stage: str = None):
+        db_clear_tasks(self.conn, status=status, stage=stage)
 
     def count_by_status(self) -> dict:
         return db_count_by_status(self.conn)
+
+    def count_by_status_and_stage(self) -> dict:
+        return db_count_by_status_and_stage(self.conn)
 
     def has_running_tasks(self) -> bool:
         return db_has_running_tasks(self.conn)

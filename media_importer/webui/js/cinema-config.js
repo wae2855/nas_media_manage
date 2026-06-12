@@ -307,7 +307,7 @@ async function saveLlmConfig() {
 function buildScrapeModeConfigPayload() {
     return {
         metadata: {
-            scrape_mode: String(document.getElementById("cfg-metadata_scrape_mode")?.value || "hybrid").trim(),
+            scrape_mode: String(document.getElementById("cfg-metadata_scrape_mode")?.value || "provider_first").trim(),
         },
     };
 }
@@ -1083,16 +1083,10 @@ function renderRuleList(pathRules) {
                 const dimLabel = dim ? (dim.label || dim.name) : key;
                 const dimColor = dim && dim.color ? dim.color : palette[index % palette.length];
                 const vals = String(value).split("|").map((v) => v.trim()).filter(Boolean);
-                const valueChips = vals.length
-                    ? vals.map((v) => {
-                        const label = dim ? _dimValueToLabel(dim, v) : v;
-                        return `<span class="rule-chip rule-chip--val" style="--chip-color:${escapeHtml(dimColor)}">${escapeHtml(label)}</span>`;
-                    }).join("")
-                    : '<span class="rule-chip rule-chip--val rule-chip--val-any" style="--chip-color:' + escapeHtml(dimColor) + '">(不限制)</span>';
-                return `<span class="rule-chip-group">` +
-                    `<span class="rule-chip rule-chip--key" style="--chip-color:${escapeHtml(dimColor)}" title="${escapeHtml(dim.name)}">${escapeHtml(dimLabel)}</span>` +
-                    valueChips +
-                    `</span>`;
+                const valText = vals.length
+                    ? vals.map((v) => dim ? _dimValueToLabel(dim, v) : v).join(" | ")
+                    : "(不限制)";
+                return `<span class="rule-chip rule-chip--dim" style="--chip-color:${escapeHtml(dimColor)}" title="${escapeHtml(dim ? dim.name : key)}"><span class="dim-label">${escapeHtml(dimLabel)}</span>：${escapeHtml(valText)}</span>`;
             }).join("");
         }
         return `
@@ -1309,9 +1303,9 @@ function deleteInlineRule(index) {
 }
 
 function explainSimulatedQueue(score, confidence) {
-    const pass = Number(confidence.pass_threshold ?? 0.8);
-    const confirm = Number(confidence.confirm_threshold ?? 0.5);
-    const review = Number(confidence.review_threshold ?? 0.3);
+    const pass = Number(confidence?.pass_threshold ?? 0.8);
+    const confirm = Number(confidence?.confirm_threshold ?? 0.5);
+    const review = Number(confidence?.review_threshold ?? 0.3);
     if (!Number.isFinite(score)) return "当前结果未返回可用置信度，请结合标题和 Provider 命中情况手动判断。";
     if (score >= pass) return `命中自动通过阈值 ${pass.toFixed(2)}，会优先进入自动入库队列。`;
     if (score >= confirm) return `低于自动通过阈值但高于确认阈值 ${confirm.toFixed(2)}，建议进入待确认队列。`;
@@ -1325,26 +1319,60 @@ function renderSimulatorPreview(data) {
 
     const clean = data.clean_result || {};
     const modes = data.modes || {};
-    const currentMode = data.current_mode || "hybrid";
+    const currentMode = data.current_mode || "provider_first";
     const recommendation = data.recommendation;
     const removedStr = (clean.removed_items && clean.removed_items.length > 0) ? clean.removed_items.join(" · ") : "—";
 
+    const modeDefs = [
+        { key: "provider_first", label: "Provider 优先", mark: "PF", desc: "Provider 权威，AI 搜索增强补缺", formula: "T × R × data_gate" },
+        { key: "ai_only", label: "纯 AI 刮削", mark: "AI", desc: "需 AI 搜索增强（联网搜索）", formula: "objective_cap × data_gate" },
+    ];
+
+    const currentRes = (modes[currentMode] || {}).result || {};
+    const currentScore = Number(currentRes.confidence);
+    const currentTitle = currentRes.title_cn || currentRes.title_en || currentRes.title || clean.clean_title || data.filename;
+    const currentType = currentRes.type || currentRes.media_type || "—";
+    const queueExplanation = explainSimulatedQueue(currentScore, getConfidenceConfig());
+    const importPaths = data.import_paths || {};
+    const currentImportPath = (importPaths[currentMode] || {});
+
     let html = '<div class="sim-compare">';
-    html += '<div class="sim-clean-summary">';
-    html += '<div class="sim-clean-title">文件名清洗结果</div>';
-    html += '<div class="sim-clean-grid">';
-    html += `<div class="sim-clean-item"><span class="sim-clean-label">clean_title</span><span class="sim-clean-value">${escapeHtml(clean.clean_title || "—")}</span></div>`;
-    html += `<div class="sim-clean-item"><span class="sim-clean-label">year</span><span class="sim-clean-value">${clean.year || "—"}</span></div>`;
-    html += `<div class="sim-clean-item"><span class="sim-clean-label">season / episode</span><span class="sim-clean-value">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`;
-    html += `<div class="sim-clean-item"><span class="sim-clean-label">method</span><span class="sim-clean-value">${escapeHtml(clean.method || "regex")}</span></div>`;
-    html += `<div class="sim-clean-item sim-clean-full"><span class="sim-clean-label">去除项</span><span class="sim-clean-value">${escapeHtml(removedStr)}</span></div>`;
+
+    // --- timeline step 1: 文件名输入 ---
+    html += '<div class="sim-timeline">';
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html += '<div class="sim-step-dot" style="background:#06B6D418;color:#06B6D4">1</div>';
+    html += '<div class="sim-step-line" style="background:#06B6D430"></div>';
+    html += '</div>';
+    html += '<div class="sim-step-content">';
+    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">文件名输入</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">INPUT</span></div>';
+    html += `<div class="sim-kv"><span class="sim-k">原始文件名</span><span class="sim-v">${escapeHtml(data.filename || "—")}</span></div>`;
     html += '</div></div>';
 
-    const modeDefs = [
-        { key: "provider_first", label: "Provider 优先", mark: "PF", desc: "Provider 权威，AI 仅补缺", formula: "T × R × data_gate" },
-        { key: "ai_only", label: "纯 AI 刮削", mark: "AI", desc: "完全依赖 LLM", formula: "objective_cap × data_gate" },
-        { key: "hybrid", label: "Provider + AI 联合", mark: "HY", desc: "两者全量联合", formula: "T × R × data_gate" },
-    ];
+    // --- timeline step 2: 规则清洗 ---
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html += '<div class="sim-step-dot" style="background:#F59E0B18;color:#F59E0B">2</div>';
+    html += '<div class="sim-step-line" style="background:#F59E0B30"></div>';
+    html += '</div>';
+    html += '<div class="sim-step-content">';
+    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#F59E0B">规则清洗</span><span class="sim-step-tag" style="background:#F59E0B18;color:#F59E0B">REGEX</span></div>';
+    html += `<div class="sim-kv"><span class="sim-k">清洗方法</span><span class="sim-v">${escapeHtml(clean.method || "regex")}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">去除项</span><span class="sim-v">${escapeHtml(removedStr)}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">clean_title</span><span class="sim-v sim-v-highlight">${escapeHtml(clean.clean_title || "—")}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">year</span><span class="sim-v sim-v-highlight">${clean.year || "—"}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">season / episode</span><span class="sim-v">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`;
+    html += '</div></div>';
+
+    // --- timeline step 3: 模式对比 ---
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html += '<div class="sim-step-dot" style="background:#8B5CF618;color:#8B5CF6">3</div>';
+    html += '<div class="sim-step-line" style="background:#8B5CF630"></div>';
+    html += '</div>';
+    html += '<div class="sim-step-content">';
+    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">模式对比刮削</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">COMPARE</span></div>';
 
     html += '<div class="sim-modes-grid">';
     for (const def of modeDefs) {
@@ -1411,7 +1439,7 @@ function renderSimulatorPreview(data) {
         } else {
             html += '<span class="sim-ai-tag sim-ai-tag-idle">AI 未调用</span>';
         }
-        if (modeData.search_enhanced === true) {
+        if (modeData.search_enhanced === true && modeData.ai_invoked) {
             html += '<span class="sim-ai-tag sim-ai-tag-search">联网搜索增强</span>';
         } else if (modeData.search_enhanced === false && modeData.ai_invoked) {
             html += '<span class="sim-ai-tag sim-ai-tag-local">AI 本地刮削</span>';
@@ -1420,6 +1448,30 @@ function renderSimulatorPreview(data) {
         html += `<div class="sim-mode-elapsed">耗时 ${Number(modeData.elapsed || 0).toFixed(2)}s</div>`;
         html += '</div></div>';
     }
+    html += '</div>';
+
+    html += '</div></div>';
+
+    // --- timeline step 4: 最终入库判断 ---
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html += '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">4</div>';
+    html += '<div class="sim-step-line" style="background:transparent"></div>';
+    html += '</div>';
+    html += '<div class="sim-step-content">';
+    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">最终入库判断</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">RESULT</span></div>';
+    html += `<div class="sim-kv"><span class="sim-k">最终标题</span><span class="sim-v sim-v-highlight">${escapeHtml(currentTitle || "未识别标题")}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${escapeHtml(currentType)}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">最终置信度</span><span class="sim-v sim-v-score" style="color:${_simConfColor(currentScore)}">${Number.isFinite(currentScore) ? currentScore.toFixed(3) : "--"}</span></div>`;
+    if (currentImportPath.import_path) {
+        const pathLabel = currentImportPath.used_fallback ? "入库目录（兜底）" : (currentImportPath.matched_rule ? `入库目录（规则 ${currentImportPath.matched_rule}）` : "入库目录");
+        html += `<div class="sim-kv"><span class="sim-k">${escapeHtml(pathLabel)}</span><span class="sim-v sim-v-highlight">${escapeHtml(currentImportPath.import_path)}</span></div>`;
+    } else {
+        html += `<div class="sim-kv"><span class="sim-k">入库目录</span><span class="sim-v" style="color:var(--warning-fg,#856404)">未匹配规则且无兜底目录</span></div>`;
+    }
+    html += `<div class="sim-queue-decision" style="border-color:${_simConfColor(currentScore)}30;background:${_simConfColor(currentScore)}08;color:${_simConfColor(currentScore)}">${escapeHtml(queueExplanation)}</div>`;
+    html += '</div></div>';
+
     html += '</div>';
 
     if (recommendation) {
@@ -1448,7 +1500,6 @@ function _modeLabel(modeKey) {
     const map = {
         provider_first: "Provider 优先",
         ai_only: "纯 AI 刮削",
-        hybrid: "Provider + AI 联合",
     };
     return map[modeKey] || modeKey || "—";
 }

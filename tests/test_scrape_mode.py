@@ -1,4 +1,4 @@
-"""Tests for scrape_mode: provider_first / ai_only / hybrid."""
+"""Tests for scrape_mode: provider_first / ai_only."""
 import pytest
 from unittest.mock import MagicMock, patch, PropertyMock
 
@@ -9,7 +9,6 @@ from media_importer.scraper.metadata_scrape_flow import (
     scrape_series_metadata,
     _scrape_ai_only,
     _scrape_provider_first,
-    _scrape_hybrid,
     VALID_SCRAPE_MODES,
 )
 from media_importer.scraper.llm_scraper import LLMScrapeError
@@ -96,7 +95,7 @@ class TestInjectTraceFields:
 # ===========================================================================
 
 class TestScrapeMetadataDispatch:
-    def _make_scraper(self, scrape_mode="hybrid"):
+    def _make_scraper(self, scrape_mode="provider_first"):
         scraper = MagicMock()
         scraper.view = MagicMock()
         scraper.view.metadata = MagicMock()
@@ -126,11 +125,6 @@ class TestScrapeMetadataDispatch:
         }
         return scraper
 
-    def test_dispatch_hybrid(self):
-        scraper = self._make_scraper("hybrid")
-        result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
-        assert result is not None
-
     def test_dispatch_ai_only(self):
         scraper = self._make_scraper("ai_only")
         result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
@@ -143,7 +137,7 @@ class TestScrapeMetadataDispatch:
         result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
         assert result is not None
 
-    def test_dispatch_invalid_mode_defaults_to_hybrid(self):
+    def test_dispatch_invalid_mode_defaults_to_provider_first(self):
         scraper = self._make_scraper("invalid_mode")
         result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
         assert result is not None
@@ -151,7 +145,6 @@ class TestScrapeMetadataDispatch:
     def test_valid_scrape_modes(self):
         assert "provider_first" in VALID_SCRAPE_MODES
         assert "ai_only" in VALID_SCRAPE_MODES
-        assert "hybrid" in VALID_SCRAPE_MODES
 
 
 # ===========================================================================
@@ -326,10 +319,10 @@ class TestAiOnlyMode:
 # ===========================================================================
 
 class TestConfigViewScrapeMode:
-    def test_default_is_hybrid(self):
+    def test_default_is_provider_first(self):
         from media_importer.core.config_view import ConfigView
         view = ConfigView.from_dict({})
-        assert view.metadata.scrape_mode == "hybrid"
+        assert view.metadata.scrape_mode == "provider_first"
 
     def test_read_provider_first(self):
         from media_importer.core.config_view import ConfigView
@@ -369,10 +362,10 @@ class TestConfigValidatorScrapeMode:
 # ===========================================================================
 
 class TestScrapeMetadataDegradation:
-    """When ai_only or hybrid is selected but AI is not configured, the
+    """When ai_only is selected but AI is not configured, the
     dispatcher should fall back to provider_first behavior."""
 
-    def _make_scraper(self, scrape_mode="hybrid", ai_enabled=True):
+    def _make_scraper(self, scrape_mode="provider_first", ai_enabled=True):
         scraper = MagicMock()
         scraper.view = MagicMock()
         scraper.view.metadata = MagicMock()
@@ -417,18 +410,6 @@ class TestScrapeMetadataDegradation:
         # AI was not invoked
         assert result["scrape_trace"]["ai_invoked"] is False
 
-    def test_hybrid_without_ai_falls_back_to_provider_first(self):
-        """hybrid + AI unavailable -> dispatcher falls back to provider_first."""
-        scraper = self._make_scraper(scrape_mode="hybrid", ai_enabled=False)
-        with patch("media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
-                    return_value=None):
-            result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
-
-        scraper._search_all_providers.assert_called()
-        assert result["scrape_trace"]["scrape_mode"] == "hybrid"
-        assert "降级" in result["scrape_trace"]["ai_invoke_reason"]
-        assert result["scrape_trace"]["ai_invoked"] is False
-
     def test_provider_first_without_ai_no_degradation(self):
         """provider_first + AI unavailable -> normal flow, no degradation marker."""
         scraper = self._make_scraper(scrape_mode="provider_first", ai_enabled=False)
@@ -454,96 +435,6 @@ class TestScrapeMetadataDegradation:
         assert result["scrape_trace"]["scrape_mode"] == "ai_only"
         assert "降级" not in (result["scrape_trace"].get("ai_invoke_reason") or "")
 
-    def test_hybrid_with_ai_no_degradation(self):
-        """hybrid + AI available -> normal hybrid flow (Provider + AI)."""
-        scraper = self._make_scraper(scrape_mode="hybrid", ai_enabled=True)
-        with patch("media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
-                    return_value=None):
-            result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
-
-        scraper._search_all_providers.assert_called()
-        assert result["scrape_trace"]["scrape_mode"] == "hybrid"
-        assert "降级" not in (result["scrape_trace"].get("ai_invoke_reason") or "")
-
-
-# ===========================================================================
-# T3.3: Simplified mode functions (hybrid post-simplification)
-# ===========================================================================
-
-class TestHybridModeSimplified:
-    """After T1.3, _scrape_hybrid no longer has ai_available branches because
-    the dispatcher guarantees AI is configured."""
-
-    def _make_scraper(self):
-        scraper = MagicMock()
-        scraper.view = MagicMock()
-        scraper.view.metadata = MagicMock()
-        scraper.view.metadata.scrape_mode = "hybrid"
-        scraper.llm_scraper = MagicMock()
-        scraper.llm_scraper.enabled = True
-        scraper._cleaner = MagicMock()
-        scraper._cleaner.clean.return_value = MagicMock(
-            clean_title="Test Movie", year=2024, season=None,
-            episode=None, year_suspect=False, cjk_title=None,
-        )
-
-        provider = MagicMock()
-        provider.provider_type = "tmdb"
-        provider.display_name = "TMDb"
-        search_item = MagicMock()
-        search_item.item_id = "12345"
-        search_item.title = "Test Movie"
-        search_item.original_title = "Test Movie"
-        match_result = MagicMock()
-        match_result.T = 0.95
-        search_info = {"original_filename": "Test.Movie.2024.mkv"}
-        scraper._search_all_providers.return_value = (
-            (provider, search_item, "movie", match_result, search_info), []
-        )
-        details = MagicMock()
-        details.title = "Test Movie"
-        details.original_title = "Test Movie"
-        details.year = 2024
-        details.overview = "A test movie"
-        details.genres = []
-        details.vote_average = 7.5
-        details.poster_url = ""
-        provider.get_details.return_value = details
-        scraper._map_provider_dimensions.return_value = {}
-        scraper._extract_context.return_value = {"title": "Test Movie"}
-        scraper.confidence_engine = MagicMock()
-        scraper.confidence_engine._config = {"provider_match_threshold": 0.85}
-        scraper.confidence_engine.calculate.return_value = MagicMock(
-            final_confidence=0.9, scrape_trace={}, gate_blocked=False,
-            search_conf=0.8, data_gate=0.9,
-        )
-        scraper.llm_scraper.scrape_with_context.return_value = {
-            "title": "Test Movie", "year": 2024, "media_type": "movie",
-        }
-        scraper.llm_scraper.scrape.return_value = {
-            "title": "Test Movie", "year": 2024, "media_type": "movie",
-        }
-        scraper.providers = [provider]
-        return scraper
-
-    def test_hybrid_with_provider_result_calls_ai(self):
-        """hybrid + Provider result -> llm_scraper.scrape_with_context invoked."""
-        scraper = self._make_scraper()
-        with patch("media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
-                    return_value=None):
-            _scrape_hybrid(scraper, "Test.Movie.2024.mkv", [], None)
-
-        scraper.llm_scraper.scrape_with_context.assert_called_once()
-
-    def test_hybrid_without_provider_result_calls_ai(self):
-        """hybrid + no Provider result -> llm_scraper.scrape invoked (pure AI)."""
-        scraper = self._make_scraper()
-        scraper._search_all_providers.return_value = (None, [])
-        with patch("media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
-                    return_value=None):
-            _scrape_hybrid(scraper, "Test.Movie.2024.mkv", [], None)
-
-        scraper.llm_scraper.scrape.assert_called_once()
 
 
 # ===========================================================================
@@ -551,10 +442,10 @@ class TestHybridModeSimplified:
 # ===========================================================================
 
 class TestScrapeSeriesMetadataDegradation:
-    """Series scraping should also degrade ai_only/hybrid -> provider_first
+    """Series scraping should also degrade ai_only -> provider_first
     when AI is not configured."""
 
-    def _make_scraper(self, scrape_mode="hybrid", ai_enabled=True):
+    def _make_scraper(self, scrape_mode="provider_first", ai_enabled=True):
         scraper = MagicMock()
         scraper.view = MagicMock()
         scraper.view.metadata = MagicMock()
@@ -587,17 +478,6 @@ class TestScrapeSeriesMetadataDegradation:
         # After degradation, AI is not invoked
         assert result["scrape_trace"].get("ai_invoked") is False
 
-    def test_series_hybrid_without_ai_falls_back(self):
-        """Series hybrid + AI unavailable -> falls back to provider_first."""
-        scraper = self._make_scraper(scrape_mode="hybrid", ai_enabled=False)
-        search_result = MagicMock()
-        search_result.items = []
-        scraper.providers[0].search.return_value = search_result
-
-        result = scrape_series_metadata(scraper, "Test Series")
-
-        scraper.providers[0].search.assert_called()
-        assert result["scrape_trace"].get("ai_invoked") is False
 
 
 # ===========================================================================
@@ -605,9 +485,8 @@ class TestScrapeSeriesMetadataDegradation:
 # ===========================================================================
 
 class TestConfigValidatorDegradation:
-    """Validate that ai_only + missing fields is an error, hybrid + missing
-    fields is a warning, both based on field completeness (not the legacy
-    llm.enabled flag)."""
+    """Validate that ai_only + missing fields is an error, based on field
+    completeness (not the legacy llm.enabled flag)."""
 
     def test_ai_only_without_llm_fields_is_error(self):
         from media_importer.core.config_validator import validate_config
@@ -619,17 +498,6 @@ class TestConfigValidatorDegradation:
         details = results.get("details", [])
         llm_items = [i for i in details if "scrape_mode_llm" in i.get("item", "")]
         assert any(i.get("status") == "error" for i in llm_items)
-
-    def test_hybrid_without_llm_fields_is_warning(self):
-        from media_importer.core.config_validator import validate_config
-        config = {
-            "metadata": {"scrape_mode": "hybrid"},
-            "llm": {"api_key": "", "base_url": "", "model": ""},
-        }
-        results = validate_config(config, test_llm=False, test_hermes=False)
-        details = results.get("details", [])
-        hybrid_items = [i for i in details if "scrape_mode_hybrid" in i.get("item", "")]
-        assert any(i.get("status") == "warning" for i in hybrid_items)
 
 
 class TestScrapeMetadataForceMode:
@@ -669,18 +537,11 @@ class TestScrapeMetadataForceMode:
         assert result["scrape_trace"]["scrape_mode"] == "ai_only"
         scraper._search_all_providers.assert_not_called()
 
-    def test_force_hybrid_without_ai_returns_error_not_provider_fallback(self):
-        scraper = self._make_scraper("provider_first", ai_enabled=False)
-        result = scrape_metadata(scraper, "Test.Movie.2024.mkv", force_mode="hybrid")
-        assert result["error"].startswith("AI 刮削未配置")
-        assert result["scrape_trace"]["scrape_mode"] == "hybrid"
-        scraper._search_all_providers.assert_not_called()
-
     def test_configured_hybrid_without_ai_still_falls_back(self):
+        """Legacy hybrid config value should degrade to provider_first."""
         scraper = self._make_scraper("hybrid", ai_enabled=False)
         result = scrape_metadata(scraper, "Test.Movie.2024.mkv")
-        assert result["scrape_trace"]["scrape_mode"] == "hybrid"
-        assert result["scrape_trace"]["ai_invoke_reason"] == "AI未配置-已降级为provider_first"
+        assert result["scrape_trace"]["scrape_mode"] == "provider_first"
 
 
 class TestScrapePreviewHelpers:
@@ -721,7 +582,6 @@ class TestScrapePreviewHelpers:
         recommendation = handler._build_scrape_preview_recommendation({
             "provider_first": {"result": {"confidence": 0.6}},
             "ai_only": {"result": {"confidence": 0.7}},
-            "hybrid": {"result": {"confidence": 0.9}},
         })
-        assert recommendation["best_mode"] == "hybrid"
-        assert recommendation["best_confidence"] == 0.9
+        assert recommendation["best_mode"] == "ai_only"
+        assert recommendation["best_confidence"] == 0.7

@@ -516,6 +516,10 @@ body {
     width: 13px;
     height: 13px;
 }
+.btn-xs {
+    padding: 3px 10px;
+    font-size: 11px;
+}
 .btn-primary {
     background: var(--primary-color);
     color: #0a0b0f;

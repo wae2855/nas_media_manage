@@ -47,6 +47,10 @@ class TestAPIRoutes(unittest.TestCase):
             {"task_id": "abc123"},
         )
         self.assert_route(
+            "POST", "/api/tasks/abc123/cancel", "_task_cancel",
+            {"task_id": "abc123"},
+        )
+        self.assert_route(
             "POST", "/api/tasks/abc123/retry", "_retry_task",
             {"task_id": "abc123"},
         )

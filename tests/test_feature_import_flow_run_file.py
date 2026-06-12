@@ -41,7 +41,7 @@ def test_run_batch_starts_background_processing():
     result = run_batch_for_api(pipeline, thread_factory=FakeThread)
 
     assert result.code == 202
-    assert result.message == "Batch processing started in background"
+    assert result.message == "已启动批量扫描，新任务稍后会出现在工作台"
     assert len(FakeThread.started_targets) == 1
     assert pipeline.run_all_count == 1
 
@@ -75,7 +75,7 @@ def test_run_file_starts_single_file_processing(tmp_path):
     )
 
     assert result.code == 202
-    assert result.message == f"Processing started: {video_path}"
+    assert result.message == f"已启动处理: {video_path}"
     assert len(FakeThread.started_targets) == 1
     assert task_manager.created == [
         {

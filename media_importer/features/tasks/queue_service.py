@@ -12,7 +12,7 @@ class TaskQueueActionResult:
     message: str = ""
 
 
-def clear_tasks_for_api(task_manager, status: Optional[str], logger=None) -> TaskQueueActionResult:
+def clear_tasks_for_api(task_manager, status: Optional[str], stage: Optional[str] = None, logger=None) -> TaskQueueActionResult:
     if task_manager is None:
         return TaskQueueActionResult(code=500, message="TaskManager not initialized")
 
@@ -29,10 +29,10 @@ def clear_tasks_for_api(task_manager, status: Optional[str], logger=None) -> Tas
     if normalized_status == "ALL":
         normalized_status = None
 
-    task_manager.clear_tasks(status=normalized_status)
+    task_manager.clear_tasks(status=normalized_status, stage=stage)
     return TaskQueueActionResult(
         code=200,
-        data={"status": normalized_status or "all"},
+        data={"status": normalized_status or "all", "stage": stage},
         message="Tasks cleared",
     )
 

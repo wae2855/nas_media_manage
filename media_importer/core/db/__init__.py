@@ -42,6 +42,7 @@ from .task_repo import (
     list_tasks,
     update_task,
     count_by_status,
+    count_by_status_and_stage,
     delete_task,
     clear_tasks,
     has_running_tasks,

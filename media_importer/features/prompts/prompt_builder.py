@@ -263,15 +263,14 @@ class LLMPromptBuilder:
                 prompt_parts.append(f"{i}. {label}（{name}）: [{values_str}]")
 
         prompt_parts.append("")
+        prompt_parts.append("【重要规则】如果你无法确定某个维度的值（例如没找到该影片的相关信息，或信息不足以做出判断），请将该维度值设为空字符串 \"\"，不要猜测或编造。空值会触发人工干预流程，由人工确认。")
+        prompt_parts.append("")
         prompt_parts.append("请严格按以下JSON格式返回，不要添加任何解释文字：")
 
         json_schema = self._build_json_schema(exclude_dims)
         prompt_parts.append(json.dumps(json_schema, ensure_ascii=False, indent=2))
 
         return '\n'.join(prompt_parts)
-
-    def _build_system_prompt_with_context(self, exclude_dims: set = None) -> str:
-        return self._build_system_prompt_with_provider(exclude_dims=exclude_dims)
 
     def _build_json_schema(self, exclude_dims: set = None) -> Dict[str, Any]:
         dimensions_schema = {}

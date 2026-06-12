@@ -96,15 +96,19 @@ def find_by_fingerprint(conn: sqlite3.Connection, fingerprint: str,
 
 
 def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
-               status: str = None, stage: str = None) -> tuple:
+               status: str = None, statuses: list = None, stage: str = None) -> tuple:
     offset = (page - 1) * page_size
     conditions = []
     params = []
-    if status:
+    if statuses:
+        placeholders = ",".join("?" * len(statuses))
+        conditions.append(f"t.status IN ({placeholders})")
+        params.extend(statuses)
+    elif status:
         status = status.strip().upper()
-    if status and status != "ALL" and status in VALID_STATUSES:
-        conditions.append("t.status=?")
-        params.append(status)
+        if status != "ALL" and status in VALID_STATUSES:
+            conditions.append("t.status=?")
+            params.append(status)
     if stage:
         stage = stage.strip().upper()
         conditions.append("t.stage=?")
@@ -192,6 +196,24 @@ def count_by_status(conn: sqlite3.Connection) -> dict:
     return counts
 
 
+def count_by_status_and_stage(conn: sqlite3.Connection) -> dict:
+    result = {s: 0 for s in VALID_STATUSES}
+    stage_counts = {}
+    with _sqlite_conn_lock:
+        rows = conn.execute(
+            "SELECT status, stage, COUNT(*) as cnt FROM tasks GROUP BY status, stage"
+        ).fetchall()
+    for row in rows:
+        s = row["status"]
+        st = row["stage"] or ""
+        if s in result:
+            result[s] += row["cnt"]
+        if st:
+            stage_counts.setdefault(s, {})[st] = row["cnt"]
+    result["_by_stage"] = stage_counts
+    return result
+
+
 def delete_task(conn: sqlite3.Connection, task_id: str) -> bool:
     with _sqlite_conn_lock:
         conn.execute("DELETE FROM task_subtitles WHERE task_id=?", (task_id,))
@@ -200,16 +222,27 @@ def delete_task(conn: sqlite3.Connection, task_id: str) -> bool:
     return True
 
 
-def clear_tasks(conn: sqlite3.Connection, status: str = None) -> int:
+def clear_tasks(conn: sqlite3.Connection, status: str = None, stage: str = None) -> int:
     with _sqlite_conn_lock:
+        conditions = []
+        params = []
         if status and status in VALID_STATUSES:
+            conditions.append("status=?")
+            params.append(status)
+        if stage:
+            stage = stage.strip().upper()
+            conditions.append("stage=?")
+            params.append(stage)
+        if conditions:
+            where = " WHERE " + " AND ".join(conditions)
             cur = conn.execute(
-                "SELECT task_id FROM tasks WHERE status=?", (status,)
+                f"SELECT task_id FROM tasks{where}", params
             )
             tids = [row["task_id"] for row in cur.fetchall()]
-            conn.execute("DELETE FROM task_subtitles WHERE task_id IN ({})".format(
-                ",".join("?" * len(tids))), tids)
-            conn.execute("DELETE FROM tasks WHERE status=?", (status,))
+            if tids:
+                conn.execute("DELETE FROM task_subtitles WHERE task_id IN ({})".format(
+                    ",".join("?" * len(tids))), tids)
+                conn.execute(f"DELETE FROM tasks{where}", params)
         else:
             conn.execute("DELETE FROM task_subtitles")
             conn.execute("DELETE FROM tasks")

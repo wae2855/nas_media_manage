@@ -1,5 +1,7 @@
 import time
 import logging
+import os
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from media_importer.api import globals
 from .utils import json_response
@@ -247,14 +249,11 @@ class TMDbHandlersMixin:
         clean_result = cleaner.clean(filename)
         providers = create_providers(globals._config)
         provider_enabled = bool(providers)
-        current_mode = "hybrid"
+        current_mode = "provider_first"
         if globals._config:
-            current_mode = globals._config.get("metadata", {}).get("scrape_mode", "hybrid")
-
-        llm_config = globals._config.get("llm", {}) if globals._config else {}
-        llm_timeout = int(llm_config.get("timeout", 30))
-        llm_max_retries = int(llm_config.get("max_retries", 2))
-        preview_timeout = (llm_max_retries + 1) * llm_timeout + 15
+            current_mode = globals._config.get("metadata", {}).get("scrape_mode", "provider_first")
+        if current_mode not in ("provider_first", "ai_only"):
+            current_mode = "provider_first"
 
         if logger:
             logger.info(
@@ -263,11 +262,17 @@ class TMDbHandlersMixin:
             )
 
         def _run_mode(mode_key):
+            conn = None
             try:
                 if logger:
                     logger.info(f"[scrape_preview] {mode_key} 开始")
                 metadata_scraper = MetadataScraper(globals._config)
-                conn = getattr(globals._global_task_manager, 'conn', None) if globals._global_task_manager else None
+                db_path = os.path.join(
+                    globals._config.get("_data_dir",
+                        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "data")),
+                    "tasks.db")
+                conn = sqlite3.connect(db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
                 t0 = time.time()
                 result = metadata_scraper.scrape(filename, conn=conn, force_mode=mode_key)
                 elapsed = round(time.time() - t0, 2)
@@ -278,29 +283,34 @@ class TMDbHandlersMixin:
                 if logger:
                     logger.error(f"[scrape_preview] {mode_key} 异常: {e}")
                 return {"error": str(e)}, 0
+            finally:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
 
         modes_result = {}
-        executor = ThreadPoolExecutor(max_workers=3)
+        executor = ThreadPoolExecutor(max_workers=2)
         try:
             futures = {
                 "provider_first": executor.submit(_run_mode, "provider_first"),
                 "ai_only": executor.submit(_run_mode, "ai_only"),
-                "hybrid": executor.submit(_run_mode, "hybrid"),
             }
 
             for mode_key, future in futures.items():
                 try:
-                    result, elapsed = future.result(timeout=preview_timeout)
+                    result, elapsed = future.result(timeout=300)
                     modes_result[mode_key] = {
                         "result": result,
                         "elapsed": elapsed,
                     }
                 except FuturesTimeout:
                     if logger:
-                        logger.warning(f"[scrape_preview] {mode_key} 超时 ({preview_timeout}s)")
+                        logger.warning(f"[scrape_preview] {mode_key} 超时 (300s)")
                     modes_result[mode_key] = {
-                        "result": {"error": f"{mode_key} 刮削超时（{preview_timeout} 秒）"},
-                        "elapsed": preview_timeout,
+                        "result": {"error": f"{mode_key} 刮削超时（300 秒）"},
+                        "elapsed": 300,
                     }
                 except Exception as e:
                     if logger:
@@ -320,8 +330,10 @@ class TMDbHandlersMixin:
         if logger:
             logger.info("[scrape_preview] 完成")
 
+        # Calculate import paths for each mode using classification rules
+        import_paths = self._resolve_import_paths(modes_result)
+
         ai_only = modes_result.get("ai_only", {})
-        hybrid = modes_result.get("hybrid", {})
         json_response(self, 200, data={
             "filename": filename,
             "clean_result": {
@@ -335,10 +347,11 @@ class TMDbHandlersMixin:
             "modes": modes_result,
             "current_mode": current_mode,
             "recommendation": recommendation,
+            "import_paths": import_paths,
             "ai_only": ai_only.get("result"),
             "ai_only_elapsed": ai_only.get("elapsed", 0),
-            "provider_ai": hybrid.get("result"),
-            "provider_ai_elapsed": hybrid.get("elapsed", 0),
+            "provider_ai": modes_result.get("provider_first", {}).get("result"),
+            "provider_ai_elapsed": modes_result.get("provider_first", {}).get("elapsed", 0),
         })
 
     def _decorate_scrape_preview_mode(self, mode_data: dict):
@@ -364,7 +377,7 @@ class TMDbHandlersMixin:
     def _build_scrape_preview_recommendation(self, modes_result: dict):
         best_mode = None
         best_confidence = -1
-        for mode_key in ("provider_first", "ai_only", "hybrid"):
+        for mode_key in ("provider_first", "ai_only"):
             result = modes_result.get(mode_key, {}).get("result", {})
             if not isinstance(result, dict) or result.get("error"):
                 continue
@@ -379,10 +392,65 @@ class TMDbHandlersMixin:
         reasons = {
             "provider_first": "置信度最高且优先使用 Provider，AI 调用最少，成本最低",
             "ai_only": "纯 AI 刮削置信度最高，适合冷门影片或 Provider 数据不完整的场景",
-            "hybrid": "联合刮削置信度最高，数据最完整，但 API 调用成本较高",
         }
         return {
             "best_mode": best_mode,
             "best_confidence": round(best_confidence, 4),
             "reason": reasons.get(best_mode, ""),
         }
+
+    def _resolve_import_paths(self, modes_result: dict) -> dict:
+        """Calculate import directory for each mode using classification rules."""
+        from media_importer.features.import_flow.services.classification_rules import classify, render_template
+        from media_importer.features.scraping.dimension_manager import get_dimensions_for_scrape
+
+        config = globals._config or {}
+        path_rules = config.get("path_rules", [])
+        fallback_dir = config.get("fallback_dir", "")
+        db_path = os.path.join(
+            config.get("_data_dir",
+                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")),
+            "tasks.db")
+
+        enabled_dims = set()
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            dims = get_dimensions_for_scrape(conn)
+            if dims:
+                enabled_dims = {d.get("name") for d in dims if d.get("enabled")}
+            conn.close()
+        except Exception:
+            pass
+
+        result = {}
+        for mode_key in ("provider_first", "ai_only"):
+            mode_data = modes_result.get(mode_key, {})
+            scrape_result = mode_data.get("result", {})
+            if not isinstance(scrape_result, dict) or scrape_result.get("error"):
+                result[mode_key] = {"import_path": "", "used_fallback": False, "matched_rule": None}
+                continue
+
+            import_path = classify(scrape_result, path_rules, enabled_dims)
+            used_fallback = False
+            matched_rule = None
+
+            if import_path:
+                # Find which rule matched
+                dimensions = scrape_result.get("dimensions", {})
+                for i, rule in enumerate(path_rules):
+                    from media_importer.features.import_flow.services.classification_rules import match_conditions
+                    if match_conditions(dimensions, rule.get("conditions", {}), enabled_dims):
+                        matched_rule = i + 1
+                        break
+            elif fallback_dir:
+                import_path = render_template(fallback_dir, scrape_result)
+                used_fallback = True
+
+            result[mode_key] = {
+                "import_path": import_path or "",
+                "used_fallback": used_fallback,
+                "matched_rule": matched_rule,
+            }
+
+        return result

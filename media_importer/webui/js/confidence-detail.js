@@ -62,6 +62,14 @@ function showConfidenceDetailModal(traceData, filename) {
     var confLevel = finalConf !== undefined ? _confLevel(finalConf) : '-';
     var confDisplay = finalConf !== undefined ? finalConf.toFixed(3) : '-';
 
+    var searchEnhanced = trace.search_enhanced;
+    var searchBadgeInline = '';
+    if (searchEnhanced === true) {
+        searchBadgeInline = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:6px">🔍 联网搜索增强</span>';
+    } else if (searchEnhanced === false) {
+        searchBadgeInline = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:6px">📴 纯本地分析</span>';
+    }
+
     var steps = [];
     var fc = trace.filename_clean;
 
@@ -206,21 +214,23 @@ function showConfidenceDetailModal(traceData, filename) {
             var aiCap = cc.ai_cap;
             steps.push({
                 title: 'AI 置信度上限',
-                tag: 'CALC',
+                tag: 'AI',
                 color: '#A78BFA',
                 html: '<div class="conf-detail-card">' +
                     '<div class="conf-kv"><span class="conf-k">上限值</span><span class="conf-v" style="color:' + _confColor(aiCap.cap || 0) + ';font-weight:600">' + (aiCap.cap !== undefined ? aiCap.cap.toFixed(3) : '-') + '</span></div>' +
                     (aiCap.reason ? '<div class="conf-kv"><span class="conf-k">原因</span><span class="conf-v">' + escapeHtml(aiCap.reason) + '</span></div>' : '') +
+                    '<div style="margin-top:4px">' + searchBadgeInline + '</div>' +
                 '</div>'
             });
         } else if (cc && cc.objective_cap !== undefined) {
             steps.push({
                 title: 'AI 置信度上限',
-                tag: 'CALC',
+                tag: 'AI',
                 color: '#A78BFA',
                 html: '<div class="conf-detail-card">' +
                     '<div class="conf-kv"><span class="conf-k">上限值 (objective_cap)</span><span class="conf-v" style="color:' + _confColor(cc.objective_cap) + ';font-weight:600">' + cc.objective_cap.toFixed(3) + '</span></div>' +
                     '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.4">基于清洗标题与 AI 返回标题的相似度计算，作为纯 AI 模式的置信度上限</div>' +
+                    '<div style="margin-top:4px">' + searchBadgeInline + '</div>' +
                 '</div>'
             });
         }
@@ -262,6 +272,10 @@ function showConfidenceDetailModal(traceData, filename) {
 
         dimTableHtml += '</div>';
         dimTableHtml += '<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4">数据门控(data_gate)：所有维度来源可信则=1，任一来源不可信则=0，触发需审核</div>';
+
+        if (isProviderAi && searchBadgeInline) {
+            dimTableHtml += '<div style="margin-top:4px">' + searchBadgeInline + '</div>';
+        }
 
         if (dg.gate_blocked && dg.gate_blocked.length > 0) {
             dimTableHtml += '<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2)">';

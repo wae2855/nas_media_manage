@@ -6,9 +6,10 @@
     <title>影音库AI智能整理</title>
     <link rel="stylesheet" href="css/cinema-tokens.css?v=1">
     <link rel="stylesheet" href="css/cinema-layout.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages.css?v=4">
-    <link rel="stylesheet" href="css/cinema-config-flow.css?v=1">
-    <link rel="stylesheet" href="css/cinema-rules.css?v=1">
+    <link rel="stylesheet" href="css/cinema-pages.css?v=9">
+    <link rel="stylesheet" href="css/cinema-config-flow.css?v=2">
+    <link rel="stylesheet" href="css/cinema-rules.css?v=4">
+    <link rel="stylesheet" href="css/components.css?v=38">
     <link rel="stylesheet" href="css/dimensions.css?v=37">
     <link rel="stylesheet" href="css/cinema-advanced.css?v=1">
     <link rel="stylesheet" href="css/cinema-confidence.css?v=1">
@@ -117,7 +118,7 @@
                 </section>
 
                 <section class="metrics">
-                    <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="pending"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clock"></use></svg></div><div><div class="metric-label">待处理</div><div class="metric-value" id="metric-pending">0</div></div></button>
+                    <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="queued"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clock"></use></svg></div><div><div class="metric-label">排队中</div><div class="metric-value" id="metric-pending">0</div></div></button>
                     <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="confirm"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-alert"></use></svg></div><div><div class="metric-label">需要确认</div><div class="metric-value" id="metric-confirm">0</div></div></button>
                     <button class="metric-card metric-button" data-nav="tasks" data-view-target="tasks" data-task-filter="success"><div class="metric-icon"><svg class="icon icon-md" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></div><div><div class="metric-label">今日入库</div><div class="metric-value" id="metric-success">0</div></div></button>
                 </section>
@@ -162,6 +163,7 @@
                     <button class="chip" data-task-filter-chip="review">待确认</button>
                     <button class="chip danger" data-task-filter-chip="failed">失败</button>
                     <button class="chip" data-task-filter-chip="success">已完成</button>
+                    <button class="chip muted" data-task-filter-chip="cancelled">已取消</button>
                 </div>
                 <div class="task-batch-toolbar" id="task-batch-toolbar" hidden>
                     <label>
@@ -219,32 +221,32 @@
                 </div>
                 <section class="config-stage-strip" id="config-stage-strip">
                     <button class="config-stage-card active" data-config-stage="start">
-                        <div class="config-stage-copy"><strong>开始</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/start.jpeg" alt="" /></span>
+                        <span class="config-stage-label">开始</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="source">
-                        <div class="config-stage-copy"><strong>源目录</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/source.jpeg" alt="" /></span>
+                        <span class="config-stage-label">源目录</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="temp">
-                        <div class="config-stage-copy"><strong>中转目录</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/temp.jpeg" alt="" /></span>
+                        <span class="config-stage-label">中转目录</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="recycle">
-                        <div class="config-stage-copy"><strong>回收目录</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/recycle.jpeg" alt="" /></span>
+                        <span class="config-stage-label">回收目录</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="scrape">
-                        <div class="config-stage-copy"><strong>刮削配置</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/scrape.jpeg" alt="" /></span>
+                        <span class="config-stage-label">刮削配置</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="ai">
-                        <div class="config-stage-copy"><strong>AI配置</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/ai.jpeg" alt="" /></span>
+                        <span class="config-stage-label">AI配置</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="rules">
-                        <div class="config-stage-copy"><strong>入库规则</strong></div>
-                        <i aria-hidden="true"><span></span></i>
+                        <span class="config-stage-img"><img src="assets/config-stage/rules.jpeg" alt="" /></span>
+                        <span class="config-stage-label">入库规则</span>
                     </button>
                 </section>
                 <section class="config-stage-panel active" data-config-panel="start">
@@ -255,107 +257,82 @@
                             <h3>先把片库跑起来</h3>
                             <p>先配目录，再开刮削和 AI，最后收口入库规则。第一次使用，先跑通主流程，再做高级微调。</p>
                         </article>
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>三步完成基础配置</span>
-                            <div class="start-step-grid">
-                                <div class="start-step-card">
-                                    <b>第 1 步</b>
-                                    <strong>先把目录边界定清楚</strong>
-                                    <small>先完成授权，再配置源目录、中转目录和回收目录。</small>
-                                </div>
-                                <div class="start-step-card">
-                                    <b>第 2 步</b>
-                                    <strong>再打开识别能力</strong>
-                                    <small>配置刮削 Provider 和 AI，让系统开始识别、补全和判断。</small>
-                                </div>
-                                <div class="start-step-card">
-                                    <b>第 3 步</b>
-                                    <strong>最后决定落库方式</strong>
-                                    <small>设置入库规则、命名方式和兜底目录，确认最终落点。</small>
-                                </div>
+
+                        <div class="info-intro form-card-full">
+                            <span class="info-label">配置顺序</span>
+                            <h4>三步完成基础配置</h4>
+                            <p>按照目录→识别能力→落库方式的顺序完成，可以减少反复调整。</p>
+                        </div>
+                        <div class="info-rows form-card-full">
+                            <div class="info-row">
+                                <div class="info-key">第 1 步</div>
+                                <div class="info-value"><b>先把目录边界定清楚</b><span>先完成授权，再配置源目录、中转目录和回收目录。</span></div>
                             </div>
-                        </article>
-                        <article class="form-card form-card-full start-alert-card">
-                            <span>首次使用先记住这三条</span>
-                            <div class="start-alert-list">
-                                <div><b>所有目录都要先授权</b><small>在 fnOS 应用中心 → 本应用 → 设置 → 授权目录 中添加路径，并授予【读写】权限。</small></div>
-                                <div><b>AI 配置必须完成</b><small>影视刮削、识别补全和分类判断都依赖 AI，未配置时主流程无法完整工作。</small></div>
-                                <div><b>先跑模拟，再开任务</b><small>高级配置先保持默认，完成基础配置后先用【运行模拟】检查规则是否符合预期。</small></div>
+                            <div class="info-row">
+                                <div class="info-key">第 2 步</div>
+                                <div class="info-value"><b>再打开识别能力</b><span>配置刮削 Provider 和 AI，让系统开始识别、补全和判断。</span></div>
                             </div>
-                        </article>
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>这 6 个目录各管什么</span>
-                            <div class="start-directory-grid">
-                                <div class="start-directory-card">
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg></span>
-                                        <b>源目录</b>
-                                    </div>
-                                    <small>待整理影视资源的入口。不希望系统改动源文件时，不要开启【源目录智能清理】。</small>
-                                </div>
-                                <div class="start-directory-card">
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
-                                        <b>中转目录</b>
-                                    </div>
-                                    <small>整理入库前的缓冲区，避免直接在源目录改名、移动和覆盖。</small>
-                                </div>
-                                <div class="start-directory-card">
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></span>
-                                        <b>回收目录</b>
-                                    </div>
-                                    <small>系统自己的安全回收区。业务文件不会直接删除，都会先移动到这里。</small>
-                                </div>
-                                <div class="start-directory-card">
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></span>
-                                        <b>入库规则</b>
-                                    </div>
-                                    <small>决定影视文件最终进入哪个目标文件夹，以及命名和兜底路径。</small>
-                                </div>
-                                <div class="start-directory-card">
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clock"></use></svg></span>
-                                        <b>日志目录</b>
-                                    </div>
-                                    <small>系统运行日志的存储目录，安装后默认生成。</small>
-                                </div>
-                                <div class="start-directory-card">
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-brand"></use></svg></span>
-                                        <b>资源目录</b>
-                                    </div>
-                                    <small>系统使用的图片、缩略图、声音等资源文件目录。</small>
-                                </div>
+                            <div class="info-row">
+                                <div class="info-key">第 3 步</div>
+                                <div class="info-value"><b>最后决定落库方式</b><span>设置入库规则、命名方式和兜底目录，确认最终落点。</span></div>
                             </div>
-                        </article>
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>跑通之后再做什么</span>
-                            <div class="config-guide-list compact">
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"></use></svg></span>
-                                        <b>MCP 联网搜索</b>
-                                    </div>
-                                    <small>AI 接入联网搜索后，通常能进一步提高刮削时的搜索精度和结果命中率。</small>
-                                </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                                        <b>高级配置</b>
-                                    </div>
-                                    <small>熟悉主流程后，再调整提示词、维度、置信度和系统策略，效率会更高。</small>
-                                </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                                        <b>运行模拟</b>
-                                    </div>
-                                    <small>开始真实任务前，先确认识别、判断和入库结果是否符合预期。</small>
-                                </div>
+                        </div>
+
+                        <div class="info-callout form-card-full">
+                            <b>首次使用先记住这几点</b>
+                            <span>所有目录都要在 fnOS 应用中心授权读写权限；AI 配置未完成时主流程无法完整工作；完成基础配置后先用【运行模拟】检查规则是否符合预期。</span>
+                        </div>
+
+                        <div class="info-intro form-card-full">
+                            <span class="info-label">目录说明</span>
+                            <h4>这 6 个目录各管什么</h4>
+                        </div>
+                        <div class="info-rows form-card-full">
+                            <div class="info-row">
+                                <div class="info-key">源目录</div>
+                                <div class="info-value"><b>待整理的媒体文件入口</b><span>不希望系统改动源文件时，不要开启【源目录智能清理】。</span></div>
                             </div>
-                        </article>
+                            <div class="info-row">
+                                <div class="info-key">中转目录</div>
+                                <div class="info-value"><b>整理入库前的缓冲区</b><span>避免直接在源目录改名、移动和覆盖。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">回收目录</div>
+                                <div class="info-value"><b>安全回收区</b><span>业务文件不会直接删除，都会先移动到这里。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">入库规则</div>
+                                <div class="info-value"><b>决定最终落点</b><span>配置目标文件夹、命名方式和兜底路径。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">日志目录</div>
+                                <div class="info-value"><b>运行日志存储</b><span>系统运行日志的存储目录，安装后默认生成。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">资源目录</div>
+                                <div class="info-value"><b>图片与缩略图</b><span>系统使用的图片、缩略图、声音等资源文件目录。</span></div>
+                            </div>
+                        </div>
+
+                        <div class="info-intro form-card-full">
+                            <span class="info-label">进阶建议</span>
+                            <h4>跑通之后再做什么</h4>
+                            <p>基础流程跑通后，可以进一步优化体验和效率。</p>
+                        </div>
+                        <div class="info-rows form-card-full">
+                            <div class="info-row">
+                                <div class="info-key">联网搜索</div>
+                                <div class="info-value"><b>MCP 联网搜索</b><span>AI 接入联网搜索后，能进一步提高刮削时的搜索精度和结果命中率。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">高级配置</div>
+                                <div class="info-value"><b>调整更多参数</b><span>熟悉主流程后，再调整提示词、维度、置信度和系统策略。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">运行模拟</div>
+                                <div class="info-value"><b>验证配置预期</b><span>开始真实任务前，先确认识别、判断和入库结果是否符合预期。</span></div>
+                            </div>
+                        </div>
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="source">
@@ -387,11 +364,10 @@
                     </div>
                     <section class="source-cleaner-block">
                         <div class="section-title source-cleaner-head">
-                            <div><h2>源目录智能清理</h2><p class="section-subnote">不选择代表全部清空</p></div>
-                            <label class="toggle-pill">
-                                <input id="cfg-source-cleaner-enabled-inline" type="checkbox" />
-                                <span class="toggle-pill-ui"></span>
-                            </label>
+                            <div class="section-title-stack">
+                                <h2>源目录智能清理 <label class="toggle-pill toggle-pill-inline"><input id="cfg-source-cleaner-enabled-inline" type="checkbox" /><span class="toggle-pill-ui"></span></label></h2>
+                                <p class="section-subnote">开启后，入库完成时自动清理源目录中的垃圾文件；关闭则源目录保持不变</p>
+                            </div>
                         </div>
                         <div class="source-cleaner-panel" id="source-cleaner-panel">
                             <div class="cleaner-stack">
@@ -502,161 +478,303 @@
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="scrape">
-                    <div class="section-title"><h2>刮削配置</h2><button class="btn btn-primary btn-sm" type="button" data-config-save="scrape">保存</button></div>
+                    <div class="section-title"><h2>刮削配置</h2></div>
                     <div class="config-form-grid">
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>这一页先做什么</span>
-                            <div class="config-guide-list compact">
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                                        <b>先启用需要的 Provider</b>
+                        <div class="info-intro form-card-full">
+                            <span class="info-label">操作指引</span>
+                            <h4>这一页先做什么</h4>
+                            <p>在这里启用 Provider、填写凭据和地址，并逐个测试连通性。</p>
+                        </div>
+                        <div class="info-rows form-card-full">
+                            <div class="info-row">
+                                <div class="info-key">第一步</div>
+                                <div class="info-value"><b>先启用需要的 Provider</b><span>只保留你准备实际使用的元数据源，后续维护会更轻。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">第二步</div>
+                                <div class="info-value"><b>再填写凭据和地址</b><span>把 Key、地址和开关补齐，再进入具体 Provider 细项。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">第三步</div>
+                                <div class="info-value"><b>最后逐个测试连通性</b><span>每个 Provider 保存后都建议单独测一次，避免进入任务后才发现不可用。</span></div>
+                            </div>
+                        </div>
+                        <article class="form-card form-card-full config-collapse-card" id="scrape-mode-card">
+                            <div class="config-collapse-header" data-collapse-toggle="scrape-mode-body">
+                                <div class="config-collapse-header-left">
+                                    <span class="config-collapse-chevron">▸</span>
+                                    <div>
+                                        <b>刮削模式</b>
+                                        <span class="config-collapse-status" id="scrape-mode-status">未配置</span>
+                                        <small>核心控制</small>
                                     </div>
-                                    <small>只保留你准备实际使用的元数据源，后续维护会更轻。</small>
                                 </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                                        <b>再填写凭据和地址</b>
-                                    </div>
-                                    <small>把 Key、地址和开关补齐，再进入具体 Provider 细项。</small>
-                                </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
-                                        <b>最后逐个测试连通性</b>
-                                    </div>
-                                    <small>每个 Provider 保存后都建议单独测一次，避免进入任务后才发现不可用。</small>
+                                <div class="config-collapse-header-right">
+                                    <button class="btn btn-primary btn-xs" type="button" data-config-save="scrape-mode">保存</button>
                                 </div>
                             </div>
+                            <div class="config-collapse-body" id="scrape-mode-body">
+                                <div class="info-intro">
+                                    <span class="info-label">刮削模式说明</span>
+                                    <h4>控制 AI 与 Provider 刮削的协作方式</h4>
+                                    <p>刮削模式决定系统如何选择 AI 和元数据源（Provider）来完成影视元数据获取。不同模式在准确性、成本和速度上有不同的侧重。</p>
+                                </div>
+                                <div class="info-callout info-callout-warning">
+                                    <b>重要提示</b>
+                                    <span>选择「纯 AI 刮削」模式时，<b>必须</b>在「AI 配置」页签中配置「AI 搜索增强」，填写支持联网搜索的模型接口地址、模型ID 和 API Key，并确认 API Key 已开通联网搜索（MCP）功能。未配置 AI 搜索增强时，纯 AI 模式将无法工作。</span>
+                                </div>
+                                <div class="info-rows">
+                                    <div class="info-row">
+                                        <div class="info-key">Provider 优先（推荐）</div>
+                                        <div class="info-value"><b>省成本、Provider 为主</b><span>先使用元数据源（TMDB）获取数据，AI 仅在元数据源数据不完整时补充缺失维度。Provider 数据完整时不会调用 AI，节省 API 调用成本。<b>即使未启用 AI 刮削也可正常工作</b>（仅在 Provider 缺失时降级到 AI）。</span></div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-key">纯 AI 刮削</div>
+                                        <div class="info-value"><b>完全依赖 AI、必须配置 AI 搜索增强</b><span>不使用元数据源 API，所有信息均由 AI 联网搜索后推断。<b class="required-mark">必须在 AI 配置中启用「AI 搜索增强」，填写支持联网搜索的模型接口地址、模型ID 和 API Key</b>，并确认 API Key 已开通联网搜索（MCP）功能，否则将无法完成刮削。</span></div>
+                                    </div>
+
+                                </div>
+                                <label class="form-card form-card-full">
+                                    <span>刮削模式</span>
+                                    <select id="cfg-metadata_scrape_mode">
+                                        <option value="provider_first">Provider 优先（推荐）</option>
+                                        <option value="ai_only">纯 AI 刮削（需配置 AI 搜索增强）</option>
+                                    </select>
+                                    <p id="cfg-scrape-mode-hint">Provider 权威，维度缺失时优先使用 AI 搜索增强补缺（降级 AI 辅助）</p>
+                                </label>
+                            </div>
                         </article>
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>元数据源配置</span>
-                            <p>在这里启用 Provider、填写凭据和地址，并逐个测试连通性。</p>
-                        </article>
+
                         <div class="provider-inline-stack form-card-full" id="provider-inline-stack">
                             <article class="provider-inline-empty">正在读取 Provider 列表...</article>
                         </div>
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="ai">
-                    <div class="section-title"><h2>AI配置</h2><button class="btn btn-primary btn-sm" type="button" data-config-save="ai">保存</button></div>
+                    <div class="section-title"><h2>AI配置</h2></div>
                     <div class="config-form-grid">
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>这一页先做什么</span>
-                            <div class="config-guide-list compact">
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg></span>
-                                        <b>先填连接信息</b>
+
+                        <!-- ===== 区块一：AI 辅助（可折叠，必填） ===== -->
+                        <article class="form-card form-card-full config-collapse-card" id="ai-assist-card">
+                            <div class="config-collapse-header" data-collapse-toggle="ai-assist-body">
+                                <div class="config-collapse-header-left">
+                                    <span class="config-collapse-chevron">▸</span>
+                                    <div>
+                                        <b>AI 辅助</b>
+                                        <span class="config-collapse-status" id="ai-assist-status">未配置</span>
+                                        <small>必填 · 轻量任务</small>
                                     </div>
-                                    <small>先确定提供商、API Key 和接口地址，让 AI 服务可以连通。</small>
                                 </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></span>
-                                        <b>再设置模型策略</b>
-                                    </div>
-                                    <small>主要模型、备选模型和快速模型一起定，后面更容易排错。</small>
+                                <div class="config-collapse-header-right">
+                                    <button class="btn btn-primary btn-xs" type="button" data-config-save="ai-assist">保存</button>
                                 </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                                        <b>保存前先测连通性</b>
+                            </div>
+                            <div class="config-collapse-body" id="ai-assist-body">
+                                <div class="info-intro">
+                                    <span class="info-label">AI 辅助说明</span>
+                                    <h4>标题清洗、结果整理、目录清理都依赖此项</h4>
+                                    <p>AI 辅助承担标题清洗、Provider 数据整理、源目录智能清理等轻量任务。推荐速度快、成本低的模型，不需要联网搜索。</p>
+                                </div>
+                                <div class="info-rows">
+                                    <div class="info-row">
+                                        <div class="info-key">必须配置</div>
+                                        <div class="info-value"><b>多个核心功能依赖</b><span>标题清洗、刮削结果整理、源目录智能清理都需要此项。未配置时相关功能不可用。</span></div>
                                     </div>
-                                    <small>确认接口能通，再开始调提示词、维度和置信度相关配置。</small>
+                                    <div class="info-row">
+                                        <div class="info-key">不用联网</div>
+                                        <div class="info-value"><b>基于已有数据判断</b><span>辅助任务基于文件名解析、格式转换、分类识别等已有数据，不需要联网搜索能力。</span></div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-key">模型要求</div>
+                                        <div class="info-value"><b>速度快、成本低</b><span>推荐 MiniMax-M2.7-highspeed、DeepSeek-V3、GLM-4-flash 等。</span></div>
+                                    </div>
+                                </div>
+                                <article class="form-card form-card-full config-guide-card">
+                                    <span>推荐模型</span>
+                                    <div class="config-guide-list compact">
+                                        <div><b>MiniMax-M2.7-highspeed</b><small>速度快、成本低，推荐首选</small></div>
+                                        <div><b>DeepSeek-V3</b><small>通用能力强</small></div>
+                                        <div><b>GLM-4-flash</b><small>智谱免费额度</small></div>
+                                        <div><b>gpt-4o-mini</b><small>OpenAI 轻量模型</small></div>
+                                    </div>
+                                </article>
+
+                                <label class="form-card form-card-full">
+                                    <span>辅助模型ID <b class="required-mark">*</b></span>
+                                    <input id="cfg-llm_fast_model" type="text" placeholder="gpt-4o-mini / MiniMax-M2.7-highspeed" required />
+                                    <p>用于标题清洗、Provider 数据整理等轻量任务。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>清理模型ID</span>
+                                    <input id="cfg-llm_source_cleaner_model" type="text" placeholder="留空则使用辅助模型" />
+                                    <p>用于源目录 AI 清理。留空默认使用辅助模型，无需单独配置。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>接口地址</span>
+                                    <input id="cfg-llm_fast_base_url" type="text" placeholder="留空则使用搜索增强区块的接口地址" />
+                                    <p>辅助模型和搜索增强模型使用不同厂商时可单独填写。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>API Key</span>
+                                    <input id="cfg-llm_fast_api_key" type="password" placeholder="留空则使用搜索增强区块的 API Key" />
+                                    <p>辅助区域优先使用此 Key，留空则回退到搜索增强区块的 API Key。</p>
+                                </label>
+                                <div class="info-rows">
+                                    <div class="info-row">
+                                        <div class="info-key">使用场景</div>
+                                        <div class="info-value">
+                                            <b>以下功能使用 AI 辅助模型</b>
+                                            <span>① 标题清洗（从文件名提取影视标题）</span>
+                                            <span>② 源目录智能清理 · AI 辅助判断</span>
+                                            <span>③ Provider 优先模式 · 维度补缺（当 AI 搜索增强未配置时降级使用）</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="inline-action-row">
+                                    <button class="btn btn-secondary btn-sm" type="button" id="btn-ai-assist-demo">AI 辅助测试</button>
                                 </div>
                             </div>
                         </article>
-                        <label class="form-card form-card-full">
-                            <span>LLM 提供商</span>
-                            <select id="cfg-llm_provider-inline">
-                                <option value="openai">OpenAI</option>
-                                <option value="azure">Azure OpenAI</option>
-                            </select>
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>API Key</span>
-                            <input id="cfg-llm_api_key-inline" type="password" placeholder="sk-..." />
-                            <p>已配置时可以留空，保存后保持原值。</p>
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>接口地址</span>
-                            <input id="cfg-llm_base_url-inline" type="text" placeholder="https://api.openai.com/v1" />
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>主要模型ID</span>
-                            <input id="cfg-llm_model-inline" type="text" placeholder="gpt-4o-mini / deepseek-chat" />
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>备选模型ID</span>
-                            <input id="cfg-llm_fallback_model-inline" type="text" placeholder="主模型失败时降级使用" />
-                            <p>主模型失败时自动切换。</p>
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>快速模型ID</span>
-                            <input id="cfg-llm_fast_model-inline" type="text" placeholder="留空则使用主要模型" />
-                            <p>优先用于标题清洗和结果整理。</p>
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>超时时间（秒）</span>
-                            <input id="cfg-llm_timeout-inline" type="number" min="5" max="120" value="30" />
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>最大重试次数</span>
-                            <input id="cfg-llm_max_retries-inline" type="number" min="0" max="10" value="2" />
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>重试间隔（秒）</span>
-                            <input id="cfg-llm_retry_delay-inline" type="number" min="1" max="60" value="3" />
-                        </label>
-                        <label class="form-card form-card-full">
-                            <span>默认置信度阈值</span>
-                            <input id="cfg-llm_confidence_threshold-inline" type="number" min="0" max="1" step="0.1" value="0.8" />
-                            <p>用于默认判断边界；更复杂的调优放到高级配置里处理。</p>
-                        </label>
-                        <article class="form-card form-card-full">
-                            <span>连通性</span>
-                            <label class="toggle-row-inline">
-                                <input id="cfg-llm_verify_ssl-inline" type="checkbox" />
-                                <b>验证 SSL 证书</b>
-                            </label>
-                            <p>正式 HTTPS 环境建议开启；HTTP 或自签证书环境可关闭。</p>
-                            <div class="inline-action-row">
-                                <button class="btn btn-secondary btn-sm" type="button" data-llm-test="inline">测试 LLM 连通性</button>
+
+                        <!-- ===== 区块二：AI 搜索增强（可折叠，可选，需启用） ===== -->
+                        <article class="form-card form-card-full config-collapse-card" id="ai-scrape-card">
+                            <div class="config-collapse-header" data-collapse-toggle="ai-scrape-body">
+                                <div class="config-collapse-header-left">
+                                    <span class="config-collapse-chevron">▸</span>
+                                    <div>
+                                        <b>AI 搜索增强</b>
+                                        <span class="config-collapse-status" id="ai-scrape-status">未配置</span>
+                                        <small>可选 · 联网刮削</small>
+                                    </div>
+                                </div>
+                                <div class="config-collapse-header-right">
+                                    <button class="btn btn-primary btn-xs" type="button" data-config-save="ai-scrape">保存</button>
+                                </div>
+                            </div>
+                            <div class="config-collapse-body" id="ai-scrape-body">
+                                <div class="info-intro">
+                                    <span class="info-label">AI 搜索增强说明</span>
+                                    <h4>配置支持联网搜索的模型，用于 AI 刮削和维度补缺</h4>
+                                    <p>AI 搜索增强利用大模型厂商自带的联网搜索能力获取最新影视信息，提高刮削准确率。必须填写支持联网搜索的模型。适合冷门影片、别名复杂的场景。Provider 优先模式下维度补缺也优先使用此模型。</p>
+                                </div>
+                                <div class="info-rows">
+                                    <div class="info-row">
+                                        <div class="info-key">已配置时</div>
+                                        <div class="info-value"><b>Provider 优先 + AI 搜索增强补缺</b><span>Provider 数据完整时不调用 AI，缺失维度由 AI 搜索增强补充。纯 AI 模式下全量使用此模型刮削。</span></div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-key">未配置时</div>
+                                        <div class="info-value"><b>只使用 Provider 刮削</b><span>系统使用 TMDB 等 Provider 独立获取元数据，AI 补缺降级为辅助模型（无联网搜索）。</span></div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-key">模型要求</div>
+                                        <div class="info-value"><b>必须支持联网搜索</b><span>请确认你的 API Key 已开通 MCP 网络搜索功能，否则联网搜索不会生效。</span></div>
+                                    </div>
+                                </div>
+                                <article class="form-card form-card-full config-guide-card">
+                                    <span>支持联网搜索的厂商</span>
+                                    <div class="config-guide-list compact">
+                                        <div><b>智谱 GLM</b><small>接口含 bigmodel.cn，使用 tools.web_search 参数</small></div>
+                                        <div><b>通义千问</b><small>接口含 dashscope / aliyun，使用 enable_search 参数</small></div>
+                                        <div><b>Kimi / Moonshot</b><small>接口含 moonshot，使用 builtin_function.$web_search 参数</small></div>
+                                    </div>
+                                    <p style="margin-top:8px;">DeepSeek 官方 API 暂不支持联网搜索。豆包/火山引擎仅 Responses API 支持，Chat API 暂不支持。MiniMax 联网搜索需通过 MCP 协议，Chat API 暂不支持。后续版本将支持更多搜索方式和模型厂商。</p>
+                                </article>
+                                <article class="form-card form-card-full config-guide-card" id="ai-search-support-info">
+                                    <span>支持检测</span>
+                                    <div id="ai-search-support-text">
+                                        <small>系统根据接口地址自动判断是否支持联网搜索，无需手动开启。</small>
+                                    </div>
+                                </article>
+
+                                <label class="form-card form-card-full">
+                                    <span>API Key</span>
+                                    <input id="cfg-llm_api_key" type="password" placeholder="sk-..." />
+                                    <p>已配置时可以留空，保存后保持原值。请确认此 Key 已开通联网搜索（MCP）功能。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>接口地址</span>
+                                    <input id="cfg-llm_base_url" type="text" placeholder="https://open.bigmodel.cn/api/paas/v4" />
+                                    <p>支持所有兼容 OpenAI API 格式的大模型服务。填写后系统自动检测联网搜索支持情况。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>刮削模型ID</span>
+                                    <input id="cfg-llm_model" type="text" placeholder="glm-4-flash / qwen-plus / moonshot-v1-8k" />
+                                    <p>用于纯 AI 刮削和整剧刮削，必须支持联网搜索。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>备选模型ID</span>
+                                    <input id="cfg-llm_fallback_model" type="text" placeholder="主模型失败时降级使用" />
+                                    <p>主模型失败时自动切换。</p>
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>超时时间（秒）</span>
+                                    <input id="cfg-llm_timeout" type="number" min="5" max="120" value="30" />
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>最大重试次数</span>
+                                    <input id="cfg-llm_max_retries" type="number" min="0" max="10" value="2" />
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>重试间隔（秒）</span>
+                                    <input id="cfg-llm_retry_delay" type="number" min="1" max="60" value="3" />
+                                </label>
+                                <label class="form-card form-card-full">
+                                    <span>默认置信度阈值</span>
+                                    <input id="cfg-llm_confidence_threshold" type="number" min="0" max="1" step="0.1" value="0.8" />
+                                </label>
+                                <article class="form-card form-card-full">
+                                    <span>连通性</span>
+                                    <label class="toggle-row-inline">
+                                        <input id="cfg-llm_verify_ssl" type="checkbox" />
+                                        <b>验证 SSL 证书</b>
+                                    </label>
+                                    <div class="inline-action-row">
+                                        <button class="btn btn-secondary btn-sm" type="button" data-llm-test="inline">测试 LLM 连通性</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" id="btn-ai-scrape-demo">AI 搜索增强测试</button>
+                                    </div>
+                                </article>
+                                <div class="info-rows">
+                                    <div class="info-row">
+                                        <div class="info-key">使用场景</div>
+                                        <div class="info-value">
+                                            <b>以下功能使用 AI 搜索增强模型</b>
+                                            <span>① 纯 AI 刮削（全量维度由 AI 判断，必须使用 AI 搜索增强）</span>
+                                            <span>② Provider 优先模式 · 维度补缺（优先使用，未配置时降级 AI 辅助）</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </article>
+
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="rules">
                     <div class="section-title"><h2>入库规则</h2><button class="btn btn-primary" type="button" data-config-save="rules">保存</button></div>
                     <div class="config-form-grid">
-                        <article class="form-card form-card-full config-guide-card">
-                            <span>这一页先做什么</span>
-                            <div class="config-guide-list compact">
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                                        <b>先排匹配顺序</b>
-                                    </div>
-                                    <small>先把最具体的规则放前面，通用规则放后面。</small>
-                                </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-brand"></use></svg></span>
-                                        <b>再用模板变量命名</b>
-                                    </div>
-                                    <small>确认目录模板和文件名模板里会用到哪些变量。</small>
-                                </div>
-                                <div>
-                                    <div class="start-directory-head">
-                                        <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></span>
-                                        <b>最后补兜底目录</b>
-                                    </div>
-                                    <small>避免没有命中任何规则时，文件直接落成失败。</small>
-                                </div>
+                        <div class="info-intro form-card-full">
+                            <span class="info-label">操作指引</span>
+                            <h4>这一页先做什么</h4>
+                            <p>规则从上到下依次匹配，第一个满足所有条件的规则生效。请把具体规则放前面，通用规则放后面。</p>
+                        </div>
+                        <div class="info-rows form-card-full">
+                            <div class="info-row">
+                                <div class="info-key">第一步</div>
+                                <div class="info-value"><b>先排匹配顺序</b><span>先把最具体的规则放前面，通用规则放后面。</span></div>
                             </div>
-                        </article>
+                            <div class="info-row">
+                                <div class="info-key">第二步</div>
+                                <div class="info-value"><b>再用模板变量命名</b><span>确认目录模板和文件名模板里会用到哪些变量。</span></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-key">第三步</div>
+                                <div class="info-value"><b>最后补兜底目录</b><span>避免没有命中任何规则时，文件直接落成失败。</span></div>
+                            </div>
+                        </div>
+                        <div class="info-callout form-card-full">
+                            <b>提示</b>
+                            <span>按住规则卡片左侧的 ⋮⋮ 手柄可拖动卡片，调整匹配优先顺序。</span>
+                        </div>
                         <article class="form-card form-card-full">
                             <span>入库规则 <b class="required-mark">*</b></span>
                             <p>规则从上到下依次匹配，第一个满足条件的规则生效。具体规则放前面，通用规则放后面。</p>
@@ -671,11 +789,11 @@
                         <article class="form-card form-card-full">
                             <span>可用模板变量</span>
                             <div class="var-disclosure-list">
-                                <button class="var-disclosure-item active" data-var-group="basic">
+                                <button class="var-disclosure-item" data-var-group="basic">
                                     <div><strong>基础变量</strong><small>标题、年份、扩展名</small></div>
                                     <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
                                 </button>
-                                <div class="var-disclosure-panel active" data-var-panel="basic">
+                                <div class="var-disclosure-panel" data-var-panel="basic">
                                     <div class="var-token-line"><code>{title_cn}</code><span>中文标题</span></div>
                                     <div class="var-token-line"><code>{title_en}</code><span>英文标题</span></div>
                                     <div class="var-token-line"><code>{year}</code><span>年份</span></div>
@@ -734,15 +852,103 @@
     </nav>
     <div class="toast" id="toast" role="status"></div>
     <script src="js/api.js?v=1"></script>
+    <script src="js/tmdb-dict.js?v=1"></script>
     <script src="js/cinema-modals.js?v=1"></script>
     <script src="js/dimensions.js?v=37"></script>
+    <script src="js/confidence-detail.js?v=3"></script>
     <script src="js/prompts.js?v=37"></script>
     <script src="js/cinema-confidence.js?v=2"></script>
-    <script src="js/cinema-tasks.js?v=1"></script>
+    <script src="js/cinema-tasks.js?v=2"></script>
     <script src="js/cinema-recycle.js?v=1"></script>
     <script src="js/cinema-field.js?v=1"></script>
     <script src="js/cinema-section.js?v=1"></script>
-    <script src="js/cinema-config.js?v=1"></script>
-    <script src="js/cinema-app.js?v=4"></script>
+    <script src="js/cinema-config.js?v=10"></script>
+    <script src="js/cinema-app.js?v=6"></script>
+    <div class="modal-overlay" id="ai-scrape-demo-modal" style="display:none;">
+        <div class="modal ai-demo-modal-content">
+            <div class="modal-header">
+                <h3>AI 刮削测试</h3>
+                <button class="modal-close" id="btn-ai-scrape-demo-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">选择一个预置案例，使用当前配置运行完整刮削流程，查看 AI 返回的元数据结果。</p>
+                <div class="demo-scenario-list">
+                    <button class="demo-scenario-card" data-demo-scenario="scrape" data-demo-file="Inception.2010.1080p.BluRay.x264.mp4">
+                        <b>电影刮削</b>
+                        <small>经典电影文件名刮削，测试 AI 识别影片类型、分级、地区等维度。</small>
+                        <span class="demo-sample">Inception.2010.1080p.BluRay.x264.mp4</span>
+                    </button>
+                    <button class="demo-scenario-card" data-demo-scenario="scrape" data-demo-file="The.Matrix.1999.2160p.UHD.BluRay.x265.mkv">
+                        <b>电影刮削（科幻）</b>
+                        <small>科幻电影刮削，测试 AI 对类型和年代的判断。</small>
+                        <span class="demo-sample">The.Matrix.1999.2160p.UHD.BluRay.x265.mkv</span>
+                    </button>
+                    <button class="demo-scenario-card" data-demo-scenario="series_scrape" data-demo-file="Breaking.Bad.S01E01.1080p.BluRay.x264.mp4">
+                        <b>剧集刮削</b>
+                        <small>电视剧单集刮削，测试 AI 识别剧集名、季集编号。</small>
+                        <span class="demo-sample">Breaking.Bad.S01E01.1080p.BluRay.x264.mp4</span>
+                    </button>
+                    <button class="demo-scenario-card" data-demo-scenario="series_scrape" data-demo-file="Game.of.Thrones.S03E09.2160p.UHD.BluRay.x265.mkv">
+                        <b>剧集刮削（HBO）</b>
+                        <small>HBO 剧集刮削，测试 AI 对复杂剧集名的识别。</small>
+                        <span class="demo-sample">Game.of.Thrones.S03E09.2160p.UHD.BluRay.x265.mkv</span>
+                    </button>
+                </div>
+                <div class="demo-result-area" id="ai-scrape-demo-result" style="display:none;">
+                    <div class="demo-result-header">
+                        <span id="ai-scrape-demo-result-title"></span>
+                        <span class="demo-result-elapsed" id="ai-scrape-demo-result-elapsed"></span>
+                    </div>
+                    <pre id="ai-scrape-demo-result-body"></pre>
+                </div>
+                <div class="demo-loading" id="ai-scrape-demo-loading" style="display:none;">
+                    <span class="spinner"></span> 正在执行 AI 刮削，请稍候...
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="ai-assist-demo-modal" style="display:none;">
+        <div class="modal ai-demo-modal-content">
+            <div class="modal-header">
+                <h3>AI 辅助测试</h3>
+                <button class="modal-close" id="btn-ai-assist-demo-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">选择一个预置案例，使用辅助模型运行对应功能，查看处理结果。</p>
+                <div class="demo-scenario-list">
+                    <button class="demo-scenario-card" data-demo-scenario="extract_title" data-demo-file="The.Dark.Knight.2008.2160p.UHD.BluRay.x265.mkv">
+                        <b>标题提取</b>
+                        <small>从文件名中提取干净的影视标题，去除编码、分辨率等标签。</small>
+                        <span class="demo-sample">The.Dark.Knight.2008.2160p.UHD.BluRay.x265.mkv</span>
+                    </button>
+                    <button class="demo-scenario-card" data-demo-scenario="extract_title" data-demo-file="[AnimeRG] Attack on Titan - S04E01 (1080p).mkv">
+                        <b>标题提取（动漫）</b>
+                        <small>动漫文件名清洗，测试对发布组标签和季集格式的处理。</small>
+                        <span class="demo-sample">[AnimeRG] Attack on Titan - S04E01 (1080p).mkv</span>
+                    </button>
+                    <button class="demo-scenario-card" data-demo-scenario="source_cleaner" data-demo-file="sample.mp4">
+                        <b>源目录清理</b>
+                        <small>判断示例文件是否为影视媒体文件，是否应保留。</small>
+                        <span class="demo-sample">sample.mp4</span>
+                    </button>
+                    <button class="demo-scenario-card" data-demo-scenario="source_cleaner" data-demo-file="Thumbs.db">
+                        <b>源目录清理（非媒体）</b>
+                        <small>测试对非媒体文件的识别和清理建议。</small>
+                        <span class="demo-sample">Thumbs.db</span>
+                    </button>
+                </div>
+                <div class="demo-result-area" id="ai-assist-demo-result" style="display:none;">
+                    <div class="demo-result-header">
+                        <span id="ai-assist-demo-result-title"></span>
+                        <span class="demo-result-elapsed" id="ai-assist-demo-result-elapsed"></span>
+                    </div>
+                    <pre id="ai-assist-demo-result-body"></pre>
+                </div>
+                <div class="demo-loading" id="ai-assist-demo-loading" style="display:none;">
+                    <span class="spinner"></span> 正在执行 AI 辅助，请稍候...
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

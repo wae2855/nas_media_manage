@@ -8,10 +8,8 @@ class FakeTaskManager:
 
     def count_by_status(self):
         return {
-            "PENDING": 1,
-            "PROCESSING": 2,
+            "PENDING": 3,
             "FAILED": 3,
-            "CONFIRMING": 4,
             "SUCCESS": 5,
         }
 
@@ -38,12 +36,12 @@ def test_list_tasks_for_api_builds_pagination_payload():
         FakeTaskManager.conn,
         page=3,
         page_size=10,
-        status="PENDING",
+        statuses=["PENDING"],
         stage=None,
     )
     assert result.code == 200
     assert result.data["tasks"] == [{"task_id": "t1"}]
-    assert result.data["active_count"] == 4
+    assert result.data["active_count"] == 6
 
 
 def test_list_tasks_for_api_rejects_invalid_status():

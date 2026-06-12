@@ -19,13 +19,13 @@ class ClassificationService:
     def __init__(self, config: dict):
         self.config = ConfigView.from_dict(config)
 
-    def classify_task(self, task: dict) -> ClassificationResult:
+    def classify_task(self, task: dict, enabled_dims: set = None) -> ClassificationResult:
         path_rules = self.config.paths.path_rules
         scraped = task.get("scrape_result", {})
         dimensions = task.get("scrape_dimensions", {})
         dimensions_text = self._format_dimensions(dimensions)
 
-        import_path = classify(scraped, path_rules)
+        import_path = classify(scraped, path_rules, enabled_dims)
         used_fallback = False
         if not import_path:
             fallback_dir = self.config.paths.fallback_dir
@@ -66,27 +66,34 @@ class ClassificationService:
         return "; ".join(rules) if rules else "无规则配置"
 
     def preview_classify(self, task: dict, override_dimensions: dict = None,
-                         override_filename: str = None) -> dict:
+                         override_filename: str = None, enabled_dims: set = None) -> dict:
         """预览分类结果，不执行任何文件操作。"""
         path_rules = self.config.paths.path_rules
         scraped = task.get("scrape_result", {})
         dimensions = override_dimensions if override_dimensions else task.get("scrape_dimensions", {})
         dimensions_text = self._format_dimensions(dimensions)
 
-        import_path = classify(scraped, path_rules)
+        import_path = classify(scraped, path_rules, enabled_dims)
         used_fallback = False
+        warnings = []
+        matched_rule = None
+
         if not import_path:
             fallback_dir = self.config.paths.fallback_dir
             if fallback_dir:
                 import_path = render_template(fallback_dir, scraped)
                 used_fallback = True
-            if not import_path:
+                warnings.append("未匹配到入库规则，已使用兜底目录")
+            else:
                 return {
                     "import_path": "",
                     "final_filename": "",
                     "full_path": "",
                     "matched_rule": None,
-                    "warnings": ["未匹配到任何入库规则"],
+                    "used_fallback": False,
+                    "warnings": ["未匹配到任何入库规则，且未配置兜底目录（fallback_dir），无法预览入库路径"],
+                    "rules_description": self._format_rules(path_rules),
+                    "dimensions_text": dimensions_text,
                 }
 
         import_path = resolve_project_path(import_path, self.config)
@@ -98,6 +105,9 @@ class ClassificationService:
             "import_path": import_path,
             "final_filename": final_filename,
             "full_path": full_path,
-            "matched_rule": None,
-            "warnings": [],
+            "matched_rule": matched_rule,
+            "used_fallback": used_fallback,
+            "warnings": warnings,
+            "rules_description": self._format_rules(path_rules) if used_fallback else "",
+            "dimensions_text": dimensions_text,
         }

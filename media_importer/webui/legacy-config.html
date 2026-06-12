@@ -90,7 +90,7 @@
                 </div>
 
                 <div class="grid-cards">
-                    <div class="card card-clickable" id="card-pending" onclick="switchToTaskFilter('pending')">
+                    <div class="card card-clickable" id="card-pending" onclick="switchToTaskFilter('queued')">
                         <div class="card-icon pending">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="10"/>
@@ -1176,10 +1176,47 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">通知事件</label>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label"><input type="checkbox" id="cfg-hermes_event_batch_start" value="batch_start"> 批量处理开始</label>
-                            <label class="checkbox-label"><input type="checkbox" id="cfg-hermes_event_batch_complete" value="batch_complete"> 批量处理完成</label>
-                            <label class="checkbox-label"><input type="checkbox" id="cfg-hermes_event_program_error" value="program_error"> 程序错误</label>
+                        <div class="form-hint">勾选需要通过 Hermes Webhook 推送的事件类型</div>
+                        <div class="event-grid">
+                            <label class="event-tile" for="cfg-hermes_event_batch_start">
+                                <input type="checkbox" id="cfg-hermes_event_batch_start" value="batch_start" />
+                                <span class="event-tile-icon" aria-hidden="true">
+                                    <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-clapper"></use></svg>
+                                </span>
+                                <span class="event-tile-body">
+                                    <b class="event-tile-title">批量处理开始</b>
+                                    <small class="event-tile-desc">任务启动时立即推送一条通知</small>
+                                </span>
+                                <span class="event-tile-check" aria-hidden="true">
+                                    <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                                </span>
+                            </label>
+                            <label class="event-tile" for="cfg-hermes_event_batch_complete">
+                                <input type="checkbox" id="cfg-hermes_event_batch_complete" value="batch_complete" />
+                                <span class="event-tile-icon" aria-hidden="true">
+                                    <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                                </span>
+                                <span class="event-tile-body">
+                                    <b class="event-tile-title">批量处理完成</b>
+                                    <small class="event-tile-desc">整批任务结束时汇报汇总结果</small>
+                                </span>
+                                <span class="event-tile-check" aria-hidden="true">
+                                    <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                                </span>
+                            </label>
+                            <label class="event-tile" for="cfg-hermes_event_program_error">
+                                <input type="checkbox" id="cfg-hermes_event_program_error" value="program_error" />
+                                <span class="event-tile-icon event-tile-icon-danger" aria-hidden="true">
+                                    <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-alert"></use></svg>
+                                </span>
+                                <span class="event-tile-body">
+                                    <b class="event-tile-title">程序错误</b>
+                                    <small class="event-tile-desc">运行期出现异常时立即告警</small>
+                                </span>
+                                <span class="event-tile-check" aria-hidden="true">
+                                    <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
+                                </span>
+                            </label>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1512,7 +1549,7 @@
 
                     <div class="formula-preview" id="confidence-formula-preview">
                         <div class="formula-preview-title">当前配置下的计算公式</div>
-                        <div class="formula-line" style="margin-bottom:4px;"><span class="hl">Provider+AI 模式</span>（T ≥ <span class="hl" id="formula-threshold-val">0.85</span> 时）</div>
+                        <div class="formula-line" style="margin-bottom:4px;"><span class="hl">Provider 优先模式</span>（T ≥ <span class="hl" id="formula-threshold-val">0.85</span> 时）</div>
                         <div class="formula-line" style="padding-left:12px;"><span class="hl">search_conf</span> = T × R_dynamic</div>
                         <div class="formula-line" style="padding-left:24px;font-size:12px;color:var(--text-secondary);">R_dynamic = R_base × (1 - α) + α，其中 α = ((T - R_T_floor) / (1 - R_T_floor)) ^ R_T_curve</div>
                         <div class="formula-line" style="padding-left:24px;font-size:12px;color:var(--text-secondary);">T 值越高 → α 越大 → R 越接近 1.0 → 结果数惩罚越轻</div>
@@ -1602,8 +1639,8 @@
                     </div>
                     <div class="status-filter-tabs" id="task-status-tabs">
                         <span class="status-filter-tab active" data-status="all">全部</span>
-                        <span class="status-filter-tab" data-status="pending">待处理</span>
-                        <span class="status-filter-tab" data-status="processing">处理中</span>
+                        <span class="status-filter-tab" data-status="queued">排队中</span>
+                        <span class="status-filter-tab" data-status="running">处理中</span>
                         <span class="status-filter-tab" data-status="failed" style="color:var(--danger-color)">失败</span>
                         <span class="status-filter-tab" data-status="completed">完成</span>
                     </div>

@@ -1,41 +1,40 @@
-var _enabledDimensions = [];
 var _openDropdownMulti = null;
 
 var MULTI_SELECT_DIMS = ['restricted_level', 'broad_genre'];
 var DROPDOWN_MULTI_DIMS = ['broad_genre'];
 
+function _transformDimensionsToSelectFormat(rawDims) {
+    var result = [];
+    for (var i = 0; i < rawDims.length; i++) {
+        var d = rawDims[i];
+        var valueList = d.value_list || [];
+        var isMulti = MULTI_SELECT_DIMS.indexOf(d.name) >= 0;
+        var isDropdownMulti = DROPDOWN_MULTI_DIMS.indexOf(d.name) >= 0;
+        var options = valueList.map(function(v) {
+            return { value: v.value, label: v.label || v.value };
+        });
+        var dimType = isDropdownMulti ? 'dropdown-multi' : (isMulti ? 'multi-select' : 'select');
+        result.push({
+            name: d.name,
+            label: d.label,
+            type: dimType,
+            options: isMulti ? options : [{ value: '', label: '(不限制)' }].concat(options),
+            color: d.color || '#6c757d'
+        });
+    }
+    return result;
+}
+
 async function loadEnabledDimensions() {
-    try {
-        var result = await apiRequest('GET', '/dimensions/enabled');
-        if (result.code === 200 && result.data) {
-            _enabledDimensions = (result.data.dimensions || []).map(function(d) {
-                var valueList = d.value_list || [];
-                var isMulti = MULTI_SELECT_DIMS.indexOf(d.name) >= 0;
-                var isDropdownMulti = DROPDOWN_MULTI_DIMS.indexOf(d.name) >= 0;
-                var options = valueList.map(function(v) {
-                    return { value: v.value, label: v.label || v.value };
-                });
-                var dimType = isDropdownMulti ? 'dropdown-multi' : (isMulti ? 'multi-select' : 'select');
-                return {
-                    name: d.name,
-                    label: d.label,
-                    type: dimType,
-                    options: isMulti ? options : [{ value: '', label: '(不限制)' }].concat(options),
-                    color: d.color || '#6c757d'
-                };
-            });
-        }
-    } catch (e) {
-        _enabledDimensions = [
-            { name: 'media_type', label: '影视类型', type: 'select', options: [{ value: '', label: '(不限制)' }, { value: 'movie', label: '电影' }, { value: 'tv', label: '剧集' }], color: '#3b82f6' },
-            { name: 'documentary', label: '是否纪录片', type: 'select', options: [{ value: '', label: '(不限制)' }, { value: 'true', label: '是' }, { value: 'false', label: '否' }], color: '#f59e0b' },
-            { name: 'restricted_level', label: '限制级', type: 'multi-select', options: [{ value: '0-6', label: '幼儿/儿童' }, { value: '7-12', label: '家庭向' }, { value: '13-16', label: '青少年向' }, { value: '17+', label: '成人内容' }], color: '#ec4899' }
-        ];
+    if (typeof loadDimensionVars === 'function') {
+        await loadDimensionVars();
     }
 }
 
 function _getDimensions() {
-    if (_enabledDimensions.length > 0) return _enabledDimensions;
+    if (currentEnabledDimensions && currentEnabledDimensions.length > 0) {
+        return _transformDimensionsToSelectFormat(currentEnabledDimensions);
+    }
     return [
         { name: 'media_type', label: '影视类型', type: 'select', options: [{ value: '', label: '(不限制)' }, { value: 'movie', label: '电影' }, { value: 'tv', label: '剧集' }], color: '#3b82f6' },
         { name: 'documentary', label: '是否纪录片', type: 'select', options: [{ value: '', label: '(不限制)' }, { value: 'true', label: '是' }, { value: 'false', label: '否' }], color: '#f59e0b' },
@@ -124,13 +123,16 @@ function createRuleCardHTML(rule, index, total) {
     var conditions = rule.conditions || {};
     var summary = buildRuleSummary(rule);
 
+    var enabledDimNames = [];
     var conditionsHTML = '';
     for (var d = 0; d < _getDimensions().length; d++) {
         var dim = _getDimensions()[d];
+        enabledDimNames.push(dim.name);
         var value = conditions[dim.name];
+        var labeledName = '<span class="rule-condition-labeled-name">' + escapeHtml(dim.label || dim.name) + '</span><small class="rule-condition-dim-code">' + escapeHtml(dim.name) + '</small>';
         if (dim.type === 'select') {
             conditionsHTML += '<div class="rule-condition-item">' +
-                '<label class="rule-condition-label">' + escapeHtml(dim.label) + '</label>' +
+                '<label class="rule-condition-label">' + labeledName + '</label>' +
                 '<select class="rule-condition-select" data-dim="' + dim.name + '">' +
                 dim.options.map(function(opt) {
                     return '<option value="' + escapeHtml(opt.value) + '" ' + (value === opt.value ? 'selected' : '') + '>' + escapeHtml(opt.label) + '</option>';
@@ -139,7 +141,7 @@ function createRuleCardHTML(rule, index, total) {
         } else if (dim.type === 'multi-select') {
             var selectedValues = typeof value === 'string' ? value.split('|').map(function(s) { return s.trim(); }).filter(Boolean) : [];
             conditionsHTML += '<div class="rule-condition-item">' +
-                '<label class="rule-condition-label">' + escapeHtml(dim.label) + '（可多选）</label>' +
+                '<label class="rule-condition-label">' + labeledName + '<small>（可多选）</small></label>' +
                 '<div class="rule-condition-checkbox-group" data-dim="' + dim.name + '">' +
                 dim.options.map(function(opt) {
                     return '<label class="rule-condition-checkbox-label">' +
@@ -153,7 +155,7 @@ function createRuleCardHTML(rule, index, total) {
                 ? selVals.map(function(v) { return _valueToLabel(dim.name, v); }).join('、')
                 : '（不限制）';
             conditionsHTML += '<div class="rule-condition-item">' +
-                '<label class="rule-condition-label">' + escapeHtml(dim.label) + '（可多选）</label>' +
+                '<label class="rule-condition-label">' + labeledName + '<small>（可多选）</small></label>' +
                 '<div class="rule-dropdown-multi" data-dim="' + dim.name + '">' +
                     '<div class="rule-dropdown-multi-trigger" onclick="event.stopPropagation();toggleDropdownMulti(this,\'' + dim.name + '\')">' +
                         '<span class="rule-dropdown-multi-text">' + escapeHtml(triggerText) + '</span>' +
@@ -168,6 +170,19 @@ function createRuleCardHTML(rule, index, total) {
                         }).join('') +
                     '</div>' +
                 '</div>' +
+            '</div>';
+        }
+    }
+
+    // 规则中使用了已禁用的维度 → 以只读形式展示
+    for (var condName in conditions) {
+        if (enabledDimNames.indexOf(condName) < 0 && conditions.hasOwnProperty(condName)) {
+            var labeledName = '<span class="rule-condition-labeled-name">' + escapeHtml(condName) + '</span><small class="rule-condition-dim-code">' + escapeHtml(condName) + '</small>';
+            conditionsHTML += '<div class="rule-condition-item rule-condition-disabled">' +
+                '<label class="rule-condition-label">' + labeledName + ' <span class="rule-condition-disabled-badge">已禁用</span></label>' +
+                '<div class="rule-condition-readonly-value">' + escapeHtml(conditions[condName]) + '</div>' +
+                '<button class="btn btn-sm btn-outline rule-condition-remove" onclick="removeDisabledDimCondition(this, \'' + escapeHtml(condName) + '\', ' + index + ')" ' +
+                    'title="删除此条件后可禁用该维度">删除</button>' +
             '</div>';
         }
     }
@@ -349,6 +364,16 @@ function isDimensionUsedInRules(dimName) {
         if (val !== undefined && val !== null && val !== '') return true;
     }
     return false;
+}
+
+function removeDisabledDimCondition(btnEl, dimName, ruleIndex) {
+    var card = btnEl.closest('.rule-card');
+    var index = card ? parseInt(card.getAttribute('data-index')) : ruleIndex;
+    var rules = collectPathRulesFromDOM();
+    if (rules[index] && rules[index].conditions) {
+        delete rules[index].conditions[dimName];
+    }
+    renderPathRules(rules);
 }
 
 function refreshPathRulesDisplay() {

@@ -19,6 +19,7 @@ class ScrapeTraceBuilder:
         dimensions: Dict[str, Dict[str, Any]] = None,
         final_confidence: float = 0.0,
         llm_raw_confidence: Optional[float] = None,
+        search_enhanced: bool = False,
     ) -> Dict[str, Any]:
         if dimensions is None:
             dimensions = {}
@@ -37,6 +38,7 @@ class ScrapeTraceBuilder:
 
         trace = {
             "mode": "provider_ai",
+            "search_enhanced": search_enhanced,
             "filename_clean": {
                 "original": original_filename,
                 "clean_title": clean_result.clean_title,

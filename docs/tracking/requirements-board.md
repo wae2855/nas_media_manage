@@ -11,9 +11,6 @@
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
-| REQ-20260609-STATUS01 | Status+Stage 双层任务状态模型重构 | backend+frontend | P0 | - | core/db, core/task_lifecycle, features/tasks, features/import_flow, api, webui | main | Plan: [status-stage-refactor](../plans/2026-06-09-task-status-stage-refactor.md) | 2026-06-09 | 2026-06-10 |
-| REQ-20260608-230001 | 前端功能迁移收尾 A1-A7 | frontend | P1 | - | webui/js/, webui/partials/ | main | Plan: [migration-plan](../plans/2026-06-06-frontend-function-migration-plan.md) | 2026-06-08 | 2026-06-08 |
-| REQ-20260608-BC001 | 前端 B/C 类功能增强与优化 | frontend | P1 | A1-A7 | webui/js/, webui/css/, webui/index.html | main | Plan: [bc-enhancement-plan](../plans/2026-06-08-frontend-bc-enhancement-plan.md) | 2026-06-08 | 2026-06-08 |
 
 ## Planned
 

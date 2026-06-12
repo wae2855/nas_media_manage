@@ -309,17 +309,26 @@ async function loadConfig() {
         loadProviderConfigUI(metadata);
 
         var llm = c.llm || {};
-        document.getElementById('cfg-llm_provider').value = llm.provider || 'openai';
         document.getElementById('cfg-llm_api_key').value = llm.api_key || '';
         document.getElementById('cfg-llm_base_url').value = llm.base_url || '';
         document.getElementById('cfg-llm_model').value = llm.model || '';
         document.getElementById('cfg-llm_fallback_model').value = llm.fallback_model || '';
         document.getElementById('cfg-llm_fast_model').value = llm.fast_model || '';
+        document.getElementById('cfg-llm_fast_base_url').value = llm.fast_base_url || '';
+        document.getElementById('cfg-llm_fast_api_key').value = llm.fast_api_key || '';
+        document.getElementById('cfg-llm_source_cleaner_model').value = llm.source_cleaner_model || '';
         document.getElementById('cfg-llm_timeout').value = llm.timeout || 30;
         document.getElementById('cfg-llm_max_retries').value = llm.max_retries || 2;
         document.getElementById('cfg-llm_retry_delay').value = llm.retry_delay || 3;
         document.getElementById('cfg-llm_confidence_threshold').value = llm.confidence_threshold || 0.8;
-        document.getElementById('cfg-llm_verify_ssl').checked = !!llm.verify_ssl;
+        document.getElementById('cfg-llm_verify_ssl').checked = llm.verify_ssl !== false;
+
+        // 联网搜索配置
+        var ws = llm.web_search || {};
+        var wsEnabled = document.getElementById('cfg-llm_web_search_enabled');
+        if (wsEnabled) wsEnabled.checked = !!ws.enabled;
+
+        updateAiConfigStatus();
 
         var watcher = c.file_watcher || {};
         document.getElementById('cfg-watcher_enabled').checked = !!watcher.enabled;
@@ -393,6 +402,21 @@ async function loadConfig() {
 
 function isMaskedValue(value) {
     return !value || value.indexOf('***') !== -1;
+}
+
+function updateAiConfigStatus() {
+    var scrapeKey = document.getElementById('cfg-llm_api_key')?.value;
+    var scrapeStatus = document.getElementById('ai-scrape-status');
+    if (scrapeStatus) {
+        scrapeStatus.textContent = scrapeKey ? '已配置' : '未配置';
+        scrapeStatus.className = 'config-collapse-status ' + (scrapeKey ? 'status-configured' : 'status-unconfigured');
+    }
+    var assistModel = document.getElementById('cfg-llm_fast_model')?.value;
+    var assistStatus = document.getElementById('ai-assist-status');
+    if (assistStatus) {
+        assistStatus.textContent = assistModel ? '已配置' : '未配置';
+        assistStatus.className = 'config-collapse-status ' + (assistModel ? 'status-configured' : 'status-unconfigured');
+    }
 }
 
 var _cachedProviderSchemas = {};
@@ -756,16 +780,20 @@ var _buildTmdbData = _buildProviderData;
 function _buildLlmData() {
     var data = {
         llm: {
-            provider: document.getElementById('cfg-llm_provider').value,
             base_url: document.getElementById('cfg-llm_base_url').value,
             model: document.getElementById('cfg-llm_model').value,
             fallback_model: document.getElementById('cfg-llm_fallback_model').value,
             fast_model: document.getElementById('cfg-llm_fast_model').value,
+            fast_base_url: document.getElementById('cfg-llm_fast_base_url').value,
             timeout: parseInt(document.getElementById('cfg-llm_timeout').value) || 30,
             max_retries: parseInt(document.getElementById('cfg-llm_max_retries').value) || 2,
             retry_delay: parseInt(document.getElementById('cfg-llm_retry_delay').value) || 3,
             confidence_threshold: parseFloat(document.getElementById('cfg-llm_confidence_threshold').value) || 0.8,
-            verify_ssl: document.getElementById('cfg-llm_verify_ssl').checked
+            verify_ssl: document.getElementById('cfg-llm_verify_ssl').checked,
+            web_search: {
+                enabled: document.getElementById('cfg-llm_web_search_enabled').checked
+            },
+            fast_api_key: ''
         }
     };
     var apiKey = document.getElementById('cfg-llm_api_key').value;
@@ -773,6 +801,12 @@ function _buildLlmData() {
         data.llm.api_key = apiKey;
     } else if (currentConfig.llm && currentConfig.llm.api_key) {
         data.llm.api_key = currentConfig.llm.api_key;
+    }
+    var fastApiKey = document.getElementById('cfg-llm_fast_api_key').value;
+    if (fastApiKey && !isMaskedValue(fastApiKey)) {
+        data.llm.fast_api_key = fastApiKey;
+    } else if (currentConfig.llm && currentConfig.llm.fast_api_key) {
+        data.llm.fast_api_key = currentConfig.llm.fast_api_key;
     }
     return data;
 }
@@ -1292,8 +1326,7 @@ async function testLLM() {
     var result = await apiRequest('POST', '/config/test-llm', {
         base_url: llm.base_url || '',
         api_key: llm.api_key || '',
-        model: llm.model || '',
-        provider: llm.provider || 'openai'
+        model: llm.model || ''
     });
 
     btn.disabled = false;
@@ -2073,10 +2106,10 @@ function generateConsultPrompt() {
         + '4. **置信度计算**：根据 Provider 匹配质量和 AI 数据可信度计算最终置信度。\n'
         + '5. **决策判定**：根据置信度自动决定任务状态。\n'
         + '\n系统有两条独立的计算路径：\n'
-        + '- **Provider+AI 路径**（Provider 启用时）：使用 Provider 搜索结果计算\n'
+        + '- **Provider 优先路径**（Provider 启用时）：使用 Provider 搜索结果计算\n'
         + '- **纯 AI 路径**（Provider 未启用或无结果时）：仅依赖 AI 判断\n'
         + '\n## 二、置信度计算公式详解\n'
-        + '\n### 路径 A：Provider+AI（推荐路径）\n'
+        + '\n### 路径 A：Provider 优先（推荐路径）\n'
         + '\n```\n'
         + '最终置信度 = search_conf × data_gate\n'
         + '\n'

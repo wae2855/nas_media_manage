@@ -424,5 +424,6 @@ class SourceCleaner:
                     "size_mb": 0,
                     "category": "empty_dir",
                     "reason": "空目录",
+                    "source": "rule",
                 })
         return items

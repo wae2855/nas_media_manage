@@ -45,6 +45,9 @@
 ## Current Plans
 
 - [Status+Stage 双层任务状态模型重构](plans/2026-06-09-task-status-stage-refactor.md) — Phase 1-4 开发完成，待验收
+- [CANCELLED 任务取消能力](plans/2026-06-10-cancelled-task-feature.md) — 为排队任务增加取消能力，CANCELLED 状态完整实现
+- [任务工作台交互与失败语义细化](plans/2026-06-10-task-workbench-interaction-refinement.md) — 卡片点击选中、详情编辑布局重构、孤儿 RUNNING 标记为 FAILED
+- [任务卡片按钮矩阵收敛](plans/2026-06-10-task-card-button-matrix.md) — 统一"详情"为唯一详情入口；同步规范矩阵和编辑权限
 - [AI-efficient architecture completion](plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md) — complete, product full-flow acceptance deferred until frontend redesign
 - [Feature-first 代码和文档结构重组](plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md) — complete, pending user acceptance
 

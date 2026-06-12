@@ -152,5 +152,59 @@ class TestConfigViewConsumers(unittest.TestCase):
         self.assertEqual(scraper.fast_base_url, "https://fast.example/v1")
 
 
+class TestLLMConfigIsEffective(unittest.TestCase):
+    """Verify that LLMConfig.is_effective() depends only on field completeness.
+
+    As of 2026-06, the legacy `enabled` field is ignored. AI is available iff
+    api_key + base_url + model are all non-empty.
+    """
+
+    def test_effective_when_all_filled_enabled_true(self):
+        from media_importer.core.config_view import LLMConfig
+        cfg = LLMConfig(
+            enabled=True, api_key="sk-xxx",
+            base_url="http://x", model="gpt-4",
+        )
+        self.assertTrue(cfg.is_effective)
+
+    def test_effective_when_all_filled_enabled_false(self):
+        """Core behavior change: enabled=False + fields filled -> still effective."""
+        from media_importer.core.config_view import LLMConfig
+        cfg = LLMConfig(
+            enabled=False, api_key="sk-xxx",
+            base_url="http://x", model="gpt-4",
+        )
+        self.assertTrue(cfg.is_effective)
+
+    def test_not_effective_when_api_key_missing(self):
+        from media_importer.core.config_view import LLMConfig
+        cfg = LLMConfig(
+            enabled=True, api_key="",
+            base_url="http://x", model="gpt-4",
+        )
+        self.assertFalse(cfg.is_effective)
+
+    def test_not_effective_when_base_url_missing(self):
+        from media_importer.core.config_view import LLMConfig
+        cfg = LLMConfig(
+            enabled=True, api_key="sk-xxx",
+            base_url="", model="gpt-4",
+        )
+        self.assertFalse(cfg.is_effective)
+
+    def test_not_effective_when_model_missing(self):
+        from media_importer.core.config_view import LLMConfig
+        cfg = LLMConfig(
+            enabled=True, api_key="sk-xxx",
+            base_url="http://x", model="",
+        )
+        self.assertFalse(cfg.is_effective)
+
+    def test_not_effective_when_all_fields_empty(self):
+        from media_importer.core.config_view import LLMConfig
+        cfg = LLMConfig()
+        self.assertFalse(cfg.is_effective)
+
+
 if __name__ == "__main__":
     unittest.main()

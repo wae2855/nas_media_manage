@@ -18,21 +18,21 @@ class Metrics:
         self._llm_calls = 0
         self._llm_failures = 0
         self._queue_status = {
-            "pending": 0,
-            "processing": 0,
+            "queued": 0,
+            "running": 0,
             "paused": False
         }
 
     def record_task_start(self):
         with self._lock:
             self._counters["total"] += 1
-            self._queue_status["processing"] += 1
-            if self._queue_status["pending"] > 0:
-                self._queue_status["pending"] -= 1
+            self._queue_status["running"] += 1
+            if self._queue_status["queued"] > 0:
+                self._queue_status["queued"] -= 1
 
     def record_task_complete(self, status: str, duration: float = None):
         with self._lock:
-            self._queue_status["processing"] -= 1
+            self._queue_status["running"] -= 1
 
             if status == "success":
                 self._counters["success"] += 1
@@ -54,7 +54,7 @@ class Metrics:
 
     def set_queue_pending(self, count: int):
         with self._lock:
-            self._queue_status["pending"] = count
+            self._queue_status["queued"] = count
 
     def set_queue_paused(self, paused: bool):
         with self._lock:
@@ -102,8 +102,8 @@ class Metrics:
             "avg_processing_time_seconds": self.avg_processing_time,
             "total_llm_calls": self._llm_calls,
             "llm_failures": self._llm_failures,
-            "current_queue_pending": self._queue_status["pending"],
-            "current_queue_processing": self._queue_status["processing"],
+            "current_queue_queued": self._queue_status["queued"],
+            "current_queue_running": self._queue_status["running"],
             "queue_paused": self._queue_status["paused"],
             "uptime": self.uptime
         }

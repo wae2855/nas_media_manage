@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>配置说明视觉改造 Demo</title>
+    <style>
+        :root {
+            --bg: #0d0c0a;
+            --bg-panel: rgba(20, 18, 14, 0.9);
+            --bg-soft: rgba(255, 255, 255, 0.028);
+            --bg-soft-strong: rgba(255, 255, 255, 0.045);
+            --line: rgba(244, 222, 178, 0.1);
+            --line-strong: rgba(244, 222, 178, 0.2);
+            --text: #f6edd9;
+            --text-soft: #b8ad98;
+            --gold: #efc974;
+            --gold-soft: rgba(239, 201, 116, 0.12);
+            --warn: #f4b468;
+            --shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+            --radius-xl: 28px;
+            --radius-lg: 20px;
+            --radius-md: 16px;
+            --radius-sm: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(239, 201, 116, 0.08), transparent 24%),
+                radial-gradient(circle at top right, rgba(255, 255, 255, 0.03), transparent 18%),
+                linear-gradient(180deg, #12100d 0%, #090807 100%);
+        }
+
+        .page {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 40px 28px 72px;
+        }
+
+        .hero {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .eyebrow {
+            color: var(--gold);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1.08;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 920px;
+            color: var(--text-soft);
+            font-size: 15px;
+            line-height: 1.8;
+        }
+
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            backdrop-filter: blur(14px);
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .panel-head h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .panel-head p {
+            margin: 6px 0 0;
+            color: var(--text-soft);
+            font-size: 13px;
+        }
+
+        .panel-badge {
+            flex-shrink: 0;
+            padding: 7px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line-strong);
+            background: var(--gold-soft);
+            color: var(--gold);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .panel-body {
+            padding: 22px;
+        }
+
+        .section-frame {
+            display: grid;
+            gap: 16px;
+            padding: 18px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .section-title h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .mini-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 96px;
+            height: 34px;
+            padding: 0 14px;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.045);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .before-stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .before-card {
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--bg-soft);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.012);
+        }
+
+        .before-card.active {
+            border-color: rgba(239, 201, 116, 0.18);
+            background: linear-gradient(180deg, rgba(239, 201, 116, 0.08), rgba(255, 255, 255, 0.02));
+        }
+
+        .before-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .before-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            border: 1px solid rgba(239, 201, 116, 0.24);
+            background: rgba(239, 201, 116, 0.12);
+            color: var(--gold);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .before-header b,
+        .before-item b,
+        .before-subtoggle b {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .before-header span,
+        .before-item span,
+        .before-subtoggle span {
+            color: var(--text-soft);
+            font-size: 12px;
+            line-height: 1.65;
+        }
+
+        .before-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .before-item,
+        .before-subtoggle {
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.024);
+        }
+
+        .before-subtoggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .chev {
+            color: var(--text-soft);
+            font-size: 14px;
+        }
+
+        .after-flow {
+            display: grid;
+            gap: 22px;
+        }
+
+        .reading-hero h4,
+        .reading-block h4,
+        .field-panel h4 {
+            margin: 0 0 8px;
+            font-size: 20px;
+        }
+
+        .reading-hero p,
+        .reading-block p,
+        .field-panel p {
+            margin: 0;
+            color: var(--text-soft);
+            font-size: 14px;
+            line-height: 1.75;
+        }
+
+        .reading-hero {
+            padding: 4px 0 2px;
+        }
+
+        .reading-label {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 12px;
+            color: var(--gold);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .reading-block {
+            padding: 0;
+        }
+
+        .info-rows {
+            display: grid;
+            gap: 14px;
+            margin-top: 16px;
+        }
+
+        .info-row {
+            display: grid;
+            grid-template-columns: 110px 1fr;
+            gap: 14px;
+            align-items: start;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.055);
+        }
+
+        .info-row:first-child {
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .info-key {
+            color: var(--gold);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .info-value b {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .info-value span {
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .callout {
+            display: grid;
+            gap: 4px;
+            padding: 14px 16px;
+            border-left: 3px solid var(--gold);
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.018);
+        }
+
+        .callout b {
+            font-size: 14px;
+        }
+
+        .callout span {
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .field-panel {
+            padding: 18px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        .field-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .field-card {
+            padding: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .field-card.full {
+            grid-column: 1 / -1;
+        }
+
+        .field-card label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-soft);
+            font-size: 12px;
+        }
+
+        .input-shell {
+            height: 42px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .advanced-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .advanced-copy b {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .advanced-copy span {
+            color: var(--text-soft);
+            font-size: 12px;
+            line-height: 1.65;
+        }
+
+        .footer-note {
+            margin-top: 24px;
+            padding: 18px 20px;
+            border: 1px dashed var(--line-strong);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .footer-note b {
+            color: var(--text);
+        }
+
+        @media (max-width: 1120px) {
+            .compare-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                padding: 24px 16px 56px;
+            }
+
+            .panel-head,
+            .panel-body,
+            .section-frame,
+            .field-panel {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+
+            .before-grid,
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-row {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .advanced-row,
+            .section-title,
+            .before-subtoggle {
+                align-items: start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div class="eyebrow">Config Reading Demo</div>
+            <h1>说明内容从“功能卡片”回归“阅读内容”</h1>
+            <p>
+                这个 demo 只聚焦一个问题：当前配置页里很多说明内容被设计得太像可点击功能块，尤其是“开始”“刮削配置”“AI 配置”这类页面。下面左边模拟当前的嵌套感，右边展示统一改造后的阅读型方案。
+            </p>
+        </section>
+
+        <section class="compare-grid">
+            <article class="panel">
+                <header class="panel-head">
+                    <div>
+                        <h2>当前视觉感觉</h2>
+                        <p>说明内容和功能入口长得太像，层级感重，阅读负担大。</p>
+                    </div>
+                    <span class="panel-badge">卡片套卡片</span>
+                </header>
+                <div class="panel-body">
+                    <section class="section-frame">
+                        <div class="section-title">
+                            <h3>AI 配置 / AI 刮削</h3>
+                            <span class="mini-button">未配置</span>
+                        </div>
+
+                        <div class="before-stack">
+                            <div class="before-card active">
+                                <div class="before-header">
+                                    <span class="before-icon">AI</span>
+                                    <div>
+                                        <b>AI 刮削</b>
+                                        <span>可选。不配置则走纯刮削器；配置后刮削器 + AI 结合，取置信度更高的结果。</span>
+                                    </div>
+                                </div>
+
+                                <div class="before-card">
+                                    <div>
+                                        <b>AI 刮削说明</b>
+                                        <span>这里本来是帮助阅读的说明，但视觉上仍然像一个功能容器。</span>
+                                    </div>
+
+                                    <div class="before-grid">
+                                        <div class="before-item">
+                                            <b>不配置 AI 刮削</b>
+                                            <span>系统使用 TMDB 等 Provider 独立完成元数据获取。</span>
+                                        </div>
+                                        <div class="before-item">
+                                            <b>配置 AI 刮削</b>
+                                            <span>同一字段取置信度更高的值，适合冷门影片。</span>
+                                        </div>
+                                        <div class="before-item">
+                                            <b>联网搜索增强</b>
+                                            <span>开启后 AI 可以获取最新影视信息，提高刮削准确率。</span>
+                                        </div>
+                                        <div class="before-item">
+                                            <b>模型要求</b>
+                                            <span>轻量模型 + 搜索能力通常就够用。</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="before-subtoggle">
+                                    <div>
+                                        <b>联网搜索增强</b>
+                                        <span>作为子手风琴继续嵌套，看起来又像一个新功能入口。</span>
+                                    </div>
+                                    <span class="chev">▸</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </article>
+
+            <article class="panel">
+                <header class="panel-head">
+                    <div>
+                        <h2>建议统一后的视觉</h2>
+                        <p>先阅读，再配置；说明区与操作区明确分层。</p>
+                    </div>
+                    <span class="panel-badge">阅读块 + 表单区</span>
+                </header>
+                <div class="panel-body">
+                    <section class="section-frame">
+                        <div class="section-title">
+                            <h3>AI 配置 / AI 刮削</h3>
+                            <span class="mini-button">可选能力</span>
+                        </div>
+
+                        <div class="after-flow">
+                            <section class="reading-hero">
+                                <span class="reading-label">AI 刮削说明</span>
+                                <h4>说明区不再像功能卡，而像设置页里的帮助文档</h4>
+                                <p>
+                                    AI 刮削是可选能力，用于补齐 Provider 覆盖不到的影片信息。这里不再用额外容器把说明切碎，而是直接用标题、段落、留白和细分隔线组织阅读节奏。
+                                </p>
+                            </section>
+
+                            <section class="reading-block">
+                                <div class="info-rows">
+                                    <div class="info-row">
+                                        <div class="info-key">不开启时</div>
+                                        <div class="info-value">
+                                            <b>仅使用 Provider 刮削</b>
+                                            <span>适合已有稳定元数据来源、希望流程更简单的场景。</span>
+                                        </div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-key">开启后</div>
+                                        <div class="info-value">
+                                            <b>Provider + AI 联合判断</b>
+                                            <span>更适合冷门影片、别名复杂或刮削结果经常不完整的情况。</span>
+                                        </div>
+                                    </div>
+                                    <div class="info-row">
+                                        <div class="info-key">模型要求</div>
+                                        <div class="info-value">
+                                            <b>轻量模型即可</b>
+                                            <span>不需要高端模型，优先速度快、成本低、兼容 OpenAI API 的服务。</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <div class="callout">
+                                <b>重要提醒</b>
+                                <span>只有真正可操作的内容才保留表单容器。说明型内容尽量不画边框，只保留一条很轻的视觉提示，让用户知道这是一段需要阅读的信息。</span>
+                            </div>
+
+                            <section class="field-panel">
+                                <h4>配置项</h4>
+                                <p>说明读完后，下面才进入可操作表单。这样用户对“哪里是信息、哪里是动作”会一眼分清。</p>
+                                <div class="field-grid">
+                                    <div class="field-card full">
+                                        <label>API Key</label>
+                                        <div class="input-shell"></div>
+                                    </div>
+                                    <div class="field-card">
+                                        <label>接口地址</label>
+                                        <div class="input-shell"></div>
+                                    </div>
+                                    <div class="field-card">
+                                        <label>模型 ID</label>
+                                        <div class="input-shell"></div>
+                                    </div>
+                                </div>
+
+                                <div class="advanced-row">
+                                    <div class="advanced-copy">
+                                        <b>高级选项：联网搜索增强</b>
+                                        <span>保留折叠，但作为与表单同级的高级项，不再嵌套在说明卡内部。</span>
+                                    </div>
+                                    <span class="mini-button">默认收起</span>
+                                </div>
+                            </section>
+                        </div>
+                    </section>
+                </div>
+            </article>
+        </section>
+
+        <section class="footer-note">
+            <b>这个 demo 对应的真实落地方式：</b>
+            配置页里像“开始 / 刮削配置 / AI 配置 / 入库规则”这些页面，说明区统一改成这套阅读型结构；原来的 `config-guide-card`、`start-step-card`、`start-directory-card`、嵌套说明卡会大幅减少，只保留给真正的功能表单和交互区域。
+        </section>
+    </main>
+</body>
+</html>

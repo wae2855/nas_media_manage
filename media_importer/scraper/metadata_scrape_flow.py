@@ -12,7 +12,7 @@ from .llm_scraper import LLMScrapeError
 # Constants
 # ---------------------------------------------------------------------------
 
-VALID_SCRAPE_MODES = {"provider_first", "ai_only", "hybrid"}
+VALID_SCRAPE_MODES = {"provider_first", "ai_only"}
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def _apply_confidence_result(result: dict, confidence_result) -> None:
 
 def _build_minimal_result(clean_result, confidence_engine, enabled_dims_set=None,
                           provider_fallback_reasons=None, ai_clean_result=None,
-                          scrape_mode="hybrid", ai_invoke_reason=None):
+                          scrape_mode="provider_first", ai_invoke_reason=None):
     """Build a minimal result dict when no provider match and no AI available."""
     result = {
         "title": clean_result.clean_title,
@@ -204,13 +204,13 @@ def scrape_metadata(scraper, video_filename: str, subtitle_filenames: List[str] 
     if force_mode is not None and force_mode in VALID_SCRAPE_MODES:
         scrape_mode = force_mode
     else:
-        scrape_mode = getattr(scraper.view.metadata, "scrape_mode", "hybrid")
+        scrape_mode = getattr(scraper.view.metadata, "scrape_mode", "provider_first")
         if scrape_mode not in VALID_SCRAPE_MODES:
-            scrape_mode = "hybrid"
+            scrape_mode = "provider_first"
 
     ai_available = bool(scraper.llm_scraper.enabled)
 
-    if force_mode is not None and scrape_mode in ("ai_only", "hybrid") and not ai_available:
+    if force_mode is not None and scrape_mode == "ai_only" and not ai_available:
         log.warning(f"[metadata_scraper] force_mode={scrape_mode} but AI not configured")
         return {
             "error": "AI 刮削未配置，请在 AI 配置页中启用并填写 API Key、接口地址和模型ID",
@@ -228,7 +228,7 @@ def scrape_metadata(scraper, video_filename: str, subtitle_filenames: List[str] 
             },
         }
 
-    if scrape_mode in ("ai_only", "hybrid") and not ai_available:
+    if scrape_mode == "ai_only" and not ai_available:
         log.warning(
             f"[metadata_scraper] scrape_mode={scrape_mode} but AI not configured, "
             f"falling back to provider_first"
@@ -240,10 +240,8 @@ def scrape_metadata(scraper, video_filename: str, subtitle_filenames: List[str] 
 
     if scrape_mode == "ai_only":
         return _scrape_ai_only(scraper, video_filename, subtitle_filenames, conn)
-    elif scrape_mode == "provider_first":
-        return _scrape_provider_first(scraper, video_filename, subtitle_filenames, conn)
     else:
-        return _scrape_hybrid(scraper, video_filename, subtitle_filenames, conn)
+        return _scrape_provider_first(scraper, video_filename, subtitle_filenames, conn)
 
 
 # ---------------------------------------------------------------------------
@@ -606,295 +604,18 @@ def _scrape_ai_only(scraper, video_filename: str, subtitle_filenames: List[str],
 
 
 # ---------------------------------------------------------------------------
-# Mode: hybrid (original behavior, unchanged)
-# ---------------------------------------------------------------------------
-
-def _scrape_hybrid(scraper, video_filename: str, subtitle_filenames: List[str],
-                   conn) -> Dict[str, Any]:
-    """Hybrid mode: Provider + AI always combined (original behavior).
-
-    The dispatcher guarantees AI is configured before calling this function;
-    if not, it falls back to `_scrape_provider_first()`.
-    """
-    log = logging.getLogger(__name__)
-    enabled_dims_set = _get_enabled_dims(conn)
-
-    t_start = time.time()
-    clean_result = scraper._cleaner.clean(video_filename)
-    ai_clean_result = None
-    log.info(
-        "[metadata_scraper] regex_clean: "
-        f"title={clean_result.clean_title}, year={clean_result.year}, "
-        f"season={clean_result.season}, year_suspect={clean_result.year_suspect}"
-    )
-
-    match_threshold = scraper.confidence_engine._config.get("provider_match_threshold", 0.85)
-    ai_research_threshold = scraper.confidence_engine._config.get("confirm_threshold", 0.5)
-    last_provider_statuses = []
-
-    if clean_result.year_suspect:
-        try:
-            log.info(f"[metadata_scraper] year_suspect=True, ai_clean first ({time.time()-t_start:.1f}s)")
-            ai_clean_result = scraper._cleaner.ai_clean(video_filename, scraper.llm_scraper)
-            log.info(
-                f"[metadata_scraper] ai_clean done: title={ai_clean_result.clean_title}, "
-                f"year={ai_clean_result.year} ({time.time()-t_start:.1f}s)"
-            )
-            search_title = ai_clean_result.clean_title if ai_clean_result else clean_result.clean_title
-            search_year = ai_clean_result.year if ai_clean_result else clean_result.year
-            provider_search_result, last_provider_statuses = scraper._search_all_providers(
-                search_title, search_year, clean_result.season,
-                min_threshold=ai_research_threshold
-            )
-            log.info(
-                "[metadata_scraper] provider_search (post-ai-clean) done: "
-                f"found={provider_search_result is not None} ({time.time()-t_start:.1f}s)"
-            )
-        except Exception as e:
-            log.warning(f"[metadata_scraper] ai_clean + provider_search failed: {e}")
-            provider_search_result = None
-            last_provider_statuses = []
-    else:
-        if clean_result.cjk_title and scraper.providers:
-            log.info(f"[metadata_scraper] provider_search_cjk start: query={clean_result.cjk_title}")
-            provider_search_result, last_provider_statuses = scraper._search_all_providers(
-                clean_result.cjk_title, clean_result.year, clean_result.season
-            )
-            log.info(
-                "[metadata_scraper] provider_search_cjk done: "
-                f"found={provider_search_result is not None} ({time.time()-t_start:.1f}s)"
-            )
-
-            if provider_search_result:
-                _, _, _, cjk_match, _ = provider_search_result
-                if cjk_match.T < match_threshold:
-                    log.info(f"[metadata_scraper] cjk T={cjk_match.T:.3f} < threshold, eng search start")
-                    eng_search_result, eng_provider_statuses = scraper._search_all_providers(
-                        clean_result.clean_title, clean_result.year, clean_result.season
-                    )
-                    last_provider_statuses = eng_provider_statuses
-                    if eng_search_result:
-                        _, _, _, eng_match, _ = eng_search_result
-                        if eng_match.T > cjk_match.T:
-                            provider_search_result = eng_search_result
-                            log.info(
-                                "[metadata_scraper] eng search better: "
-                                f"T={eng_match.T:.3f} > cjk T={cjk_match.T:.3f}"
-                            )
-            else:
-                log.info(f"[metadata_scraper] cjk no result, eng search start: query={clean_result.clean_title}")
-                provider_search_result, last_provider_statuses = scraper._search_all_providers(
-                    clean_result.clean_title, clean_result.year, clean_result.season
-                )
-                log.info(
-                    "[metadata_scraper] eng search done: "
-                    f"found={provider_search_result is not None} ({time.time()-t_start:.1f}s)"
-                )
-        else:
-            log.info(f"[metadata_scraper] provider_search_1 start: query={clean_result.clean_title}")
-            provider_search_result, last_provider_statuses = scraper._search_all_providers(
-                clean_result.clean_title, clean_result.year, clean_result.season
-            )
-            log.info(
-                "[metadata_scraper] provider_search_1 done: "
-                f"found={provider_search_result is not None} ({time.time()-t_start:.1f}s)"
-            )
-
-        if provider_search_result:
-            _, _, _, match_result, _ = provider_search_result
-            log.info(f"[metadata_scraper] match T={match_result.T:.3f}, threshold={match_threshold}")
-            if match_result.T < match_threshold:
-                try:
-                    log.info(f"[metadata_scraper] ai_clean start ({time.time()-t_start:.1f}s)")
-                    ai_clean_result = scraper._cleaner.ai_clean(video_filename, scraper.llm_scraper)
-                    log.info(
-                        f"[metadata_scraper] ai_clean done: title={ai_clean_result.clean_title}, "
-                        f"year={ai_clean_result.year} ({time.time()-t_start:.1f}s)"
-                    )
-                except Exception as e:
-                    log.warning(f"[metadata_scraper] ai_clean failed: {e}")
-                if ai_clean_result:
-                    try:
-                        search_year_2 = ai_clean_result.year if ai_clean_result.year is not None else clean_result.year
-                        provider_search_result_2, statuses_2 = scraper._search_all_providers(
-                            ai_clean_result.clean_title, search_year_2, clean_result.season,
-                            min_threshold=ai_research_threshold
-                        )
-                        if provider_search_result_2:
-                            _, _, _, match_result_2, _ = provider_search_result_2
-                            if match_result_2.T > match_result.T:
-                                provider_search_result = provider_search_result_2
-                                last_provider_statuses = statuses_2
-                                log.info(f"[metadata_scraper] provider_search_2 better: T={match_result_2.T:.3f}")
-                    except Exception as e:
-                        log.warning(f"[metadata_scraper] provider_search_2 failed: {e}")
-        else:
-            try:
-                log.info(f"[metadata_scraper] no provider result, ai_clean start ({time.time()-t_start:.1f}s)")
-                ai_clean_result = scraper._cleaner.ai_clean(video_filename, scraper.llm_scraper)
-                log.info(
-                    f"[metadata_scraper] ai_clean done: title={ai_clean_result.clean_title}, "
-                    f"year={ai_clean_result.year} ({time.time()-t_start:.1f}s)"
-                )
-            except Exception as e:
-                log.warning(f"[metadata_scraper] ai_clean failed: {e}")
-            if ai_clean_result:
-                try:
-                    search_year = ai_clean_result.year if ai_clean_result.year is not None else clean_result.year
-                    provider_search_result, last_provider_statuses = scraper._search_all_providers(
-                        ai_clean_result.clean_title, search_year, clean_result.season,
-                        min_threshold=ai_research_threshold
-                    )
-                    log.info(
-                        "[metadata_scraper] provider_search_2 done: "
-                        f"found={provider_search_result is not None} ({time.time()-t_start:.1f}s)"
-                    )
-                except Exception as e:
-                    log.warning(f"[metadata_scraper] provider_search_2 failed: {e}")
-
-    if provider_search_result:
-        provider, search_item, media_type, match_result, search_info = provider_search_result
-        try:
-            log.info(
-                "[metadata_scraper] get_details start: "
-                f"id={search_item.item_id}, provider={provider.provider_type} ({time.time()-t_start:.1f}s)"
-            )
-            details = provider.get_details(search_item.item_id, media_type)
-            log.info(f"[metadata_scraper] get_details done ({time.time()-t_start:.1f}s)")
-        except Exception as e:
-            log.warning(f"[metadata_scraper] provider_details failed: {e}")
-            log.info("[metadata_scraper] fallback to ai_only (provider details error)")
-            details_fallback_reasons = [{
-                "provider_type": provider.provider_type,
-                "display_name": provider.display_name,
-                "status": "details_error",
-                "reason": f"{provider.display_name} 详情获取失败: {str(e)[:100]}",
-                "best_T": match_result.T,
-            }]
-            try:
-                result = scraper.llm_scraper.scrape(video_filename, subtitle_filenames, conn=conn)
-            except LLMScrapeError as llm_err:
-                log.warning(f"[metadata_scraper] ai_only fallback also failed: {llm_err}")
-                result = _build_minimal_result(
-                    clean_result, scraper.confidence_engine, enabled_dims_set,
-                    provider_fallback_reasons=details_fallback_reasons,
-                    ai_clean_result=ai_clean_result,
-                    scrape_mode="hybrid",
-                    ai_invoke_reason="Provider详情失败",
-                )
-            llm_raw_confidence = result.get("confidence", None)
-            confidence_result = scraper.confidence_engine.calculate_ai_only(
-                scrape_result=result,
-                clean_result=clean_result,
-                llm_raw_confidence=llm_raw_confidence,
-                enabled_dims=enabled_dims_set,
-                ai_clean_result=ai_clean_result,
-                provider_fallback_reasons=details_fallback_reasons,
-            )
-            _apply_confidence_result(result, confidence_result)
-            result["provider_type"] = ""
-            result["provider_id"] = ""
-            _inject_trace_fields(result, "hybrid", ai_invoked=True,
-                                 ai_invoke_reason="Provider详情失败")
-            return result
-
-        search_info["original_filename"] = video_filename
-
-        provider_dimensions = {
-            "media_type": {
-                "value": media_type,
-                "confidence": 1.0,
-                "source": provider.provider_type,
-            }
-        }
-        if conn:
-            provider_dimensions.update(scraper._map_provider_dimensions(provider, details, conn))
-        provider_context = scraper._extract_context(details, clean_result, provider)
-
-        try:
-            log.info(f"[metadata_scraper] scrape_with_context start ({time.time()-t_start:.1f}s)")
-            result = scraper.llm_scraper.scrape_with_context(
-                video_filename, subtitle_filenames, provider_context,
-                provider_dimensions=provider_dimensions, provider_name=provider.display_name, conn=conn
-            )
-            log.info(f"[metadata_scraper] scrape_with_context done ({time.time()-t_start:.1f}s)")
-        except LLMScrapeError:
-            log.warning("[metadata_scraper] scrape_with_context failed, fallback to scrape")
-            try:
-                result = scraper.llm_scraper.scrape(video_filename, subtitle_filenames, conn=conn)
-            except LLMScrapeError as llm_err:
-                log.warning(f"[metadata_scraper] scrape fallback also failed: {llm_err}")
-                result = {}
-
-        llm_raw_confidence = result.get("confidence", None)
-        confidence_result = scraper.confidence_engine.calculate(
-            scrape_result=result,
-            provider_search_info=search_info,
-            clean_result=clean_result,
-            ai_clean_result=ai_clean_result,
-            match_result=match_result,
-            llm_raw_confidence=llm_raw_confidence,
-            enabled_dims=enabled_dims_set,
-        )
-        _apply_confidence_result(result, confidence_result)
-
-        result["provider_type"] = provider.provider_type
-        result["provider_id"] = search_item.item_id
-        result["poster_url"] = getattr(details, "poster_url", "") or ""
-        _inject_trace_fields(result, "hybrid", ai_invoked=True,
-                             ai_invoke_reason="联合刮削")
-        log.info(f"[metadata_scraper] done: total={time.time()-t_start:.1f}s")
-        return result
-
-    # No provider result
-    log.info(f"[metadata_scraper] no provider, ai_only start ({time.time()-t_start:.1f}s)")
-    try:
-        result = scraper.llm_scraper.scrape(video_filename, subtitle_filenames, conn=conn)
-    except LLMScrapeError as e:
-        log.warning(f"[metadata_scraper] ai_only failed: {e}")
-        result = _build_minimal_result(
-            clean_result, scraper.confidence_engine, enabled_dims_set,
-            provider_fallback_reasons=last_provider_statuses if last_provider_statuses else None,
-            ai_clean_result=ai_clean_result,
-            scrape_mode="hybrid",
-            ai_invoke_reason=None,
-        )
-    llm_raw_confidence = result.get("confidence", None)
-    confidence_result = scraper.confidence_engine.calculate_ai_only(
-        scrape_result=result,
-        clean_result=clean_result,
-        llm_raw_confidence=llm_raw_confidence,
-        enabled_dims=enabled_dims_set,
-        ai_clean_result=ai_clean_result,
-        provider_fallback_reasons=last_provider_statuses if last_provider_statuses else None,
-    )
-    _apply_confidence_result(result, confidence_result)
-    result["provider_type"] = ""
-    result["provider_id"] = ""
-    _inject_trace_fields(result, "hybrid", ai_invoked=True,
-                         ai_invoke_reason="Provider无结果")
-    log.info(f"[metadata_scraper] done (ai_only): total={time.time()-t_start:.1f}s")
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Series scraping (adapted for three modes)
+# Series scraping
 # ---------------------------------------------------------------------------
 
 def scrape_series_metadata(scraper, series_name: str) -> Dict[str, Any]:
-    """Scrape series metadata, respecting the configured scrape_mode.
-
-    Degradation: when `ai_only` or `hybrid` is selected but AI is not configured,
-    automatically fall back to provider-first behavior.
-    """
     log = logging.getLogger(__name__)
-    scrape_mode = getattr(scraper.view.metadata, "scrape_mode", "hybrid")
+    scrape_mode = getattr(scraper.view.metadata, "scrape_mode", "provider_first")
     if scrape_mode not in VALID_SCRAPE_MODES:
-        scrape_mode = "hybrid"
+        scrape_mode = "provider_first"
 
     ai_available = bool(scraper.llm_scraper.enabled)
 
-    if scrape_mode in ("ai_only", "hybrid") and not ai_available:
+    if scrape_mode == "ai_only" and not ai_available:
         log.warning(
             f"[metadata_scraper] series scrape_mode={scrape_mode} but AI not configured, "
             f"falling back to provider_first"
@@ -919,7 +640,7 @@ def scrape_series_metadata(scraper, series_name: str) -> Dict[str, Any]:
             "scrape_trace": {"scrape_mode": "ai_only", "ai_invoked": False, "ai_invoke_reason": None},
         }
 
-    # provider_first and hybrid: try provider first
+    # provider_first: try provider first
     for provider in scraper.providers:
         try:
             search_result = provider.search(series_name, media_type="tv")
@@ -929,49 +650,25 @@ def scrape_series_metadata(scraper, series_name: str) -> Dict[str, Any]:
                 clean_result = CleanResult(clean_title=series_name)
                 provider_context = scraper._extract_context(details, clean_result, provider)
 
-                if scrape_mode == "provider_first":
-                    # In provider_first, try to use provider data directly
-                    # Only fall back to AI if provider context is insufficient
-                    if ai_available:
-                        try:
-                            result = scraper.llm_scraper.scrape_series_with_context(
-                                series_name, provider_context, provider_name=provider.display_name
-                            )
-                            _inject_trace_fields(result, "provider_first", ai_invoked=True,
-                                                 ai_invoke_reason="维度不完整")
-                            return result
-                        except LLMScrapeError:
-                            pass
-                    else:
-                        log.info("[metadata_scraper] AI not enabled, return provider details for series")
-                        result = {
-                            "title": details.get("name", series_name) if isinstance(details, dict) else getattr(details, "title", series_name),
-                            "media_type": "tv",
-                            "provider_type": provider.provider_type,
-                            "provider_id": search_item.item_id,
-                            "confidence": 0.5,
-                            "scrape_trace": {"scrape_mode": "provider_first", "ai_invoked": False, "ai_invoke_reason": None},
-                        }
-                        return result
-                else:
-                    # hybrid: always combine (AI is guaranteed available)
+                if ai_available:
                     try:
                         result = scraper.llm_scraper.scrape_series_with_context(
                             series_name, provider_context, provider_name=provider.display_name
                         )
-                        _inject_trace_fields(result, "hybrid", ai_invoked=True,
-                                             ai_invoke_reason="联合刮削")
+                        _inject_trace_fields(result, "provider_first", ai_invoked=True,
+                                             ai_invoke_reason="维度不完整")
                         return result
                     except LLMScrapeError:
                         pass
-                    log.info("[metadata_scraper] hybrid scrape_series_with_context failed, return provider details")
+                else:
+                    log.info("[metadata_scraper] AI not enabled, return provider details for series")
                     result = {
                         "title": details.get("name", series_name) if isinstance(details, dict) else getattr(details, "title", series_name),
                         "media_type": "tv",
                         "provider_type": provider.provider_type,
                         "provider_id": search_item.item_id,
                         "confidence": 0.5,
-                        "scrape_trace": {"scrape_mode": "hybrid", "ai_invoked": False, "ai_invoke_reason": None},
+                        "scrape_trace": {"scrape_mode": "provider_first", "ai_invoked": False, "ai_invoke_reason": None},
                     }
                     return result
         except Exception:

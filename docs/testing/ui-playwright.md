@@ -72,5 +72,5 @@ python -m pytest tests/test_scrape_ui.py
 - For UI or API contract changes, run `tests/test_frontend_recycle.py` if recycle UI is affected.
 - Run external-service UI suites only after starting the service and confirming port 9855 is free.
 - Use `python -m pytest tests/` from the project `.venv` as the default stable regression command.
-- Use explicit flags for gated suites: `--run-ui`, `--run-external-ui`, `--run-service-integration`, `--run-live-e2e`.
+- Use explicit flags for gated suites: `--run-ui`, `--run-external-ui`, `--run-service-integration`.
 - If Playwright/browser binaries are missing, record that as environment blocked rather than a product regression.

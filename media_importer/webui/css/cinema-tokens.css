@@ -13,6 +13,8 @@
     --cyan: #43c7b7;
     --radius: 8px;
     --shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
+    --text-primary: var(--ink);
+    --text-secondary: var(--muted);
 }
 
 * { box-sizing: border-box; }

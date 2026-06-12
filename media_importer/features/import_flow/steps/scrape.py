@@ -68,6 +68,20 @@ class ScrapeStepsMixin:
             task["provider_type"] = result.get('provider_type', '')
             task["provider_id"] = result.get('provider_id', '')
 
+            # 下载海报缩略图到 resource_dir/thumbnail/
+            poster_url = result.get('poster_url', '')
+            if poster_url:
+                try:
+                    from media_importer.features.scraping.thumbnail_downloader import download_thumbnail
+                    config = getattr(self, 'config', None) or {}
+                    title = result.get('title_cn', '') or result.get('title_en', '') or result.get('title', '')
+                    provider_id = result.get('provider_id', '')
+                    saved = download_thumbnail(poster_url, config, title=title, provider_id=provider_id)
+                    if saved:
+                        self._log("info", f"海报缩略图已保存: {os.path.basename(saved)}", task, "scrape")
+                except Exception as e:
+                    self._log("warning", f"海报缩略图下载失败（不影响刮削）: {e}", task, "scrape")
+
             scrape_trace = result.get('scrape_trace')
             if scrape_trace:
                 task["scrape_trace"] = scrape_trace

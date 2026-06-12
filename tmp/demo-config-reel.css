@@ -1,0 +1,297 @@
+/* ============================================================
+   长胶卷流程轨 Demo v3
+   暖棕底 · 间隙黑色 · 图片轻模糊 · 文字更小更轻
+   ============================================================ */
+
+:root {
+    --film-base: #1a130c;
+    --film-base-deep: #0d0906;
+    --film-base-light: #2a1d12;
+    --film-edge: #3a2818;
+    --film-sprocket: #d9c48c;
+    --film-divider: #000000;
+    --frame-glow: #f5c66a;
+    --frame-label: #fff5dd;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 0;
+    background: #0a0a0a;
+    color: #e7dec6;
+    font-family: "Inter", "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
+    min-height: 100vh;
+}
+
+.demo-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 64px 32px 96px;
+}
+
+.demo-header { margin-bottom: 48px; }
+.demo-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(245, 198, 106, 0.12);
+    color: var(--frame-glow);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+}
+.demo-header h1 {
+    margin: 0 0 12px;
+    color: #fff5dd;
+    font-size: 28px;
+    font-weight: 600;
+}
+.demo-header p {
+    margin: 0;
+    color: rgba(231, 222, 198, 0.7);
+    font-size: 14px;
+    line-height: 1.7;
+    max-width: 720px;
+}
+
+/* ============================================================
+   胶卷条 — 纯黑底
+   ============================================================ */
+
+.reel-demo { margin: 0 0 64px; }
+
+.reel-track {
+    position: relative;
+    width: 100%;
+    padding: 22px 0;
+    border-radius: 4px;
+    background:
+        url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.36 0 0 0 0 0.22 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+        linear-gradient(
+            180deg,
+            var(--film-base-deep) 0%,
+            var(--film-base) 18%,
+            var(--film-base-light) 50%,
+            var(--film-base) 82%,
+            var(--film-base-deep) 100%
+        );
+    background-size: 160px 160px, 100% 100%;
+    box-shadow:
+        inset 0 0 0 1px rgba(245, 198, 106, 0.06),
+        inset 0 0 60px rgba(0, 0, 0, 0.6),
+        0 24px 48px rgba(0, 0, 0, 0.4);
+}
+
+/* 上下两排齿孔 */
+.reel-track::before,
+.reel-track::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 24px;
+    background-image:
+        url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='24' viewBox='0 0 22 24'%3E%3Crect x='5' y='3' width='12' height='18' rx='3.2' fill='%23d9c48c' fill-opacity='0.85'/%3E%3C/svg%3E");
+    background-repeat: repeat-x;
+    background-size: 22px 24px;
+    background-position: 0 0;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6));
+    pointer-events: none;
+}
+
+.reel-track::before {
+    top: -1px;
+    transform: scaleY(-1);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+}
+
+.reel-track::after {
+    bottom: -1px;
+    mask-image: linear-gradient(to top, transparent 0%, black 30%, black 100%);
+    -webkit-mask-image: linear-gradient(to top, transparent 0%, black 30%, black 100%);
+}
+
+.reel-track {
+    border-top: 1px solid rgba(245, 198, 106, 0.14);
+    border-bottom: 1px solid rgba(245, 198, 106, 0.14);
+}
+
+/* ============================================================
+   画格行
+   ============================================================ */
+
+.reel-frames {
+    list-style: none;
+    margin: 0;
+    padding: 0 18px;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0;
+}
+
+.reel-frame {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+/* 画格之间的纵向分割线 — 30px 纯黑间隙 */
+.reel-frame + .reel-frame::before {
+    content: "";
+    position: absolute;
+    left: -15px;
+    top: 0;
+    bottom: 0;
+    width: 30px;
+    background: var(--film-divider);
+}
+
+.reel-frame button {
+    position: relative;
+    width: 100%;
+    max-width: 168px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: var(--frame-label);
+    font: inherit;
+    text-align: center;
+    transition: transform 220ms ease;
+}
+
+/* ---- 图片区域 ---- */
+.reel-frame-img {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 2px;
+    background: #000;
+    box-shadow: inset 0 0 0 1px rgba(245, 198, 106, 0.18);
+}
+
+.reel-frame-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    /* 轻模糊 + 淡化 */
+    filter: blur(0.6px) brightness(0.55) saturate(0.7);
+    transition: filter 280ms ease;
+}
+
+/* 图片上的暗色遮罩，让文字更清晰 */
+.reel-frame-img::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.5));
+    pointer-events: none;
+}
+
+/* ---- 文字叠在画面正中（更小更轻） ---- */
+.reel-frame-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: rgba(255, 245, 221, 0.88);
+    text-shadow:
+        0 1px 6px rgba(0, 0, 0, 0.75),
+        0 0 16px rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+    pointer-events: none;
+    transition: color 220ms ease, text-shadow 220ms ease;
+}
+
+/* ============================================================
+   hover + 激活态
+   ============================================================ */
+
+.reel-frame button:hover {
+    transform: translateY(-2px);
+}
+.reel-frame button:hover .reel-frame-img img {
+    filter: blur(0.3px) brightness(0.62) saturate(0.8);
+}
+.reel-frame button:hover .reel-frame-label {
+    color: rgba(255, 245, 221, 1);
+}
+
+.reel-frame.is-active button {
+    transform: translateY(-3px);
+}
+.reel-frame.is-active .reel-frame-img {
+    box-shadow:
+        inset 0 0 0 1.5px rgba(245, 198, 106, 0.9),
+        0 0 20px rgba(245, 198, 106, 0.35),
+        0 0 40px rgba(245, 198, 106, 0.14),
+        0 10px 18px rgba(0, 0, 0, 0.5);
+}
+.reel-frame.is-active .reel-frame-img img {
+    filter: blur(0.2px) brightness(0.65) saturate(0.85);
+}
+.reel-frame.is-active .reel-frame-img::after {
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.35));
+}
+.reel-frame.is-active .reel-frame-label {
+    color: var(--frame-glow);
+    text-shadow:
+        0 0 12px rgba(245, 198, 106, 0.45),
+        0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================
+   演示说明
+   ============================================================ */
+
+.demo-footer {
+    border-top: 1px dashed rgba(245, 198, 106, 0.15);
+    padding-top: 24px;
+    color: rgba(231, 222, 198, 0.65);
+    font-size: 13px;
+    line-height: 1.8;
+}
+.demo-footer p { margin: 0 0 8px; color: var(--frame-glow); font-weight: 600; }
+.demo-footer ul { margin: 0; padding-left: 18px; }
+.demo-footer code {
+    background: rgba(245, 198, 106, 0.08);
+    color: var(--frame-glow);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* ============================================================
+   响应式
+   ============================================================ */
+
+@media (max-width: 1100px) {
+    .reel-frames {
+        grid-template-columns: repeat(7, minmax(140px, 1fr));
+        overflow-x: auto;
+        padding-bottom: 8px;
+        scroll-snap-type: x proximity;
+    }
+    .reel-frame { scroll-snap-align: start; }
+}
+
+@media (max-width: 760px) {
+    .demo-page { padding: 32px 16px 64px; }
+    .reel-track { padding: 18px 0; }
+    .reel-frames {
+        grid-template-columns: repeat(7, minmax(150px, 160px));
+        overflow-x: auto;
+        padding: 0 12px 4px;
+    }
+    .reel-frame-label { font-size: 14px; }
+}

@@ -18,7 +18,12 @@ def _to_comparable(value):
     return value
 
 
-def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any]) -> bool:
+def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any],
+                     enabled_dims: set = None) -> bool:
+    if enabled_dims is not None:
+        conditions = {k: v for k, v in conditions.items() if k in enabled_dims}
+    if not conditions:
+        return True
     for key, expected_value in conditions.items():
         actual_value = dimensions.get(key)
         if actual_value is None and expected_value is None:
@@ -102,12 +107,12 @@ def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Dic
     return result.rstrip('/') + '/'
 
 
-def classify(scraped_info: dict, path_rules: list) -> str:
+def classify(scraped_info: dict, path_rules: list, enabled_dims: set = None) -> str:
     dimensions = scraped_info.get('dimensions', {})
 
     for rule in path_rules:
         conditions = rule.get('conditions', {})
-        if match_conditions(dimensions, conditions):
+        if match_conditions(dimensions, conditions, enabled_dims):
             template = rule.get('template', '')
             return render_template(template, scraped_info)
 

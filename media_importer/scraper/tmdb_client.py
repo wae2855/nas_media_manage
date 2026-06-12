@@ -58,7 +58,10 @@ class TMDbClient:
                     time.sleep(1)
                 continue
         
-        raise TMDbError(f"Request failed after {self.max_retries} attempts: {last_error}")
+        raise TMDbError(
+            f"TMDb 详情获取失败: Request failed after {self.max_retries} attempts: {last_error}"
+            + ("（SSL 连接被中断，请检查网络连接或代理设置）" if "SSL" in str(last_error) else "")
+        )
 
     def search_movie_list(self, title: str, year: Optional[int] = None,
                           language: Optional[str] = None) -> Dict[str, Any]:

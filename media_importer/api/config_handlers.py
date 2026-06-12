@@ -201,6 +201,7 @@ class ConfigHandlersMixin:
         sensitive_fields = [
             ("server", "api_key"),
             ("llm", "api_key"),
+            ("llm", "fast_api_key"),
             ("hermes", "webhook", "secret"),
         ]
 

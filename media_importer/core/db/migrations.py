@@ -242,6 +242,23 @@ def _migrate_provider_mappings(conn: sqlite3.Connection):
     conn.commit()
     logger.info(f"已迁移 {len(rows)} 个维度: source_type ai+tmdb → ai+provider, 构建 provider_mappings")
 
+    missed = conn.execute(
+        "SELECT name, tmdb_field, value_list FROM dimensions "
+        "WHERE source_type='ai+provider' AND (provider_mappings IS NULL OR provider_mappings='')"
+    ).fetchall()
+
+    if missed:
+        for row in missed:
+            name, tmdb_field, value_list_json = row
+            provider_mappings = _build_provider_mappings(tmdb_field, value_list_json)
+            if provider_mappings:
+                conn.execute(
+                    "UPDATE dimensions SET provider_mappings=? WHERE name=?",
+                    (provider_mappings, name)
+                )
+        conn.commit()
+        logger.info(f"已补建 {len(missed)} 个维度的 provider_mappings")
+
 
 def _build_provider_mappings(tmdb_field, value_list_json):
     if not tmdb_field:

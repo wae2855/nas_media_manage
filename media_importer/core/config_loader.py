@@ -8,6 +8,7 @@ from copy import deepcopy
 from .config_migrations import (
     _migrate_confidence_v1_to_v2,
     _migrate_source_policy,
+    _migrate_mcp_to_web_search,
     _normalize_bool_strings,
     BOOL_TRUE_STRINGS,
     BOOL_FALSE_STRINGS,
@@ -256,6 +257,7 @@ def load_config(config_path: str = None) -> dict:
 
     config["_config_path"] = os.path.abspath(config_path)
 
+    _migrate_mcp_to_web_search(config)
     _normalize_bool_strings(config)
 
     return config

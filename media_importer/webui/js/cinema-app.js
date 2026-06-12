@@ -7,6 +7,7 @@ const TASK_FILTER_META = {
     review: { title: "等待你来确认", copy: "先处理这些不确定条目，能最快减少后续误判和卡住的任务。" },
     failed: { title: "等待重试或排错", copy: "先看失败原因，再决定重试、调整配置或手动处理。" },
     success: { title: "今天已完成的入库", copy: "这里是已经跑通的结果，可以快速回看最终入库状态。" },
+    cancelled: { title: "已取消的任务", copy: "这些任务已被主动取消，可按需要重新投入处理。" },
 };
 
 const TASK_FILTER_PARAMS = {
@@ -16,6 +17,7 @@ const TASK_FILTER_PARAMS = {
     review: { status: "PENDING", stage: "AWAIT_REVIEW" },
     failed: { status: "FAILED" },
     success: { status: ["SUCCESS", "SKIPPED"] },
+    cancelled: { status: "CANCELLED" },
 };
 
 let currentTaskFilter = "all";
@@ -24,6 +26,11 @@ let currentConfigSnapshot = null;
 let currentCleanerTab = "delete";
 let dashboardRefreshTimer = null;
 let currentTaskRecords = [];
+let currentTaskTotal = 0;
+let currentTaskPage = 1;
+let currentTaskPageSize = 20;
+let currentTaskHasMore = false;
+let currentTaskLoading = false;
 let currentRecycleRecords = [];
 let currentProviderDefinitions = [];
 let currentEnabledDimensions = [];
@@ -441,6 +448,96 @@ function startDashboardAutoRefresh() {
     }, DASHBOARD_REFRESH_MS);
 }
 
+function collectHelpItemsForGrid(grid) {
+    const items = [];
+    let current = null;
+    const HELP_CLASSES = ["info-intro", "info-rows", "info-callout"];
+    for (const el of Array.from(grid.children)) {
+        const cls = HELP_CLASSES.find((c) => el.classList && el.classList.contains(c));
+        if (!cls) {
+            if (current) {
+                items.push(current);
+                current = null;
+            }
+            continue;
+        }
+        if (cls === "info-intro") {
+            if (current) items.push(current);
+            const label = el.querySelector(".info-label")?.textContent?.trim()
+                || el.querySelector("h4")?.textContent?.trim()
+                || "说明";
+            current = { label, elements: [el] };
+        } else if (current) {
+            current.elements.push(el);
+        } else {
+            const label = el.querySelector("b")?.textContent?.trim()
+                || el.querySelector(".info-label")?.textContent?.trim()
+                || "提示";
+            current = { label, elements: [el] };
+        }
+    }
+    if (current) items.push(current);
+    return items;
+}
+
+function buildHelpAccordion(items) {
+    const container = document.createElement("div");
+    container.className = "help-accordion form-card-full";
+    const title = document.createElement("div");
+    title.className = "help-accordion-title";
+    title.textContent = "使用说明";
+    container.appendChild(title);
+
+    items.forEach((item) => {
+        const wrap = document.createElement("div");
+        wrap.className = "help-accordion-item";
+
+        const header = document.createElement("button");
+        header.type = "button";
+        header.className = "help-accordion-header";
+        const labelEl = document.createElement("span");
+        labelEl.className = "help-accordion-label";
+        labelEl.textContent = item.label;
+        const chevron = document.createElement("span");
+        chevron.className = "help-accordion-chevron";
+        chevron.textContent = "▸";
+        header.appendChild(labelEl);
+        header.appendChild(chevron);
+
+        const body = document.createElement("div");
+        body.className = "help-accordion-body";
+        item.elements.forEach((el) => body.appendChild(el));
+
+        header.addEventListener("click", () => {
+            const willOpen = !wrap.classList.contains("open");
+            container.querySelectorAll(".help-accordion-item.open").forEach((other) => {
+                if (other !== wrap) other.classList.remove("open");
+            });
+            if (willOpen) wrap.classList.add("open");
+            else wrap.classList.remove("open");
+        });
+
+        wrap.appendChild(header);
+        wrap.appendChild(body);
+        container.appendChild(wrap);
+    });
+
+    return container;
+}
+
+function initHelpAccordions() {
+    const panels = document.querySelectorAll(".config-stage-panel");
+    panels.forEach((panel) => {
+        const grid = panel.querySelector(".config-form-grid");
+        if (!grid) return;
+        const items = collectHelpItemsForGrid(grid);
+        if (items.length === 0) return;
+        items.forEach((item) => item.elements.forEach((el) => el.remove()));
+        const accordion = buildHelpAccordion(items);
+        grid.appendChild(accordion);
+    });
+}
+
 async function loadDirectoryConfig() {
     const result = await requestApi("GET", "/config");
     if (result.code !== 200 || !result.data) {
@@ -485,17 +582,30 @@ async function loadDirectoryConfig() {
     toggleFileWatcherPollGroup();
     setFieldValue("cfg-video_extensions-inline", (rawConfig.video_extensions || []).join("\n"));
     setFieldValue("cfg-subtitle_extensions-inline", (rawConfig.subtitle_extensions || []).join("\n"));
-    setFieldValue("cfg-llm_provider-inline", llm.provider || "openai");
-    setFieldValue("cfg-llm_api_key-inline", llm.api_key || "");
-    setFieldValue("cfg-llm_base_url-inline", llm.base_url || "");
-    setFieldValue("cfg-llm_model-inline", llm.model || "");
-    setFieldValue("cfg-llm_fallback_model-inline", llm.fallback_model || "");
-    setFieldValue("cfg-llm_fast_model-inline", llm.fast_model || "");
-    setFieldValue("cfg-llm_timeout-inline", llm.timeout || 30);
-    setFieldValue("cfg-llm_max_retries-inline", llm.max_retries || 2);
-    setFieldValue("cfg-llm_retry_delay-inline", llm.retry_delay || 3);
-    setFieldValue("cfg-llm_confidence_threshold-inline", llm.confidence_threshold || 0.8);
-    document.getElementById("cfg-llm_verify_ssl-inline").checked = !!llm.verify_ssl;
+    setFieldValue("cfg-llm_api_key", llm.api_key || "");
+    setFieldValue("cfg-llm_base_url", llm.base_url || "");
+    setFieldValue("cfg-llm_model", llm.model || "");
+    setFieldValue("cfg-llm_fallback_model", llm.fallback_model || "");
+    setFieldValue("cfg-llm_fast_model", llm.fast_model || "");
+    setFieldValue("cfg-llm_fast_base_url", llm.fast_base_url || "");
+    setFieldValue("cfg-llm_fast_api_key", llm.fast_api_key || "");
+    setFieldValue("cfg-llm_source_cleaner_model", llm.source_cleaner_model || "");
+    setFieldValue("cfg-llm_timeout", llm.timeout || 30);
+    setFieldValue("cfg-llm_max_retries", llm.max_retries || 2);
+    setFieldValue("cfg-llm_retry_delay", llm.retry_delay || 3);
+    setFieldValue("cfg-llm_confidence_threshold", llm.confidence_threshold || 0.8);
+    document.getElementById("cfg-llm_verify_ssl").checked = llm.verify_ssl !== false;
+    const scrapeModeSelect = document.getElementById("cfg-metadata_scrape_mode");
+    if (scrapeModeSelect) {
+        scrapeModeSelect.value = (rawConfig.metadata || {}).scrape_mode || "provider_first";
+        updateScrapeModeHint();
+        scrapeModeSelect.addEventListener("change", () => {
+            updateScrapeModeHint();
+            updateAiConfigStatus();
+        });
+    }
+    updateWebSearchSupport();
+    updateAiConfigStatus();
     document.getElementById("cfg-source-cleaner-enabled-inline").checked = !!sourceCleaner.enabled;
     document.getElementById("cfg-hermes_enabled-inline").checked = !!((rawConfig.hermes || {}).enabled);
     setFieldValue("cfg-hermes_webhook_base_url-inline", (((rawConfig.hermes || {}).webhook || {}).base_url) || "");
@@ -521,7 +631,6 @@ async function loadDirectoryConfig() {
     document.getElementById("cfg-source_cleaner-cleanup_empty_dirs-inline").checked = !!sourceCleaner.cleanup_empty_dirs;
     setFieldValue("cfg-source_cleaner-schedule-inline", sourceCleaner.schedule || "");
     setFieldValue("cfg-source_cleaner-ai_prompt-inline", sourceCleaner.ai_prompt || "");
-    renderRuleList(rawConfig.path_rules || []);
     updateConfigStageStatus(rawConfig, paths, rawConfig.path_rules || []);
     loadCinemaConfidenceConfig(rawConfig);
     await loadInlineProviderConfigs(metadata);
@@ -530,6 +639,7 @@ async function loadDirectoryConfig() {
     toggleHermesInlineFields();
     if (typeof loadDimensions === "function") await loadDimensions();
     await loadDimensionVars();
+    renderRuleList(rawConfig.path_rules || []);
     await loadTmdbPromptConfig();
 }
 
@@ -577,6 +687,15 @@ function bindEvents() {
             runConfigSimulator();
             return;
         }
+        const confidenceDetailAction = event.target.closest("[data-confidence-detail-action=\"open\"]");
+        if (confidenceDetailAction) {
+            const trace = confidenceDetailAction.dataset.trace;
+            const filename = confidenceDetailAction.dataset.filename || "";
+            if (trace && typeof showConfidenceDetailModal === "function") {
+                showConfidenceDetailModal(JSON.parse(trace), filename);
+            }
+            return;
+        }
         const ruleAction = event.target.closest("[data-rule-action]");
         if (ruleAction) {
             const index = Number(ruleAction.dataset.ruleIndex || -1);
@@ -595,9 +714,14 @@ function bindEvents() {
             toggleTaskSelect(taskSelect.dataset.taskSelect);
             return;
         }
+        const taskRowOpen = event.target.closest("[data-task-row-open]");
+        if (taskRowOpen && !event.target.closest("button, input, a, select, textarea")) {
+            openTaskDetail(taskRowOpen.dataset.taskRowOpen || "");
+            return;
+        }
         const taskRow = event.target.closest("[data-task-row]");
         if (taskRow && !event.target.closest("button, input, a, select, textarea")) {
-            openTaskDetail(taskRow.dataset.taskRow || "");
+            toggleTaskSelect(taskRow.dataset.taskRow || "");
             return;
         }
         const batchTaskAction = event.target.closest("[data-batch-task-action]");
@@ -640,7 +764,10 @@ function bindEvents() {
                 recycle: saveRecycleConfig,
                 rules: saveRulesConfig,
                 scrape: () => saveProvidersConfig(""),
+                "scrape-mode": saveScrapeModeConfig,
                 ai: saveLlmConfig,
+                "ai-assist": saveAiAssistConfig,
+                "ai-scrape": saveAiScrapeConfig,
                 naming: saveImportOptionsConfig,
                 confidence: saveConfidenceConfig,
                 security: saveSecurityConfig,
@@ -666,17 +793,91 @@ function bindEvents() {
             testLlmConnection();
             return;
         }
+        const collapseToggle = event.target.closest("[data-collapse-toggle]");
+        if (collapseToggle) {
+            if (event.target.closest("input, .toggle-pill, label.toggle-pill")) return;
+            const bodyId = collapseToggle.dataset.collapseToggle;
+            const body = document.getElementById(bodyId);
+            const card = collapseToggle.closest(".config-collapse-card");
+            if (body && card) {
+                card.classList.toggle("open");
+            }
+            return;
+        }
         const hermesTest = event.target.closest("[data-hermes-test]");
         if (hermesTest) {
             testHermesConnection();
             return;
         }
+        const demoScenario = event.target.closest("[data-demo-scenario]");
+        if (demoScenario) {
+            const scenario = demoScenario.dataset.demoScenario;
+            const demoFile = demoScenario.dataset.demoFile;
+            if (scenario === "scrape" || scenario === "series_scrape") {
+                runAiScrapeDemo(scenario, demoFile);
+            } else {
+                runAiAssistDemo(scenario, demoFile);
+            }
+            return;
+        }
+        if (event.target.closest("#btn-ai-scrape-demo")) {
+            openAiScrapeDemoModal();
+            return;
+        }
+        if (event.target.closest("#btn-ai-scrape-demo-close")) {
+            closeAiScrapeDemoModal();
+            return;
+        }
+        if (event.target.closest("#ai-scrape-demo-modal") && !event.target.closest(".ai-demo-modal-content")) {
+            closeAiScrapeDemoModal();
+            return;
+        }
+        if (event.target.closest("#btn-ai-assist-demo")) {
+            openAiAssistDemoModal();
+            return;
+        }
+        if (event.target.closest("#btn-ai-assist-demo-close")) {
+            closeAiAssistDemoModal();
+            return;
+        }
+        if (event.target.closest("#ai-assist-demo-modal") && !event.target.closest(".ai-demo-modal-content")) {
+            closeAiAssistDemoModal();
+            return;
+        }
         const action = event.target.closest("[data-action]");
         if (action) runAction(action.dataset.action, action);
+        const detailToggleBtn = event.target.closest("#tmdb-detail-toggle-btn");
+        if (detailToggleBtn) {
+            const structured = document.getElementById("tmdb-detail-structured");
+            const raw = document.getElementById("tmdb-detail-raw");
+            if (structured && raw) {
+                if (raw.style.display === "none") {
+                    raw.style.display = "block";
+                    structured.style.display = "none";
+                    detailToggleBtn.textContent = "查看结构化";
+                } else {
+                    raw.style.display = "none";
+                    structured.style.display = "block";
+                    detailToggleBtn.textContent = "查看原始 JSON";
+                }
+            }
+            return;
+        }
+        const detailGroupHeader = event.target.closest(".tmdb-detail-group-header");
+        if (detailGroupHeader) {
+            detailGroupHeader.parentElement.classList.toggle("collapsed");
+            return;
+        }
     });
     document.addEventListener("input", (event) => {
         if (event.target.closest('[data-section="confidence"] input[data-key]')) updateThresholdBar();
         if (event.target.id === "task-rename-input") updateRenamePreview(event.target);
+        if (event.target.id === "cfg-llm_base_url") updateWebSearchSupport();
+        if (event.target.id === "cfg-llm_model" || event.target.id === "cfg-llm_api_key" ||
+            event.target.id === "cfg-llm_base_url" || event.target.id === "cfg-llm_fast_model" ||
+            event.target.id === "cfg-llm_fast_api_key" || event.target.id === "cfg-llm_fast_base_url") {
+            updateAiConfigStatus();
+        }
     });
     document.addEventListener("change", (event) => {
         const taskSelectAll = event.target.closest("[data-task-select-all]");
@@ -831,6 +1032,94 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadDashboardOverview();
     loadReelWheelFromTasks();
     startDashboardAutoRefresh();
+    initHelpAccordions();
     loadDirectoryConfig();
     if (typeof checkApiKeyRequired === "function") checkApiKeyRequired();
 });
+
+function updateScrapeModeHint() {
+    const select = document.getElementById("cfg-metadata_scrape_mode");
+    const hint = document.getElementById("cfg-scrape-mode-hint");
+    if (!select || !hint) return;
+    const hints = {
+        provider_first: "Provider 权威，维度缺失时优先使用 AI 搜索增强补缺（降级 AI 辅助）",
+        ai_only: "纯 AI 刮削，必须配置 AI 搜索增强（支持联网搜索的模型）",
+    };
+    hint.textContent = hints[select.value] || hints.provider_first;
+}
+
+function updateWebSearchSupport() {
+    const supportInfo = document.getElementById("ai-search-support-text");
+    if (!supportInfo) return;
+
+    const baseUrl = String(document.getElementById("cfg-llm_base_url")?.value || "").trim().toLowerCase();
+    const supportedProviders = {
+        "bigmodel.cn": "智谱 GLM",
+        "zhipu": "智谱 GLM",
+        "dashscope": "通义千问",
+        "aliyun": "通义千问",
+        "moonshot": "Kimi / Moonshot",
+    };
+
+    let detected = null;
+    for (const [keyword, name] of Object.entries(supportedProviders)) {
+        if (baseUrl.includes(keyword)) {
+            detected = name;
+            break;
+        }
+    }
+
+    if (detected) {
+        supportInfo.innerHTML = '<small style="color:var(--success-fg,#155724);">✓ 检测到 <b>' + detected + '</b>，支持联网搜索增强</small>';
+    } else if (baseUrl) {
+        supportInfo.innerHTML = '<small style="color:var(--warning-fg,#856404);">✗ 当前接口地址暂不支持联网搜索。支持的厂商：智谱 GLM、通义千问、Kimi/Moonshot。</small>';
+    } else {
+        supportInfo.innerHTML = '<small>填写接口地址后，系统自动检测是否支持联网搜索。</small>';
+    }
+}
+
+function updateAiConfigStatus() {
+    const model = String(document.getElementById("cfg-llm_model")?.value || "").trim();
+    const apiKey = String(document.getElementById("cfg-llm_api_key")?.value || "").trim();
+    const baseUrl = String(document.getElementById("cfg-llm_base_url")?.value || "").trim();
+
+    const scrapeConfigured = model && apiKey && baseUrl;
+    const scrapeStatus = document.getElementById("ai-scrape-status");
+    if (scrapeStatus) {
+        if (scrapeConfigured) {
+            scrapeStatus.textContent = "已配置";
+            scrapeStatus.className = "config-collapse-status status-configured";
+        } else {
+            scrapeStatus.textContent = "未配置";
+            scrapeStatus.className = "config-collapse-status status-unconfigured";
+        }
+    }
+
+    const fastModel = String(document.getElementById("cfg-llm_fast_model")?.value || "").trim();
+    const fastApiKey = String(document.getElementById("cfg-llm_fast_api_key")?.value || "").trim();
+    const fastBaseUrl = String(document.getElementById("cfg-llm_fast_base_url")?.value || "").trim();
+    // AI assist uses its own API key first, falls back to scrape's
+    const assistConfigured = fastModel && (fastApiKey || apiKey) && (fastBaseUrl || baseUrl);
+
+    const assistStatus = document.getElementById("ai-assist-status");
+    if (assistStatus) {
+        if (assistConfigured) {
+            assistStatus.textContent = "已配置";
+            assistStatus.className = "config-collapse-status status-configured";
+        } else {
+            assistStatus.textContent = "未配置";
+            assistStatus.className = "config-collapse-status status-unconfigured";
+        }
+    }
+
+    const scrapeModeStatus = document.getElementById("scrape-mode-status");
+    if (scrapeModeStatus) {
+        const mode = String(document.getElementById("cfg-metadata_scrape_mode")?.value || "provider_first");
+        const modeLabels = {
+            provider_first: "Provider 优先",
+            ai_only: "纯 AI",
+        };
+        scrapeModeStatus.textContent = modeLabels[mode] || mode;
+        scrapeModeStatus.className = "config-collapse-status status-configured";
+    }
+}

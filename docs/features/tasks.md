@@ -18,6 +18,7 @@
 | Path | Role |
 |------|------|
 | `media_importer/features/tasks/__init__.py` | Feature public API for `TaskManager`, lifecycle transitions, and task constants. |
+| `media_importer/features/tasks/cancel_service.py` | API-facing cancel action for queued tasks, mapping TaskManager results to API responses. |
 | `media_importer/features/tasks/detail_service.py` | API-facing task detail, subtitles, and status-count query payloads. |
 | `media_importer/features/tasks/file_lifecycle_service.py` | API-facing file lifecycle actions; currently owns same-directory task file rename and ignore flow cleanup/recycle decisions. |
 | `media_importer/features/tasks/list_service.py` | API-facing task list pagination, status validation, and status-count payload assembly. |
@@ -40,6 +41,7 @@
 - `/api/tasks` list payloads are assembled through `media_importer.features.tasks.list_service`.
 - Task detail, subtitles, and stats payloads are assembled through `media_importer.features.tasks.detail_service`.
 - Queue operations from `api/task_handlers.py` are delegated to `media_importer.features.tasks.queue_service`.
+- Cancel actions from `api/task_handlers.py` are delegated to `media_importer.features.tasks.cancel_service`; V1 only allows `PENDING/QUEUED` tasks to become `CANCELLED/DONE`.
 - Manual review actions from `api/task_handlers.py` are delegated to `media_importer.features.tasks.review_service`.
 - Task rename and ignore are delegated to `media_importer.features.tasks.file_lifecycle_service`, including path-traversal filename rejection, temp cleanup boundaries, recycle handoff, and DB field updates.
 
@@ -53,9 +55,11 @@
 - `tests/test_feature_task_detail.py` covers detail, subtitles, and stats feature responses.
 - Import flow tests that assert state transitions.
 - `tests/test_feature_task_queue.py` covers queue service behavior without starting real background workers.
+- `tests/test_feature_task_cancel.py` covers cancel lifecycle, TaskManager cancel rules, API service responses, retry from CANCELLED, and CANCELLED list filtering.
 - `tests/test_feature_task_review.py` covers manual review action behavior with fake pipeline/task manager objects.
 - `tests/test_feature_task_file_lifecycle.py` covers task file rename behavior, filename safety checks, ignore cleanup, recycle handoff, and invalid status handling.
 - `tests/test_feature_task_list.py` covers pagination, status validation, and active-count assembly.
+- `tests/test_cleanup_orphaned_state.py` covers startup orphan RUNNING -> FAILED transition and AWAIT_REVIEW protection.
 
 ## Migration Notes
 

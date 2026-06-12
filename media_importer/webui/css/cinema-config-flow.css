@@ -1,190 +1,201 @@
+/* ============================================================
+   片库搭建 · 长胶卷流程轨
+   整条 35mm 胶片作为流程轨，每帧 = 一个步骤
+   ============================================================ */
+
+:root {
+    --film-base: #1a130c;
+    --film-base-deep: #0d0906;
+    --film-base-light: #2a1d12;
+    --film-edge: #3a2818;
+    --film-sprocket: #d9c48c;
+    --film-divider: #000000;
+    --frame-glow: #f5c66a;
+    --frame-label: #fff5dd;
+}
+
+/* ============================================================
+   胶卷轨（容器）
+   ============================================================ */
+
 .config-stage-strip {
     position: relative;
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(154px, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     margin-top: 16px;
-    padding: 10px 0 4px;
+    padding: 28px 18px;
     overflow-x: auto;
     overflow-y: hidden;
-    scroll-snap-type: x proximity;
-    background: transparent;
+    border-radius: 4px;
+    /* 上下两排齿孔直接作为 strip 自己的背景多层，不参与内容滚动 */
+    background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='24' viewBox='0 0 22 24'%3E%3Crect x='5' y='3' width='12' height='18' rx='3.2' fill='%23d9c48c' fill-opacity='0.85'/%3E%3C/svg%3E") top center / 22px 24px repeat-x,
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='24' viewBox='0 0 22 24'%3E%3Crect x='5' y='3' width='12' height='18' rx='3.2' fill='%23d9c48c' fill-opacity='0.85'/%3E%3C/svg%3E") bottom center / 22px 24px repeat-x,
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.36 0 0 0 0 0.22 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+        linear-gradient(
+            180deg,
+            var(--film-base-deep) 0%,
+            var(--film-base) 18%,
+            var(--film-base-light) 50%,
+            var(--film-base) 82%,
+            var(--film-base-deep) 100%
+        );
+    background-size: 22px 24px, 22px 24px, 160px 160px, 100% 100%;
+    box-shadow:
+        inset 0 0 0 1px rgba(245, 198, 106, 0.06),
+        inset 0 0 60px rgba(0, 0, 0, 0.6),
+        0 18px 36px rgba(0, 0, 0, 0.35);
 }
 
+/* 齿孔已经搬进 strip 自己的 background-image 多层里，
+   这里不再用 ::before / ::after 绝对定位，避免 sticky + overflow 联动时
+   `overflow-y: visible` 被隐式降级为 auto 导致齿孔被裁掉的 bug */
+
+/* Sticky 状态：保留原本的 sticky 行为，但底色换成胶卷色 */
 .page-view[data-view="config"] .config-stage-strip {
     position: sticky;
     top: 78px;
     z-index: 7;
-    padding-top: 14px;
-    padding-bottom: 8px;
-    background: linear-gradient(to bottom, rgba(5, 5, 5, 0.97), rgba(5, 5, 5, 0.78), transparent);
-    backdrop-filter: blur(16px);
+    margin-top: 0;
 }
 
-.config-stage-strip::before,
-.config-stage-strip::after {
-    display: none;
-}
+/* ============================================================
+   画格卡 — 只剩图片 + 步骤名，不再自带齿孔
+   ============================================================ */
 
 .config-stage-card {
     position: relative;
-    --stage-poster: none;
-    min-height: 132px;
+    width: 100%;
+    max-width: 168px;
+    margin: 0 auto;
     padding: 0;
-    overflow: hidden;
-    color: var(--cinema-text);
-    text-align: left;
-    cursor: pointer;
+    background: transparent;
     border: 0;
     border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+    cursor: pointer;
+    color: var(--frame-label);
+    font: inherit;
+    text-align: center;
     scroll-snap-align: start;
-    transition:
-        transform 180ms ease,
-        box-shadow 180ms ease,
-        background 180ms ease;
+    transition: transform 220ms ease;
 }
 
-.config-stage-card[data-config-stage="start"] { --stage-poster: url("../assets/config-stage/start.jpeg"); }
-.config-stage-card[data-config-stage="source"] { --stage-poster: url("../assets/config-stage/source.jpeg"); }
-.config-stage-card[data-config-stage="temp"] { --stage-poster: url("../assets/config-stage/temp.jpeg"); }
-.config-stage-card[data-config-stage="recycle"] { --stage-poster: url("../assets/config-stage/recycle.jpeg"); }
-.config-stage-card[data-config-stage="rules"] { --stage-poster: url("../assets/config-stage/rules.jpeg"); }
-.config-stage-card[data-config-stage="scrape"] { --stage-poster: url("../assets/config-stage/scrape.jpeg"); }
-.config-stage-card[data-config-stage="ai"] { --stage-poster: url("../assets/config-stage/ai.jpeg"); }
+.config-stage-card::-moz-focus-inner { border: 0; padding: 0; }
 
-.config-stage-card::before {
+/* 画格之间的纵向分割线 — 15px 纯黑缝 */
+.config-stage-card + .config-stage-card::before {
+    content: "";
+    position: absolute;
+    left: -7.5px;
+    top: 0;
+    bottom: 0;
+    width: 15px;
+    background: var(--film-divider);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ---- 图片区域 ---- */
+.config-stage-img {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 2px;
+    background: #000;
+    box-shadow: inset 0 0 0 1px rgba(245, 198, 106, 0.18);
+}
+
+.config-stage-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: blur(0.6px) brightness(0.55) saturate(0.7);
+    transition: filter 280ms ease;
+}
+
+/* 图片上的暗色遮罩，让文字更清晰 */
+.config-stage-img::after {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: inherit;
-    background:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 154 132'%3E%3Crect x='0.5' y='0.5' width='153' height='131' rx='10' fill='%23130f0a' stroke='%23564218'/%3E%3Cg fill='%23d9c48c' fill-opacity='.68'%3E%3Crect x='10' y='8' width='12' height='18' rx='4'/%3E%3Crect x='31' y='8' width='12' height='18' rx='4'/%3E%3Crect x='52' y='8' width='12' height='18' rx='4'/%3E%3Crect x='73' y='8' width='12' height='18' rx='4'/%3E%3Crect x='94' y='8' width='12' height='18' rx='4'/%3E%3Crect x='115' y='8' width='12' height='18' rx='4'/%3E%3Crect x='136' y='8' width='12' height='18' rx='4'/%3E%3Crect x='10' y='106' width='12' height='18' rx='4'/%3E%3Crect x='31' y='106' width='12' height='18' rx='4'/%3E%3Crect x='52' y='106' width='12' height='18' rx='4'/%3E%3Crect x='73' y='106' width='12' height='18' rx='4'/%3E%3Crect x='94' y='106' width='12' height='18' rx='4'/%3E%3Crect x='115' y='106' width='12' height='18' rx='4'/%3E%3Crect x='136' y='106' width='12' height='18' rx='4'/%3E%3C/g%3E%3Crect x='14' y='34' width='126' height='64' rx='7' fill='%23100e0b' stroke='%23725420' stroke-width='1.4'/%3E%3C/svg%3E")
-        center / 100% 100% no-repeat;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.5));
     pointer-events: none;
 }
 
+/* ---- 文字叠在画面正中 ---- */
+.config-stage-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(255, 245, 221, 0.92);
+    text-shadow:
+        0 1px 8px rgba(0, 0, 0, 0.85),
+        0 0 18px rgba(0, 0, 0, 0.55);
+    white-space: nowrap;
+    pointer-events: none;
+    transition: color 220ms ease, text-shadow 220ms ease;
+}
+
+/* ============================================================
+   hover + 激活态
+   ============================================================ */
+
 .config-stage-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.24);
+}
+.config-stage-card:hover .config-stage-img img {
+    filter: blur(0.3px) brightness(0.62) saturate(0.8);
+}
+.config-stage-card:hover .config-stage-label {
+    color: rgba(255, 245, 221, 1);
 }
 
 .config-stage-card.active {
-    color: #fff9e9;
+    color: var(--frame-glow);
     background: transparent;
+}
+.config-stage-card.active .config-stage-img {
     box-shadow:
-        0 18px 34px rgba(0, 0, 0, 0.32),
-        0 0 28px rgba(243, 199, 102, 0.18);
+        inset 0 0 0 1.5px rgba(245, 198, 106, 0.9),
+        0 0 20px rgba(245, 198, 106, 0.35),
+        0 0 40px rgba(245, 198, 106, 0.14),
+        0 10px 18px rgba(0, 0, 0, 0.5);
+}
+.config-stage-card.active .config-stage-img img {
+    filter: blur(0.2px) brightness(0.65) saturate(0.85);
+}
+.config-stage-card.active .config-stage-img::after {
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.35));
+}
+.config-stage-card.active .config-stage-label {
+    color: var(--frame-glow);
+    text-shadow:
+        0 0 12px rgba(245, 198, 106, 0.45),
+        0 1px 6px rgba(0, 0, 0, 0.8);
 }
 
-.config-stage-card.active::before {
-    background:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 154 132'%3E%3Crect x='0.5' y='0.5' width='153' height='131' rx='10' fill='%23160f09' stroke='%23e2b95b' stroke-width='1.4'/%3E%3Cg fill='%23f8f0df'%3E%3Crect x='10' y='8' width='12' height='18' rx='4'/%3E%3Crect x='31' y='8' width='12' height='18' rx='4'/%3E%3Crect x='52' y='8' width='12' height='18' rx='4'/%3E%3Crect x='73' y='8' width='12' height='18' rx='4'/%3E%3Crect x='94' y='8' width='12' height='18' rx='4'/%3E%3Crect x='115' y='8' width='12' height='18' rx='4'/%3E%3Crect x='136' y='8' width='12' height='18' rx='4'/%3E%3Crect x='10' y='106' width='12' height='18' rx='4'/%3E%3Crect x='31' y='106' width='12' height='18' rx='4'/%3E%3Crect x='52' y='106' width='12' height='18' rx='4'/%3E%3Crect x='73' y='106' width='12' height='18' rx='4'/%3E%3Crect x='94' y='106' width='12' height='18' rx='4'/%3E%3Crect x='115' y='106' width='12' height='18' rx='4'/%3E%3Crect x='136' y='106' width='12' height='18' rx='4'/%3E%3C/g%3E%3Crect x='14' y='34' width='126' height='64' rx='7' fill='%2315100c' stroke='%23d0a54b' stroke-width='1.8'/%3E%3C/svg%3E")
-        center / 100% 100% no-repeat;
-}
+/* ============================================================
+   响应式 — 小屏保持可水平滚动
+   ============================================================ */
 
-.config-stage-copy {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
-    min-height: 64px;
-    margin: 34px 14px;
-    padding: 0 54px 0 14px;
-}
-
-.config-stage-copy::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: 7px;
-    background:
-        linear-gradient(rgba(13, 10, 8, 0.55), rgba(13, 10, 8, 0.55)),
-        var(--stage-poster),
-        linear-gradient(180deg, rgba(16, 14, 11, 0.92), rgba(8, 7, 5, 0.96));
-    background-repeat: no-repeat, repeat, no-repeat;
-    background-position: center, center, center;
-    background-size: auto, 112px auto, auto;
-    box-shadow:
-        inset 0 0 0 1px rgba(208, 165, 75, 0.16),
-        inset 0 0 32px rgba(0, 0, 0, 0.26);
-}
-
-.config-stage-copy strong {
-    display: block;
-    max-width: 86px;
-    color: #fff5dd;
-    font-size: 17px;
-    line-height: 64px;
-    letter-spacing: 0;
-    white-space: nowrap;
-    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.38);
-}
-
-.config-stage-card i {
-    position: absolute;
-    top: 34px;
-    right: 12px;
-    z-index: 1;
-    width: 46px;
-    height: 64px;
-    font-size: 0;
-    font-style: normal;
-    background: transparent;
-    --arrow-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 64' fill='none'%3E%3Cpath d='M10 12L26 32L10 52' stroke='%23cfa04f' stroke-width='8.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-
-.config-stage-card i::before,
-.config-stage-card i::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-}
-
-.config-stage-card i::before {
-    inset: 8px 6px 8px 0;
-    border-radius: 18px;
-    background: linear-gradient(180deg, rgba(255, 230, 177, 0.08), rgba(214, 159, 64, 0.03));
-    opacity: 0;
-}
-
-.config-stage-card i::after {
-    background-image: var(--arrow-svg);
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 24px 42px;
-    opacity: 0.96;
-    filter:
-        drop-shadow(0 1px 10px rgba(0, 0, 0, 0.28))
-        drop-shadow(0 0 10px rgba(207, 160, 79, 0.16));
-}
-
-.config-stage-card.active i::before,
-.config-stage-card.active i::after {
-    opacity: 1;
-}
-
-.config-stage-card.active i {
-    --arrow-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 64' fill='none'%3E%3Cpath d='M10 12L26 32L10 52' stroke='%23ffd66b' stroke-width='8.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+@media (max-width: 1100px) {
+    .config-stage-strip {
+        grid-template-columns: repeat(7, minmax(150px, 1fr));
+    }
 }
 
 @media (max-width: 760px) {
     .config-stage-strip {
-        grid-auto-columns: minmax(150px, 154px);
-        gap: 8px;
-        padding: 8px 0 2px;
+        padding: 18px 12px;
     }
-
-    .config-stage-card {
-        min-height: 132px;
-    }
-
-    .config-stage-copy {
-        margin: 34px 14px;
-        padding-right: 48px;
+    .config-stage-label {
+        font-size: 13px;
     }
 }

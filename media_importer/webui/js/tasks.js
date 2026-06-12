@@ -49,10 +49,11 @@ var FILE_LOCATION_LABELS = {
 };
 
 var STATUS_GROUPS = {
-    'pending': ['PENDING'],
-    'processing': ['PROCESSING', 'CONFIRMING'],
-    'failed': ['FAILED'],
-    'completed': ['SUCCESS', 'SKIPPED']
+    'queued': { status: 'PENDING', stage: 'QUEUED' },
+    'running': { status: 'PENDING', stage: 'RUNNING' },
+    'review': { status: 'PENDING', stage: 'AWAIT_REVIEW' },
+    'failed': { status: 'FAILED' },
+    'completed': { statuses: ['SUCCESS', 'SKIPPED'] }
 };
 
 async function loadTasks(page, status) {
@@ -65,18 +66,35 @@ async function loadTasks(page, status) {
     }
     var statusFilter = _currentTaskStatus || 'all';
 
-    var groupStatuses = STATUS_GROUPS[statusFilter];
-    if (groupStatuses) {
+    var groupConfig = STATUS_GROUPS[statusFilter];
+    if (groupConfig) {
         var allTasks = [];
         var totalCount = 0;
         var totalPages = 1;
-        for (var gi = 0; gi < groupStatuses.length; gi++) {
-            var url = '/tasks?page=' + pageNum + '&limit=20&status=' + encodeURIComponent(groupStatuses[gi]);
+
+        if (groupConfig.statuses) {
+            for (var gi = 0; gi < groupConfig.statuses.length; gi++) {
+                var url = '/tasks?page=' + pageNum + '&limit=20&status=' + encodeURIComponent(groupConfig.statuses[gi]);
+                var result = await apiRequest('GET', url);
+                if (result.code === 200 && result.data) {
+                    allTasks = allTasks.concat(result.data.tasks || []);
+                    totalCount += result.data.total || 0;
+                    totalPages = Math.max(totalPages, result.data.total_pages || 1);
+                }
+            }
+        } else {
+            var url = '/tasks?page=' + pageNum + '&limit=20';
+            if (groupConfig.status) {
+                url += '&status=' + encodeURIComponent(groupConfig.status);
+            }
+            if (groupConfig.stage) {
+                url += '&stage=' + encodeURIComponent(groupConfig.stage);
+            }
             var result = await apiRequest('GET', url);
             if (result.code === 200 && result.data) {
-                allTasks = allTasks.concat(result.data.tasks || []);
-                totalCount += result.data.total || 0;
-                totalPages = Math.max(totalPages, result.data.total_pages || 1);
+                allTasks = result.data.tasks || [];
+                totalCount = result.data.total || 0;
+                totalPages = result.data.total_pages || 1;
             }
         }
         allTasks.sort(function(a, b) {

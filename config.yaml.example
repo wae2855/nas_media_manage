@@ -192,6 +192,10 @@ manual_review:
 # 6.8 影视元数据刮削配置
 # ------------------------------------------------------------
 metadata:
+  scrape_mode: "provider_first"    # 刮削模式:
+                                  #   provider_first - Provider优先，AI仅补充缺失维度（推荐）
+                                  #                     Provider维度完整时不调AI，节省成本
+                                  #   ai_only        - 纯AI刮削，不使用元数据源API
   tmdb:
     enabled: false                  # 是否启用TMDb（The Movie Database）元数据API
                                   #   true  - 优先使用TMDb，失败时降级到LLM
@@ -208,40 +212,34 @@ metadata:
 # 7. LLM 大模型配置
 # ------------------------------------------------------------
 llm:
-  provider: "openai"              # LLM提供商
-  api_key: ""                     # [必须] API密钥
-  base_url: "https://api.openai.com/v1" # API地址，可改为国内代理或其他兼容接口
-  model: "gpt-3.5-turbo"         # 主模型名称
+  # AI 是否可用由 api_key + base_url + model 是否完整决定（无需 enabled 开关）
+  api_key: ""                     # [必须] AI刮削API密钥
+  base_url: "https://api.openai.com/v1" # API地址，支持所有兼容OpenAI格式的服务
+  model: "gpt-3.5-turbo"         # 刮削模型（用于纯AI刮削和整剧刮削）
   timeout: 30                     # API超时时间（秒）
   max_retries: 2                  # 最大重试次数
   retry_delay: 3                  # 重试间隔（秒）
   fallback_model: "gpt-3.5-turbo" # 备选模型（主模型失败时降级使用）
-  fast_model: ""                  # 快速模型（标题清洗+TMDB结果整理，留空则使用fallback_model）
-  fast_base_url: ""               # 快速模型API地址（留空则使用base_url）
-  fast_api_key: ""                # 快速模型API密钥（留空则使用api_key）
+  fast_model: ""                  # 辅助模型（标题清洗、数据整理等，留空则使用刮削模型）
+  fast_base_url: ""               # 辅助模型API地址（留空则使用刮削区块的接口地址）
+  fast_api_key: ""                # 辅助模型API密钥（留空则使用刮削区块的API Key）
+  source_cleaner_model: ""        # 源目录清理模型（留空则使用辅助模型）
   confidence_threshold: 0.8       # AI置信度阈值（低于此值的刮削结果将被拒绝）
   verify_ssl: true                # 是否验证SSL证书（代理环境可设为false）
   system_prompt: ""               # 如需自定义刮削提示词，请在 config/scraper_prompts.md 中配置
-  
-  # MCP (Model Context Protocol) 工具集成配置
-  mcp:
-    enabled: false                # 是否启用MCP工具集成
-    # MCP工具列表
-    tools:
-      - name: web_search
-        type: web_search          # 使用web_search_prime MCP
-        enabled: true
-        config: {}
-      - name: browser
-        type: integrated_browser
-        enabled: false
-        config: {}
-    # 哪些场景启用MCP
-    scenarios:
-      scrape: true                # 纯AI刮削时启用
-      scrape_with_context: false  # 已有Provider上下文时不启用
-      series_scrape: true         # 整剧刮削时启用
-      source_cleaner: false       # 源目录清理时不启用
+
+  # 联网搜索增强配置
+  web_search:
+    enabled: false                # 是否启用联网搜索增强
+    provider: "none"              # 搜索提供商：
+                                  #   "zhipu"   - 智谱 GLM web_search
+                                  #   "minimax" - MiniMax web_search
+                                  #   "qwen"    - 通义千问 enable_search
+                                  #   "openai"  - OpenAI web_search_preview（暂不支持）
+                                  #   "none"    - 不启用
+    enabled_for_scrape: true      # 纯AI刮削时启用搜索
+    enabled_for_series_scrape: true # 整剧刮削时启用搜索
+    enabled_for_source_cleaner: false # 源目录清理时不启用搜索
 
 # ------------------------------------------------------------
 # 7.1 刮削提示词配置

@@ -108,6 +108,27 @@ def _normalize_bool_strings(obj):
     return obj
 
 
+def _migrate_mcp_to_web_search(config: dict) -> None:
+    llm = config.get("llm", {})
+
+    llm.pop("provider", None)
+
+    if "mcp" not in llm:
+        return
+
+    mcp = llm.pop("mcp")
+
+    if mcp.get("enabled"):
+        scenarios = mcp.get("scenarios", {})
+        llm["web_search"] = {
+            "enabled": True,
+            "enabled_for_scrape": scenarios.get("scrape", True),
+            "enabled_for_series_scrape": scenarios.get("series_scrape", True),
+        }
+
+    llm.pop("provider", None)
+
+
 def _normalize_bool_strings_in_list(lst):
     for i in range(len(lst)):
         item = lst[i]

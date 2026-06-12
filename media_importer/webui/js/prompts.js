@@ -246,7 +246,7 @@ async function doScrapePreview() {
     html += '</div>';
 
     html += '<div class="scrape-preview-col">';
-    html += '<h4 style="margin:0 0 8px 0;font-size:14px;color:var(--primary-color);">Provider+AI 刮削';
+    html += '<h4 style="margin:0 0 8px 0;font-size:14px;color:var(--primary-color);">Provider 优先刮削';
     if (data.provider_ai_elapsed) html += ' <span style="font-size:11px;color:var(--text-secondary);">(' + data.provider_ai_elapsed + 's)</span>';
     html += '</h4>';
     html += _renderScrapeResultCard(data.provider_ai);
@@ -257,7 +257,7 @@ async function doScrapePreview() {
     if (data.provider_ai && data.provider_ai.scrape_trace) {
         var traceJson = escapeHtml(JSON.stringify(data.provider_ai.scrape_trace));
         html += '<div style="margin-top:12px;text-align:center;">';
-        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="' + escapeHtml(filename) + '">查看 Provider+AI 置信度计算过程</button>';
+        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="' + escapeHtml(filename) + '">查看 Provider 优先置信度计算过程</button>';
         html += '</div>';
     }
     if (data.ai_only && data.ai_only.scrape_trace) {

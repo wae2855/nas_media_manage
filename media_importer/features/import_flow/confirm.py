@@ -1,5 +1,6 @@
 import os
 from media_importer.core.db import update_task as db_update_task, update_subtitles_by_task as db_update_subs
+from media_importer.core.db.dimension_repo import get_enabled_dimensions
 from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
@@ -66,6 +67,10 @@ class ConfirmMixin:
         if isinstance(current_dims, str):
             current_dims = {}
         current_dims.update(new_dimensions)
+
+        # 清洗已禁用维度的值
+        enabled_dim_names = {d["name"] for d in get_enabled_dimensions(self.task_manager.conn)}
+        current_dims = {k: v for k, v in current_dims.items() if k in enabled_dim_names}
         task["scrape_dimensions"] = current_dims
 
         scrape_result = task.get("scrape_result", {})
@@ -78,7 +83,7 @@ class ConfirmMixin:
             classify_result="",
         )
 
-        result = ClassificationService(self.config).classify_task(task)
+        result = ClassificationService(self.config).classify_task(task, enabled_dim_names)
         if not result.import_path:
             raise PipelineError(f"重新分类失败，维度=[{result.dimensions_text}]")
         if result.used_fallback:

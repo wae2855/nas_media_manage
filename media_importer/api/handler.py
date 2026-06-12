@@ -14,6 +14,7 @@ from media_importer.monitor.file_watcher import FileWatcher
 from media_importer.core.db import (
     update_task as db_update_task,
 )
+from media_importer.core.task_lifecycle import FILE_LOCATION_SOURCE, mark_failed
 
 from .utils import json_response, read_json_body, ThreadingHTTPServer, format_tasks_to_text
 from .static_server import StaticServerMixin
@@ -140,7 +141,7 @@ class APIHandler(
 
 def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
     temp_dir = config.get('temp_dir', '')
-    reset_count = 0
+    failed_count = 0
     cleaned_temp_count = 0
 
     all_tasks = task_manager.list_tasks(limit=10000)
@@ -151,7 +152,7 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
         stage = task.get("stage", "")
         tid = task.get("task_id", "")
 
-        # 旧 PROCESSING 任务 → 重置为 QUEUED
+        # 旧 PROCESSING / 当前 PENDING/RUNNING 任务 → 标记为 FAILED
         if status == "PROCESSING" or (status == "PENDING" and stage == "RUNNING"):
             temp_video = task.get("video_path", "")
             if temp_video and os.path.exists(temp_video):
@@ -167,11 +168,18 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
                         os.remove(sub_str)
                     except OSError:
                         pass
-            db_update_task(task_manager.conn, tid,
-                           status="PENDING", stage="QUEUED",
-                           file_location="source",
-                           video_path="", current_step=0, percentage=0)
-            reset_count += 1
+            fields = mark_failed(
+                task,
+                "服务中断或重启导致任务未完成，请重试",
+                file_location=FILE_LOCATION_SOURCE,
+                video_path="",
+            )
+            fields.update({
+                "current_step": 0,
+                "percentage": 0,
+            })
+            db_update_task(task_manager.conn, tid, **fields)
+            failed_count += 1
 
         # 旧 CONFIRMING / AWAIT_REVIEW 任务 → 保护 temp 文件不被清理
         elif status == "CONFIRMING" or (status == "PENDING" and stage == "AWAIT_REVIEW"):
@@ -193,10 +201,10 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
                 except OSError:
                     pass
 
-    if reset_count > 0 or cleaned_temp_count > 0:
+    if failed_count > 0 or cleaned_temp_count > 0:
         msg_parts = []
-        if reset_count > 0:
-            msg_parts.append(f"重置 {reset_count} 个崩溃任务为 PENDING")
+        if failed_count > 0:
+            msg_parts.append(f"将 {failed_count} 个中断的运行中任务标记为 FAILED")
         if cleaned_temp_count > 0:
             msg_parts.append(f"清理 {cleaned_temp_count} 个孤立临时文件")
         logger.info("启动清理: " + ", ".join(msg_parts))
@@ -313,7 +321,7 @@ def start_server(host: str, port: int, config: dict):
     print("  DELETE /api/tasks/{id}      - 删除任务(仅DB记录)")
     print("  POST /api/tasks/{id}/delete - 删除任务(可选删除文件, body: {delete_files: bool})")
     print("  POST /api/tasks/{id}/retry - 重试任务")
-    print("  POST /api/tasks/{id}/confirm - 确认入库 (CONFIRMING → SUCCESS)")
+    print("  POST /api/tasks/{id}/confirm - 确认入库 (AWAIT_REVIEW → SUCCESS)")
     print("  POST /api/tasks/{id}/reclassify - 重新分类 (带 dimensions 参数)")
     print("  POST /api/tasks/{id}/ignore - 忽略任务")
     print("  POST /api/tasks/clear      - 清空任务")

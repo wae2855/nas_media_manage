@@ -143,6 +143,20 @@ def mark_skipped(task, reason: str, *, file_location: str = FILE_LOCATION_SOURCE
     )
 
 
+def mark_cancelled(task, reason: str = "用户取消", *,
+                   file_location: str = FILE_LOCATION_SOURCE,
+                   video_path="") -> dict:
+    return _apply(
+        task,
+        status=STATUS_CANCELLED,
+        stage=STAGE_DONE,
+        error_message=reason,
+        completed_at=_now(),
+        file_location=file_location,
+        video_path=_NO_FIELD if video_path is None else video_path,
+    )
+
+
 def mark_imported(task, *, import_video_path: str = None) -> dict:
     return _apply(
         task,

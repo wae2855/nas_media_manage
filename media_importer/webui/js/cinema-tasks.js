@@ -64,6 +64,9 @@ function taskDescription(task) {
     if (status === "SKIPPED") {
         return "该任务已被跳过，可按需要重新投入处理。";
     }
+    if (status === "CANCELLED") {
+        return task.error_message || "该任务已取消，可按需要重新投入处理。";
+    }
     if (status === "PENDING" && stage === "RUNNING") {
         return "系统正在扫描、识别和整理这个文件。";
     }
@@ -85,7 +88,7 @@ function taskMeta(task) {
         if (!Number.isNaN(value)) bits.push(`置信度 ${value.toFixed(2)}`);
     }
     if (status === "FAILED" && task.error_message) bits.push("查看失败原因");
-    if ((status === "SUCCESS" || status === "SKIPPED") && task.completed_at) bits.push(formatActivityTime(task.completed_at));
+    if (["SUCCESS", "SKIPPED", "CANCELLED"].includes(status) && task.completed_at) bits.push(formatActivityTime(task.completed_at));
     if (bits.length === 0 && task.created_at) bits.push(formatActivityTime(task.created_at));
     return bits.join(" · ") || "等待处理";
 }
@@ -95,16 +98,14 @@ function taskPrimaryAction(task) {
     const stage = String(task.stage || "").toUpperCase();
     if (status === "PENDING" && stage === "AWAIT_REVIEW") return { key: "confirm", label: "去确认" };
     if (status === "FAILED" || status === "SKIPPED") return { key: "retry-task", label: "去重试" };
-    if (status === "SUCCESS") return { key: "view-task", label: "查看结果" };
-    return { key: "view-task", label: "查看" };
+    if (status === "CANCELLED") return { key: "retry-task", label: "重新投入" };
+    if (status === "PENDING" && stage === "QUEUED") return { key: "cancel-task", label: "取消" };
+    return null;
 }
 
 function taskSecondaryAction(task) {
     const status = String(task.status || "").toUpperCase();
-    const stage = String(task.stage || "").toUpperCase();
-    if (status === "PENDING" && stage === "AWAIT_REVIEW") return { key: "edit-task", label: "修改" };
     if (status === "FAILED") return { key: "delete-task", label: "移入回收" };
-    if (status === "PENDING" && stage === "QUEUED") return { key: "delete-task", label: "移入回收" };
     return null;
 }
 
@@ -144,15 +145,17 @@ function renderTaskCard(item, index = 0) {
     const checked = selectedTaskIds.has(taskId) ? "checked" : "";
     return `
         <article class="task-card" data-task-row="${escapeHtml(taskId)}" style="--card-index: ${index}">
-            <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" />
-            <div class="cover cover-${getTaskTone(item)}"></div>
+            <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" onclick="event.stopPropagation()" />
+            <div class="cover cover-${getTaskTone(item)}" aria-hidden="true"></div>
             <div class="task-body">
                 <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="badge${danger}">${escapeHtml(getTaskStatusText(item.status, item.stage))}</span></div>
                 <p>${escapeHtml(taskDescription(item))}</p>
                 <div class="task-meta"><span>${escapeHtml(filename)}</span><span>${escapeHtml(taskMeta(item))}</span></div>
+                <small class="task-row-hint">点击卡片选中 · 点击"详情"查看编辑</small>
             </div>
             <div class="task-actions">
-                <button data-task-action="${escapeHtml(primaryAction.key)}" data-task-id="${escapeHtml(item.task_id || "")}">${escapeHtml(primaryAction.label)}</button>
+                <button class="btn-ghost" data-task-action="view-task" data-task-id="${escapeHtml(taskId)}" aria-label="查看详情">详情</button>
+                ${primaryAction ? `<button data-task-action="${escapeHtml(primaryAction.key)}" data-task-id="${escapeHtml(item.task_id || "")}">${escapeHtml(primaryAction.label)}</button>` : ""}
                 ${secondaryAction ? `<button data-task-action="${escapeHtml(secondaryAction.key)}" data-task-id="${escapeHtml(item.task_id || "")}">${escapeHtml(secondaryAction.label)}</button>` : ""}
             </div>
         </article>`;
@@ -166,6 +169,7 @@ function renderTaskList() {
     if (typeof loadReelWheelFromTasks === "function") loadReelWheelFromTasks();
     const host = document.getElementById("task-list");
     if (!host) return;
+    const countEl = document.getElementById("task-panel-count");
     if (!Array.isArray(currentTaskRecords) || currentTaskRecords.length === 0) {
         const emptyHint = currentTaskFilter === "all"
             ? "你可以先回到首页发起扫描，或等待新文件进入源目录。"
@@ -182,13 +186,24 @@ function renderTaskList() {
                     <button class="btn btn-secondary" data-nav="home" data-view-target="dashboard">回到首页</button>
                 </div>
             </div>`;
-        document.getElementById("task-panel-count").textContent = "0 项";
+        if (countEl) countEl.textContent = "0 / 0 项";
         setBatchToolbarVisibility();
         updateBatchToolbar();
         return;
     }
-    host.innerHTML = currentTaskRecords.map((item, index) => renderTaskCard(item, index)).join("");
-    document.getElementById("task-panel-count").textContent = `${currentTaskRecords.length} 项`;
+    const cardsHtml = currentTaskRecords.map((item, index) => renderTaskCard(item, index)).join("");
+    const loadMoreHtml = currentTaskHasMore
+        ? `<div class="task-load-more">
+                <button class="btn btn-secondary" data-task-action="load-more-tasks">加载更多（已显示 ${currentTaskRecords.length} / 共 ${currentTaskTotal} 项）</button>
+            </div>`
+        : "";
+    host.innerHTML = cardsHtml + loadMoreHtml;
+    if (countEl) {
+        const loaded = currentTaskRecords.length;
+        countEl.textContent = currentTaskHasMore
+            ? `${loaded} / ${currentTaskTotal} 项`
+            : `${loaded} 项`;
+    }
     setBatchToolbarVisibility();
     updateBatchToolbar();
 }
@@ -201,18 +216,25 @@ function renderStaticLists() {
 
 function setTaskFilter(filter) {
     currentTaskFilter = filter;
+    currentTaskPage = 1;
     selectedTaskIds.clear();
     document.querySelectorAll("[data-task-filter-chip]").forEach((chip) => {
         chip.classList.toggle("active", chip.dataset.taskFilterChip === filter);
     });
-    loadTaskList();
+    loadTaskList(false);
 }
 
-async function listTasksByStatuses(params) {
+async function listTasksByStatuses(params, page = 1, pageSize = 20) {
+    const baseQuery = { page, limit: pageSize };
     if (!params || Object.keys(params).length === 0) {
-        const result = await requestApi("GET", "/tasks", { limit: 20 });
-        if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [] };
-        return { code: 200, tasks: result.data.tasks || [], total: result.data.total || 0 };
+        const result = await requestApi("GET", "/tasks", baseQuery);
+        if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [], total: 0, total_pages: 1 };
+        return {
+            code: 200,
+            tasks: result.data.tasks || [],
+            total: result.data.total || 0,
+            total_pages: result.data.total_pages || 1,
+        };
     }
     // Handle array status by making separate requests and merging
     if (params.status && Array.isArray(params.status)) {
@@ -220,79 +242,109 @@ async function listTasksByStatuses(params) {
         let totalSum = 0;
         let anyError = false;
         for (const s of params.status) {
-            const query = { status: s };
+            const query = { ...baseQuery, status: s };
             if (params.stage) query.stage = params.stage;
             const result = await requestApi("GET", "/tasks", query);
             if (result.code !== 200 || !result.data) { anyError = true; continue; }
             allTasks.push(...(result.data.tasks || []));
             totalSum += result.data.total || 0;
         }
-        if (anyError && allTasks.length === 0) return { code: 500, message: "请求失败", tasks: [] };
-        return { code: 200, tasks: allTasks, total: totalSum };
+        if (anyError && allTasks.length === 0) return { code: 500, message: "请求失败", tasks: [], total: 0, total_pages: 1 };
+        const mergedPageSize = pageSize * params.status.length;
+        return {
+            code: 200,
+            tasks: allTasks,
+            total: totalSum,
+            total_pages: Math.max(1, Math.ceil(totalSum / mergedPageSize)),
+        };
     }
-    const query = {};
+    const query = { ...baseQuery };
     if (params.status) query.status = params.status;
     if (params.stage) query.stage = params.stage;
     const result = await requestApi("GET", "/tasks", query);
-    if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [] };
-    return { code: 200, tasks: result.data.tasks || [], total: result.data.total || 0 };
+    if (result.code !== 200 || !result.data) return { code: result.code, message: result.message, tasks: [], total: 0, total_pages: 1 };
+    return {
+        code: 200,
+        tasks: result.data.tasks || [],
+        total: result.data.total || 0,
+        total_pages: result.data.total_pages || 1,
+    };
 }
 
-async function loadTaskList() {
-    const meta = TASK_FILTER_META[currentTaskFilter] || TASK_FILTER_META.all;
-    document.getElementById("task-panel-title").textContent = meta.title;
-    document.getElementById("task-panel-copy").textContent = meta.copy;
-    document.getElementById("task-panel-count").textContent = "加载中";
+async function loadTaskList(append = false) {
+    if (currentTaskLoading) return;
+    currentTaskLoading = true;
+    try {
+        const meta = TASK_FILTER_META[currentTaskFilter] || TASK_FILTER_META.all;
+        document.getElementById("task-panel-title").textContent = meta.title;
+        document.getElementById("task-panel-copy").textContent = meta.copy;
+        if (!append) {
+            currentTaskPage = 1;
+            currentTaskRecords = [];
+            document.getElementById("task-panel-count").textContent = "加载中";
+            const host = document.getElementById("task-list");
+            if (host) {
+                host.innerHTML = `
+                    <article class="task-card">
+                        <div class="cover cover-gold"></div>
+                        <div class="task-body">
+                            <div class="task-top"><h3>正在读取任务队列</h3><span class="badge">加载中</span></div>
+                            <p>正在把真实任务列表同步到新版任务工作台。</p>
+                            <div class="task-meta"><span>任务工作台</span></div>
+                        </div>
+                    </article>`;
+            }
+        }
+        const result = await listTasksByStatuses(
+            TASK_FILTER_PARAMS[currentTaskFilter],
+            currentTaskPage,
+            currentTaskPageSize
+        );
+        if (result.code === 401) {
+            currentTaskRecords = [];
+            currentTaskTotal = 0;
+            currentTaskHasMore = false;
+            renderTaskList();
+            return;
+        }
+        if (result.code !== 200) {
+            currentTaskRecords = [];
+            currentTaskTotal = 0;
+            currentTaskHasMore = false;
+            renderErrorState(result.message || "请稍后重试。");
+            return;
+        }
+        if (append) {
+            currentTaskRecords = currentTaskRecords.concat(result.tasks || []);
+        } else {
+            currentTaskRecords = result.tasks || [];
+        }
+        currentTaskTotal = result.total || 0;
+        currentTaskHasMore = currentTaskRecords.length < currentTaskTotal;
+        renderTaskList();
+    } finally {
+        currentTaskLoading = false;
+    }
+}
+
+function renderErrorState(message) {
     const host = document.getElementById("task-list");
-    if (host) {
-        host.innerHTML = `
-            <article class="task-card">
-                <div class="cover cover-gold"></div>
-                <div class="task-body">
-                    <div class="task-top"><h3>正在读取任务队列</h3><span class="badge">加载中</span></div>
-                    <p>正在把真实任务列表同步到新版任务工作台。</p>
-                    <div class="task-meta"><span>任务工作台</span></div>
-                </div>
-            </article>`;
-    }
-    const result = await listTasksByStatuses(TASK_FILTER_PARAMS[currentTaskFilter]);
-    if (result.code === 401) {
-        currentTaskRecords = [];
-        if (host) {
-            host.innerHTML = `
-                <article class="task-card">
-                    <div class="cover cover-cyan"></div>
-                    <div class="task-body">
-                        <div class="task-top"><h3>需要先完成认证</h3><span class="badge danger">未认证</span></div>
-                        <p>输入 API Key 后，这里才会显示真实任务、筛选统计和任务操作。</p>
-                        <div class="task-meta"><span>任务工作台</span></div>
-                    </div>
-                </article>`;
-        }
-        document.getElementById("task-panel-count").textContent = "--";
-        return;
-    }
-    if (result.code !== 200) {
-        currentTaskRecords = [];
-        if (host) {
-            host.innerHTML = `
-                <article class="task-card">
-                    <div class="cover cover-red"></div>
-                    <div class="task-body">
-                        <div class="task-top"><h3>任务列表加载失败</h3><span class="badge danger">失败</span></div>
-                        <p>${escapeHtml(result.message || "请稍后重试。")}</p>
-                        <div class="task-meta"><span>任务工作台</span></div>
-                    </div>
-                    <div class="task-actions">
-                        <button data-task-action="refresh-tasks">重新加载</button>
-                    </div>
-                </article>`;
-        }
-        document.getElementById("task-panel-count").textContent = "--";
-        return;
-    }
-    currentTaskRecords = result.tasks || [];
-    renderTaskList();
+    if (!host) return;
+    host.innerHTML = `
+        <article class="task-card">
+            <div class="cover cover-red"></div>
+            <div class="task-body">
+                <div class="task-top"><h3>任务列表加载失败</h3><span class="badge danger">失败</span></div>
+                <p>${escapeHtml(message)}</p>
+                <div class="task-meta"><span>任务工作台</span></div>
+            </div>
+            <div class="task-actions">
+                <button data-task-action="refresh-tasks">重新加载</button>
+            </div>
+        </article>`;
+    document.getElementById("task-panel-count").textContent = "--";
+    setBatchToolbarVisibility();
+    updateBatchToolbar();
 }
 
 function findTaskRecord(taskId) {
@@ -315,7 +367,13 @@ function extractDimValue(raw) {
     return String(raw);
 }
 
-function buildTaskDimensionsForm(task, editable) {
+const MULTI_SELECT_DIMS = ['restricted_level', 'broad_genre'];
+
+function isMultiSelectDim(dimName) {
+    return MULTI_SELECT_DIMS.indexOf(dimName) >= 0;
+}
+
+function buildTaskDimensionsForm(task, editable, enabled = editable) {
     const dimensions = currentEnabledDimensions.length ? currentEnabledDimensions : [];
     const source = task.scrape_dimensions || task.dimensions || {};
     if (!dimensions.length) {
@@ -325,16 +383,45 @@ function buildTaskDimensionsForm(task, editable) {
         const rawValue = source[dim.name];
         const value = extractDimValue(rawValue);
         const options = Array.isArray(dim.value_list) ? dim.value_list : [];
+        const multi = isMultiSelectDim(dim.name);
+
+        // 只读模式
         if (!editable) {
-            const matchLabel = options.find((item) => item.value === value);
-            const displayValue = matchLabel ? matchLabel.label || matchLabel.value : value || "—";
+            const displayValue = multi
+                ? formatMultiValue(value, options)
+                : (() => { const m = options.find((item) => item.value === value); return m ? (m.label || m.value) : value; })();
             return `
                 <label class="cinema-modal-field">
                     <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
-                    <span class="cinema-modal-readonly-value">${escapeHtml(displayValue)}</span>
+                    <span class="cinema-modal-readonly-value">${escapeHtml(displayValue || "—")}</span>
                 </label>`;
         }
+
+        const disabledAttr = enabled ? "" : " disabled";
+
+        // 多选维度 → checkbox group
+        if (multi && options.length > 0) {
+            const selectedVals = value.split("|").map(s => s.trim()).filter(Boolean);
+            const checkboxHtml = options.map((item) => {
+                const checked = selectedVals.indexOf(item.value) >= 0 ? " checked" : "";
+                return `<label class="rule-condition-checkbox-label">
+                    <input type="checkbox" value="${escapeHtml(item.value)}"${checked}${disabledAttr} data-task-dim="${escapeHtml(dim.name)}">
+                    <span>${escapeHtml(item.label || item.value)}</span>
+                </label>`;
+            }).join("");
+            return `
+                <div class="cinema-modal-field">
+                    <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
+                    <div class="cinema-modal-checkbox-group">${checkboxHtml}</div>
+                </div>`;
+        }
+
+        // 单选有值域 → select
         if (options.length > 0) {
+            const matchedOption = options.find((item) => item.value === value);
+            const emptyStateHtml = value
+                ? `<option value="${escapeHtml(value)}" selected>${escapeHtml(matchedOption ? (matchedOption.label || matchedOption.value) : value)}</option>`
+                : `<option value="" selected disabled>无</option>`;
             const optionHtml = options.map((item) => {
                 const selected = item.value === value ? " selected" : "";
                 return `<option value="${escapeHtml(item.value)}"${selected}>${escapeHtml(item.label || item.value)}</option>`;
@@ -342,18 +429,81 @@ function buildTaskDimensionsForm(task, editable) {
             return `
                 <label class="cinema-modal-field">
                     <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
-                    <select data-task-dim="${escapeHtml(dim.name)}" class="cinema-modal-select">
-                        <option value="">（不修改）</option>
+                    <select data-task-dim="${escapeHtml(dim.name)}" class="cinema-modal-select"${disabledAttr}>
+                        ${emptyStateHtml}
                         ${optionHtml}
                     </select>
                 </label>`;
         }
+
+        // 无值域 → 自由文本
         return `
             <label class="cinema-modal-field">
                 <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
-                <input type="text" data-task-dim="${escapeHtml(dim.name)}" value="${escapeHtml(value)}" placeholder="留空表示不修改" />
+                <input type="text" data-task-dim="${escapeHtml(dim.name)}" value="${escapeHtml(value)}" placeholder="${value ? '' : '无'}"${disabledAttr} />
             </label>`;
     }).join("");
+}
+
+function formatMultiValue(value, options) {
+    const parts = String(value || "").split("|").map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return "";
+    return parts.map(v => {
+        const m = options.find(o => o.value === v);
+        return m ? (m.label || m.value) : v;
+    }).join("、");
+}
+
+function getTaskEditPermission(task) {
+    const status = String(task.status || "").toUpperCase();
+    const stage = String(task.stage || "").toUpperCase();
+    const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
+    const isQueued = status === "PENDING" && stage === "QUEUED";
+    const isFailed = status === "FAILED";
+    const isCancelled = status === "CANCELLED";
+
+    return {
+        canEditFilename: isAwaitReview,
+        canEditDimensions: isAwaitReview,
+        canSave: isAwaitReview,
+        stateLabel: isAwaitReview
+            ? "待确认 — 可修改文件名和维度后确认入库"
+            : isQueued
+            ? "排队中 — 只读，不可编辑"
+            : isFailed
+            ? "失败 — 只读，可重试"
+            : isCancelled
+            ? "已取消 — 只读，可重新投入"
+            : status === "SUCCESS"
+            ? "已完成 — 只读"
+            : status === "SKIPPED"
+            ? "已跳过 — 只读"
+            : stage === "RUNNING"
+            ? "处理中 — 不可编辑"
+            : "只读",
+    };
+}
+
+function buildScrapeTraceSection(task) {
+    var scrapeTrace = task.scrape_trace;
+    if (!scrapeTrace || typeof scrapeTrace !== "object") return "";
+
+    var traceJson = encodeURIComponent(JSON.stringify(scrapeTrace));
+    var filename = task.source_filename || "";
+
+    var searchBadge = "";
+    if (scrapeTrace.search_enhanced === true) {
+        searchBadge = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:8px">🔍 联网搜索增强</span>';
+    } else if (scrapeTrace.search_enhanced === false) {
+        searchBadge = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:8px">📴 纯本地分析</span>';
+    }
+
+    return `
+        <div class="cinema-modal-block">
+            <h4>决策路径${searchBadge}</h4>
+            <div class="cinema-modal-hint" style="margin-bottom:8px">查看刮削过程中的置信度计算详情。</div>
+            <button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute('data-trace'))),this.getAttribute('data-filename'))" data-trace="${traceJson}" data-filename="${escapeHtml(filename)}">查看置信度计算过程</button>
+        </div>`;
 }
 
 function buildSubtitleTable(subtitles) {
@@ -489,26 +639,70 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     const subtitles = subtitleResult.code === 200 && subtitleResult.data ? (subtitleResult.data.subtitles || []) : [];
     const originalFilename = taskFileName(task);
     const status = String(task.status || "").toUpperCase();
-    const isEditable = !["SUCCESS", "SKIPPED"].includes(status);
+    const stage = String(task.stage || "").toUpperCase();
+    const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
+    const isFilenameEditable = isAwaitReview;
 
-    const renameSection = isEditable
+    const perm = getTaskEditPermission(task);
+    const editable = perm.canSave;
+
+    const renameSection = perm.canEditFilename
         ? `<div class="cinema-modal-block">
-                <h4>文件名微调</h4>
+                <div class="cinema-modal-section-head">
+                    <h4>文件名</h4>
+                </div>
                 <label class="cinema-modal-field">
-                    <span>新文件名</span>
+                    <span>文件名 <small>（可修改，不含路径）</small></span>
                     <input type="text" id="task-rename-input" value="${escapeHtml(originalFilename)}" data-rename-original="${escapeHtml(originalFilename)}" />
-                    <small>只填写新的文件名，不包含路径。</small>
                 </label>
                 ${buildRenamePreview(originalFilename)}
             </div>`
+        : `<div class="cinema-modal-block">
+                <h4>文件名</h4>
+                <div class="cinema-modal-readonly-line">${escapeHtml(originalFilename)}</div>
+            </div>`;
+
+    const dimActionsHtml = perm.canEditDimensions
+        ? `<div class="cinema-modal-section-actions">
+                ${isAwaitReview ? `<button id="btn-preview-classify" type="button" class="btn btn-sm btn-outline">预览入库规则</button>` : ""}
+           </div>`
         : "";
 
-    const dimSection = `<div class="cinema-modal-block">
-            <h4>分类维度${isEditable ? "微调" : ""}</h4>
-            ${isEditable ? '<button id="btn-preview-classify" class="btn btn-sm btn-outline" style="float:right;margin-top:-28px">入库预览</button>' : ""}
-            <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, isEditable)}</div>
-            ${isEditable ? '<div id="preview-classify-result" class="cinema-modal-preview" style="display:none"></div>' : ""}
-        </div>`;
+    const dimSectionHtml = perm.canEditDimensions
+        ? `<div class="cinema-modal-block">
+                <div class="cinema-modal-section-head">
+                    <h4>分类维度</h4>
+                    ${dimActionsHtml}
+                </div>
+                <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, true, true)}</div>
+                <div id="preview-classify-result" class="cinema-modal-preview" style="display:none"></div>
+           </div>`
+        : `<div class="cinema-modal-block">
+                <h4>分类维度</h4>
+                <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, false)}</div>
+           </div>`;
+
+    const filenameSaveHtml = perm.canEditFilename
+        ? `<div class="cinema-modal-block">
+                <div class="cinema-modal-save-row">
+                    <button id="btn-save-filename" type="button" class="btn btn-primary">保存文件名</button>
+                    <div id="filename-error-area" class="modal-error-area" style="display:none"></div>
+                </div>
+           </div>`
+        : "";
+
+    const dimSaveHtml = perm.canEditDimensions
+        ? `<div class="cinema-modal-block">
+                <div class="cinema-modal-save-row">
+                    <button id="btn-save-dims" type="button" class="btn btn-primary">保存分类</button>
+                    <div id="dims-error-area" class="modal-error-area" style="display:none"></div>
+                </div>
+           </div>`
+        : "";
+
+    const stateHintHtml = `<div class="cinema-modal-save-bar">
+            <small class="task-permission-hint">${escapeHtml(perm.stateLabel)}</small>
+       </div>`;
 
     const body = `
         <div class="cinema-modal-stack">
@@ -521,67 +715,21 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
             </div>
             ${buildFailureSection(task)}
             ${buildScrapeResultSection(task)}
+            ${buildScrapeTraceSection(task)}
             ${renameSection}
-            ${dimSection}
+            ${filenameSaveHtml}
+            ${dimSectionHtml}
+            ${dimSaveHtml}
             <div class="cinema-modal-block">
                 <h4>字幕记录</h4>
                 ${buildSubtitleTable(subtitles)}
             </div>
+            ${stateHintHtml}
         </div>`;
 
     const actions = [
         { label: "关闭", className: "btn btn-secondary" },
     ];
-
-    if (isEditable) {
-        actions.push({
-            label: "保存新文件名",
-            className: "btn btn-secondary",
-            closeOnClick: false,
-            onClick: async () => {
-                const inputEl = document.getElementById("task-rename-input");
-                const newFilename = String(inputEl?.value || "").trim();
-                if (!newFilename) {
-                    showToast("文件名不能为空");
-                    return;
-                }
-                const result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/rename`, {
-                    new_filename: newFilename,
-                });
-                showToast(result.message || "文件名已更新");
-                if (result.code === 200) {
-                    removeAppModal();
-                    await openTaskDetailImpl(taskId, true);
-                    await Promise.all([loadTaskList(), loadDashboardOverview()]);
-                }
-            },
-        });
-        actions.push({
-            label: "应用分类微调",
-            className: "btn btn-secondary",
-            closeOnClick: false,
-            onClick: async () => {
-                const dims = {};
-                document.querySelectorAll("[data-task-dim]").forEach((input) => {
-                    const nextValue = parseRuleConditionValue(input.value);
-                    if (nextValue) dims[input.dataset.taskDim] = nextValue;
-                });
-                if (Object.keys(dims).length === 0) {
-                    showToast("请至少填写一个维度值");
-                    return;
-                }
-                const result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/reclassify`, {
-                    dimensions: dims,
-                });
-                showToast(result.message || "重新分类请求已发送");
-                if (result.code === 200) {
-                    removeAppModal();
-                    await openTaskDetailImpl(taskId, true);
-                    await Promise.all([loadTaskList(), loadDashboardOverview()]);
-                }
-            },
-        });
-    }
 
     showAppModal({
         title: "任务详情",
@@ -589,7 +737,131 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
         actions,
     });
 
-    // 入库预览按钮事件绑定
+    const renameInput = document.getElementById("task-rename-input");
+    if (renameInput) {
+        renameInput.addEventListener("input", () => updateRenamePreview(renameInput));
+    }
+
+    function setErrorArea(areaId, msg) {
+        const errEl = document.getElementById(areaId);
+        if (!errEl) return;
+        if (!msg) {
+            errEl.style.display = "none";
+            errEl.textContent = "";
+            return;
+        }
+        errEl.style.display = "block";
+        errEl.textContent = msg;
+    }
+
+    function setSavingBtn(btnEl, saving) {
+        if (!btnEl) return;
+        if (saving) {
+            btnEl.disabled = true;
+            btnEl.dataset.prevText = btnEl.textContent;
+            btnEl.textContent = "保存中...";
+        } else {
+            btnEl.disabled = false;
+            btnEl.textContent = btnEl.dataset.prevText || btnEl.textContent;
+        }
+    }
+
+    async function handleSaveFilename(btnEl) {
+        const inputEl = document.getElementById("task-rename-input");
+        const newFilename = String(inputEl?.value || "").trim();
+        if (!newFilename) {
+            showToast("文件名不能为空");
+            setErrorArea("filename-error-area", "文件名不能为空");
+            return;
+        }
+        setSavingBtn(btnEl, true);
+        setErrorArea("filename-error-area", "");
+        try {
+            const result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/rename`, {
+                new_filename: newFilename,
+            });
+            if (result.code === 200) {
+                showToast("文件名已保存");
+                removeAppModal();
+                await openTaskDetailImpl(taskId, true);
+                await Promise.all([loadTaskList(), loadDashboardOverview()]);
+                return;
+            }
+            const errMsg = result.message || "保存文件名失败，请稍后重试";
+            setErrorArea("filename-error-area", errMsg);
+            showToast(errMsg);
+        } finally {
+            setSavingBtn(btnEl, false);
+        }
+    }
+
+    async function handleSaveDims(btnEl) {
+        const dims = {};
+        const multiDimNames = {};
+        // 收集多选 checkbox 值
+        document.querySelectorAll("input[type=checkbox][data-task-dim]").forEach((cb) => {
+            const dimName = cb.dataset.taskDim;
+            if (!multiDimNames[dimName]) multiDimNames[dimName] = [];
+            if (cb.checked) multiDimNames[dimName].push(cb.value);
+        });
+        for (const [dimName, vals] of Object.entries(multiDimNames)) {
+            if (vals.length) dims[dimName] = vals.join("|");
+        }
+        // 收集单选 select/input 值（排除 checkbox）
+        document.querySelectorAll("select[data-task-dim], input[type=text][data-task-dim]").forEach((input) => {
+            const nextValue = parseRuleConditionValue(input.value);
+            if (nextValue) dims[input.dataset.taskDim] = nextValue;
+        });
+        if (Object.keys(dims).length === 0) {
+            showToast("请至少填写一个维度值");
+            setErrorArea("dims-error-area", "请至少填写一个维度值");
+            return;
+        }
+        // diff 模式：只发送与原始值不同的字段
+        const origDims = task.scrape_dimensions || task.dimensions || {};
+        const changedDims = {};
+        let hasChanged = false;
+        for (const [key, newVal] of Object.entries(dims)) {
+            const origVal = parseRuleConditionValue(String(origDims[key] || ""));
+            if (newVal !== origVal) {
+                changedDims[key] = newVal;
+                hasChanged = true;
+            }
+        }
+        if (!hasChanged) {
+            showToast("维度值未做修改");
+            return;
+        }
+        setSavingBtn(btnEl, true);
+        setErrorArea("dims-error-area", "");
+        try {
+            const result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/reclassify`, {
+                dimensions: changedDims,
+            });
+            if (result.code === 200) {
+                showToast("分类已保存");
+                removeAppModal();
+                await openTaskDetailImpl(taskId, true);
+                await Promise.all([loadTaskList(), loadDashboardOverview()]);
+                return;
+            }
+            const errMsg = result.message || "保存分类失败，请稍后重试";
+            setErrorArea("dims-error-area", errMsg);
+            showToast(errMsg);
+        } finally {
+            setSavingBtn(btnEl, false);
+        }
+    }
+
+    const btnSaveFilename = document.getElementById("btn-save-filename");
+    if (btnSaveFilename) {
+        btnSaveFilename.addEventListener("click", () => handleSaveFilename(btnSaveFilename));
+    }
+    const btnSaveDims = document.getElementById("btn-save-dims");
+    if (btnSaveDims) {
+        btnSaveDims.addEventListener("click", () => handleSaveDims(btnSaveDims));
+    }
+
     const previewBtn = document.getElementById("btn-preview-classify");
     if (previewBtn) {
         previewBtn.addEventListener("click", async () => {
@@ -607,9 +879,22 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
                 if (result.code === 200 && result.data) {
                     const d = result.data;
                     previewDiv.style.display = "block";
-                    previewDiv.innerHTML = `<div class="preview-path"><span class="preview-label">入库目录：</span><code>${escapeHtml(d.import_path || "")}</code></div>
-                        <div class="preview-path"><span class="preview-label">最终文件：</span><code>${escapeHtml(d.full_path || "")}</code></div>
-                        ${d.warnings?.length ? `<div class="preview-warning">${escapeHtml(d.warnings.join("; "))}</div>` : ""}`;
+                    const hasPath = d.import_path && d.full_path;
+                    let html = "";
+                    if (hasPath) {
+                        html = `<div class="preview-path"><span class="preview-label">入库目录：</span><code>${escapeHtml(d.import_path || "")}</code></div>
+                            <div class="preview-path"><span class="preview-label">最终文件：</span><code>${escapeHtml(d.full_path || "")}</code></div>`;
+                    }
+                    if (d.warnings?.length) {
+                        html += `<div class="preview-warning">${escapeHtml(d.warnings.join("; "))}</div>`;
+                    }
+                    if (!hasPath && d.rules_description) {
+                        html += `<div class="preview-info"><span class="preview-label">已配置规则：</span>${escapeHtml(d.rules_description)}</div>`;
+                    }
+                    if (!hasPath && d.dimensions_text) {
+                        html += `<div class="preview-info"><span class="preview-label">当前维度：</span>${escapeHtml(d.dimensions_text)}</div>`;
+                    }
+                    previewDiv.innerHTML = html || `<div class="preview-warning">无法生成入库路径</div>`;
                 } else {
                     previewDiv.style.display = "block";
                     previewDiv.innerHTML = `<div class="preview-warning">预览失败: ${result.message || "未知错误"}</div>`;
@@ -627,7 +912,12 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
 
 async function performTaskAction(action, taskId) {
     if (action === "refresh-tasks") {
-        await loadTaskList();
+        await loadTaskList(false);
+        return;
+    }
+    if (action === "load-more-tasks") {
+        currentTaskPage += 1;
+        await loadTaskList(true);
         return;
     }
     const task = findTaskRecord(taskId);
@@ -683,6 +973,16 @@ async function performTaskAction(action, taskId) {
         await openTaskDetail(taskId);
         return;
     }
+    if (action === "cancel-task") {
+        showConfirm("取消任务", `确定取消「${taskFileName(task)}」吗？取消后任务将变为已取消状态，可在"已取消"筛选中找到，需要时可用于重新投入。`, async () => {
+            const result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/cancel`);
+            showToast(result.message || "取消请求已发送");
+            if (result.code === 200) {
+                await Promise.all([loadTaskList(), loadDashboardOverview()]);
+            }
+        });
+        return;
+    }
 }
 
 /* B1: 任务页批量动作 */
@@ -723,7 +1023,7 @@ function updateBatchToolbar() {
     const confirmBtn = document.getElementById("task-batch-confirm");
     const ignoreBtn = document.getElementById("task-batch-ignore");
     const deleteBtn = document.getElementById("task-batch-delete");
-    const hasFailedOrSkipped = selectedRecords.some((t) => ["FAILED", "SKIPPED"].includes(taskStatusOf(t)));
+    const hasFailedOrSkipped = selectedRecords.some((t) => ["FAILED", "SKIPPED", "CANCELLED"].includes(taskStatusOf(t)));
     const hasAwaitReview = selectedRecords.some((t) => taskStatusOf(t) === "PENDING" && taskStageOf(t) === "AWAIT_REVIEW");
     const hasProcessable = selectedRecords.some((t) => isBatchableStatus(taskStatusOf(t)));
     if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailedOrSkipped);
@@ -793,12 +1093,12 @@ async function performBatchTaskAction(action) {
         return;
     }
     if (action === "batch-retry") {
-        const eligible = records.filter((t) => ["FAILED", "SKIPPED"].includes(taskStatusOf(t)));
+        const eligible = records.filter((t) => ["FAILED", "SKIPPED", "CANCELLED"].includes(taskStatusOf(t)));
         if (eligible.length === 0) {
             showToast("当前选中项中没有可重试的任务");
             return;
         }
-        showConfirm("批量重试", `确定对「${eligible.length}」项失败/已跳过任务发起重试吗？`, async () => {
+        showConfirm("批量重试", `确定对「${eligible.length}」项失败/已跳过/已取消任务发起重试吗？`, async () => {
             const settled = await Promise.allSettled(
                 eligible.map((t) => requestApi("POST", `/tasks/${encodeURIComponent(t.task_id)}/retry`)),
             );

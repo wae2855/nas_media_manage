@@ -16,6 +16,8 @@ from media_importer.features.scraping.confidence_models import (
     _EXTENSION_PATTERN,
     _MULTI_EP,
     _CODEC_PREFIX_RE,
+    _SUBTITLE_LANG_PATTERN,
+    _CJK_DESCRIPTOR_PATTERN,
 )
 
 
@@ -57,6 +59,7 @@ class FilenameCleaner:
             name = _SEASON_ONLY.sub('', name)
 
         year = None
+        year_suspect = False
         yp_match = _YEAR_PAREN.search(name)
         if yp_match:
             year = int(yp_match.group(1))
@@ -64,15 +67,30 @@ class FilenameCleaner:
             removed.append(f"年份={year}")
 
         if year is None:
-            year_match = _YEAR_PATTERN.search(name)
-            if year_match:
-                year = int(year_match.group(1))
-                name = name[:year_match.start()] + name[year_match.end():]
+            all_year_matches = list(_YEAR_PATTERN.finditer(name))
+            if all_year_matches:
+                import datetime
+                _current_year = datetime.datetime.now().year
+                best_match = None
+                for ym in all_year_matches:
+                    y = int(ym.group(1))
+                    if y <= _current_year + 1:
+                        best_match = ym
+                        break
+                if best_match is None:
+                    best_match = all_year_matches[-1]
+                    year_suspect = True
+                year = int(best_match.group(1))
+                name = name[:best_match.start()] + name[best_match.end():]
                 removed.append(f"年份={year}")
+                if len(all_year_matches) > 1:
+                    year_suspect = True
 
         name = _RESOLUTION_PATTERNS.sub('', name)
         name = _SOURCE_CODEC_PATTERNS.sub('', name)
         name = _EDITION_PATTERN.sub('', name)
+        name = _SUBTITLE_LANG_PATTERN.sub('', name)
+        name = _CJK_DESCRIPTOR_PATTERN.sub('', name)
         name = _AD_FULL_PATTERN.sub('', name)
         name = _AD_PATTERN.sub('', name)
         name = _BRACKET_CONTENT.sub('', name)
@@ -100,14 +118,14 @@ class FilenameCleaner:
                 cjk_title = cjk_part
                 name = eng_part
 
-        year_suspect = False
-        if year is not None:
+        year_suspect_final = year_suspect
+        if year is not None and not year_suspect_final:
             import datetime
             _current_year = datetime.datetime.now().year
             if year > _current_year + 1:
-                year_suspect = True
-            if not year_suspect and re.search(r'(?:^|\s)(19\d{2}|20\d{2})(?:\s|$)', name):
-                year_suspect = True
+                year_suspect_final = True
+            if not year_suspect_final and re.search(r'(?:^|\s)(19\d{2}|20\d{2})(?:\s|$)', name):
+                year_suspect_final = True
 
         return CleanResult(
             clean_title=name,
@@ -116,7 +134,7 @@ class FilenameCleaner:
             episode=episode,
             removed_items=removed,
             method="regex",
-            year_suspect=year_suspect,
+            year_suspect=year_suspect_final,
             cjk_title=cjk_title,
         )
 

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from media_importer.core.db.dimension_repo import get_enabled_dimensions
+
 
 @dataclass
 class TaskReviewActionResult:
@@ -28,11 +30,22 @@ def confirm_task_for_api(pipeline, task_manager, task_id: str) -> TaskReviewActi
         return TaskReviewActionResult(code=400, message=str(exc))
 
 
-def reclassify_task_for_api(pipeline, task_id: str, dimensions: dict) -> TaskReviewActionResult:
+def reclassify_task_for_api(pipeline, task_id: str, dimensions: dict,
+                            task_manager=None) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
     if not dimensions:
         return TaskReviewActionResult(code=400, message="缺少 dimensions 参数")
+
+    # 校验维度启用状态：拒绝已禁用的维度名
+    if task_manager is not None and hasattr(task_manager, 'conn'):
+        enabled = {d["name"] for d in get_enabled_dimensions(task_manager.conn)}
+        invalid = set(dimensions.keys()) - enabled
+        if invalid:
+            return TaskReviewActionResult(
+                code=400,
+                message=f"维度已禁用，无法修改: {', '.join(sorted(invalid))}",
+            )
 
     try:
         task = pipeline.reclassify_task(task_id, dimensions)

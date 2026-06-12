@@ -11,11 +11,8 @@ from media_importer.features.tasks import (
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_SOURCE,
     FILE_LOCATION_TEMP,
-    STATUS_CONFIRMING,
     STATUS_FAILED,
-    STATUS_NEEDS_REVIEW,
     STATUS_PENDING,
-    STATUS_PROCESSING,
     STATUS_SKIPPED,
     STATUS_SUCCESS,
     mark_confirmed,
@@ -28,6 +25,11 @@ from media_importer.features.tasks import (
     mark_temp_ready,
     reset_for_retry,
     start_processing,
+)
+from media_importer.core.task_lifecycle import (
+    STATUS_CONFIRMING,
+    STATUS_NEEDS_REVIEW,
+    STATUS_PROCESSING,
 )
 from media_importer.features.import_flow import TaskContext
 

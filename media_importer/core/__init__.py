@@ -7,8 +7,9 @@ from .config_view import (
 from .config_validator import validate_config as full_validate_config, test_llm_api, test_hermes_webhook, check_path
 from .task_manager import TaskManager, VALID_STATUSES
 from .task_lifecycle import (
-    STATUS_PENDING, STATUS_PROCESSING, STATUS_CONFIRMING,
-    STATUS_NEEDS_REVIEW, STATUS_FAILED, STATUS_SKIPPED, STATUS_SUCCESS,
+    STATUS_PENDING, STATUS_FAILED, STATUS_SKIPPED, STATUS_SUCCESS,
+    STATUS_CANCELLED,
+    STAGE_QUEUED, STAGE_RUNNING, STAGE_AWAIT_REVIEW, STAGE_DONE,
     FILE_LOCATION_SOURCE, FILE_LOCATION_TEMP, FILE_LOCATION_IMPORT,
     FILE_LOCATION_RECYCLE,
 )

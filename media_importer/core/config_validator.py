@@ -269,6 +269,45 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes:
         add_check("log_dir", "ok" if ok else "error", msg)
     
     llm_config = config.get("llm", {})
+    metadata_config = config.get("metadata", {})
+    scrape_mode = metadata_config.get("scrape_mode", "provider_first")
+    valid_scrape_modes = ("provider_first", "ai_only")
+    if scrape_mode not in valid_scrape_modes:
+        add_check("metadata.scrape_mode", "error",
+                   "scrape_mode 必须为 " + "/".join(valid_scrape_modes) + " 之一，当前: " + str(scrape_mode))
+    else:
+        mode_labels = {
+            "provider_first": "Provider优先（AI仅补充缺失维度）",
+            "ai_only": "纯AI刮削（不使用元数据源API）",
+        }
+        add_check("metadata.scrape_mode", "ok", "刮削模式: " + mode_labels.get(scrape_mode, scrape_mode))
+
+        # Cross-validate scrape_mode with provider/LLM config
+        # As of 2026-06: AI availability is determined by field completeness
+        # (api_key + base_url + model), not by the deprecated `llm.enabled` flag.
+        llm_api_key = llm_config.get("api_key", "")
+        llm_base_url = llm_config.get("base_url", "")
+        llm_model = llm_config.get("model", "")
+        llm_configured = bool(llm_api_key and llm_base_url and llm_model)
+        tmdb_enabled = False
+        for p in metadata_config.get("providers", []):
+            if p.get("enabled") and p.get("type") == "tmdb":
+                tmdb_enabled = True
+            elif p.get("type") == "tmdb" and metadata_config.get("tmdb", {}).get("enabled"):
+                tmdb_enabled = True
+        if not tmdb_enabled and metadata_config.get("tmdb", {}).get("enabled"):
+            tmdb_enabled = True
+
+        if scrape_mode == "provider_first" and not tmdb_enabled and not any(
+            p.get("enabled") for p in metadata_config.get("providers", [])
+        ):
+            add_check("metadata.scrape_mode_provider", "warning",
+                       "Provider优先模式但未启用任何元数据源，将降级到纯AI刮削")
+        if scrape_mode == "ai_only" and not llm_configured:
+            add_check("metadata.scrape_mode_llm", "error",
+                       "纯AI模式需要完整配置AI刮削（需填写 API Key、接口地址、模型ID）")
+
+
     if not llm_config.get("api_key"):
         add_check("llm_api_key", "error", "LLM API Key 未配置")
     elif llm_config.get("api_key") == "***":

@@ -30,8 +30,9 @@ class FakeTaskManager:
         ]
         self.counts = {"PENDING": 2, "FAILED": 0}
 
-    def clear_tasks(self, status=None):
+    def clear_tasks(self, status=None, stage=None):
         self.cleared_status = status
+        self.cleared_stage = stage
 
     def retry_task(self, task_id):
         if task_id == "missing":
@@ -85,7 +86,7 @@ def test_clear_tasks_normalizes_all_status():
     result = clear_tasks_for_api(task_manager, "all")
 
     assert result.code == 200
-    assert result.data == {"status": "all"}
+    assert result.data == {"status": "all", "stage": None}
     assert task_manager.cleared_status is None
 
 

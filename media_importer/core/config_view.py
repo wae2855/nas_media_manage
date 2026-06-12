@@ -75,10 +75,15 @@ class ManualReviewConfig:
 class MetadataProviderConfig:
     providers: list = field(default_factory=list)
     confidence: dict = field(default_factory=dict)
+    scrape_mode: str = "provider_first"  # provider_first | ai_only
 
 
 @dataclass(frozen=True)
 class LLMConfig:
+    # `enabled` is deprecated since 2026-06. AI availability is determined solely by
+    # `is_configured()` (api_key + base_url + model all present). The field is kept
+    # for backward compatibility with existing config files.
+    enabled: bool = False  # deprecated
     api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-3.5-turbo"
@@ -93,7 +98,21 @@ class LLMConfig:
     confidence_threshold: float = 0.8
     verify_ssl: bool = True
     system_prompt: str = ""
-    mcp: dict = field(default_factory=dict)  # MCP configuration
+    web_search: dict = field(default_factory=dict)  # Web search config (dict key: enabled/provider/enabled_for_*)
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if AI scrape is properly configured (api_key + base_url + model)."""
+        return bool(self.api_key and self.base_url and self.model)
+
+    @property
+    def is_effective(self) -> bool:
+        """Check if AI scrape is available.
+
+        As of 2026-06: only depends on `is_configured()`. The legacy `enabled` field
+        is ignored. To control whether AI is used, set `scrape_mode` instead.
+        """
+        return self.is_configured
 
     @property
     def effective_fast_model(self) -> str:
@@ -193,15 +212,17 @@ class ConfigView:
             metadata=MetadataProviderConfig(
                 providers=_list(metadata.get("providers")),
                 confidence=_dict(config.get("confidence")),
+                scrape_mode=metadata.get("scrape_mode", "provider_first"),
             ),
             llm=LLMConfig(
+                enabled=llm.get("enabled", False),
                 api_key=llm.get("api_key", ""),
                 base_url=llm.get("base_url") or llm.get("api_base", "https://api.openai.com/v1"),
                 model=llm.get("model", "gpt-3.5-turbo"),
                 fast_model=llm.get("fast_model", ""),
                 fast_base_url=llm.get("fast_base_url", ""),
                 fast_api_key=llm.get("fast_api_key", ""),
-                source_cleaner_model=llm.get("fast_model", "") or llm.get("model", "gpt-4o-mini"),
+                source_cleaner_model=llm.get("source_cleaner_model", "") or llm.get("fast_model", "") or llm.get("model", "gpt-4o-mini"),
                 timeout=llm.get("timeout", 30),
                 max_retries=llm.get("max_retries", 2),
                 retry_delay=llm.get("retry_delay", 3),
@@ -209,7 +230,7 @@ class ConfigView:
                 confidence_threshold=llm.get("confidence_threshold", 0.8),
                 verify_ssl=llm.get("verify_ssl", True),
                 system_prompt=llm.get("system_prompt", ""),
-                mcp=_dict(llm.get("mcp", {})),
+                web_search=_dict(llm.get("web_search", {})),
             ),
             scanner=ScannerConfig(
                 scan_source=config.get("scan_source", True),

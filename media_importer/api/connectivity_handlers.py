@@ -11,7 +11,6 @@ class ConnectivityHandlersMixin:
         base_url = body.get("base_url", "")
         api_key = body.get("api_key", "")
         model = body.get("model", "")
-        provider = body.get("provider", "openai")
 
         if not api_key or self._is_masked_value(api_key):
             api_key = self._get_real_config_value("llm", "api_key")
@@ -37,6 +36,149 @@ class ConnectivityHandlersMixin:
             json_response(self, 200, data={"success": ok, "message": msg})
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
+
+    def _config_ai_demo(self, body: dict):
+        scenario = body.get("scenario", "")
+        demo_content = body.get("demo_content", "")
+        config_override = body.get("config_override", {})
+
+        if not scenario:
+            json_response(self, 200, data={"success": False, "message": "缺少 scenario 参数"})
+            return
+
+        try:
+            import time as _time
+
+            # Assist scenarios (extract_title, source_cleaner) use fast/assist model, no scrape required
+            if scenario in ("extract_title", "source_cleaner"):
+                from media_importer.features.configuration import test_llm_api
+
+                llm_config = dict(globals._config.get("llm", {})) if globals._config else {}
+                if config_override and config_override.get("llm"):
+                    llm_config.update(config_override["llm"])
+
+                fast_model = llm_config.get("fast_model", "")
+                fast_base_url = llm_config.get("fast_base_url", "")
+                fast_api_key = llm_config.get("fast_api_key", "")
+
+                if not fast_model:
+                    json_response(self, 200, data={"success": False, "message": "辅助模型ID未配置"})
+                    return
+                if not fast_base_url:
+                    fast_base_url = llm_config.get("base_url", "")
+                if not fast_api_key or self._is_masked_value(fast_api_key):
+                    fast_api_key = self._get_real_config_value("llm", "fast_api_key")
+                    if not fast_api_key:
+                        fast_api_key = self._get_real_config_value("llm", "api_key")
+                if not fast_api_key:
+                    json_response(self, 200, data={"success": False, "message": "API Key 未配置（辅助区域或刮削区域）"})
+                    return
+
+                start = _time.time()
+                if scenario == "extract_title":
+                    from media_importer.scraper.llm_scraper import LLMScraper
+                    test_config = dict(globals._config or {})
+                    test_config["llm"] = {
+                        "api_key": fast_api_key,
+                        "base_url": fast_base_url,
+                        "model": fast_model,
+                        "enabled": True,
+                    }
+                    scraper = LLMScraper(test_config)
+                    filename = demo_content or "The.Dark.Knight.2008.2160p.UHD.BluRay.x265.mkv"
+                    result = scraper.extract_title(filename)
+                    elapsed = int((_time.time() - start) * 1000)
+                    json_response(self, 200, data={
+                        "success": True,
+                        "scenario": scenario,
+                        "input": filename,
+                        "result": result,
+                        "model": fast_model,
+                        "elapsed_ms": elapsed,
+                    })
+                elif scenario == "source_cleaner":
+                    ok, msg = test_llm_api(fast_base_url, fast_api_key, fast_model, timeout=15)
+                    elapsed = int((_time.time() - start) * 1000)
+                    json_response(self, 200, data={
+                        "success": ok,
+                        "scenario": scenario,
+                        "model": fast_model,
+                        "result": {"message": msg},
+                        "elapsed_ms": elapsed,
+                    })
+                return
+
+            # Scrape scenarios require AI scrape to be enabled (honor config_override)
+            from media_importer.scraper.llm_scraper import LLMScraper
+
+            saved_config = dict(globals._config) if globals._config else {}
+            merged_llm = dict(saved_config.get("llm", {}))
+            if config_override and config_override.get("llm"):
+                merged_llm.update(config_override["llm"])
+
+            api_key = merged_llm.get("api_key", "")
+            if not api_key or self._is_masked_value(api_key):
+                api_key = self._get_real_config_value("llm", "api_key")
+            if not api_key:
+                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
+                return
+
+            enabled = bool(merged_llm.get("enabled", False))
+            if not enabled:
+                json_response(self, 200, data={"success": False, "message": "AI 刮削未启用，请先开启 AI 刮削开关"})
+                return
+
+            model = merged_llm.get("model", "")
+            base_url = merged_llm.get("base_url", "")
+            if not model or not base_url:
+                json_response(self, 200, data={"success": False, "message": "模型ID或接口地址未配置"})
+                return
+
+            demo_config = dict(saved_config)
+            demo_config["llm"] = merged_llm
+            demo_config["llm"]["api_key"] = api_key
+
+            scraper = LLMScraper(demo_config)
+            if not scraper.enabled:
+                json_response(self, 200, data={"success": False, "message": "AI 刮削未生效，请检查配置是否完整（API Key、接口地址、模型）"})
+                return
+
+            # 判断是否启用了联网搜索增强
+            search_enhanced = scraper.web_search_config.should_search(scenario) if hasattr(scraper, 'web_search_config') else False
+            start = _time.time()
+
+            if scenario == "scrape":
+                filename = demo_content or "Inception.2010.1080p.BluRay.x264.mp4"
+                result = scraper.scrape(filename)
+                elapsed = int((_time.time() - start) * 1000)
+                json_response(self, 200, data={
+                    "success": True,
+                    "scenario": scenario,
+                    "input": filename,
+                    "result": result,
+                    "search_enhanced": search_enhanced,
+                    "elapsed_ms": elapsed,
+                })
+
+            elif scenario == "series_scrape":
+                filename = demo_content or "Breaking.Bad.S01E01.1080p.BluRay.x264.mp4"
+                result = scraper.scrape(filename)
+                elapsed = int((_time.time() - start) * 1000)
+                json_response(self, 200, data={
+                    "success": True,
+                    "scenario": scenario,
+                    "input": filename,
+                    "result": result,
+                    "search_enhanced": search_enhanced,
+                    "elapsed_ms": elapsed,
+                })
+
+            else:
+                json_response(self, 200, data={"success": False, "message": "未知场景: " + scenario})
+
+        except Exception as e:
+            import traceback
+            json_response(self, 200, data={"success": False, "message": "演示异常: " + str(e)})
 
     def _config_test_hermes(self, body: dict):
         base_url = body.get("base_url", "")

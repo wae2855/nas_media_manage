@@ -14,24 +14,21 @@ class TaskListResult:
 
 
 def list_tasks_for_api(query: dict, task_manager, logger=None) -> TaskListResult:
-    status = query.get("status", [None])[0]
+    raw_statuses = query.get("status", [])
+    statuses = [s.strip().upper() for s in raw_statuses if s and s.strip().upper() != "ALL"]
     stage = query.get("stage", [None])[0]
     limit = int(query.get("limit", [20])[0])
     offset = int(query.get("offset", [0])[0])
     page = query.get("page", [None])[0]
     format_mode = query.get("format", ["json"])[0].lower()
 
-    if status:
-        status = status.strip().upper()
-    if status and status != "ALL" and status not in VALID_STATUSES:
-        if logger:
-            logger.warning(
-                f"Invalid status filter: {status}, VALID_STATUSES={VALID_STATUSES}"
-            )
-        return TaskListResult(code=400, message=f"Invalid status: {status}")
-
-    if status and status == "ALL":
-        status = None
+    for s in statuses:
+        if s not in VALID_STATUSES:
+            if logger:
+                logger.warning(
+                    f"Invalid status filter: {s}, VALID_STATUSES={VALID_STATUSES}"
+                )
+            return TaskListResult(code=400, message=f"Invalid status: {s}")
 
     if stage:
         stage = stage.strip().upper()
@@ -47,7 +44,7 @@ def list_tasks_for_api(query: dict, task_manager, logger=None) -> TaskListResult
         task_manager.conn,
         page=page_num,
         page_size=page_size,
-        status=status,
+        statuses=statuses if statuses else None,
         stage=stage,
     )
     counts = task_manager.count_by_status()

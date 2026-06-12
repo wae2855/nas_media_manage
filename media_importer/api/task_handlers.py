@@ -3,6 +3,7 @@ import threading
 
 from media_importer.features.import_flow import run_batch_for_api, run_file_for_api
 from media_importer.features.tasks import (
+    cancel_task_for_api,
     clear_tasks_for_api,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
@@ -19,6 +20,7 @@ from media_importer.features.tasks import (
     retry_task_for_api,
 )
 from media_importer.features.import_flow.services.classification import ClassificationService
+from media_importer.core.db.dimension_repo import get_enabled_dimensions
 from media_importer.api import globals
 from .task_delete import delete_task
 from .utils import json_response
@@ -44,6 +46,14 @@ class TaskHandlersMixin:
         result = retry_task_for_api(
             globals._global_task_manager,
             globals._global_pipeline,
+            task_id,
+            logger=globals._global_logger,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
+
+    def _task_cancel(self, task_id: str):
+        result = cancel_task_for_api(
+            globals._global_task_manager,
             task_id,
             logger=globals._global_logger,
         )
@@ -82,6 +92,7 @@ class TaskHandlersMixin:
             globals._global_pipeline,
             task_id,
             body.get("dimensions", {}),
+            task_manager=globals._global_task_manager,
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
@@ -92,10 +103,16 @@ class TaskHandlersMixin:
             return
         task_data = task.data.get("task", {})
         svc = ClassificationService(globals._config or {})
+
+        enabled_dims = None
+        if globals._global_task_manager and hasattr(globals._global_task_manager, 'conn'):
+            enabled_dims = {d["name"] for d in get_enabled_dimensions(globals._global_task_manager.conn)}
+
         result = svc.preview_classify(
             task_data,
             override_dimensions=body.get("dimensions"),
             override_filename=body.get("filename"),
+            enabled_dims=enabled_dims,
         )
         json_response(self, 200, data=result)
 

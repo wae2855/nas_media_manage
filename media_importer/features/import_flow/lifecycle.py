@@ -6,11 +6,8 @@ from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
     FILE_LOCATION_TEMP,
-    STATUS_CONFIRMING,
     STATUS_FAILED,
-    STATUS_NEEDS_REVIEW,
     STATUS_PENDING,
-    STATUS_PROCESSING,
     STATUS_SKIPPED,
     STATUS_SUCCESS,
     current_video_path,
@@ -28,9 +25,6 @@ from media_importer.features.tasks import (
 
 __all__ = [
     "STATUS_PENDING",
-    "STATUS_PROCESSING",
-    "STATUS_CONFIRMING",
-    "STATUS_NEEDS_REVIEW",
     "STATUS_FAILED",
     "STATUS_SKIPPED",
     "STATUS_SUCCESS",
