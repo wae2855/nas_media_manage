@@ -118,10 +118,12 @@ class BTDownloadScenarios:
         sample_d = os.path.join(d, "Sample")
         _touch(os.path.join(sample_d, "sample.mkv"), 50 * 1024 * 1024)
         _touch_text(os.path.join(sample_d, "sample.srt"))
+        _touch_text(os.path.join(sample_d, "readme.txt"))
         scenarios.append(("单电影+Sample目录", d, {
             "keep": ["Interstellar.2014.IMAX.1080p.BluRay.mkv",
-                     "Interstellar.2014.IMAX.1080p.BluRay.srt"],
-            "delete": ["Sample"],
+                     "Interstellar.2014.IMAX.1080p.BluRay.srt",
+                     "Sample/sample.mkv", "Sample/sample.srt"],
+            "delete": ["Sample/readme.txt"],
         }))
 
         # --- 场景4: 单电影 + Trailers 目录 ---
@@ -130,9 +132,11 @@ class BTDownloadScenarios:
         trailer_d = os.path.join(d, "Trailers")
         _touch(os.path.join(trailer_d, "trailer1.mp4"), 80 * 1024 * 1024)
         _touch(os.path.join(trailer_d, "trailer2.mp4"), 60 * 1024 * 1024)
+        _touch_text(os.path.join(trailer_d, "trailer_info.txt"))
         scenarios.append(("单电影+Trailers目录", d, {
-            "keep": ["Avatar.2009.3D.1080p.mkv"],
-            "delete": ["Trailers"],
+            "keep": ["Avatar.2009.3D.1080p.mkv",
+                     "Trailers/trailer1.mp4", "Trailers/trailer2.mp4"],
+            "delete": ["Trailers/trailer_info.txt"],
         }))
 
         # --- 场景5: 单电影 + Extras 目录 ---
@@ -141,9 +145,11 @@ class BTDownloadScenarios:
         extras_d = os.path.join(d, "Extras")
         _touch(os.path.join(extras_d, "behind_the_scenes.mp4"), 200 * 1024 * 1024)
         _touch(os.path.join(extras_d, "deleted_scenes.mp4"), 150 * 1024 * 1024)
+        _touch_text(os.path.join(extras_d, "extras_readme.txt"))
         scenarios.append(("单电影+Extras目录", d, {
-            "keep": ["The.Matrix.1999.4K.HDR.mkv"],
-            "delete": ["Extras"],
+            "keep": ["The.Matrix.1999.4K.HDR.mkv",
+                     "Extras/behind_the_scenes.mp4", "Extras/deleted_scenes.mp4"],
+            "delete": ["Extras/extras_readme.txt"],
         }))
 
         # --- 场景6: 电影 + 预告/花絮 中文目录 ---
@@ -153,9 +159,12 @@ class BTDownloadScenarios:
         _touch(os.path.join(yugao_d, "预告片1.mp4"), 30 * 1024 * 1024)
         huaxu_d = os.path.join(d, "花絮")
         _touch(os.path.join(huaxu_d, "拍摄花絮.mp4"), 40 * 1024 * 1024)
+        _touch_text(os.path.join(yugao_d, "站点广告.url"))
+        _touch_text(os.path.join(huaxu_d, "花絮说明.txt"))
         scenarios.append(("电影+预告花絮中文目录", d, {
             "keep": ["流浪地球.2019.4K.mkv"],
-            "delete": ["预告", "花絮"],
+            "delete": ["预告/预告片1.mp4", "预告/站点广告.url",
+                       "花絮/拍摄花絮.mp4", "花絮/花絮说明.txt"],
         }))
 
         # --- 场景7: 电影 + 各种垃圾文件扩展名 ---
@@ -186,8 +195,8 @@ class BTDownloadScenarios:
         scenarios.append(("电视剧整季包", d, {
             "keep": [f"Breaking.Bad.S01E{ep:02d}.1080p.BluRay.x265.mkv" for ep in range(1, 8)]
                   + [f"Breaking.Bad.S01E{ep:02d}.1080p.BluRay.x265.srt" for ep in range(1, 8)]
-                  + ["Breaking.Bad.S01.1080p.BluRay.x265.nfo"],
-            "delete": ["RARBG.txt", "RARBG.nfo"],
+                  + ["Breaking.Bad.S01.1080p.BluRay.x265.nfo", "RARBG.nfo"],
+            "delete": ["RARBG.txt"],
         }))
 
         # --- 场景9: 电视剧单集 + 伴生文件 ---
@@ -496,11 +505,14 @@ class BTDownloadScenarios:
         _touch(os.path.join(d, "Avengers.Endgame.2019.1080p.BluRay.mkv"), 6 * 1024 * 1024 * 1024)
         sd1 = os.path.join(d, "Sample")
         _touch(os.path.join(sd1, "sample.mkv"), 30 * 1024 * 1024)
+        _touch_text(os.path.join(sd1, "sample_readme.txt"))
         sd2 = os.path.join(d, "sample_2")
         _touch(os.path.join(sd2, "sample2.mkv"), 25 * 1024 * 1024)
+        _touch_text(os.path.join(sd2, "sample2_readme.txt"))
         scenarios.append(("电影+多个Sample目录", d, {
             "keep": ["Avengers.Endgame.2019.1080p.BluRay.mkv", "sample_2"],
-            "delete": ["Sample"],
+            "delete": ["Sample/sample.mkv", "Sample/sample_readme.txt",
+                       "sample_2/sample2.mkv", "sample_2/sample2_readme.txt"],
         }))
 
         # --- 场景31: 电视剧 + 分卷压缩 ---
@@ -888,8 +900,8 @@ class BTDownloadScenarios:
         _touch_text(os.path.join(d, "RARBG_DO_NOT_MIRROR.exe"))
         _touch_text(os.path.join(d, "RARBG.com.txt"))
         scenarios.append(("黑名单模式测试", d, {
-            "keep": ["blacklist_test.2024.mkv", "blacklist_test.2024.srt"],
-            "delete": ["RARBG.txt", "RARBG.nfo", "RARBG_DO_NOT_MIRROR.exe", "RARBG.com.txt"],
+            "keep": ["blacklist_test.2024.mkv", "blacklist_test.2024.srt", "RARBG.nfo"],
+            "delete": ["RARBG.txt", "RARBG_DO_NOT_MIRROR.exe", "RARBG.com.txt"],
         }))
 
         # --- 场景57: 电视剧 + 嵌套season目录 ---
@@ -1367,16 +1379,20 @@ class TestBTDownloadScenarios(unittest.TestCase):
                 f"非黑名单文件被匹配: {item['path']}")
 
     def test_blacklist_dirs_matched_correctly(self):
-        """黑名单目录正确匹配"""
+        """黑名单目录里的垃圾文件被识别并按文件级别标记删除"""
         cleaner = self._make_cleaner()
         items = cleaner.preview()
-        blacklist_dirs = [i for i in items if i["category"] == "blacklist_dir"]
         blacklist_names = {"Sample", "sample", "Trailers", "trailers",
                            "预告", "花絮", "Extras", "extras"}
-        for item in blacklist_dirs:
-            dirname = os.path.basename(item["path"])
-            self.assertIn(dirname, blacklist_names,
-                f"非黑名单目录被匹配: {dirname}")
+        dir_scoped_items = [
+            i for i in items
+            if any(f"/{name}/" in i["path"].replace("\\", "/") for name in blacklist_names)
+        ]
+        self.assertGreater(len(dir_scoped_items), 0,
+            "黑名单目录里应有文件被标记删除")
+        for item in dir_scoped_items:
+            self.assertNotIn(item["category"], ("empty_dir", "blacklist_dir"),
+                f"黑名单目录里的项不应是目录级别类别: {item}")
 
     def test_delete_extensions_matched_correctly(self):
         """删除扩展名正确匹配"""
@@ -1691,6 +1707,89 @@ class TestBugDetection(unittest.TestCase):
             keep_path = os.path.join(self.src_dir, "keep_me.txt")
             self.assertNotIn(keep_path, paths,
                 "intersection 策略下 AI 判定保留应从删除列表移除")
+
+
+class TestBlacklistDirPreservesMedia(unittest.TestCase):
+    """回归测试：黑名单目录（Sample/Trailer/Extras 等）只清理垃圾文件，
+    保留视频和字幕，整目录不再被强制移动。"""
+
+    def setUp(self):
+        self.src_dir = tempfile.mkdtemp()
+        self.recycle_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.src_dir, ignore_errors=True)
+        shutil.rmtree(self.recycle_dir, ignore_errors=True)
+
+    def _paths(self, items):
+        return {os.path.basename(item["path"]): item for item in items}
+
+    def test_sample_dir_keeps_video_and_subtitle(self):
+        """Sample 目录下：主视频、字幕保留；垃圾 .txt 删除。"""
+        movie_dir = os.path.join(self.src_dir, "Movie.2024")
+        sample_dir = os.path.join(movie_dir, "Sample")
+        os.makedirs(sample_dir)
+        _touch(os.path.join(movie_dir, "Movie.2024.mkv"), 6 * 1024 * 1024 * 1024)
+        _touch_text(os.path.join(movie_dir, "Movie.2024.srt"))
+        _touch(os.path.join(sample_dir, "Movie.2024-Sample.mkv"), 50 * 1024 * 1024)
+        _touch_text(os.path.join(sample_dir, "readme.txt"))
+
+        cleaner = SourceCleaner(_make_config(
+            source_dir=self.src_dir,
+            recycle_dir=self.recycle_dir,
+            cleanup_mode="media_and_related",
+            junk_video_max_size_mb=0,
+            cleanup_empty_dirs=False,
+        ))
+        items = cleaner.preview()
+        paths = {item["path"] for item in items}
+
+        for keep in [
+            os.path.join(movie_dir, "Movie.2024.mkv"),
+            os.path.join(movie_dir, "Movie.2024.srt"),
+        ]:
+            self.assertNotIn(keep, paths, f"主视频或字幕被误删: {keep}")
+        for must_delete in [
+            os.path.join(sample_dir, "readme.txt"),
+        ]:
+            self.assertIn(must_delete, paths, f"垃圾文件未标记删除: {must_delete}")
+
+    def test_blacklist_dir_no_longer_emits_whole_dir_entry(self):
+        """黑名单目录不再产生整目录项（blacklist_dir 类别）。"""
+        movie_dir = os.path.join(self.src_dir, "Movie.2024")
+        os.makedirs(os.path.join(movie_dir, "Trailers"))
+        _touch(os.path.join(movie_dir, "Trailers", "trailer.mp4"), 80 * 1024 * 1024)
+        _touch(os.path.join(movie_dir, "Trailers", "trailer_info.txt"))
+        _touch_text(os.path.join(movie_dir, "Trailers", "trailer_sub.srt"))
+
+        cleaner = SourceCleaner(_make_config(
+            source_dir=self.src_dir,
+            recycle_dir=self.recycle_dir,
+            cleanup_mode="media_and_related",
+            junk_video_max_size_mb=0,
+            cleanup_empty_dirs=False,
+        ))
+        items = cleaner.preview()
+        whole_dir = [i for i in items if i["category"] == "blacklist_dir"]
+        self.assertEqual(whole_dir, [], f"不应产生整目录项: {whole_dir}")
+
+    def test_subtitle_under_blacklist_dir_not_deleted(self):
+        """黑名单目录下命中路径黑名单的字幕应被识别为字幕并保留。"""
+        movie_dir = os.path.join(self.src_dir, "Movie.2024")
+        os.makedirs(os.path.join(movie_dir, "Sample"))
+        _touch_text(os.path.join(movie_dir, "Sample", "sample.srt"))
+
+        cleaner = SourceCleaner(_make_config(
+            source_dir=self.src_dir,
+            recycle_dir=self.recycle_dir,
+            cleanup_mode="media_and_related",
+            junk_video_max_size_mb=0,
+            cleanup_empty_dirs=False,
+        ))
+        items = cleaner.preview()
+        srt_path = os.path.join(movie_dir, "Sample", "sample.srt")
+        paths = {item["path"] for item in items}
+        self.assertNotIn(srt_path, paths, "字幕被路径黑名单误删")
 
 
 if __name__ == "__main__":

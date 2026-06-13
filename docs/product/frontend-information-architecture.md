@@ -34,7 +34,7 @@
 目录配置、路径规则、命名模板、去重策略、源文件处理策略。
 
 4. 元数据与 AI
-Provider 配置、LLM 配置、Prompt、Dimensions、Confidence。
+Provider 配置、LLM 配置、Prompt、Dimensions、Matching。
 
 5. 源目录清理
 清理策略、预览、执行记录、AI 辅助清理说明。
@@ -53,12 +53,12 @@ Provider 配置、LLM 配置、Prompt、Dimensions、Confidence。
 |-------------|----------------|------------|
 | Dashboard | `index.html` overview blocks | `js/app.js` |
 | Task List | tasks panel | `js/tasks.js` |
-| Task Detail | tasks modal/actions | `js/tasks.js`, `js/confidence-detail.js` |
+| Task Detail | tasks modal/actions | `js/tasks.js` |
 | Import Rules | config path/import sections | `js/config.js`, `js/path-rules.js` |
 | Metadata Providers & LLM | config provider/llm sections | `js/config.js` |
 | Prompt Workspace | config llm-prompt section | `js/prompts.js` |
 | Dimension Workspace | config dimensions section | `js/dimensions.js` |
-| Confidence Workspace | config confidence section | `js/config.js`, `js/confidence-detail.js` |
+| Matching & Scrape Preview | config matching section | `js/config.js` |
 | Source Cleaner | config source_cleaner section | `js/config.js` |
 | Recycle | recycle panel | `js/config.js` |
 
@@ -76,7 +76,7 @@ Provider 配置、LLM 配置、Prompt、Dimensions、Confidence。
 配置快照、未保存改动、分区权限检查结果、Provider/Prompt 临时编辑状态。
 
 - `metadataState`
-维度定义、Provider genres、Prompt 维度缓存、Confidence 配置。
+维度定义、Provider genres、Prompt 维度缓存、Matching 配置。
 
 - `recycleState`
 回收站列表、筛选条件、批量选中、恢复冲突结果。

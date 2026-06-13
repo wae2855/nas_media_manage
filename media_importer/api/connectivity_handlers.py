@@ -299,7 +299,7 @@ class ConnectivityHandlersMixin:
 
     def _metrics(self):
         m = get_metrics()
-        counts = globals._global_task_manager.count_by_status() if globals._global_task_manager else {}
+        counts = globals._global_task_manager.count_by_status_and_stage() if globals._global_task_manager else {}
         json_response(self, 200, data={
             **m.to_dict(),
             "queue_by_status": counts

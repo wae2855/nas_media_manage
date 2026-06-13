@@ -183,7 +183,7 @@ function showSystemScrapeModal() {
     modal.innerHTML =
         '<div class="modal" style="max-width:960px;width:95%;">' +
             '<div class="modal-header">' +
-                '<h3>刮削与置信度计算</h3>' +
+                '<h3>刮削结果</h3>' +
                 '<button class="modal-close" type="button">&times;</button>' +
             '</div>' +
             '<div class="modal-body">' +
@@ -257,13 +257,13 @@ async function doScrapePreview() {
     if (data.provider_ai && data.provider_ai.scrape_trace) {
         var traceJson = escapeHtml(JSON.stringify(data.provider_ai.scrape_trace));
         html += '<div style="margin-top:12px;text-align:center;">';
-        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="' + escapeHtml(filename) + '">查看 Provider 优先置信度计算过程</button>';
+        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="' + escapeHtml(filename) + '">查看匹配路径</button>';
         html += '</div>';
     }
     if (data.ai_only && data.ai_only.scrape_trace) {
         var aiTraceJson = escapeHtml(JSON.stringify(data.ai_only.scrape_trace));
         html += '<div style="margin-top:8px;text-align:center;">';
-        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + aiTraceJson + '" data-filename="' + escapeHtml(filename) + '">查看纯AI置信度计算过程</button>';
+        html += '<button class="btn btn-secondary btn-sm" type="button" data-confidence-detail-action="open" data-trace="' + aiTraceJson + '" data-filename="' + escapeHtml(filename) + '">查看匹配路径</button>';
         html += '</div>';
     }
 
@@ -288,10 +288,14 @@ function _renderScrapeResultCard(result) {
     html += '<div style="margin-bottom:6px;"><strong>类型:</strong> ' + (result.type || '-') + '</div>';
 
     var confidence = result.confidence;
-    if (confidence !== undefined) {
+    var matchLevel = result.match_level;
+    if (matchLevel !== undefined) {
+        var mlColor = matchLevel === 'high' ? 'var(--success-color,#22c55e)' : (matchLevel === 'medium' ? 'var(--warning-color,#f59e0b)' : 'var(--error-color,#ef4444)');
+        var mlLabel = matchLevel === 'high' ? '高' : (matchLevel === 'medium' ? '中' : '低');
+        html += '<div style="margin-bottom:6px;"><strong>匹配等级:</strong> <span style="color:' + mlColor + ';font-weight:600;">' + escapeHtml(mlLabel) + '</span></div>';
+    } else if (confidence !== undefined) {
         var confColor = confidence >= 0.8 ? 'var(--success-color,#22c55e)' : (confidence >= 0.5 ? 'var(--warning-color,#f59e0b)' : 'var(--error-color,#ef4444)');
-        var traceJson = result.scrape_trace ? escapeHtml(JSON.stringify(result.scrape_trace)) : '';
-        html += '<div style="margin-bottom:6px;"><strong>置信度:</strong> <span class="conf-clickable" style="color:' + confColor + ';font-weight:600;cursor:pointer;text-decoration:underline dotted;" data-confidence-detail-action="open" data-trace="' + traceJson + '" data-filename="">' + (typeof confidence === 'number' ? confidence.toFixed(3) : confidence) + '</span></div>';
+        html += '<div style="margin-bottom:6px;"><strong>置信度:</strong> <span style="color:' + confColor + ';font-weight:600;">' + (typeof confidence === 'number' ? confidence.toFixed(3) : confidence) + '</span></div>';
     }
 
     var dims = result.dimensions;

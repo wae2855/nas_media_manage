@@ -1,22 +1,27 @@
 # Scraping Feature
 
-刮削负责根据文件名、路径、AI 识别、TMDB/Provider 结果和置信度规则生成可入库的媒体元数据。
+刮削负责根据文件名、路径、AI 识别、TMDB/Provider 结果和三级匹配策略生成可入库的媒体元数据。
 
 ## Current Code Entrypoints
 
 | Path | Role |
 |------|------|
-| `media_importer/features/scraping/__init__.py` | Feature public API for metadata scraper, LLM scraper, confidence engine, and matcher/model helpers. |
+| `media_importer/features/scraping/__init__.py` | Feature public API for metadata scraper, LLM scraper, match engine, and matcher/model helpers. |
 | `media_importer/features/scraping/metadata_scraper.py` | High-level metadata scraping orchestration. |
-| `media_importer/features/scraping/confidence_engine.py` | Confidence scoring and review threshold decisions. |
-| `media_importer/features/scraping/confidence_models.py` | Confidence config, result dataclasses, and shared parsing patterns. |
+| `media_importer/features/scraping/match_engine.py` | Three-tier matching engine (replaces confidence_engine). |
+| `media_importer/features/scraping/match_models.py` | Match result dataclasses: MatchResult, MatchConcern (replaces confidence_models). |
+| `media_importer/features/scraping/confidence_engine.py` | Legacy re-export compatibility layer (deprecated). |
+| `media_importer/features/scraping/confidence_models.py` | Legacy compatibility layer (deprecated). |
 | `media_importer/features/scraping/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
 | `media_importer/features/scraping/dimensions_service.py` | Dimension CRUD/tier-gated application service for API callers. |
 | `media_importer/scraper/metadata_scraper.py` | Thin legacy import wrapper for `MetadataScraper`. |
-| `media_importer/scraper/confidence_models.py` | Thin legacy import wrapper for confidence models. |
-| `media_importer/scraper/confidence_engine.py` | Thin legacy import wrapper for `ConfidenceEngine`. |
+| `media_importer/scraper/match_engine.py` | Thin legacy import wrapper for `MatchEngine`. |
+| `media_importer/scraper/confidence_engine.py` | Thin legacy import wrapper (deprecated). |
+| `media_importer/scraper/confidence_models.py` | Thin legacy import wrapper (deprecated). |
 | `media_importer/scraper/dimension_manager.py` | Thin legacy import wrapper for dimension helpers. |
 | `media_importer/scraper/llm_scraper.py` | LLM prompt and parsing behavior. |
+| `media_importer/scraper/title_matcher.py` | Title matching L1-L7 levels (used by Tier 1 exact match). |
+| `media_importer/scraper/filename_cleaner.py` | Filename cleaning and CJK separation. |
 | `media_importer/scraper/tmdb_client.py` | TMDB client and error type, exposed through the scraping feature. |
 | `media_importer/features/providers/` | External metadata provider registry, interface, and implementations. |
 | `media_importer/scraper/providers/` | Thin legacy import wrappers for provider modules. |
@@ -26,24 +31,29 @@
 - TMDB API handlers import `TMDbClient` and `TMDbError` from `media_importer.features.scraping`.
 - Dimension API handlers import dimension query/update services from `media_importer.features.scraping`.
 - Import-flow scrape steps import file-dimension lookup from `media_importer.features.scraping`.
-- `MetadataScraper`, `ConfidenceEngine`, confidence models, and dimension mapping have moved under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
+- `MetadataScraper`, `MatchEngine`, match models, and dimension mapping are under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are implementation details until migrated.
 
 ## Target Shape
 
 - Continue moving LLM and provider-adjacent scraping implementation into `media_importer/features/scraping/`.
 - Keep provider implementations under `features/providers/`; keep lower-level external clients as explicit adapters until separately migrated.
-- Keep confidence/review decisions aligned with `features/import_flow/services/review.py`.
+- Keep match/review decisions aligned with `features/import_flow/services/review.py`.
+- `confidence_engine.py` and `confidence_models.py` are deprecated; new code must use `match_engine.py` and `match_models.py`.
 
 ## Related Areas
 
-- Config: AI provider keys, TMDB keys, confidence thresholds, dimension rules.
-- API: scrape config and manual task actions.
-- Database: scrape result JSON and trace/debug fields.
-- Frontend: scrape settings, task result display, review/confirm flows.
+- Config: AI provider keys, TMDB keys, matching config (optional), dimension rules.
+- API: scrape config, scrape preview (three-tier path), manual task actions.
+- Database: scrape result JSON, match_level/match_concerns/match_trace fields.
+- Frontend: task card match status labels, match concern display, scrape preview three-tier path.
 
 ## Tests
 
-- `tests/test_confidence_engine.py`
+- `tests/test_match_engine.py`
+- `tests/test_review_decision_v2.py`
+- `tests/test_config_migration_v3.py`
+- `tests/test_match_pipeline_integration.py`
+- `tests/test_scrape_preview_api.py`
 - `tests/test_feature_entrypoints.py`
 - Scrape-related API and import-flow tests.
 - Provider tests when external calls are mocked.
@@ -53,167 +63,202 @@
 - New app/API/import-flow code should import from `media_importer.features.scraping`.
 - Until implementation files move, `media_importer/scraper/` remains implementation detail but is not the preferred feature entry.
 - New scraping behavior must update `docs/architecture/scraping.md` and this feature doc.
+- Code referencing `confidence_engine` or `confidence_models` should migrate to `match_engine` and `match_models`.
 
 ---
 
-## 刮削流程规范
+## 三级匹配策略规范
 
-### 两种刮削模式
+> ADR: [0005-three-tier-matching.md](../decisions/0005-three-tier-matching.md)
+> Plan: [2026-06-12-refactor-three-tier-matching-plan.md](../plans/2026-06-12-refactor-three-tier-matching-plan.md)
 
-系统支持两种刮削模式，通过配置 `metadata.scrape_mode` 控制：
+系统使用离散的三级匹配策略替代旧的数学公式化置信度体系（T×R×data_gate）。匹配判断回答「这个文件是哪部作品」，维度判断回答「这部作品属于什么分类」，两者彻底解耦。
 
-| 模式 | 说明 | AI依赖 |
-|------|------|--------|
-| `provider_first` | Provider 优先，AI 仅补充缺失维度 | 可选 |
-| `ai_only` | 纯 AI 刮削，跳过 Provider | 需要 AI |
+### 刮削模式
 
-### 模式降级规则
+系统只保留 `provider_first` 一种刮削模式（`metadata.scrape_mode`）。旧的 `ai_only` 和 `hybrid` 模式已废弃，配置迁移时自动转为 `provider_first`。
 
-当配置了 `ai_only` 但 AI 未启用时：
-- `ai_only`：返回错误提示
+**未配置 Provider 时的降级**：
 
-### 核心流程
+1. 启动时检测：`scrape_mode=provider_first` 但无可用 Provider
+2. 日志打印 WARNING：「未配置元数据 Provider（TMDB），刮削将降级为 AI-only 模式」
+3. 自动降级：跳过第一级，所有文件走第二级（AI辅助）→ 第三级（用户确认）
+4. 前端配置页提示：「建议配置 TMDB API Key 以获得更精确的自动匹配」
 
-#### 1. provider_first 模式流程
+### 三级匹配流程
 
-```text
-文件名清洗 → Provider搜索 → 维度完整性检查
-     ↓                ↓                ↓
-  AI清洗(可选)    获取详情       完整?
-                          ↓       ↓
-                        是       否
-                        ↓       ↓
-                 直接返回    AI补充维度
-                          ↓
-                     返回结果
-```
-
-**详细步骤：**
-
-1. **文件名清洗**：使用正则表达式提取标题、年份、季集信息
-2. **AI 清洗（可选）**：若检测到年份可疑（`year_suspect`）且 AI 可用，调用 AI 辅助清洗
-3. **Provider 搜索**：
-   - 优先使用 CJK 标题搜索
-   - 若匹配度低于阈值，尝试英文标题搜索
-   - 选择匹配度更高的结果
-4. **获取详情**：根据搜索结果获取完整元数据
-5. **维度映射**：将 Provider 返回的原始数据转换为系统维度
-6. **维度完整性检查**：验证是否所有启用的维度都有值
-7. **结果生成**：
-   - 维度完整且无 AI：直接返回 Provider 数据
-   - 维度完整且有 AI：仍直接返回（AI 未调用）
-   - 维度不完整：调用 AI 补充缺失维度
-
-#### 2. ai_only 模式流程
+#### 第一级：Provider 精确匹配
 
 ```text
-文件名清洗 → AI刮削 → 置信度计算 → 返回结果
+文件名清洗 → 提取中文名/英文名/年份/季/集
+        │
+        ├── 用中文名+年份查 Provider
+        │     → 精确匹配到唯一结果 → AUTO_PASS
+        │
+        ├── 用英文名+年份查 Provider
+        │     → 精确匹配到唯一结果 → AUTO_PASS
+        │
+        ├── 无年份，只用名字查
+        │     → 唯一精确匹配 → AUTO_PASS
+        │     → 多个精确匹配 → 进入第二级（原因：无年份导致多个同名结果）
+        │
+        └── 无精确匹配 → 进入第二级
 ```
 
-**详细步骤：**
+**精确匹配定义**（复用 TitleMatcher L1 逻辑）：
+- 清洗后标题与 Provider 返回标题归一化后完全相等
+- 年份精确一致（如果文件名有年份）
+- 或者无年份但搜索结果只返回 1 条精确标题匹配
 
-1. **文件名清洗**：正则提取基础信息
-2. **AI 刮削**：直接调用 LLM 获取所有元数据
-3. **置信度计算**：基于 AI 返回结果计算置信度上限
-4. **返回结果**：包含 AI 生成的所有维度
+#### 第二级：上下文辅助匹配
+
+```text
+收集上下文信息：
+  ├── 同级目录文件名列表（同一文件夹下的其他视频）
+  ├── 上级文件夹名
+  ├── 上两级文件夹名
+  │
+  将以下信息交给 AI：
+  ├── 文件名清洗结果（标题/年份/季集）
+  ├── Provider 搜索候选列表（Top 5-10，含标题/年份/简介）
+  ├── 目录上下文
+  │
+  AI 辅助判断（无需联网搜索增强）：
+  ├── 能确定匹配 → AUTO_PASS（附 AI 判断理由）
+  └── 无法确定 → 进入第三级（附 AI 不确定的原因）
+```
+
+**AI 不确定的判定规则**：
+- AI 返回 `confidence < 0.7` → 不确定
+- AI 返回 `selected_index = -1` → 无匹配
+- AI 返回格式错误/调用失败 → 降级
+
+**降级策略**：AI 不可用时跳过第二级，直接进入第三级，疑虑原因附加 `AI_UNCERTAIN + "AI 辅助不可用，降级为人工确认"`。
+
+#### 第三级：用户确认
+
+```text
+准备用户确认数据：
+  ├── Provider 搜索结果 Top 5（按热度排序，默认选中第 1 个）
+  ├── 匹配疑虑原因（为什么无法自动匹配）
+  ├── 已提取的文件信息（标题/年份/季集）
+  │
+  展示给用户：
+  ├── 疑虑原因标签（如"无年份，同名作品3部"）
+  ├── 候选列表（可切换选择）
+  └── 确认入库按钮
+```
+
+### 匹配疑虑原因体系
+
+每个进入用户确认的任务必须携带明确的疑虑原因：
+
+| 疑虑类型 | reason_code | 展示文案 | 示例 |
+|----------|-------------|----------|------|
+| 无年份多同名 | `NO_YEAR_MULTI_MATCH` | 「无年份信息，找到 N 部同名作品」 | "Inception" 无年份 → 2010 版 vs 其他 |
+| 年份不匹配 | `YEAR_MISMATCH` | 「文件名年份与搜索结果不一致」 | 文件名 2023，搜索结果只有 2022 版 |
+| 标题模糊匹配 | `FUZZY_TITLE` | 「标题不完全匹配，相似度 N%」 | 文件名 "Wandering Earth"，TMDB 是 "The Wandering Earth" |
+| Provider 无结果 | `NO_PROVIDER_RESULT` | 「刮削源未找到匹配作品」 | 极小众影片 |
+| 标题缺失 | `NO_TITLE` | 「无法从文件名提取有效标题」 | 文件名全是乱码 |
+| 多信息冲突 | `CONFLICTING_INFO` | 「文件名信息与目录结构信息冲突」 | 文件名暗示电影，目录结构暗示剧集 |
+| AI 不确定 | `AI_UNCERTAIN` | 「AI 辅助判断后仍无法确定」 | 候选列表中有两个非常接近的结果 |
+
+**疑虑原因数据结构**：
+
+```python
+@dataclass
+class MatchConcern:
+    code: str              # reason_code
+    message: str           # 用户可读文案
+    detail: str            # 详细技术说明
+    candidates: list       # 候选列表（用于第三级展示）
+```
+
+### 匹配结果数据结构
+
+```python
+@dataclass
+class MatchResult:
+    level: str           # AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM
+    provider_id: int     # 匹配到的 Provider 条目 ID
+    provider_title: str
+    confidence_reason: str  # 为什么匹配成功或失败
+    concerns: List[MatchConcern]  # 疑虑原因列表
+    trace: dict          # 匹配路径追踪
+```
+
+### 维度处理策略（与匹配解耦）
+
+维度判断和匹配判断彻底解耦：
+
+| 维度来源 | 策略 | 是否需要配置 |
+|----------|------|-------------|
+| TMDB 结构化数据 | 直接用，确定性映射 | 否（预置映射规则） |
+| TMDB genre_ids → 维度 | 确定性映射（如 genre_id=99 → 纪录片=true） | 否（代码内预置） |
+| TMDB 不提供的维度 | AI 补齐（带联网搜索增强） | 否（自动触发） |
+| 分辨率 | ffprobe 文件检测，与刮削无关 | 否（预置阈值） |
+
+**AI 补齐维度的时机**：在匹配成功后（无论是哪一级匹配成功），统一检查维度完整性。TMDB 映射完仍有缺失的维度，一次性交给 AI 补齐，此时 AI 可以使用联网搜索增强。
 
 ### AI 触发条件汇总
 
 | 场景 | 是否触发 AI | 原因 |
 |------|-----------|------|
-| `provider_first` + 维度完整 | 否 | Provider 数据已足够 |
-| `provider_first` + 维度不完整 | 是 | 补充缺失维度 |
-| `provider_first` + Provider 无结果 | 是 | 降级为纯 AI |
-| `provider_first` + Provider 详情失败 | 是 | 降级为纯 AI |
-| `ai_only` | 是 | 纯 AI 模式 |
+| 第一级精确匹配 + 维度完整 | 否 | Provider 数据已足够 |
+| 第一级精确匹配 + 维度不完整 | 是 | 补充缺失维度（可联网搜索） |
+| 第一级未匹配 → 第二级 | 是 | AI 辅助从候选列表中选择（不联网） |
+| 第二级 AI 不确定 → 第三级 | 否 | 等待用户确认 |
 | 年份可疑 | 是（可选） | 辅助标题清洗 |
-| Provider 匹配度低 | 是（可选） | 重新清洗后重试搜索 |
+| Provider 无结果 | 是 | 降级为纯 AI 刮削 |
 
----
+### 配置
 
-## 置信度计算规范
+#### 移除的配置
 
-### 置信度组成
+以下配置已移除，不再需要用户配置：
 
-置信度由两部分组成，最终结果为两者的乘积：
+- `confidence` 区块全部参数（20+ 参数）
+- `llm.confidence_threshold`
+- `metadata.scrape_mode` 的 `ai_only` 和 `hybrid` 选项
 
-```
-final_confidence = search_confidence × data_gate
-```
+#### 保留的配置
 
-#### 1. 搜索置信度 (search_confidence)
+```yaml
+metadata:
+  scrape_mode: "provider_first"     # 唯一模式
 
-仅在 Provider 优先模式且 AI 补充时计算，由 `T × R` 组成：
-
-| 分量 | 含义 | 计算方式 |
-|------|------|----------|
-| T | 标题匹配度 | 根据匹配级别计算（L1-L6） |
-| R | 结果数惩罚因子 | 根据搜索结果数量动态调整 |
-
-**T 值含义：**
-
-| 值范围 | 含义 |
-|--------|------|
-| 1.0 | 精确匹配 + 年份一致（L1） |
-| 0.9 | 精确匹配 + 有季号（L2） |
-| 0.7 | 精确匹配无年份（L3） |
-| 0.4 | 精确匹配年份不同（L4） |
-| <0.7 | 模糊匹配（L5/L6） |
-
-**R 值规则：**
-- 搜索结果越多，R 值越小（匹配越不确定）
-- 当 T 值较高时，R 会动态提升（匹配质量越高，结果数惩罚越轻）
-
-#### 2. 数据门控 (data_gate)
-
-用于验证维度来源的可信度：
-
-| 值 | 含义 |
-|----|------|
-| 1 | 所有维度来源可信 |
-| 0 | 任一维度来源不可信 |
-
-**触发条件：**
-- 当 `data_gate = 0` 时，最终置信度为 0，触发审核流程
-
-### 纯 AI 模式置信度
-
-在 `ai_only` 模式下，置信度计算方式不同：
-
-```
-final_confidence = ai_cap × data_gate
+manual_review:
+  enabled: false                    # 强制所有任务走用户确认
 ```
 
-其中 `ai_cap` 是 AI 置信度上限，基于清洗标题与 AI 返回标题的相似度计算。
+#### 新增的配置（可选，有合理默认值）
 
-### 置信度阈值
+```yaml
+matching:
+  exact_match_t_threshold: 1.0      # 第一级精确匹配的 T 值阈值，默认 1.0
+  context_match_enabled: true       # 是否启用第二级上下文辅助，默认 true
+  max_candidates_for_user: 5        # 用户确认时展示的最大候选数，默认 5
+```
 
-系统使用以下阈值决定任务流向：
+绝大多数用户不需要改任何配置。`matching` 区块甚至可以不出现，全部用默认值。
 
-| 阈值 | 含义 | 默认值 |
-|------|------|--------|
-| `pass_threshold` | 自动通过阈值 | 0.8 |
-| `confirm_threshold` | 需确认阈值 | 0.5 |
-| `review_threshold` | 需审核阈值 | 0.3 |
+### DB 字段
 
-**决策逻辑：**
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `match_level` | TEXT | AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM |
+| `match_concerns` | TEXT | JSON array of MatchConcern |
+| `match_trace` | TEXT | JSON 匹配路径追踪 |
+| `scrape_confidence` | TEXT | 保留，兼容历史数据，新任务不写入 |
 
-| 置信度范围 | 结果 | 任务状态 |
-|-----------|------|----------|
-| ≥ 0.8 | 自动通过 | 自动入库 |
-| 0.5 ~ 0.8 | 需确认 | 待确认队列 |
-| 0.3 ~ 0.5 | 需审核 | 待审核队列 |
-| < 0.3 | 失败 | 人工处理 |
+### 前端展示
 
-### 置信度追踪
-
-每次刮削都会生成详细的追踪信息（`scrape_trace`），包含：
-
-- `scrape_mode`：刮削模式
-- `ai_invoked`：是否调用了 AI
-- `ai_invoke_reason`：AI 调用原因
-- `search_enhanced`：是否使用了联网搜索增强
-- 各步骤的详细计算过程
+| 任务状态 | match_level | 前端展示 |
+|----------|-------------|----------|
+| 新任务 | AUTO_PASS | "自动匹配" |
+| 新任务 | CONTEXT_PASS | "AI辅助匹配" |
+| 新任务 | NEEDS_CONFIRM | "需确认" + 疑虑原因标签 |
+| 历史任务（旧引擎） | NULL | 按终态展示（已入库/失败），不展示置信度数值 |
 
 ---
 
@@ -221,7 +266,16 @@ final_confidence = ai_cap × data_gate
 
 ### 功能说明
 
-AI 刮削支持联网搜索增强，通过配置 `llm.web_search.enabled` 启用。启用后，AI 在处理刮削请求时会先进行联网搜索，获取最新的影视信息。
+AI 刮削支持联网搜索增强，通过配置 `llm.web_search.enabled` 启用。
+
+### 使用场景
+
+联网搜索增强在以下场景使用：
+- **维度补齐**：TMDB 映射完仍有缺失维度时，AI 可联网搜索获取最新信息
+- **新上映影片**：AI 训练数据可能不包含
+- **限制级分级**：依赖各国官方分级机构数据，TMDB 可能不完整
+
+注意：第二级上下文辅助匹配中的 AI 判断**不使用**联网搜索，因为候选列表已由 Provider 提供。
 
 ### 支持的 Provider
 
@@ -233,10 +287,9 @@ AI 刮削支持联网搜索增强，通过配置 `llm.web_search.enabled` 启用
 ### 标识位置
 
 系统在以下位置显示搜索增强状态：
-
-1. **置信度计算详情弹窗**：在 AI 相关步骤中显示标识
-2. **模拟测试结果**：在纯 AI 和 Provider 优先步骤中显示
-3. **任务详情决策路径**：在决策路径标题旁显示
+1. **匹配路径展示**：在 AI 相关步骤中显示标识
+2. **模拟测试结果**：在维度补齐步骤中显示
+3. **任务详情匹配路径**：在决策路径标题旁显示
 
 ### 状态标识
 

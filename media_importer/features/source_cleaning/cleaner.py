@@ -76,7 +76,7 @@ class SourceCleaner:
 
         if self.cleanup_empty_dirs:
             merged.extend(self._find_empty_dirs())
-        merged.extend(self._scan_blacklist_dirs(task_paths))
+        merged.extend(self._scan_blacklist_dirs(task_paths, rule_items))
 
         return merged
 
@@ -201,10 +201,6 @@ class SourceCleaner:
         fname = os.path.basename(fpath)
         ext = os.path.splitext(fname)[1].lower()
 
-        for pattern in self.blacklist_patterns:
-            if self._match_pattern(fname, fpath, pattern):
-                return "blacklist_pattern", f"匹配黑名单: {pattern}"
-
         if ext in self.protect_extensions:
             return "", ""
 
@@ -217,6 +213,10 @@ class SourceCleaner:
 
         if ext in self.subtitle_extensions:
             return "", ""
+
+        for pattern in self.blacklist_patterns:
+            if self._match_pattern(fname, fpath, pattern):
+                return "blacklist_pattern", f"匹配黑名单: {pattern}"
 
         if ext in self.delete_extensions:
             return "delete_extension", f"后缀名在删除列表: {ext}"
@@ -371,9 +371,10 @@ class SourceCleaner:
             logger.warning(f"AI 响应解析失败: {e}")
             return {}
 
-    def _scan_blacklist_dirs(self, task_paths: set) -> list:
+    def _scan_blacklist_dirs(self, task_paths: set, rule_items: dict = None) -> list:
         items = []
         blacklist_dir_names = {"sample", "samples", "预告", "花絮", "trailer", "trailers", "extras"}
+        already_marked = set(rule_items.keys()) if rule_items else set()
 
         for dirpath, dirnames, filenames in os.walk(self.source_dir, topdown=True):
             matched_dirs = []
@@ -392,20 +393,28 @@ class SourceCleaner:
                 if is_blacklist:
                     full_dir = os.path.join(dirpath, dname)
                     if full_dir not in task_paths:
-                        total_size = 0
+                        video_stems = self._collect_video_stems().get(full_dir, [])
                         for dp, dn, fns in os.walk(full_dir):
                             for fn in fns:
+                                fpath = os.path.join(dp, fn)
+                                if fpath in task_paths:
+                                    continue
+                                if fpath in already_marked:
+                                    continue
+                                category, reason = self._classify_file(fpath, video_stems)
+                                if not category:
+                                    continue
                                 try:
-                                    total_size += os.path.getsize(os.path.join(dp, fn))
+                                    size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 2)
                                 except OSError:
-                                    pass
-                        items.append({
-                            "path": full_dir,
-                            "size_mb": round(total_size / (1024 * 1024), 2),
-                            "category": "blacklist_dir",
-                            "reason": f"黑名单目录: {dname}",
-                            "source": "rule",
-                        })
+                                    size_mb = 0
+                                items.append({
+                                    "path": fpath,
+                                    "size_mb": size_mb,
+                                    "category": category,
+                                    "reason": f"{reason}（位于黑名单目录 {dname}）",
+                                    "source": "rule",
+                                })
                         matched_dirs.append(dname)
 
             for d in matched_dirs:

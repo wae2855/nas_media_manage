@@ -7,6 +7,7 @@ from copy import deepcopy
 
 from .config_migrations import (
     _migrate_confidence_v1_to_v2,
+    _migrate_confidence_v2_to_v3,
     _migrate_source_policy,
     _migrate_mcp_to_web_search,
     _normalize_bool_strings,
@@ -246,6 +247,7 @@ def load_config(config_path: str = None) -> dict:
     confidence.setdefault("dimensions", {})
 
     _migrate_confidence_v1_to_v2(confidence)
+    _migrate_confidence_v2_to_v3(config)
 
     config.setdefault("fallback_dir", "")
 

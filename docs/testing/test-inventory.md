@@ -20,7 +20,11 @@
 | `tests/test_task_context_lifecycle.py` | current | Task context and lifecycle. |
 | `tests/test_task_operations.py` | current | Task manager operations. |
 | `tests/test_import_flow_services.py` | current | Import flow services. |
-| `tests/test_confidence_engine.py` | current | Confidence calculations. |
+| `tests/test_match_engine.py` | current | Three-tier matching engine. |
+| `tests/test_review_decision_v2.py` | current | Review decisions based on match_level. |
+| `tests/test_config_migration_v3.py` | current | Config migration v2→v3 (remove confidence). |
+| `tests/test_match_pipeline_integration.py` | current | Match + scrape pipeline integration. |
+| `tests/test_scrape_preview_api.py` | current | Scrape preview API integration. |
 | `tests/test_feature_entrypoints.py` | current | Verifies app/API/feature consumers import feature public APIs directly. |
 | `tests/test_feature_*` | current | Feature entry smoke tests for import flow, recycle, and source cleaning. |
 | `tests/test_recycle_safety.py` | current | Focused recycle safety smoke. |
@@ -29,9 +33,9 @@
 
 | File | Status | Notes |
 |------|--------|-------|
-| `tests/test_confidence_config_ui.py` | gated | External service UI. |
-| `tests/test_confidence_ui.py` | gated | External service UI. |
-| `tests/test_confidence_v2_ui.py` | gated | External service UI. |
+| `tests/test_confidence_config_ui.py` | gated | Legacy confidence UI; to be removed. |
+| `tests/test_confidence_ui.py` | gated | Legacy confidence UI; to be removed. |
+| `tests/test_confidence_v2_ui.py` | gated | Legacy confidence UI; to be removed. |
 | `tests/test_scrape_ui.py` | gated | External service UI. |
 | `tests/test_frontend_recycle.py` | gated | Self-started UI; keep until frontend rewrite. |
 | `tests/test_integration_recycle.py` | gated | Self-started service integration. |

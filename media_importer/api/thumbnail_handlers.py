@@ -1,5 +1,6 @@
 import os
 import mimetypes
+from urllib.parse import quote, unquote
 from .utils import json_response
 from . import globals
 
@@ -78,7 +79,7 @@ class ThumbnailHandlersMixin:
                         mtime = 0
                     files.append({
                         "name": f,
-                        "url": f"/api/thumbnails/{f}",
+                        "url": f"/api/thumbnails/{quote(f, safe='')}",
                         "size": size,
                         "mtime": mtime,
                     })
@@ -92,6 +93,7 @@ class ThumbnailHandlersMixin:
 
     def _thumbnails_serve(self, filename):
         """GET /api/thumbnails/{filename} — 返回单张缩略图文件"""
+        filename = unquote(filename)
         thumb_dir = _get_thumbnail_dir()
         if not thumb_dir:
             json_response(self, 404, message="缩略图目录未配置或不存在")

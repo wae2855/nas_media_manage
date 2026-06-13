@@ -2,7 +2,7 @@
 title: "refactor: 三级匹配策略重构 — 替代置信度公式体系"
 type: plan
 date: 2026-06-12
-status: draft
+status: complete
 confidence: high
 requirement: REQ-20260612-THREE-TIER-MATCH
 adr: docs/decisions/0005-three-tier-matching.md
@@ -251,21 +251,60 @@ class MatchConcern:
 
 ### 三、维度处理策略（与匹配解耦）
 
-维度判断和匹配判断**彻底解耦**：
+维度判断和匹配判断**彻底解耦**。
 
-| 维度来源 | 策略 | 是否需要配置 |
-|----------|------|-------------|
-| TMDB 结构化数据 | 直接用，确定性映射 | 否（预置映射规则） |
-| TMDB genre_ids → 维度 | 确定性映射（如 genre_id=99 → 纪录片=true） | 否（代码内预置） |
-| TMDB 不提供的维度 | AI 补齐（带联网搜索增强） | 否（自动触发） |
-| 分辨率 | ffprobe 文件检测，与刮削无关 | 否（预置阈值） |
+#### 维度确认三级流程
 
-**AI 补齐维度的时机**：在匹配成功后（无论是哪一级匹配成功），统一检查维度完整性。TMDB 映射完仍有缺失的维度，一次性交给 AI 补齐，此时 AI 可以使用联网搜索增强。
+每个维度的值来源按优先级逐级尝试：
 
-**为什么 AI 补齐维度需要联网搜索**：
-- 新上映影片（如 2026 年新片），AI 训练数据可能不包含
-- 限制级分级依赖各国官方分级机构数据，TMDB 可能不完整
-- AI 联网搜索可以查到最新的豆瓣/IMDB 分类信息
+**第一级：Provider 直接映射**
+- Provider 结构化数据通过确定性规则映射为维度值，100% 信任
+- `media_type`：由搜索端点硬编码（`/search/movie` → movie, `/search/tv` → tv），不需要AI辅助
+- `documentary`：`genre_ids=99` → true
+- `animation`：`genre_ids=16` → true
+- `region`：`origin_country` 直接映射
+- `origin_lang`：`original_language` 直接映射
+- `broad_genre`：`genre_ids` 映射（优先级复杂时降级到第二级）
+- 多 Provider 兼容：`provider_mappings` 按 Provider 分组，`map_provider_to_dimension()` 按 `provider_type` 选择映射规则
+- 来源标记：`provider:tmdb` / `provider:douban`
+
+**第二级：AI 辅助模型分析（不需要联网搜索）**
+- Provider 有数据但映射复杂时，AI 辅助模型分析判断
+- `restricted_level`：TMDB 有 `release_dates` 但各国分级体系不同，AI 将 MPAA/BBFC/中国分级映射到统一的 0-6/7-12/13-16/17+
+- `broad_genre`：genre_ids 映射优先级复杂时，AI 替代复杂映射
+- 来源标记：`ai_assist`
+
+**第三级：AI 联网搜索增强（需开关启用）**
+- Provider 和 AI 辅助都无法获取的维度，AI 联网搜索补充
+- 仅用于维度补全，不再作为刮削器搜不到时的兜底
+- 需要启用开关（`ai_search.enabled`）
+- 来源标记：`ai_search`
+
+**其他维度**：
+- `resolution_tier`：ffprobe 文件检测，与刮削无关，来源标记 `file`
+
+#### 维度信任配置
+
+每个维度新增两个独立信任开关：
+
+| 开关 | 字段 | 默认值 | 含义 |
+|------|------|--------|------|
+| 信任AI辅助映射 | `trust_ai_assist` | 1（信任） | AI辅助模型分析给出的维度值是否直接采纳 |
+| 信任AI联网搜索 | `trust_ai_search` | 0（不信任） | AI联网搜索增强给出的维度值是否直接采纳 |
+
+不信任的AI来源维度值需要人工确认，自动生成 `confirm_reason`。
+
+#### 维度来源追踪
+
+每个维度值记录来源，用于展示和确认判定：
+
+| 来源 | 格式 | 图标 | 含义 |
+|------|------|------|------|
+| TMDB直接映射 | `provider:tmdb` | 🗄️ | 来自 TMDB 直接映射 |
+| 豆瓣直接映射 | `provider:douban` | 📚 | 来自豆瓣直接映射 |
+| AI辅助映射 | `ai_assist` | 🤖 | 来自 AI辅助模型映射 |
+| AI联网搜索 | `ai_search` | 🔍 | 来自 AI联网搜索增强 |
+| 文件分析 | `file` | 📄 | 来自文件分析（如分辨率） |
 
 ### 四、配置规划
 

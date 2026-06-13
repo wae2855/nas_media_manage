@@ -18,10 +18,10 @@
 | `media_importer/features/import_flow/` | 入库流程业务域，持有 PipelineRunner、steps、确认和 services 实现 | [features/import-flow.md](features/import-flow.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_feature_import_flow.py`、`tests/test_import_flow_services.py`、`tests/test_classify_preview.py` |
 | `media_importer/features/source_files/` | 源文件处理策略，持有成功入库、跳过、临时文件和伴生文件清理规则 | [features/source-files.md](features/source-files.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_import_flow_services.py`、`tests/test_recycle_safety.py`、`tests/test_architecture_guards.py` |
 | `media_importer/features/source_cleaning/` | 源目录清理业务域，持有清理器实现和记录入口 | [features/source-cleaning.md](features/source-cleaning.md) | [architecture/source-cleaner.md](architecture/source-cleaner.md) | `tests/test_feature_source_cleaning.py` |
-| `media_importer/features/scraping/` | 刮削、LLM、置信度、TMDB 和维度匹配业务入口 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_confidence_engine.py`、`tests/test_feature_entrypoints.py` |
+| `media_importer/features/scraping/` | 刮削、LLM、三级匹配引擎、TMDB 和维度匹配业务入口 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_match_engine.py`、`tests/test_feature_entrypoints.py` |
 | `media_importer/features/providers/` | 元数据 Provider 注册和工厂业务入口 | [features/providers.md](features/providers.md) | [architecture/scraping.md](architecture/scraping.md) | Provider/API 测试 |
 | `media_importer/features/prompts/` | 提示词模板和默认提示词业务入口 | [features/prompts.md](features/prompts.md) | [architecture/scraping.md](architecture/scraping.md) | Prompt tests |
-| `media_importer/scraper/` | LLM 刮削、Provider、置信度、维度映射实现位置 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_confidence_engine.py` |
+| `media_importer/scraper/` | LLM 刮削、Provider、匹配引擎、维度映射实现位置 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_match_engine.py` |
 | `media_importer/infrastructure/filesystem/` | 路径校验、权限检查、复制、安全移动/删除和指纹等基础文件系统能力 | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_recycle_safety.py`、`tests/test_architecture_guards.py` |
 | `media_importer/storage/` | legacy compatibility wrappers for old file/scanner/classifier imports | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | 文件处理测试 |
 | `media_importer/monitor/` | 文件监控、权限检查 | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | 权限/配置测试 |
@@ -44,6 +44,7 @@
 
 ## Current Plans
 
+- [三级匹配策略重构](plans/2026-06-12-refactor-three-tier-matching-plan.md) — complete, 替代置信度公式体系，ADR-0005
 - [Status+Stage 双层任务状态模型重构](plans/2026-06-09-task-status-stage-refactor.md) — Phase 1-4 开发完成，待验收
 - [CANCELLED 任务取消能力](plans/2026-06-10-cancelled-task-feature.md) — 为排队任务增加取消能力，CANCELLED 状态完整实现
 - [任务工作台交互与失败语义细化](plans/2026-06-10-task-workbench-interaction-refinement.md) — 卡片点击选中、详情编辑布局重构、孤儿 RUNNING 标记为 FAILED

@@ -20,7 +20,7 @@ shared: tiny cross-feature constants and helpers
 |------|------|------|
 | `media_importer/api/` | 入口层 | HTTP 路由、Mixin handler、静态文件服务 |
 | `media_importer/features/` | 业务事实源 | feature-first 业务能力入口 |
-| `media_importer/scraper/` | 待迁移业务能力 | LLM、Provider、置信度、维度映射，目标是 `features/scraping` 与 `features/providers` |
+| `media_importer/scraper/` | 待迁移业务能力 | LLM、Provider、匹配引擎、维度映射，目标是 `features/scraping` 与 `features/providers` |
 | `media_importer/storage/` | 待拆分能力 | 文件扫描、复制、移动、分类、去重，目标是 feature service + infrastructure/filesystem |
 | `media_importer/core/` | 待拆分基础设施 | DB、配置、任务、安全、日志、指标，目标是 feature-owned repos + infrastructure |
 | `media_importer/monitor/` | 待迁移周边能力 | 文件监控、权限检查 |

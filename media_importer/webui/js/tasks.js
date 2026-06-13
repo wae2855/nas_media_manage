@@ -242,18 +242,17 @@ function buildScrapeCell(task) {
         parts.push('<span>E' + String(task.scrape_episode).padStart(2, '0') + '</span>');
     }
 
-    if (task.scrape_confidence != null && task.scrape_confidence !== '') {
+    var matchLevel = task.match_level || task.scrape_match_level || '';
+    if (matchLevel === 'AUTO_PASS') {
+        parts.push('<span class="match-tag match-auto">自动匹配</span>');
+    } else if (matchLevel === 'CONTEXT_PASS') {
+        parts.push('<span class="match-tag match-context">AI辅助匹配</span>');
+    } else if (matchLevel === 'NEEDS_CONFIRM') {
+        parts.push('<span class="match-tag match-confirm">需确认</span>');
+    } else if (task.scrape_confidence != null && task.scrape_confidence !== '') {
         var conf = Number(task.scrape_confidence);
         var confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-mid' : 'conf-low';
-        var traceAttr = '';
-        if (task.scrape_trace && typeof task.scrape_trace === 'object') {
-            traceAttr = encodeURIComponent(JSON.stringify(task.scrape_trace));
-        }
-        parts.push('<span class="conf-clickable ' + confClass + '"' +
-            ' onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))"' +
-            ' data-trace="' + traceAttr + '"' +
-            ' data-filename="' + escapeHtml(task.source_filename || '') + '"' +
-            '>' + conf.toFixed(2) + '</span>');
+        parts.push('<span class="' + confClass + '">' + conf.toFixed(2) + '</span>');
     }
 
     if (task.skip_reason) {
@@ -541,19 +540,13 @@ async function showTaskDetail(taskId) {
         if (scrapeResult.episode != null && scrapeResult.episode !== 'null' && scrapeResult.episode !== 'None') scrapeFields.push(['集', 'E' + String(scrapeResult.episode).padStart(2, '0')]);
         if (scrapeResult.resolution) scrapeFields.push(['分辨率', escapeHtml(String(scrapeResult.resolution))]);
         if (scrapeResult.quality) scrapeFields.push(['画质', escapeHtml(String(scrapeResult.quality))]);
-        if (scrapeResult.confidence !== undefined) {
-            var conf = Number(scrapeResult.confidence);
-            var confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.5 ? 'conf-mid' : 'conf-low';
-            var detailTraceAttr = '';
-            var detailTraceObj = task.scrape_trace;
-            if (detailTraceObj && typeof detailTraceObj === 'object') {
-                detailTraceAttr = encodeURIComponent(JSON.stringify(detailTraceObj));
-            }
-            scrapeFields.push(['置信度', '<span class="detail-confidence conf-clickable ' + confClass + '"' +
-                ' onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))"' +
-                ' data-trace="' + detailTraceAttr + '"' +
-                ' data-filename="' + escapeHtml(task.source_filename || '') + '"' +
-                '>' + conf.toFixed(2) + '</span>']);
+        var detailMatchLevel = scrapeResult.match_level || task.match_level || '';
+        if (detailMatchLevel === 'AUTO_PASS') {
+            scrapeFields.push(['匹配级别', '<span class="detail-match detail-match-auto">自动匹配</span>']);
+        } else if (detailMatchLevel === 'CONTEXT_PASS') {
+            scrapeFields.push(['匹配级别', '<span class="detail-match detail-match-context">AI辅助匹配</span>']);
+        } else if (detailMatchLevel === 'NEEDS_CONFIRM') {
+            scrapeFields.push(['匹配级别', '<span class="detail-match detail-match-confirm">需确认</span>']);
         }
         if (scrapeResult.ai_reason) scrapeFields.push(['AI 判定依据', escapeHtml(String(scrapeResult.ai_reason))]);
         sections.push({ label: 'AI 刮削结果', fields: scrapeFields });
@@ -1020,119 +1013,32 @@ function _renderScrapeTrace(trace, filename) {
         });
     }
 
-    var cc = trace.confidence_calc;
-    if (cc) {
-        if (cc.search_conf && typeof cc.search_conf === 'object') {
-            var sc = cc.search_conf;
-            var scVal = sc.search_conf !== undefined ? sc.search_conf.toFixed(3) : '-';
-            steps.push({
-                type: 'CALC',
-                label: '搜索置信度 (search_conf)',
-                color: '#A78BFA',
-                detail: 'T=' + (sc.T !== undefined ? sc.T.toFixed(3) : '-') + ' × R=' + (sc.R !== undefined ? sc.R.toFixed(3) : '-') + ' = ' + scVal,
-                sub: (sc.T_reason || '') + (sc.R_formula ? ' | R公式: ' + sc.R_formula : '') + (sc.total_results !== undefined ? ' | N=' + sc.total_results : ''),
-            });
-        } else if (cc.T !== undefined || cc.R !== undefined) {
-            steps.push({
-                type: 'CALC',
-                label: '置信度计算',
-                color: '#06B6D4',
-                detail: 'T=' + (cc.T !== undefined ? cc.T.toFixed(3) : '-') + ' × R=' + (cc.R !== undefined ? cc.R.toFixed(3) : '-') + ' = ' + (cc['T×R'] !== undefined ? cc['T×R'].toFixed(3) : '-'),
-                sub: cc.T_reason || cc.formula || '',
-            });
-        }
-
-        if (cc.data_gate) {
-            var dg = cc.data_gate;
-            var dgVal = dg.value !== undefined ? (dg.value === 1 ? '1.0 ✓' : '0.0 ✗') : '-';
-            var dimRows = '';
-
-            if (dg.dimensions && typeof dg.dimensions === 'object') {
-                for (var dk in dg.dimensions) {
-                    var dim = dg.dimensions[dk];
-                    var dimConf = dim.confidence !== undefined ? dim.confidence.toFixed(3) : (dim.final_confidence !== undefined ? dim.final_confidence.toFixed(3) : '-');
-                    var dimColor = (dim.confidence !== undefined ? dim.confidence : (dim.final_confidence !== undefined ? dim.final_confidence : 0)) >= 0.8 ? '#22C55E' : ((dim.confidence !== undefined ? dim.confidence : (dim.final_confidence !== undefined ? dim.final_confidence : 0)) >= 0.5 ? '#F59E0B' : '#EF4444');
-                    var sourceTag = '';
-                    if (dim.source === 'tmdb') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(167,139,250,0.12);color:#A78BFA;">Provider</span>';
-                    else if (dim.source === 'ai') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(239,68,68,0.1);color:#EF4444;">AI</span>';
-                    else if (dim.source === 'file') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(16,185,129,0.1);color:#22C55E;">FILE</span>';
-                    else if (dim.source === 'missing') sourceTag = '<span style="display:inline-block;font-size:10px;padding:0 4px;border-radius:2px;background:rgba(148,163,184,0.1);color:#94A3B8;">缺失</span>';
-                    else sourceTag = '<span style="color:var(--text-secondary);font-size:11px;">(' + escapeHtml(dim.source || '?') + ')</span>';
-
-                    var weightStr = dim.weight !== undefined ? ' w=' + dim.weight : '';
-                    dimRows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
-                        '<span>' + escapeHtml(dk) + ' ' + sourceTag + '<span style="color:var(--text-secondary);font-size:11px;">' + weightStr + '</span></span>' +
-                        '<span style="color:' + dimColor + ';font-weight:500;">' + dimConf + '</span>' +
-                    '</div>';
-                }
+    // 三级匹配路径显示
+    var matchTrace = trace;
+    if (matchTrace && typeof matchTrace === 'object') {
+        var traceSteps = matchTrace.trace || [];
+        if (Array.isArray(traceSteps) && traceSteps.length > 0) {
+            for (var ti = 0; ti < traceSteps.length; ti++) {
+                var mStep = traceSteps[ti];
+                var stepColor = mStep.matched ? '#22C55E' : (mStep.tier === 3 ? '#F59E0B' : '#94A3B8');
+                var stepType = mStep.matched ? 'MATCH' : 'INFO';
+                steps.push({
+                    type: stepType,
+                    label: '第' + mStep.tier + '级：' + (mStep.name || ''),
+                    color: stepColor,
+                    detail: mStep.reason || '',
+                    sub: mStep.ai_reason || '',
+                });
             }
-
+        } else {
+            // 无匹配路径信息
             steps.push({
-                type: 'CALC',
-                label: '数据门控 (data_gate)',
-                color: '#3B82F6',
-                detail: dgVal,
-                sub: cc.formula || 'final = search_conf × data_gate',
-                extra: dimRows || undefined,
+                type: 'INFO',
+                label: '无匹配路径信息',
+                color: '#94A3B8',
+                detail: '',
             });
         }
-
-        if (cc.gate_blocked || (cc.data_gate && cc.data_gate.blocked)) {
-            var blocked = cc.gate_blocked || cc.data_gate.blocked;
-            steps.push({
-                type: 'RESULT',
-                label: '⚠ 门控拦截',
-                color: '#EF4444',
-                detail: escapeHtml(blocked.dim_name || '未知') + ' 来源 ' + escapeHtml(blocked.source || '未知') + ' 不信任',
-                sub: '强制判定为 NEEDS_REVIEW',
-            });
-        }
-
-        if (cc.final_confidence !== undefined) {
-            var fcv = cc.final_confidence;
-            var fcColor = fcv >= 0.8 ? '#22C55E' : (fcv >= 0.5 ? '#F59E0B' : '#EF4444');
-            steps.push({
-                type: 'RESULT',
-                label: '最终置信度',
-                color: fcColor,
-                detail: fcv.toFixed(4),
-                sub: fcv >= 0.8 ? '自动通过' : (fcv >= 0.5 ? '需人工确认' : (fcv >= 0.3 ? '需人工审核' : '刮削失败')),
-            });
-        }
-    }
-
-    var dims = trace.dimensions;
-    if (dims && typeof dims === 'object' && !cc) {
-        var dimRows = '';
-        for (var key in dims) {
-            var d = dims[key];
-            var confVal = d.final_confidence !== undefined ? d.final_confidence.toFixed(3) : '-';
-            var confColor = d.final_confidence >= 0.8 ? '#22C55E' : (d.final_confidence >= 0.5 ? '#F59E0B' : '#EF4444');
-            dimRows += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-color);font-size:12px;">' +
-                '<span>' + escapeHtml(key) + ' <span style="color:var(--text-secondary);">(' + (d.source || '?') + ')</span></span>' +
-                '<span style="color:' + confColor + ';font-weight:500;">' + confVal + '</span>' +
-            '</div>';
-        }
-        steps.push({
-            type: 'CALC',
-            label: '维度置信度',
-            color: '#06B6D4',
-            detail: '',
-            sub: '',
-            extra: dimRows,
-        });
-    }
-
-    var fc2 = trace.final_confidence;
-    if (fc2 !== undefined && !cc) {
-        var fcColor = fc2 >= 0.8 ? '#22C55E' : (fc2 >= 0.5 ? '#F59E0B' : '#EF4444');
-        steps.push({
-            type: 'RESULT',
-            label: '最终置信度',
-            color: fcColor,
-            detail: fc2.toFixed(4),
-            sub: fc2 >= 0.8 ? '自动通过' : (fc2 >= 0.5 ? '需人工确认' : (fc2 >= 0.3 ? '需人工审核' : '刮削失败')),
-        });
     }
 
     steps.forEach(function(step, idx) {
@@ -1150,7 +1056,7 @@ function _renderScrapeTrace(trace, filename) {
 
     html += '</div>';
     html += '<div style="margin-top:12px;text-align:center;">';
-    html += '<button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))" data-trace="' + encodeURIComponent(JSON.stringify(trace)) + '" data-filename="' + escapeHtml(filename || '') + '">查看置信度计算过程</button>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="showMatchTraceModal(JSON.parse(decodeURIComponent(this.getAttribute(\'data-trace\'))),this.getAttribute(\'data-filename\'))" data-trace="' + encodeURIComponent(JSON.stringify(trace)) + '" data-filename="' + escapeHtml(filename || '') + '">查看匹配路径</button>';
     html += '</div>';
     return html;
 }
@@ -1160,4 +1066,32 @@ function escapeHtml(text) {
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(String(text)));
     return div.innerHTML;
+}
+
+function showMatchTraceModal(trace, filename) {
+    var html = '<div style="padding:16px;background:rgba(255,255,255,0.02);border-radius:8px;">';
+    html += '<h3 style="margin-top:0;">匹配路径详情</h3>';
+    html += '<p style="color:#94A3B8;font-size:12px;margin:8px 0 16px;">文件：' + escapeHtml(filename || '') + '</p>';
+    var steps = (trace && typeof trace === 'object' && trace.trace) || [];
+    if (Array.isArray(steps) && steps.length > 0) {
+        html += '<div style="display:flex;flex-direction:column;gap:12px;">';
+        for (var i = 0; i < steps.length; i++) {
+            var step = steps[i];
+            var color = step.matched ? '#22C55E' : (step.tier === 3 ? '#F59E0B' : '#94A3B8');
+            html += '<div style="border:1px solid ' + color + '20;background:' + color + '08;padding:12px 16px;border-radius:8px;">';
+            html += '<div style="font-weight:600;color:' + color + ';">第' + step.tier + '级：' + escapeHtml(step.name || '') + ' &nbsp;·&nbsp; ' + (step.matched ? '✓ 匹配' : '✗ 未匹配') + '</div>';
+            if (step.reason) html += '<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#CBD5E1;">' + escapeHtml(step.reason) + '</div>';
+            if (step.ai_reason) html += '<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#06B6D4;border-left:2px solid #06B6D420;padding-left:12px;">AI: ' + escapeHtml(step.ai_reason) + '</div>';
+            html += '</div>';
+        }
+        html += '</div>';
+    } else {
+        html += '<p style="color:#94A3B8;">无匹配路径信息</p>';
+    }
+    html += '</div>';
+    if (typeof showAppModal === 'function') {
+        showAppModal({ title: '匹配路径', body: html, actions: [{ label: '关闭', className: 'btn btn-secondary' }] });
+    } else {
+        alert(html.replace(/<[^>]+>/g, '\n'));
+    }
 }

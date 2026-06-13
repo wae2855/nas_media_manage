@@ -258,14 +258,13 @@ class TestReviewDecisionService(unittest.TestCase):
                 "title_en": "Test",
                 "year": "2026",
                 "type": "movie",
-                "confidence": 0.1,
-                "confidence_search": 0.2,
+                "match_level": "NEEDS_CONFIRM",
+                "match_concerns": [{"code": "NO_YEAR_MULTI_MATCH", "message": "找到多部同名作品"}],
             },
-            FakeConfidenceEngine("FAILED"),
         )
 
-        self.assertEqual(decision.action, "failed")
-        self.assertIn("置信度过低", decision.reason)
+        self.assertEqual(decision.action, "confirm")
+        self.assertIn("多部同名作品", decision.reason)
 
     def test_gate_blocked_requires_review(self):
         decision = ReviewDecisionService().evaluate(
@@ -274,27 +273,21 @@ class TestReviewDecisionService(unittest.TestCase):
                 "title_en": "Test",
                 "year": "2026",
                 "type": "movie",
-                "confidence": 0.9,
-                "confidence_gate_blocked": {
-                    "dim_name": "media_type",
-                    "source": "unknown",
-                },
+                "match_level": "NEEDS_CONFIRM",
+                "match_concerns": [{"code": "FUZZY_TITLE", "message": "标题不完全匹配"}],
             },
-            FakeConfidenceEngine("NEEDS_REVIEW"),
         )
 
-        self.assertEqual(decision.action, "needs_review")
-        self.assertIn("来源不信任", decision.reason)
+        self.assertEqual(decision.action, "confirm")
+        self.assertIn("标题不完全匹配", decision.reason)
 
     def test_valid_result_with_optional_warnings_can_continue(self):
         decision = ReviewDecisionService().evaluate(
             {
                 "title_cn": "测试电影",
                 "type": "movie",
-                "confidence": 0.9,
-                "confidence_search": 0.8,
+                "match_level": "AUTO_PASS",
             },
-            FakeConfidenceEngine("SUCCESS"),
         )
 
         self.assertEqual(decision.action, "continue")

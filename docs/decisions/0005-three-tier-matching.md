@@ -1,7 +1,7 @@
 # ADR-0005: Three-Tier Matching Strategy
 
 Date: 2026-06-12
-Status: Proposed
+Status: Accepted
 Supersedes: Confidence formula system (`T x R x data_gate`)
 Plan: [2026-06-12-refactor-three-tier-matching-plan.md](../plans/2026-06-12-refactor-three-tier-matching-plan.md)
 
@@ -40,6 +40,13 @@ Key principles:
 - Match concern reasons replace confidence numbers for user communication
 - AI is used for context-assisted judgment (Tier 2) and dimension completion, not for primary matching
 - TitleMatcher L1-L7 levels are preserved but T values are no longer used as multiplication factors
+
+Dimension confirmation follows a three-level priority:
+1. **Provider Direct Mapping**: Structured data from Provider (TMDB/豆瓣) mapped via deterministic rules. 100% trusted. Example: `genre_ids=99` → `documentary=true`, `origin_country=["JP"]` → `region=jp`. `media_type` is hardcoded from the search endpoint used (`/search/movie` → movie, `/search/tv` → tv).
+2. **AI Assist Analysis**: When Provider has data but mapping is complex (e.g., `restricted_level` — different countries have different certification systems, AI maps them to unified age brackets). No web search needed. Source marked as `ai_assist`.
+3. **AI Web Search Enhancement**: When Provider and AI assist both fail to fill a dimension, AI with web search capability supplements missing values. Requires explicit enable switch. Source marked as `ai_search`.
+
+Each dimension has two independent trust switches: `trust_ai_assist` (trust AI assist mapping) and `trust_ai_search` (trust AI web search results). Untrusted AI-sourced dimensions require user confirmation.
 
 ## Alternatives Considered
 

@@ -371,18 +371,6 @@ async function saveImportOptionsConfig() {
     }
 }
 
-async function saveConfidenceConfig() {
-    const payload = { confidence: typeof getConfidenceConfig === "function" ? getConfidenceConfig() : {} };
-    const result = await requestApi("POST", "/config/section", {
-        section: "confidence",
-        data: payload,
-    });
-    showToast(result.message || "置信度配置已保存");
-    if (result.code === 200) {
-        await loadDirectoryConfig();
-    }
-}
-
 async function saveSecurityConfig() {
     const payload = buildServerConfigPayload();
     const result = await requestApi("POST", "/config/section", {
@@ -832,7 +820,7 @@ async function runAiScrapeDemo(scenario, demoFile) {
 
         let elapsedText = data.elapsed_ms != null ? (data.elapsed_ms + "ms") : "";
         if (data.search_enhanced) {
-            elapsedText += " 🔍 联网搜索增强";
+            elapsedText += " 🔍 AI联网搜索增强";
         } else {
             elapsedText += " 📴 纯本地分析";
         }
@@ -1302,15 +1290,17 @@ function deleteInlineRule(index) {
     });
 }
 
-function explainSimulatedQueue(score, confidence) {
-    const pass = Number(confidence?.pass_threshold ?? 0.8);
-    const confirm = Number(confidence?.confirm_threshold ?? 0.5);
-    const review = Number(confidence?.review_threshold ?? 0.3);
-    if (!Number.isFinite(score)) return "当前结果未返回可用置信度，请结合标题和 Provider 命中情况手动判断。";
-    if (score >= pass) return `命中自动通过阈值 ${pass.toFixed(2)}，会优先进入自动入库队列。`;
-    if (score >= confirm) return `低于自动通过阈值但高于确认阈值 ${confirm.toFixed(2)}，建议进入待确认队列。`;
-    if (score >= review) return `低于确认阈值但高于审核阈值 ${review.toFixed(2)}，建议先人工审核再继续。`;
-    return `低于审核阈值 ${review.toFixed(2)}，更适合先停在失败/人工处理链路。`;
+function explainSimulatedQueue(matchLevel, concerns) {
+    if (matchLevel === "AUTO_PASS") return "标题精确匹配，自动通过，直接进入入库队列。";
+    if (matchLevel === "CONTEXT_PASS") return "AI 辅助匹配通过，上下文信息支持自动入库。";
+    if (matchLevel === "NEEDS_CONFIRM") {
+        const concernMessages = (concerns || []).map(c => c.message || "").filter(Boolean);
+        if (concernMessages.length > 0) {
+            return "需要人工确认：" + concernMessages.join("；") + "。";
+        }
+        return "需要人工确认匹配结果。";
+    }
+    return "匹配结果未知，请结合标题和 Provider 命中情况手动判断。";
 }
 
 function renderSimulatorPreview(data) {
@@ -1318,23 +1308,18 @@ function renderSimulatorPreview(data) {
     if (!result) return;
 
     const clean = data.clean_result || {};
-    const modes = data.modes || {};
-    const currentMode = data.current_mode || "provider_first";
-    const recommendation = data.recommendation;
+    const matchResult = data.match_result || {};
     const removedStr = (clean.removed_items && clean.removed_items.length > 0) ? clean.removed_items.join(" · ") : "—";
 
-    const modeDefs = [
-        { key: "provider_first", label: "Provider 优先", mark: "PF", desc: "Provider 权威，AI 搜索增强补缺", formula: "T × R × data_gate" },
-        { key: "ai_only", label: "纯 AI 刮削", mark: "AI", desc: "需 AI 搜索增强（联网搜索）", formula: "objective_cap × data_gate" },
-    ];
+    const scrapeRes = data.scrape_result || {};
+    const currentTitle = scrapeRes.title_cn || scrapeRes.title_en || scrapeRes.title || clean.clean_title || data.filename;
+    const currentType = scrapeRes.type || scrapeRes.media_type || "—";
+    const importPathInfo = data.import_path || {};
 
-    const currentRes = (modes[currentMode] || {}).result || {};
-    const currentScore = Number(currentRes.confidence);
-    const currentTitle = currentRes.title_cn || currentRes.title_en || currentRes.title || clean.clean_title || data.filename;
-    const currentType = currentRes.type || currentRes.media_type || "—";
-    const queueExplanation = explainSimulatedQueue(currentScore, getConfidenceConfig());
-    const importPaths = data.import_paths || {};
-    const currentImportPath = (importPaths[currentMode] || {});
+    const matchLevel = matchResult.match_level || "NEEDS_CONFIRM";
+    const concerns = matchResult.concerns || [];
+    const traceSteps = matchResult.trace || [];
+    const queueExplanation = explainSimulatedQueue(matchLevel, concerns);
 
     let html = '<div class="sim-compare">';
 
@@ -1365,175 +1350,106 @@ function renderSimulatorPreview(data) {
     html += `<div class="sim-kv"><span class="sim-k">season / episode</span><span class="sim-v">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`;
     html += '</div></div>';
 
-    // --- timeline step 3: 模式对比 ---
+    // --- timeline step 3: 三级匹配路径 ---
     html += '<div class="sim-step">';
     html += '<div class="sim-step-rail">';
     html += '<div class="sim-step-dot" style="background:#8B5CF618;color:#8B5CF6">3</div>';
     html += '<div class="sim-step-line" style="background:#8B5CF630"></div>';
     html += '</div>';
     html += '<div class="sim-step-content">';
-    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">模式对比刮削</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">COMPARE</span></div>';
+    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">三级匹配路径</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">MATCH</span></div>';
 
-    html += '<div class="sim-modes-grid">';
-    for (const def of modeDefs) {
-        const modeData = modes[def.key] || {};
-        const res = modeData.result || {};
-        const hasError = Boolean(res.error);
-        const isCurrent = def.key === currentMode;
-        const score = Number(res.confidence);
-        const hasScore = Number.isFinite(score);
-        const detail = modeData.confidence_detail || res.confidence_detail || {};
-
-        html += `<div class="sim-mode-card${isCurrent ? " sim-mode-current" : ""}${hasError ? " sim-mode-error" : ""}">`;
-        html += '<div class="sim-mode-head">';
-        html += `<span class="sim-mode-icon">${escapeHtml(def.mark)}</span>`;
-        html += '<div class="sim-mode-head-text">';
-        html += `<span class="sim-mode-label">${escapeHtml(def.label)}${isCurrent ? '<span class="sim-mode-badge">当前配置</span>' : ""}</span>`;
-        html += `<span class="sim-mode-desc">${escapeHtml(def.desc)}</span>`;
-        html += '</div></div>';
-
-        if (hasError) {
-            html += '<div class="sim-mode-body">';
-            html += `<div class="sim-mode-error-msg">${escapeHtml(res.error)}</div>`;
-            html += `<div class="sim-mode-elapsed">耗时 ${Number(modeData.elapsed || 0).toFixed(2)}s</div>`;
-            html += '</div></div>';
-            continue;
-        }
-
-        html += '<div class="sim-mode-body">';
-        html += '<div class="sim-mode-result">';
-        html += `<div class="sim-mode-field"><span class="sim-mode-fk">标题</span><span class="sim-mode-fv">${escapeHtml(res.title_cn || res.title_en || res.title || "—")}</span></div>`;
-        if (res.title_en && res.title_cn && res.title_en !== res.title_cn) {
-            html += `<div class="sim-mode-field"><span class="sim-mode-fk">英文</span><span class="sim-mode-fv sim-mode-fv-sub">${escapeHtml(res.title_en)}</span></div>`;
-        }
-        html += `<div class="sim-mode-field"><span class="sim-mode-fk">年份</span><span class="sim-mode-fv">${res.year || "—"}</span></div>`;
-        html += `<div class="sim-mode-field"><span class="sim-mode-fk">类型</span><span class="sim-mode-fv">${escapeHtml(res.type || res.media_type || "—")}</span></div>`;
-        if (modeData.provider_type || res.provider_type) {
-            const providerText = `${modeData.provider_type || res.provider_type}${(modeData.provider_id || res.provider_id) ? " · " + (modeData.provider_id || res.provider_id) : ""}`;
-            html += `<div class="sim-mode-field"><span class="sim-mode-fk">Provider</span><span class="sim-mode-fv">${escapeHtml(providerText)}</span></div>`;
-        }
-        if (res.dimensions) {
-            html += `<div class="sim-mode-dims">${_renderSimDims(res.dimensions)}</div>`;
+    if (Array.isArray(traceSteps) && traceSteps.length > 0) {
+        html += '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">';
+        for (var si = 0; si < traceSteps.length; si++) {
+            var step = traceSteps[si];
+            var color = step.matched ? "#22C55E" : (step.tier === 3 ? "#F59E0B" : "#94A3B8");
+            html += '<div style="border:1px solid ' + color + '20;background:' + color + '08;padding:10px 14px;border-radius:8px">';
+            html += '<div style="font-weight:600;color:' + color + ';font-size:13px">第' + step.tier + '级：' + escapeHtml(step.name || "") + ' · ' + (step.matched ? "✓ 匹配" : "✗ 未匹配") + '</div>';
+            if (step.reason) html += '<div style="margin-top:6px;font-size:12px;line-height:1.5;color:#CBD5E1">' + escapeHtml(step.reason) + '</div>';
+            if (step.ai_reason) html += '<div style="margin-top:6px;font-size:12px;line-height:1.5;color:#06B6D4;border-left:2px solid #06B6D420;padding-left:10px">AI: ' + escapeHtml(step.ai_reason) + '</div>';
+            html += '</div>';
         }
         html += '</div>';
-
-        html += '<div class="sim-mode-confidence">';
-        html += `<span class="sim-mode-score" style="color:${_simConfColor(score)}">${hasScore ? score.toFixed(3) : "--"}</span>`;
-        html += `<span class="sim-mode-decision" style="color:${_simConfColor(score)}">${_simDecisionLabel(score, res.confidence_gate_blocked)}</span>`;
-        html += '</div>';
-
-        html += '<div class="sim-mode-calc">';
-        html += `<span class="sim-mode-formula">公式：${escapeHtml(detail.formula || def.formula)}</span>`;
-        html += _simConfidenceBreakdown(detail, res);
-        if (res.scrape_trace) {
-            html += `<button class="btn btn-secondary btn-xs sim-mode-detail-btn" data-confidence-detail-action="open" data-trace="${escapeHtml(JSON.stringify(res.scrape_trace))}" data-filename="${escapeHtml(data.filename || "")}">查看完整计算过程</button>`;
-        }
-        html += '</div>';
-
-        html += '<div class="sim-mode-ai-tags">';
-        if (modeData.ai_invoked) {
-            html += '<span class="sim-ai-tag sim-ai-tag-active">AI 已调用</span>';
-            if (modeData.ai_invoke_reason) {
-                html += `<span class="sim-ai-tag sim-ai-tag-reason">${escapeHtml(modeData.ai_invoke_reason)}</span>`;
-            }
-        } else {
-            html += '<span class="sim-ai-tag sim-ai-tag-idle">AI 未调用</span>';
-        }
-        if (modeData.search_enhanced === true && modeData.ai_invoked) {
-            html += '<span class="sim-ai-tag sim-ai-tag-search">联网搜索增强</span>';
-        } else if (modeData.search_enhanced === false && modeData.ai_invoked) {
-            html += '<span class="sim-ai-tag sim-ai-tag-local">AI 本地刮削</span>';
-        }
-        html += '</div>';
-        html += `<div class="sim-mode-elapsed">耗时 ${Number(modeData.elapsed || 0).toFixed(2)}s</div>`;
-        html += '</div></div>';
+    } else {
+        html += '<div style="margin-top:8px;color:#94A3B8;font-size:13px">无匹配路径信息</div>';
     }
-    html += '</div>';
+
+    if (concerns.length > 0) {
+        html += '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">';
+        for (var ci = 0; ci < concerns.length; ci++) {
+            var c = concerns[ci];
+            html += '<span style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.12);color:#F59E0B;font-weight:500">' + escapeHtml(c.message) + '</span>';
+        }
+        html += '</div>';
+    }
 
     html += '</div></div>';
 
-    // --- timeline step 4: 最终入库判断 ---
+    // --- timeline step 4: 刮削结果 ---
     html += '<div class="sim-step">';
     html += '<div class="sim-step-rail">';
-    html += '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">4</div>';
+    html += '<div class="sim-step-dot" style="background:#06B6D418;color:#06B6D4">4</div>';
+    html += '<div class="sim-step-line" style="background:#06B6D430"></div>';
+    html += '</div>';
+    html += '<div class="sim-step-content">';
+    html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">刮削结果</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">SCRAPE</span></div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+    html += `<div class="sim-kv"><span class="sim-k">中文标题</span><span class="sim-v sim-v-highlight">${escapeHtml(scrapeRes.title_cn || "—")}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">英文标题</span><span class="sim-v">${escapeHtml(scrapeRes.title_en || "—")}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">年份</span><span class="sim-v">${scrapeRes.year || "—"}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${escapeHtml(currentType)}</span></div>`;
+    if (scrapeRes.provider_type) {
+        html += `<div class="sim-kv"><span class="sim-k">Provider</span><span class="sim-v">${escapeHtml(scrapeRes.provider_type + (scrapeRes.provider_id ? " · " + scrapeRes.provider_id : ""))}</span></div>`;
+    }
+    if (scrapeRes.season != null) html += `<div class="sim-kv"><span class="sim-k">季</span><span class="sim-v">S${scrapeRes.season}</span></div>`;
+    if (scrapeRes.episode != null) html += `<div class="sim-kv"><span class="sim-k">集</span><span class="sim-v">E${scrapeRes.episode}</span></div>`;
+    html += '</div>';
+    if (scrapeRes.dimensions) {
+        html += `<div style="margin-top:8px">${_renderSimDims(scrapeRes.dimensions)}</div>`;
+    }
+    html += '</div></div>';
+
+    // --- timeline step 5: 最终入库判断 ---
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html += '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">5</div>';
     html += '<div class="sim-step-line" style="background:transparent"></div>';
     html += '</div>';
     html += '<div class="sim-step-content">';
     html += '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">最终入库判断</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">RESULT</span></div>';
     html += `<div class="sim-kv"><span class="sim-k">最终标题</span><span class="sim-v sim-v-highlight">${escapeHtml(currentTitle || "未识别标题")}</span></div>`;
     html += `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${escapeHtml(currentType)}</span></div>`;
-    html += `<div class="sim-kv"><span class="sim-k">最终置信度</span><span class="sim-v sim-v-score" style="color:${_simConfColor(currentScore)}">${Number.isFinite(currentScore) ? currentScore.toFixed(3) : "--"}</span></div>`;
-    if (currentImportPath.import_path) {
-        const pathLabel = currentImportPath.used_fallback ? "入库目录（兜底）" : (currentImportPath.matched_rule ? `入库目录（规则 ${currentImportPath.matched_rule}）` : "入库目录");
-        html += `<div class="sim-kv"><span class="sim-k">${escapeHtml(pathLabel)}</span><span class="sim-v sim-v-highlight">${escapeHtml(currentImportPath.import_path)}</span></div>`;
+    const finalMatchLabel = matchLevel === "AUTO_PASS" ? "自动匹配" : matchLevel === "CONTEXT_PASS" ? "AI辅助匹配" : "需确认";
+    const finalMatchColor = matchLevel === "AUTO_PASS" ? "#22C55E" : matchLevel === "CONTEXT_PASS" ? "#06B6D4" : "#F59E0B";
+    html += `<div class="sim-kv"><span class="sim-k">匹配级别</span><span class="sim-v sim-v-score" style="color:${finalMatchColor}">${finalMatchLabel}</span></div>`;
+    if (importPathInfo.import_path) {
+        const pathLabel = importPathInfo.used_fallback ? "入库目录（兜底）" : (importPathInfo.matched_rule ? `入库目录（规则 ${importPathInfo.matched_rule}）` : "入库目录");
+        html += `<div class="sim-kv"><span class="sim-k">${escapeHtml(pathLabel)}</span><span class="sim-v sim-v-highlight">${escapeHtml(importPathInfo.import_path)}</span></div>`;
     } else {
         html += `<div class="sim-kv"><span class="sim-k">入库目录</span><span class="sim-v" style="color:var(--warning-fg,#856404)">未匹配规则且无兜底目录</span></div>`;
     }
-    html += `<div class="sim-queue-decision" style="border-color:${_simConfColor(currentScore)}30;background:${_simConfColor(currentScore)}08;color:${_simConfColor(currentScore)}">${escapeHtml(queueExplanation)}</div>`;
+    const queueColor = matchLevel === "AUTO_PASS" ? "#22C55E" : matchLevel === "CONTEXT_PASS" ? "#06B6D4" : "#F59E0B";
+    html += `<div class="sim-queue-decision" style="border-color:${queueColor}30;background:${queueColor}08;color:${queueColor}">${escapeHtml(queueExplanation)}</div>`;
     html += '</div></div>';
 
     html += '</div>';
-
-    if (recommendation) {
-        html += '<div class="sim-recommendation">';
-        html += '<div class="sim-recommend-head">';
-        html += `<span>推荐使用 <strong>${escapeHtml(_modeLabel(recommendation.best_mode))}</strong></span>`;
-        html += '</div>';
-        html += '<div class="sim-recommend-body">';
-        html += `<span>置信度 ${Number(recommendation.best_confidence || 0).toFixed(3)} · ${escapeHtml(recommendation.reason || "")}</span>`;
-        html += '</div></div>';
-    }
-
     html += '</div>';
     result.innerHTML = html;
 }
 
-function _simDecisionLabel(score, gateBlocked) {
+function _simDecisionLabel2(matchLevel, gateBlocked) {
     if (gateBlocked) return "维度否决";
-    if (score >= 0.8) return "自动入库";
-    if (score >= 0.5) return "需确认";
-    if (score >= 0.3) return "需审核";
-    return "失败";
-}
-
-function _modeLabel(modeKey) {
-    const map = {
-        provider_first: "Provider 优先",
-        ai_only: "纯 AI 刮削",
-    };
-    return map[modeKey] || modeKey || "—";
-}
-
-function _simConfidenceBreakdown(detail, result) {
-    const d = detail || {};
-    const source = d.detail && Object.keys(d.detail).length ? d.detail : d;
-    const rows = [];
-    if (source.T !== undefined || source.R !== undefined) {
-        rows.push(`T=${_simFormatNumber(source.T)}`);
-        rows.push(`R=${_simFormatNumber(source.R)}`);
-        rows.push(`gate=${_simFormatNumber(source.data_gate ?? d.data_gate ?? result.confidence_data_gate)}`);
-    } else if (source.objective_cap !== undefined) {
-        rows.push(`cap=${_simFormatNumber(source.objective_cap)}`);
-        rows.push(`gate=${_simFormatNumber(source.data_gate ?? d.data_gate ?? result.confidence_data_gate)}`);
-    } else if (d.search_conf !== undefined || d.data_gate !== undefined) {
-        rows.push(`search=${_simFormatNumber(d.search_conf)}`);
-        rows.push(`gate=${_simFormatNumber(d.data_gate)}`);
-    }
-    if (!rows.length) return '';
-    return `<span class="sim-mode-calc-row">${escapeHtml(rows.join(" · "))}</span>`;
+    if (matchLevel === "AUTO_PASS") return "自动入库";
+    if (matchLevel === "CONTEXT_PASS") return "AI辅助入库";
+    if (matchLevel === "NEEDS_CONFIRM") return "待确认";
+    return "未识别";
 }
 
 function _simFormatNumber(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return "—";
     return num.toFixed(3);
-}
-
-function _simConfColor(value) {
-    if (value >= 0.8) return "#22C55E";
-    if (value >= 0.5) return "#3B82F6";
-    if (value >= 0.3) return "#F59E0B";
-    return "#EF4444";
 }
 
 function _renderSimDims(dims) {

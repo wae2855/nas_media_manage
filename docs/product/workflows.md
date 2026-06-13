@@ -3,21 +3,21 @@
 ## Import Workflow
 
 ```text
-扫描源目录 -> 创建任务 -> 复制到临时目录 -> 刮削元数据 -> 校验置信度 -> 分类路径 -> 去重 -> 重命名 -> 入库 -> 通知/记录
+扫描源目录 -> 创建任务 -> 复制到临时目录 -> 刮削元数据 -> 三级匹配判断 -> 分类路径 -> 去重 -> 重命名 -> 入库 -> 通知/记录
 ```
 
 Feature ownership:
 
 - task creation and status: `features/tasks`
 - process orchestration: `features/import_flow`
-- scraping and confidence: `features/scraping`
+- scraping and matching: `features/scraping`
 - provider metadata: `features/providers`
 - source cleanup after success: `features/source_files` + `features/recycle`
 
 ## Manual Review Workflow
 
 ```text
-低置信度/需确认 -> 停在临时目录 -> 用户确认/重分类/重命名/忽略 -> 继续入库或完成跳过
+匹配疑虑/需确认 -> 停在临时目录 -> 用户确认/重分类/重命名/忽略 -> 继续入库或完成跳过
 ```
 
 ## Source Cleanup Workflow

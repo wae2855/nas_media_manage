@@ -52,7 +52,14 @@ function taskDescription(task) {
     if (task.error_message) return task.error_message;
     if (task.skip_reason) return task.skip_reason;
     if (status === "PENDING" && stage === "AWAIT_REVIEW") {
-        return "AI 已给出候选结果，等待你确认最终入库方向。";
+        const concerns = task.match_concerns || scrape.match_concerns || [];
+        if (Array.isArray(concerns) && concerns.length > 0) {
+            const concernMessages = concerns.map(c => c.message || (typeof c === "string" ? c : "")).filter(Boolean);
+            if (concernMessages.length > 0) {
+                return concernMessages.join("；") + "。等待你确认最终入库方向。";
+            }
+        }
+        return "需要你确认最终匹配结果。";
     }
     if (status === "FAILED") {
         return "本次处理未完成，可以先查看原因，再决定是否重试。";
@@ -77,16 +84,15 @@ function taskMeta(task) {
     const bits = [];
     const status = String(task.status || "").toUpperCase();
     const scrape = task.scrape_result || {};
-    const confidence = task.scrape_confidence ?? scrape.confidence;
+    const matchLevel = task.match_level || task.scrape_match_level || scrape.match_level;
     const mediaType = task.scrape_media_type || scrape.type;
     const year = task.scrape_year || scrape.year;
     if (mediaType === "movie") bits.push("电影");
     if (mediaType === "tv") bits.push("剧集");
     if (year) bits.push(String(year));
-    if (confidence !== undefined && confidence !== null && confidence !== "") {
-        const value = Number(confidence);
-        if (!Number.isNaN(value)) bits.push(`置信度 ${value.toFixed(2)}`);
-    }
+    if (matchLevel === "AUTO_PASS") bits.push("自动匹配");
+    else if (matchLevel === "CONTEXT_PASS") bits.push("AI辅助匹配");
+    else if (matchLevel === "NEEDS_CONFIRM") bits.push("需确认");
     if (status === "FAILED" && task.error_message) bits.push("查看失败原因");
     if (["SUCCESS", "SKIPPED", "CANCELLED"].includes(status) && task.completed_at) bits.push(formatActivityTime(task.completed_at));
     if (bits.length === 0 && task.created_at) bits.push(formatActivityTime(task.created_at));
@@ -510,7 +516,7 @@ function buildScrapeTraceSection(task) {
 
     var searchBadge = "";
     if (scrapeTrace.search_enhanced === true) {
-        searchBadge = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:8px">🔍 联网搜索增强</span>';
+        searchBadge = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:8px">🔍 AI联网搜索增强</span>';
     } else if (scrapeTrace.search_enhanced === false) {
         searchBadge = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:8px">📴 纯本地分析</span>';
     }
@@ -518,8 +524,8 @@ function buildScrapeTraceSection(task) {
     return `
         <div class="cinema-modal-block">
             <h4>决策路径${searchBadge}</h4>
-            <div class="cinema-modal-hint" style="margin-bottom:8px">查看刮削过程中的置信度计算详情。</div>
-            <button class="btn btn-secondary btn-sm" onclick="showConfidenceDetailModal(JSON.parse(decodeURIComponent(this.getAttribute('data-trace'))),this.getAttribute('data-filename'))" data-trace="${traceJson}" data-filename="${escapeHtml(filename)}">查看置信度计算过程</button>
+            <div class="cinema-modal-hint" style="margin-bottom:8px">查看刮削过程中的匹配路径详情。</div>
+            <button class="btn btn-secondary btn-sm" onclick="showMatchTraceModal(JSON.parse(decodeURIComponent(this.getAttribute('data-trace'))),this.getAttribute('data-filename'))" data-trace="${traceJson}" data-filename="${escapeHtml(filename)}">查看匹配路径</button>
         </div>`;
 }
 
@@ -565,7 +571,8 @@ function classifyErrorMessage(message) {
 
 function buildScrapeResultSection(task) {
     const scrape = task.scrape_result || {};
-    const hasAny = scrape.title_cn || scrape.title_en || scrape.year || scrape.type || scrape.overview || scrape.poster_url || scrape.confidence !== undefined;
+    const matchLevel = scrape.match_level || task.match_level || "";
+    const hasAny = scrape.title_cn || scrape.title_en || scrape.year || scrape.type || scrape.overview || scrape.poster_url || matchLevel;
     if (!hasAny) {
         return `
             <div class="cinema-modal-block">
@@ -577,11 +584,13 @@ function buildScrapeResultSection(task) {
     const titleEn = scrape.title_en || task.scrape_title_en || "";
     const year = scrape.year || task.scrape_year || "";
     const type = scrape.type || task.scrape_media_type || "";
-    const confidence = scrape.confidence ?? task.scrape_confidence;
     const overview = scrape.overview || "";
     const poster = scrape.poster_url || "";
     const typeLabel = type === "movie" ? "电影" : type === "tv" ? "剧集" : (type || "—");
-    const confidenceText = confidence !== undefined && confidence !== null && confidence !== "" ? Number(confidence).toFixed(2) : "—";
+    let matchLabel = "";
+    if (matchLevel === "AUTO_PASS") matchLabel = '<span class="badge" style="background:rgba(34,197,94,0.15);color:#22C55E">自动匹配</span>';
+    else if (matchLevel === "CONTEXT_PASS") matchLabel = '<span class="badge" style="background:rgba(6,182,212,0.15);color:#06B6D4">AI辅助匹配</span>';
+    else if (matchLevel === "NEEDS_CONFIRM") matchLabel = '<span class="badge" style="background:rgba(245,158,11,0.15);color:#F59E0B">需确认</span>';
     return `
         <div class="cinema-modal-block">
             <h4>刮削结果</h4>
@@ -592,7 +601,7 @@ function buildScrapeResultSection(task) {
                     <div class="task-detail-scrape-tags">
                         <span class="badge">${escapeHtml(typeLabel)}</span>
                         ${year ? `<span class="badge">${escapeHtml(String(year))}</span>` : ""}
-                        <span class="badge">置信度 ${escapeHtml(confidenceText)}</span>
+                        ${matchLabel ? matchLabel : ""}
                     </div>
                     ${overview ? `<p class="task-detail-scrape-overview">${escapeHtml(overview)}</p>` : ""}
                 </div>
@@ -1161,5 +1170,33 @@ async function performBatchTaskAction(action) {
             clearTaskSelection();
             await Promise.all([loadTaskList(), loadDashboardOverview()]);
         });
+    }
+}
+
+function showMatchTraceModal(trace, filename) {
+    let html = '<div class="match-trace-modal" style="padding:16px;background:rgba(255,255,255,0.02);border-radius:8px">';
+    html += '<h3 style="margin-top:0">匹配路径详情</h3>';
+    html += '<p style="color:#94A3B8;font-size:12px;margin:8px 0 16px">文件：' + escapeHtml(filename || "") + '</p>';
+    var steps = (trace && typeof trace === 'object' && trace.trace) || [];
+    if (Array.isArray(steps) && steps.length > 0) {
+        html += '<div style="display:flex;flex-direction:column;gap:12px">';
+        for (var i = 0; i < steps.length; i++) {
+            var step = steps[i];
+            var color = step.matched ? "#22C55E" : (step.tier === 3 ? "#F59E0B" : "#94A3B8");
+            html += '<div style="border:1px solid ' + color + '20;background:' + color + '08;padding:12px 16px;border-radius:8px">';
+            html += '<div style="font-weight:600;color:' + color + '">第' + step.tier + '级：' + escapeHtml(step.name || "") + ' &nbsp;·&nbsp; ' + (step.matched ? "✓ 匹配" : "✗ 未匹配") + '</div>';
+            if (step.reason) html += '<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#CBD5E1">' + escapeHtml(step.reason) + '</div>';
+            if (step.ai_reason) html += '<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#06B6D4;border-left:2px solid #06B6D420;padding-left:12px">AI: ' + escapeHtml(step.ai_reason) + '</div>';
+            html += '</div>';
+        }
+        html += '</div>';
+    } else {
+        html += '<p style="color:#94A3B8">无匹配路径信息</p>';
+    }
+    html += '</div>';
+    if (typeof showAppModal === 'function') {
+        showAppModal({ title: '匹配路径', body: html, actions: [{ label: '关闭', className: 'btn btn-secondary' }] });
+    } else {
+        alert(html.replace(/<[^>]+>/g, '\n'));
     }
 }

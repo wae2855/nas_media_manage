@@ -375,5 +375,107 @@ class LLMScraper:
         result = self._retry_with_fallback(system_prompt, user_content, use_fast=True, scenario="series_scrape")
         result["search_enhanced"] = self.web_search_config.should_search("series_scrape")
         return result
+
+    def tier2_judge(
+        self,
+        original_filename: str,
+        clean_title: str,
+        cjk_title: str = "",
+        year: int = None,
+        season: int = None,
+        episode: int = None,
+        context: dict = None,
+        candidates: list = None,
+    ) -> dict:
+        """AI 从候选列表中选出最匹配的结果（第二级上下文辅助匹配）。
+
+        Args:
+            original_filename: 原始视频文件名
+            clean_title: 清洗后的标题
+            cjk_title: CJK 标题
+            year: 年份
+            season: 季号
+            episode: 集号
+            context: 目录上下文信息
+            candidates: Provider 搜索候选列表
+
+        Returns:
+            dict: {"selected_index": int, "confidence": float, "reason": str}
+        """
+        if context is None:
+            context = {}
+        if candidates is None:
+            candidates = []
+
+        import json as _json
+
+        system_prompt = (
+            "你是一个影视元数据匹配助手。根据以下信息，从候选列表中选出最匹配的结果。\n"
+            "你必须返回合法的 JSON，不要包含任何其他文字。"
+        )
+
+        candidates_json = _json.dumps(candidates, ensure_ascii=False, indent=2)
+
+        user_parts = [
+            "## 待匹配文件信息",
+            f"- 文件名: {original_filename}",
+            f"- 清洗标题: {clean_title}",
+            f"- 年份: {year or '未知'}",
+            f"- 季: {season or '未知'}",
+            f"- 集: {episode or '未知'}",
+            "",
+            "## 目录上下文",
+            f"- 上级文件夹: {context.get('parent_folder', '无')}",
+            f"- 上两级文件夹: {context.get('grandparent_folder', '无')}",
+            f"- 同级文件: {', '.join(context.get('sibling_files', [])) if context.get('sibling_files') else '无'}",
+            "",
+            "## 候选列表",
+            candidates_json,
+            "",
+            "## 输出要求",
+            "返回 JSON:",
+            '{"selected_index": 0, "confidence": 0.9, "reason": "标题精确匹配，且上级文件夹名一致"}',
+            "",
+            "如果你无法确定，设置 confidence < 0.7 并说明原因。",
+            "如果没有任何候选匹配，设置 selected_index = -1。",
+        ]
+        user_content = "\n".join(user_parts)
+
+        try:
+            raw_response = self._do_call(
+                system_prompt, user_content,
+                self.fast_model, self.fast_base_url, self.fast_api_key,
+                scenario=None,
+            )
+            # 解析 AI 返回
+            text = raw_response.strip()
+            think_match = re.search(r'</think\s*>', text, re.DOTALL)
+            if think_match:
+                text = text[think_match.end():].strip()
+            if text.startswith('```json'):
+                text = text[7:]
+            if text.endswith('```'):
+                text = text[:-3]
+            text = text.strip()
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                text = json_match.group(0)
+            result = _json.loads(text)
+            # 校验字段
+            if "selected_index" not in result:
+                result["selected_index"] = -1
+            if "confidence" not in result:
+                result["confidence"] = 0.0
+            if "reason" not in result:
+                result["reason"] = ""
+            result["confidence"] = float(result["confidence"])
+            result["selected_index"] = int(result["selected_index"])
+            return result
+        except Exception as e:
+            return {
+                "selected_index": -1,
+                "confidence": 0.0,
+                "reason": f"AI 解析失败: {e}",
+            }
     
     

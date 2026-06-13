@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any
 
 
 DEFAULT_CONFIDENCE_CONFIG = {
+    # TitleMatcher 仍使用的阈值（保留）
     "provider_match_threshold": 0.85,
     "title_exact_with_year": 1.0,
     "title_exact_with_season": 0.9,
@@ -12,20 +13,11 @@ DEFAULT_CONFIDENCE_CONFIG = {
     "title_exact_year_mismatch": 0.4,
     "title_fuzzy_year_coeff": 0.7,
     "title_min_similarity": 0.3,
-    "R_formula": "log",
-    "R_max_results_cap": 10,
-    "R_min_value": 0.1,
-    "R_T_floor": 1.0,
-    "R_T_curve": 1.5,
-    "source_priority": ["tmdb", "ai", "file"],
-    "ai_cap_high_similarity": 0.7,
-    "ai_cap_low_similarity": 0.3,
-    "ai_cap_no_title": 0.3,
-    "ai_cap_no_match": 0.2,
-    "ai_cap_low_coeff": 0.5,
+    # 兼容保留（不再实际使用）
     "pass_threshold": 0.8,
     "confirm_threshold": 0.5,
     "review_threshold": 0.3,
+    "source_priority": ["tmdb", "ai", "file"],
     "dimensions": {},
 }
 
@@ -102,38 +94,11 @@ _CODEC_PREFIX_RE = re.compile(
 )
 
 
-def _calc_R(total_results: int, formula: str, cap: int, min_val: float) -> float:
-    N = min(total_results, cap) if cap > 0 else total_results
-    if N <= 0:
-        return 1.0
-    if formula == "inverse":
-        R = 1.0 / N
-    elif formula == "log":
-        R = 1.0 / math.log2(N + 1)
-    elif formula == "sqrt":
-        R = 1.0 / math.sqrt(N)
-    elif formula == "flat":
-        R = 1.0
-    else:
-        R = 1.0 / math.log2(N + 1)
-    return max(R, min_val)
+def _calc_R(total_results: int, formula: str = "log", cap: int = 10, min_val: float = 0.1) -> float:
+    """兼容保留：R 值计算已不再使用，返回 1.0。"""
+    return 1.0
 
 
 def _aggregate(values: List[float], weights: List[float], method: str = "geometric_mean") -> float:
-    if not values:
-        return 1.0
-    if method == "product":
-        result = 1.0
-        for v in values:
-            result *= v
-        return result
-    if method == "min":
-        return min(values)
-    weighted_product = 1.0
-    total_weight = 0.0
-    for v, w in zip(values, weights):
-        weighted_product *= v ** w
-        total_weight += w
-    if total_weight <= 0:
-        return 1.0
-    return weighted_product ** (1.0 / total_weight)
+    """兼容保留：聚合计算已不再使用，返回 1.0。"""
+    return 1.0

@@ -5,6 +5,7 @@ from media_importer.core.db import (
 )
 from media_importer.features.import_flow.services import ReviewDecisionService
 from media_importer.features.scraping import LLMScrapeError
+from media_importer.features.scraping.match_engine import MatchEngine
 from media_importer.features.import_flow.utils import PipelineError, _extract_series_name
 
 
@@ -35,6 +36,22 @@ class ScrapeStepsMixin:
                 conn=self.task_manager.conn
             )
             task["scrape_result"] = result
+
+            # 三级匹配引擎：运行 MatchEngine 获取 match_level、match_concerns、match_trace
+            match_engine = MatchEngine(self.scraper.config if hasattr(self.scraper, 'config') else {})
+            video_path = task.get("video_path") or task.get("source_path", "")
+            providers = self.scraper.providers if hasattr(self.scraper, 'providers') else []
+            match_result = match_engine.match(
+                filename=task.get("source_filename", ""),
+                providers=providers,
+                conn=self.task_manager.conn,
+                video_path=video_path,
+            )
+            match_dict = match_result.to_dict()
+            result['match_level'] = match_dict['match_level']
+            result['match_concerns'] = match_dict['concerns']
+            result['match_trace'] = match_dict
+
             if self.metrics:
                 self.metrics.record_llm_call(success=True)
 
@@ -65,6 +82,8 @@ class ScrapeStepsMixin:
             task["scrape_season"] = result.get('season', None)
             task["scrape_episode"] = result.get('episode', None)
             task["scrape_confidence"] = result.get('confidence', 0)
+            task["match_level"] = result.get('match_level', '')
+            task["match_concerns"] = result.get('match_concerns', [])
             task["provider_type"] = result.get('provider_type', '')
             task["provider_id"] = result.get('provider_id', '')
 
@@ -89,6 +108,13 @@ class ScrapeStepsMixin:
                 task["scrape_trace"] = scrape_trace
             task["thumbnail_path"] = thumbnail_path
 
+            # 序列化 match_concerns 为 JSON
+            import json as _json
+            match_concerns_json = _json.dumps(
+                result.get('match_concerns', []),
+                ensure_ascii=False
+            ) if result.get('match_concerns') else ''
+
             db_update_task(
                 self.task_manager.conn, task.get("task_id", ""),
                 scrape_result=result,
@@ -100,6 +126,9 @@ class ScrapeStepsMixin:
                 scrape_season=result.get('season', None),
                 scrape_episode=result.get('episode', None),
                 scrape_confidence=result.get('confidence', 0),
+                match_level=result.get('match_level', ''),
+                match_concerns=match_concerns_json,
+                match_trace=_json.dumps(result.get('match_trace', {}), ensure_ascii=False) if result.get('match_trace') else '',
                 scrape_trace=scrape_trace,
                 provider_type=result.get('provider_type', ''),
                 provider_id=result.get('provider_id', ''),
@@ -119,7 +148,15 @@ class ScrapeStepsMixin:
                 detail_parts.append(f"季={result['season']}")
             if result.get('episode'):
                 detail_parts.append(f"集={result['episode']}")
-            detail_parts.append(f"置信度={result.get('confidence', 0)}")
+            match_level = result.get('match_level', '')
+            if match_level == 'AUTO_PASS':
+                detail_parts.append("匹配=自动通过")
+            elif match_level == 'CONTEXT_PASS':
+                detail_parts.append("匹配=AI辅助通过")
+            elif match_level == 'NEEDS_CONFIRM':
+                detail_parts.append("匹配=需确认")
+            else:
+                detail_parts.append(f"置信度={result.get('confidence', 0)}")
             dims_str = ', '.join(f'{k}={v}' for k, v in scrape_dimensions.items())
             if dims_str:
                 detail_parts.append(f"维度=[{dims_str}]")
@@ -142,7 +179,7 @@ class ScrapeStepsMixin:
 
         decision = ReviewDecisionService().evaluate(
             scraped,
-            self.scraper.confidence_engine,
+            self.scraper.confidence_engine if hasattr(self.scraper, 'confidence_engine') else None,
         )
 
         if decision.action == "confirm":
@@ -154,10 +191,7 @@ class ScrapeStepsMixin:
         if decision.action == "needs_review":
             task["skip_reason"] = decision.reason
             task["_needs_review"] = True
-            confidence = scraped.get('confidence', 0)
-            search_conf = scraped.get('confidence_search', 0)
-            data_gate = scraped.get('confidence_data_gate', 1)
-            self._log("warn", f"数据门控拦截({confidence:.3f}, 搜索={search_conf:.3f}, 门控={data_gate:.1f}): {decision.reason}", task, "validate")
+            self._log("warn", f"需要人工审核: {decision.reason}", task, "validate")
             return
 
         if decision.action == "failed":

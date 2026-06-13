@@ -242,98 +242,76 @@ class TMDbHandlersMixin:
 
         from media_importer.features.scraping import MetadataScraper
         from media_importer.features.scraping import FilenameCleaner
+        from media_importer.features.scraping.match_engine import MatchEngine
         from media_importer.features.providers import create_providers
 
         logger = globals._global_logger
         cleaner = FilenameCleaner()
         clean_result = cleaner.clean(filename)
         providers = create_providers(globals._config)
-        provider_enabled = bool(providers)
-        current_mode = "provider_first"
-        if globals._config:
-            current_mode = globals._config.get("metadata", {}).get("scrape_mode", "provider_first")
-        if current_mode not in ("provider_first", "ai_only"):
-            current_mode = "provider_first"
 
         if logger:
-            logger.info(
-                f"[scrape_preview] 开始: filename={filename}, "
-                f"provider_enabled={provider_enabled}, current_mode={current_mode}"
-            )
+            logger.info(f"[scrape_preview] 开始: filename={filename}, provider_enabled={bool(providers)}")
 
-        def _run_mode(mode_key):
-            conn = None
-            try:
-                if logger:
-                    logger.info(f"[scrape_preview] {mode_key} 开始")
-                metadata_scraper = MetadataScraper(globals._config)
-                db_path = os.path.join(
-                    globals._config.get("_data_dir",
-                        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "data")),
-                    "tasks.db")
-                conn = sqlite3.connect(db_path, check_same_thread=False)
-                conn.row_factory = sqlite3.Row
-                t0 = time.time()
-                result = metadata_scraper.scrape(filename, conn=conn, force_mode=mode_key)
-                elapsed = round(time.time() - t0, 2)
-                if logger:
-                    logger.info(f"[scrape_preview] {mode_key} 完成: {elapsed}s")
-                return result, elapsed
-            except Exception as e:
-                if logger:
-                    logger.error(f"[scrape_preview] {mode_key} 异常: {e}")
-                return {"error": str(e)}, 0
-            finally:
-                if conn:
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
-
-        modes_result = {}
-        executor = ThreadPoolExecutor(max_workers=2)
+        # 单一刮削流程
+        scrape_result = {}
+        scrape_elapsed = 0
+        conn = None
         try:
-            futures = {
-                "provider_first": executor.submit(_run_mode, "provider_first"),
-                "ai_only": executor.submit(_run_mode, "ai_only"),
-            }
-
-            for mode_key, future in futures.items():
-                try:
-                    result, elapsed = future.result(timeout=300)
-                    modes_result[mode_key] = {
-                        "result": result,
-                        "elapsed": elapsed,
-                    }
-                except FuturesTimeout:
-                    if logger:
-                        logger.warning(f"[scrape_preview] {mode_key} 超时 (300s)")
-                    modes_result[mode_key] = {
-                        "result": {"error": f"{mode_key} 刮削超时（300 秒）"},
-                        "elapsed": 300,
-                    }
-                except Exception as e:
-                    if logger:
-                        logger.error(f"[scrape_preview] {mode_key} 异常: {e}")
-                    modes_result[mode_key] = {
-                        "result": {"error": str(e)},
-                        "elapsed": 0,
-                    }
+            metadata_scraper = MetadataScraper(globals._config)
+            db_path = os.path.join(
+                globals._config.get("_data_dir",
+                    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "data")),
+                "tasks.db")
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            t0 = time.time()
+            scrape_result = metadata_scraper.scrape(filename, conn=conn) or {}
+            scrape_elapsed = round(time.time() - t0, 2)
+        except Exception as e:
+            if logger:
+                logger.error(f"[scrape_preview] 刮削异常: {e}")
+            scrape_result = {"error": str(e)}
         finally:
-            executor.shutdown(wait=False)
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
-        for mode_data in modes_result.values():
-            self._decorate_scrape_preview_mode(mode_data)
+        # 三级匹配引擎
+        match_engine = MatchEngine(globals._config or {})
+        match_result = match_engine.match(
+            filename=filename,
+            providers=providers,
+            conn=None,
+            video_path=filename,
+        )
+        match_dict = match_result.to_dict()
 
-        recommendation = self._build_scrape_preview_recommendation(modes_result)
+        # 入库路径计算
+        import_path = ""
+        used_fallback = False
+        matched_rule = None
+        try:
+            from media_importer.features.import_flow.classify import classify
+            dims = scrape_result.get("dimensions", {})
+            media_type = scrape_result.get("type") or scrape_result.get("media_type", "movie")
+            rules = (globals._config or {}).get("classification", {}).get("rules", [])
+            for idx, rule in enumerate(rules):
+                if classify(dims, rule.get("match_conditions", {})):
+                    import_path = rule.get("import_path", "")
+                    matched_rule = idx + 1
+                    break
+            if not import_path:
+                import_path = (globals._config or {}).get("classification", {}).get("fallback_dir", "")
+                used_fallback = bool(import_path)
+        except Exception:
+            pass
 
         if logger:
-            logger.info("[scrape_preview] 完成")
+            logger.info(f"[scrape_preview] 完成: {scrape_elapsed}s, match_level={match_dict.get('match_level')}")
 
-        # Calculate import paths for each mode using classification rules
-        import_paths = self._resolve_import_paths(modes_result)
-
-        ai_only = modes_result.get("ai_only", {})
         json_response(self, 200, data={
             "filename": filename,
             "clean_result": {
@@ -344,14 +322,14 @@ class TMDbHandlersMixin:
                 "method": clean_result.method,
                 "removed_items": clean_result.removed_items,
             },
-            "modes": modes_result,
-            "current_mode": current_mode,
-            "recommendation": recommendation,
-            "import_paths": import_paths,
-            "ai_only": ai_only.get("result"),
-            "ai_only_elapsed": ai_only.get("elapsed", 0),
-            "provider_ai": modes_result.get("provider_first", {}).get("result"),
-            "provider_ai_elapsed": modes_result.get("provider_first", {}).get("elapsed", 0),
+            "scrape_result": scrape_result,
+            "scrape_elapsed": scrape_elapsed,
+            "match_result": match_dict,
+            "import_path": {
+                "import_path": import_path,
+                "used_fallback": used_fallback,
+                "matched_rule": matched_rule,
+            },
         })
 
     def _decorate_scrape_preview_mode(self, mode_data: dict):

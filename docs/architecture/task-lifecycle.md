@@ -59,9 +59,9 @@
 | `start_processing()` | `PENDING` | `RUNNING` | 保持原值 | runner 开始处理任务 |
 | `mark_processing_step()` | `PENDING` | `RUNNING` | 保持原值 | step 进度更新 |
 | `mark_temp_ready()` | 保持原值 | 保持原值 | `temp` | copy 完成后 |
-| `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 低置信度进入人工确认 |
+| `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 三级匹配进入用户确认 |
 | `mark_confirmed()` | 保持原值 | 保持原值 | 保持原值 | 用户确认任务 |
-| `mark_needs_review()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 数据来源门控拦截 |
+| `mark_needs_review()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 匹配疑虑需要人工确认 |
 | `mark_failed()` | `FAILED` | `DONE` | 默认 `source` | import-flow/API 失败分支 |
 | `mark_skipped()` | `SKIPPED` | `DONE` | 默认 `source` | 去重跳过或用户忽略 |
 | `mark_cancelled()` | `CANCELLED` | `DONE` | 默认 `source` | 用户取消排队任务 |

@@ -24,7 +24,7 @@
 - API: task and import actions in `media_importer/api/`.
 - Manual batch and single-file processing use `media_importer.features.import_flow.run_file_service`.
 - Database: task rows, status constants, scrape result fields.
-- Config: path rules, duplicate handling, review thresholds, source cleanup policy.
+- Config: path rules, duplicate handling, match level review, source cleanup policy.
 - Frontend: task list, task detail, confirm/reclassify actions.
 
 ## Tests

@@ -3,13 +3,18 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ReviewDecision:
-    action: str
+    action: str       # continue / confirm / needs_review / failed
     reason: str = ""
     warnings: list = field(default_factory=list)
 
 
 class ReviewDecisionService:
-    def evaluate(self, scraped: dict, confidence_engine) -> ReviewDecision:
+    def evaluate(self, scraped: dict, confidence_engine=None) -> ReviewDecision:
+        """根据刮削结果决定任务流向。
+
+        新逻辑：基于 match_level 判断，不再依赖置信度数值。
+        confidence_engine 参数保留但不再使用，保持接口兼容。
+        """
         if not scraped:
             return ReviewDecision(action="failed", reason="刮削结果为空，无法验证")
 
@@ -20,43 +25,26 @@ class ReviewDecisionService:
                 reason += f"。警告: {'; '.join(warnings)}"
             return ReviewDecision(action="confirm", reason=reason, warnings=warnings)
 
-        confidence = scraped.get("confidence", 0)
-        gate_blocked = scraped.get("confidence_gate_blocked")
-        search_conf = scraped.get("confidence_search", 0)
-        data_gate = scraped.get("confidence_data_gate", 1)
-        level = confidence_engine.get_confidence_level(confidence, gate_blocked)
+        match_level = scraped.get("match_level", "NEEDS_CONFIRM")
+        concerns = scraped.get("match_concerns", [])
 
-        if level == "NEEDS_REVIEW" and gate_blocked:
-            blocked_dim = gate_blocked.get("dim_name", "未知维度")
-            blocked_source = gate_blocked.get("source", "未知来源")
-            reason = f"来源不信任: {blocked_dim} 的来源 {blocked_source} 未在信任列表中"
-            gate_reason = gate_blocked.get("reason", "")
-            if gate_reason:
-                reason += f" ({gate_reason})"
-            return ReviewDecision(action="needs_review", reason=reason, warnings=warnings)
+        if match_level == "AUTO_PASS":
+            return ReviewDecision(action="continue", warnings=warnings)
 
-        if level == "FAILED":
-            return ReviewDecision(
-                action="failed",
-                reason=f"置信度过低({confidence:.3f}, 搜索={search_conf:.3f})",
-                warnings=warnings,
-            )
+        if match_level == "CONTEXT_PASS":
+            return ReviewDecision(action="continue", warnings=warnings)
 
-        if level == "NEEDS_REVIEW":
-            reason = f"置信度偏低({confidence:.3f}, 搜索={search_conf:.3f})，需要人工审核"
-            if warnings:
-                reason += f"。警告: {'; '.join(warnings)}"
+        if match_level == "NEEDS_CONFIRM":
+            if concerns:
+                reason = "；".join(c.get("message", "") for c in concerns if c.get("message"))
+            else:
+                reason = "需要人工确认"
             return ReviewDecision(action="confirm", reason=reason, warnings=warnings)
 
-        if level == "CONFIRMING":
-            reason = f"置信度{confidence:.3f}(搜索={search_conf:.3f})，需要人工确认"
-            if warnings:
-                reason += f"。警告: {'; '.join(warnings)}"
-            return ReviewDecision(action="confirm", reason=reason, warnings=warnings)
-
-        return ReviewDecision(action="continue", warnings=warnings)
+        return ReviewDecision(action="failed", reason="匹配失败，无法识别", warnings=warnings)
 
     def _validate_required_fields(self, scraped: dict):
+        """校验必填字段（逻辑不变）。"""
         missing_fields = []
         warnings = []
 

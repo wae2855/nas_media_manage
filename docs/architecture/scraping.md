@@ -5,7 +5,7 @@
 - 清洗文件名，提取标题、年份、季集信息
 - 调用 Provider（如 TMDB）搜索元数据
 - 调用 LLM 整理和补充结果
-- 计算置信度评分
+- 三级匹配策略判断（替代旧的置信度公式计算）
 - 映射分类维度
 
 ## Entry Points
@@ -13,108 +13,78 @@
 | Module | Path | Role |
 |--------|------|------|
 | MetadataScraper | `media_importer/features/scraping/metadata_scraper.py` | 刮削流程编排 |
-| ConfidenceEngine | `media_importer/features/scraping/confidence_engine.py` | 置信度计算引擎 |
-| ConfidenceModels | `media_importer/features/scraping/confidence_models.py` | 置信度配置和数据模型 |
+| MatchEngine | `media_importer/features/scraping/match_engine.py` | 三级匹配引擎（替代 ConfidenceEngine） |
+| MatchModels | `media_importer/features/scraping/match_models.py` | 匹配数据模型：MatchResult, MatchConcern |
+| ConfidenceEngine | `media_importer/features/scraping/confidence_engine.py` | Legacy 兼容层（deprecated） |
+| ConfidenceModels | `media_importer/features/scraping/confidence_models.py` | Legacy 兼容层（deprecated） |
 | DimensionManager | `media_importer/features/scraping/dimension_manager.py` | 维度映射和分类归一化 |
+| TitleMatcher | `media_importer/scraper/title_matcher.py` | 标题匹配 L1-L7 级别（第一级精确匹配依赖） |
+| FilenameCleaner | `media_importer/scraper/filename_cleaner.py` | 文件名清洗和 CJK 分离 |
 | Providers | `media_importer/features/providers/` | 元数据 Provider 注册和工厂 |
 | PromptBuilder | `media_importer/features/prompts/prompt_builder.py` | 提示词模板构建 |
 
 ## 刮削模式
 
-系统支持两种刮削模式，通过配置 `metadata.scrape_mode` 控制：
+系统只保留 `provider_first` 一种刮削模式（`metadata.scrape_mode`）。旧的 `ai_only` 和 `hybrid` 模式已废弃。
 
-| 模式 | 说明 | AI依赖 |
-|------|------|--------|
-| `provider_first` | Provider 优先，AI 仅补充缺失维度 | 可选 |
-| `ai_only` | 纯 AI 刮削，跳过 Provider | 需要 AI |
+**未配置 Provider 时的降级**：
+- 启动时检测无可用 Provider → 日志 WARNING → 跳过第一级，走第二级（AI辅助）→ 第三级（用户确认）
 
-### 模式降级规则
+## 三级匹配策略
 
-当配置了 `ai_only` 但 AI 未启用时：
-- `ai_only`：返回错误提示
+> ADR: [0005-three-tier-matching.md](../decisions/0005-three-tier-matching.md)
 
-## 核心流程
-
-### Provider First 模式
+### 第一级：Provider 精确匹配
 
 ```text
-文件名清洗 → Provider搜索 → 维度完整性检查
-     ↓                ↓                ↓
-  AI清洗(可选)    获取详情       完整?
-                          ↓       ↓
-                        是       否
-                        ↓       ↓
-                 直接返回    AI补充维度
-                          ↓
-                     返回结果
+文件名清洗 → 提取标题/年份/季集 → Provider 搜索
+     │
+     ├── 精确匹配 + 年份一致 → AUTO_PASS
+     ├── 无年份 + 唯一精确匹配 → AUTO_PASS
+     ├── 无年份 + 多个精确匹配 → 进入第二级
+     └── 无精确匹配 → 进入第二级
 ```
 
-**关键步骤：**
-1. **文件名清洗**：正则提取标题、年份、季集信息
-2. **AI 清洗（可选）**：年份可疑时调用 AI 辅助清洗
-3. **Provider 搜索**：优先 CJK 标题，失败则尝试英文标题
-4. **维度映射**：通过 `map_provider_to_dimension()` 将 Provider 数据转换为系统维度
-5. **完整性检查**：验证所有启用维度是否有值
-6. **AI 补充**：仅当维度不完整时调用 AI
+**精确匹配定义**：复用 TitleMatcher L1 逻辑，清洗后标题归一化完全相等 + 年份一致。
 
-### AI Only 模式
+### 第二级：上下文辅助匹配
 
 ```text
-文件名清洗 → AI刮削 → 置信度计算 → 返回结果
+收集目录上下文（上级文件夹名 + 同级文件名列表）
+     │
+     Provider 候选列表 + 上下文 → AI 辅助判断（不联网）
+     │
+     ├── AI 确定 → AUTO_PASS
+     └── AI 不确定 → 进入第三级
 ```
 
-## 置信度计算规范
+**降级**：AI 不可用时跳过第二级，直接进入第三级。
 
-### 置信度组成
+### 第三级：用户确认
 
-置信度由两部分组成，最终结果为两者的乘积：
-
-```
-final_confidence = search_confidence × data_gate
+```text
+Provider 搜索结果 Top 5 + 匹配疑虑原因 → 用户选择 → 确认入库
 ```
 
-#### 搜索置信度 (search_confidence)
+### 匹配疑虑原因
 
-仅在 Provider 优先模式且 AI 补充时计算，由 `T × R` 组成：
+| reason_code | 展示文案 |
+|-------------|----------|
+| `NO_YEAR_MULTI_MATCH` | 无年份信息，找到 N 部同名作品 |
+| `YEAR_MISMATCH` | 文件名年份与搜索结果不一致 |
+| `FUZZY_TITLE` | 标题不完全匹配 |
+| `NO_PROVIDER_RESULT` | 刮削源未找到匹配作品 |
+| `NO_TITLE` | 无法从文件名提取有效标题 |
+| `CONFLICTING_INFO` | 文件名信息与目录结构信息冲突 |
+| `AI_UNCERTAIN` | AI 辅助判断后仍无法确定 |
 
-| 分量 | 含义 | 计算方式 |
-|------|------|----------|
-| T | 标题匹配度 | 根据匹配级别计算（L1-L6） |
-| R | 结果数惩罚因子 | 根据搜索结果数量动态调整 |
+### 匹配与维度解耦
 
-**T 值含义：**
-- 1.0：精确匹配 + 年份一致（L1）
-- 0.9：精确匹配 + 有季号（L2）
-- 0.7：精确匹配无年份（L3）
-- 0.4：精确匹配年份不同（L4）
-- <0.7：模糊匹配（L5/L6）
+匹配判断（哪部作品）和维度判断（什么分类）彻底解耦：
 
-**R 值规则：**
-- 搜索结果越多，R 值越小
-- T 值较高时，R 会动态提升
-
-#### 数据门控 (data_gate)
-
-用于验证维度来源的可信度：
-- 值为 1：所有维度来源可信
-- 值为 0：任一维度来源不可信（触发审核流程）
-
-### 纯 AI 模式置信度
-
-```
-final_confidence = ai_cap × data_gate
-```
-
-其中 `ai_cap` 是 AI 置信度上限，基于清洗标题与 AI 返回标题的相似度计算。
-
-### 置信度阈值
-
-| 阈值 | 含义 | 默认值 | 任务状态 |
-|------|------|--------|----------|
-| `pass_threshold` | 自动通过 | 0.8 | 自动入库 |
-| `confirm_threshold` | 需确认 | 0.5 | 待确认队列 |
-| `review_threshold` | 需审核 | 0.3 | 待审核队列 |
-| < 0.3 | 失败 | - | 人工处理 |
+- 匹配在刮削时一次性完成，结果为 `match_level`
+- 维度在匹配成功后统一映射：TMDB 确定性映射 → AI 补齐缺失维度（可联网搜索）
+- 分辨率由 ffprobe 文件检测，与刮削无关
 
 ## 维度映射
 
@@ -131,22 +101,27 @@ final_confidence = ai_cap × data_gate
 
 | 场景 | 是否触发 AI | 原因 |
 |------|-----------|------|
-| `provider_first` + 维度完整 | 否 | Provider 数据已足够 |
-| `provider_first` + 维度不完整 | 是 | 补充缺失维度 |
-| `provider_first` + Provider 无结果 | 是 | 降级为纯 AI |
-| `ai_only` | 是 | 纯 AI 模式 |
+| 第一级精确匹配 + 维度完整 | 否 | Provider 数据已足够 |
+| 第一级精确匹配 + 维度不完整 | 是 | 补充缺失维度（可联网搜索） |
+| 第一级未匹配 → 第二级 | 是 | AI 辅助从候选列表中选择（不联网） |
+| 第二级 AI 不确定 → 第三级 | 否 | 等待用户确认 |
 | 年份可疑 | 是（可选） | 辅助标题清洗 |
+| Provider 无结果 | 是 | 降级为纯 AI 刮削 |
 
 ## Extension Points
 
 - **新 Provider**：在 `features/providers/` 实现 `MetadataProvider`，注册到 provider registry
 - **新维度映射**：更新 `features/scraping/dimension_manager.py`、DB 维度配置、文档和测试
-- **新置信度规则**：更新 `features/scraping/confidence_engine.py`、`features/import_flow/services/review.py` 和置信度测试
+- **新匹配规则**：更新 `features/scraping/match_engine.py`、`features/import_flow/services/review.py` 和匹配测试
+- **新疑虑原因**：更新 `match_models.py` 中的 concern code 定义、前端展示文案和测试
 - **新提示词配置**：更新 `features/prompts/prompt_builder.py`、prompts API、配置文档和 UI 测试
 
 ## Tests
 
-- `tests/test_confidence_engine.py`
+- `tests/test_match_engine.py`
+- `tests/test_review_decision_v2.py`
+- `tests/test_config_migration_v3.py`
+- `tests/test_match_pipeline_integration.py`
+- `tests/test_scrape_preview_api.py`
 - `tests/test_feature_entrypoints.py`
-- `tests/test_confidence_config_ui.py`
 - `tests/test_import_flow_services.py`（审核决策边界）

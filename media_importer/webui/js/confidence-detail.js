@@ -65,7 +65,7 @@ function showConfidenceDetailModal(traceData, filename) {
     var searchEnhanced = trace.search_enhanced;
     var searchBadgeInline = '';
     if (searchEnhanced === true) {
-        searchBadgeInline = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:6px">🔍 联网搜索增强</span>';
+        searchBadgeInline = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:6px">🔍 AI联网搜索增强</span>';
     } else if (searchEnhanced === false) {
         searchBadgeInline = '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:6px">📴 纯本地分析</span>';
     }

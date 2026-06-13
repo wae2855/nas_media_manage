@@ -39,6 +39,6 @@ Import flow 已引入：
 - 改同名策略：先看 `features/import_flow/services/dedup.py`，涉及回收站时再看 `SourceCleanupService`。
 - 改入库移动、字幕落库、确认入库：先看 `features/import_flow/services/import_service.py`。
 - 改成功入库、跳过或临时文件后的源文件处理：先看 `features/source_files/cleanup_service.py`。
-- 改置信度、人工审核、数据门控：先看 `features/import_flow/services/review.py`。
+- 改匹配级别、人工确认、匹配疑虑：先看 `features/import_flow/services/review.py`。
 - 改流程 step 顺序、进度、日志或 DB 状态写入：先看 `features/import_flow/steps/`。
 - 改状态字段：先看 `TaskLifecycle`。

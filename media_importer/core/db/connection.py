@@ -76,6 +76,12 @@ def _migrate_schema(conn: sqlite3.Connection):
             conn.execute("ALTER TABLE tasks ADD COLUMN source_mtime TEXT DEFAULT ''")
         if "thumbnail_path" not in existing:
             conn.execute("ALTER TABLE tasks ADD COLUMN thumbnail_path TEXT DEFAULT ''")
+        if "match_level" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN match_level TEXT DEFAULT NULL")
+        if "match_concerns" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN match_concerns TEXT DEFAULT NULL")
+        if "match_trace" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN match_trace TEXT DEFAULT NULL")
         conn.execute("UPDATE tasks SET status='SKIPPED' WHERE status='DUPLICATE_REVIEW'")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='FAILED' AND import_success=0")
         conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='SKIPPED'")

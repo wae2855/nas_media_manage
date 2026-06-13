@@ -10,7 +10,9 @@
 | provider | TMDB 等外部元数据源 |
 | scrape | 刮削，识别影视标题、年份、类型、维度 |
 | dimensions | 分类维度，如地区、类型、分级、质量 |
-| confidence | 置信度，用于决定自动入库、确认或失败 |
+| confidence | 置信度（已废弃），旧版数学公式化匹配评分体系，已被三级匹配策略替代 |
+| match_level | 匹配级别，AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM |
+| match_concern | 匹配疑虑原因，说明为何任务需要人工确认 |
 | path_rules | 维度到目标路径的规则 |
 | cleanup_source_after_done | 任务完成后是否把源文件移入回收站 |
 | feature | 按业务能力划分的后端入口和文档单元 |

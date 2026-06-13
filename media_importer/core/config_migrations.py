@@ -136,3 +136,17 @@ def _normalize_bool_strings_in_list(lst):
             _normalize_bool_strings(item)
         elif isinstance(item, list):
             _normalize_bool_strings_in_list(item)
+
+
+def _migrate_confidence_v2_to_v3(config: dict) -> dict:
+    """移除 confidence 区块，迁移 ai_only 模式，保留 manual_review。"""
+    config.pop("confidence", None)
+    if "llm" in config:
+        config["llm"].pop("confidence_threshold", None)
+
+    # 迁移 scrape_mode: ai_only / hybrid → provider_first
+    metadata = config.get("metadata", {})
+    if metadata.get("scrape_mode") in ("ai_only", "hybrid"):
+        metadata["scrape_mode"] = "provider_first"
+
+    return config

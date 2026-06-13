@@ -38,6 +38,7 @@ config.yaml.example
 - `filename_templates`
 - `manual_review`
 - `metadata`
+- `matching`
 - `llm`
 - `scanner`
 - `source_cleaner`

@@ -22,7 +22,7 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
                             <b>先处理真正会影响主流程的项</b>
                         </div>
-                        <small>优先看入库名称规范、影视分类维度、AI 刮削提示词和置信度计算。</small>
+                        <small>优先看入库名称规范、影视分类维度和AI刮削提示词。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
@@ -46,7 +46,6 @@
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="naming-config"><div><h3>入库名称规范</h3><p>决定电影、剧集、字幕和重名文件最后怎样命名。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="dimensions-config"><div><h3>影视分类维度</h3><p>控制哪些维度参与分类判断、变量输出和目录映射。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="prompt-config"><div><h3>AI刮削提示词</h3><p>分别调整纯 AI 推理与 LLM+TMDB 整理时使用的提示词。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
-        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="confidence-config"><div><h3>置信度计算</h3><p>决定哪些结果自动通过、哪些进入审核、确认或失败队列。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="security-config"><div><h3>安全配置</h3><p>控制 API 认证和监听端口，属于低频但高影响的设置。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="hermes-config"><div><h3>Hermes通知</h3><p>配置外部通知链路、重试策略和测试入口。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="system-settings"><div><h3>系统设置</h3><p>管理应用目录、并发数以及视频和字幕识别范围。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
@@ -61,7 +60,7 @@
             <div class="path-breadcrumb" aria-label="当前路径">
                 <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>模拟测试</strong>
             </div>
-            <p>输入文件名，横向对比两种刮削模式的完整结果，再决定使用哪种模式。</p>
+            <p>输入文件名，测试三级匹配刮削的完整路径和入库决策。</p>
         </div>
         <div class="hero-action-group">
             <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
@@ -77,36 +76,36 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
                             <b>输入真实文件名</b>
                         </div>
-                        <small>两种模式会同时跑一遍，横向对比刮削结果和置信度。</small>
+                        <small>系统将执行三级匹配刮削，展示完整匹配路径和入库决策。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                            <b>对比两种模式</b>
+                            <b>查看匹配路径</b>
                         </div>
-                        <small>Provider 优先、纯 AI 刮削，看哪个模式在你的文件上表现最好。</small>
+                        <small>Provider精确匹配 → AI上下文辅助 → 用户确认，每一步都有清晰说明。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
                             <b>有偏差就回去微调</b>
                         </div>
-                        <small>调整提示词、置信度阈值或 Provider 配置后回来重跑。</small>
+                        <small>调整提示词或 Provider 配置后回来重跑。</small>
                     </div>
                 </div>
             </article>
         </div>
         <article class="confidence-simulator">
             <div>
-                <span class="confidence-kicker">模式对比</span>
-                <h3>输入一个文件名，横向对比两种刮削模式</h3>
-                <p>Provider 优先 / 纯 AI 刮削，两种模式同时执行，对比置信度和入库决策。</p>
+                <span class="confidence-kicker">刮削测试</span>
+                <h3>输入一个文件名，测试三级匹配刮削流程</h3>
+                <p>Provider精确匹配 → AI上下文辅助匹配 → 用户确认，展示完整匹配路径和入库决策。</p>
             </div>
             <div class="confidence-sim-row">
                 <input id="confidence-sim-filename" type="text" placeholder="例如：Dune.Part.Two.2024.1080p.mkv">
-                <button class="btn btn-primary" type="button" id="btn-confidence-simulate">开始对比</button>
+                <button class="btn btn-primary" type="button" id="btn-confidence-simulate">刮削开始</button>
             </div>
-            <div class="confidence-sim-result" id="confidence-sim-result">输入文件名后，两种刮削模式将同时执行并横向对比展示。</div>
+            <div class="confidence-sim-result" id="confidence-sim-result">输入文件名后，系统将执行三级匹配刮削并展示完整路径。</div>
         </article>
     </section>
 </section>
@@ -353,129 +352,6 @@
                             <li>在系统提示词中明确 confidence 的评分基准，方便后续自动入库与人工确认协作。</li>
                         </ul>
                     </section>
-                </div>
-            </div>
-        </div>
-    </section>
-</section>
-
-<section class="page-view" data-view="confidence-config">
-    <div class="page-hero">
-        <div>
-            <div class="eyebrow">高级配置</div>
-            <h2>置信度计算配置</h2>
-            <div class="path-breadcrumb" aria-label="当前路径">
-                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>置信度计算</strong>
-            </div>
-            <p>把旧版复杂参数重组为移动端风险控制台：先看自动入库边界，再逐层调整搜索、AI 和维度来源策略。</p>
-        </div>
-        <div class="hero-action-group">
-            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
-            <button class="btn btn-primary" type="button" data-config-save="confidence">保存</button>
-        </div>
-    </div>
-    <section class="config-panel advanced-host-panel confidence-workbench" data-section="confidence">
-        <article class="confidence-summary-card">
-            <div>
-                <span class="confidence-kicker">当前策略摘要</span>
-                <h3>自动入库风险边界</h3>
-                <p>分数越高越可信；门槛调高会更保守，更多任务进入人工确认。</p>
-            </div>
-            <div class="confidence-score-grid">
-                <span><b data-confidence-value="pass_threshold">0.80</b><small>自动入库</small></span>
-                <span><b data-confidence-value="confirm_threshold">0.50</b><small>需要确认</small></span>
-                <span><b data-confidence-value="review_threshold">0.30</b><small>需要审核</small></span>
-            </div>
-            <div class="confidence-threshold-editor" id="confidence-threshold-editor">
-                <div class="threshold-bar confidence-bar" id="confidence-threshold-bar"></div>
-                <div class="confidence-threshold-handles" id="confidence-threshold-handles">
-                    <button type="button" class="confidence-threshold-handle review" data-threshold-handle="review_threshold" aria-label="拖动调整需审核阈值"><span>审核</span></button>
-                    <button type="button" class="confidence-threshold-handle confirm" data-threshold-handle="confirm_threshold" aria-label="拖动调整需确认阈值"><span>确认</span></button>
-                    <button type="button" class="confidence-threshold-handle pass" data-threshold-handle="pass_threshold" aria-label="拖动调整自动入库阈值"><span>通过</span></button>
-                </div>
-                <input type="hidden" value="0.8" data-key="pass_threshold">
-                <input type="hidden" value="0.5" data-key="confirm_threshold">
-                <input type="hidden" value="0.3" data-key="review_threshold">
-            </div>
-            <div class="threshold-labels confidence-labels" id="confidence-threshold-labels"></div>
-        </article>
-
-        <section class="confidence-slider-stack">
-            <label class="confidence-slider-card">
-                <span><b>Provider 最低匹配</b><small>低于此值时触发 AI 清洗回退</small></span>
-                <div class="confidence-slider-control"><output data-confidence-output="provider_match_threshold">0.70</output><input type="range" min="0" max="1" step="0.05" value="0.7" data-key="provider_match_threshold" data-confidence-input="threshold"></div>
-            </label>
-        </section>
-
-        <div class="confidence-section-stack">
-            <div class="cfg-section confidence-mobile-section">
-                <button class="cfg-section-header" type="button" data-confidence-section-toggle>
-                    <div><strong>搜索匹配策略</strong><small>标题、年份和搜索结果数量如何影响 Provider 命中可信度。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
-                </button>
-                <div class="cfg-section-body">
-                    <div class="confidence-param-grid">
-                        <label><span>精确+年份一致</span><input type="number" min="0" max="1" step="0.05" value="1.0" data-key="title_exact_with_year"></label>
-                        <label><span>精确+有季号</span><input type="number" min="0" max="1" step="0.05" value="0.9" data-key="title_exact_with_season"></label>
-                        <label><span>精确无年份</span><input type="number" min="0" max="1" step="0.05" value="0.7" data-key="title_exact_no_year"></label>
-                        <label><span>精确年份冲突</span><input type="number" min="0" max="1" step="0.05" value="0.4" data-key="title_exact_year_mismatch"></label>
-                        <label><span>模糊年份系数</span><input type="number" min="0" max="1" step="0.05" value="0.7" data-key="title_fuzzy_year_coeff"></label>
-                        <label><span>最低相似度</span><input type="number" min="0" max="1" step="0.05" value="0.3" data-key="title_min_similarity"></label>
-                    </div>
-                    <div class="r-formula-cards confidence-formula-cards">
-                        <button class="r-formula-card" type="button" data-r-formula="inverse"><b>inverse</b><span>结果多时强惩罚</span></button>
-                        <button class="r-formula-card selected" type="button" data-r-formula="log"><b>log</b><span>默认，温和惩罚</span></button>
-                        <button class="r-formula-card" type="button" data-r-formula="sqrt"><b>sqrt</b><span>中等惩罚</span></button>
-                        <button class="r-formula-card" type="button" data-r-formula="flat"><b>flat</b><span>不惩罚结果数</span></button>
-                    </div>
-                    <div class="confidence-param-grid compact">
-                        <label><span>结果数上限</span><input type="number" min="1" max="100" step="1" value="10" data-key="R_max_results_cap"></label>
-                        <label><span>R 下限</span><input type="number" min="0" max="1" step="0.05" value="0.1" data-key="R_min_value"></label>
-                        <label><span>R 调节下限</span><input type="number" min="0" max="1" step="0.05" value="0.5" data-key="R_T_floor"></label>
-                        <label><span>R 调节曲线</span><input type="number" min="0.5" max="5" step="0.1" value="1.5" data-key="R_T_curve"></label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="cfg-section confidence-mobile-section">
-                <button class="cfg-section-header" type="button" data-confidence-section-toggle>
-                    <div><strong>AI 推理保护</strong><small>Provider 无结果时，限制纯 AI 判断的最高可信度。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
-                </button>
-                <div class="cfg-section-body">
-                    <div class="confidence-param-grid compact">
-                        <label><span>高相似度上限</span><input type="number" min="0" max="1" step="0.05" value="0.7" data-key="ai_cap_high_similarity"></label>
-                        <label><span>低相似度上限</span><input type="number" min="0" max="1" step="0.05" value="0.3" data-key="ai_cap_low_similarity"></label>
-                        <label><span>AI 无标题上限</span><input type="number" min="0" max="1" step="0.05" value="0.3" data-key="ai_cap_no_title"></label>
-                        <label><span>AI 无匹配上限</span><input type="number" min="0" max="1" step="0.05" value="0.2" data-key="ai_cap_no_match"></label>
-                        <label><span>低相似度衰减</span><input type="number" min="0" max="1" step="0.05" value="0.5" data-key="ai_cap_low_coeff"></label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="cfg-section confidence-mobile-section">
-                <button class="cfg-section-header" type="button" data-confidence-section-toggle>
-                    <div><strong>维度来源信任</strong><small>每个分类维度允许哪些来源参与自动入库。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
-                </button>
-                <div class="cfg-section-body"><div id="dim-source-trust-container" class="dim-cards confidence-dim-cards"></div></div>
-            </div>
-        </div>
-
-        <div class="cfg-section confidence-mobile-section">
-            <button class="cfg-section-header" type="button" data-confidence-section-toggle>
-                <div><strong>高级参数与咨询助手</strong><small>保留旧版公式解释和可复制给 LLM 的调优上下文。</small></div><span class="cfg-section-arrow" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></span>
-            </button>
-            <div class="cfg-section-body">
-                <div class="formula-preview" id="confidence-formula-preview">
-                    <div class="formula-preview-title">当前配置下的计算公式</div>
-                    <div class="formula-line"><span class="hl">Provider 优先</span>: final = search_conf × data_gate，search_conf = T × R_dynamic</div>
-                    <div class="formula-line"><span class="hl">纯 AI</span>: final = objective_cap × data_gate</div>
-                    <div class="formula-line"><span class="er">判定</span>: ≥ <span class="hl" id="formula-pass-val">0.80</span> 自动通过；≥ <span class="wn" id="formula-confirm-val">0.50</span> 需确认；≥ <span class="er" id="formula-review-val">0.30</span> 需审核；低于 <span class="er" id="formula-review-val2">0.30</span> 失败</div>
-                    <div class="formula-line">Provider 最低匹配阈值：<span class="hl" id="formula-threshold-val">0.70</span><span id="formula-threshold-val2" hidden>0.70</span></div>
-                </div>
-                <div class="ai-consult-box">
-                    <div class="ai-consult-header"><div><span class="ai-consult-title">配置咨询助手</span><span class="ai-consult-desc">复制当前配置上下文，粘贴到任意 LLM 获取调优建议</span></div></div>
-                    <textarea id="ai-consult-need" class="ai-consult-textarea" rows="10" placeholder="例如：我希望限制级分类必须人工确认，但普通电影可以更宽松地自动入库。"></textarea>
-                    <div class="advanced-action-row"><button class="btn btn-primary btn-sm" type="button" data-consult-action="generate">生成咨询提示词</button><button class="btn btn-secondary btn-sm" type="button" data-consult-action="copy">复制到剪贴板</button></div>
-                    <div id="ai-consult-output" class="ai-consult-output" style="display:none;"><pre id="ai-consult-prompt" class="ai-consult-prompt"></pre></div>
                 </div>
             </div>
         </div>

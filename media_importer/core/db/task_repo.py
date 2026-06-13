@@ -48,6 +48,16 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
             row['scrape_trace'] = json.loads(row['scrape_trace'])
         except (json.JSONDecodeError, TypeError):
             pass
+    if row and row.get('match_concerns'):
+        try:
+            row['match_concerns'] = json.loads(row['match_concerns'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if row and row.get('match_trace'):
+        try:
+            row['match_trace'] = json.loads(row['match_trace'])
+        except (json.JSONDecodeError, TypeError):
+            pass
     if row:
         subs = get_subtitles_by_task(conn, task_id)
         row['subtitle_files'] = [s.get('target_path', '') or s.get('source_path', '')
@@ -158,7 +168,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "scrape_result", "scrape_title_cn", "scrape_title_en",
         "scrape_year", "scrape_media_type", "scrape_season",
         "scrape_episode", "scrape_dimensions", "scrape_confidence",
-        "scrape_trace",
+        "scrape_trace", "match_level", "match_concerns", "match_trace",
         "classify_result", "import_path", "final_filename",
         "dedup_result", "dedup_existing_file", "import_video_path",
         "video_path", "file_location", "import_success", "confirm_status", "confirmed_at",
@@ -170,7 +180,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:
