@@ -256,7 +256,6 @@ function buildAiAssistPayload() {
 function buildAiSearchPayload() {
   return {
     ai_search: {
-      enabled: !!document.getElementById("cfg-ai_search-enabled")?.checked,
       provider: String(
         document.getElementById("cfg-ai_search-provider")?.value || "",
       ).trim(),
@@ -296,6 +295,60 @@ function buildAiConfigPayload() {
     ai_assist: buildAiAssistPayload().ai_assist,
     ai_search: buildAiSearchPayload().ai_search,
   };
+}
+
+// T2.6 plan: 新增 ai_prompts / ai_scene_strategy 两个 payload 函数
+// (T2.10: buildAiApikeyPayload 已删除，复用 buildAiAssistPayload + buildAiSearchPayload)
+
+function buildAiPromptsPayload() {
+  return {
+    ai_assist: {
+      prompt_title_clean: String(
+        document.getElementById("cfg-ai_assist-prompt_title_clean")?.value ||
+          "",
+      ),
+      prompt_match_assist: String(
+        document.getElementById("cfg-ai_assist-prompt_match_assist")?.value ||
+          "",
+      ),
+      prompt_dimension_mapping: String(
+        document.getElementById("cfg-ai_assist-prompt_dimension_mapping")
+          ?.value || "",
+      ),
+      prompt_source_clean: String(
+        document.getElementById("cfg-ai_assist-prompt_source_clean")?.value ||
+          "",
+      ),
+    },
+    ai_search: {
+      prompt_dimension_supplement: String(
+        document.getElementById("cfg-ai_search-prompt_dimension_supplement")
+          ?.value || "",
+      ),
+    },
+  };
+}
+
+function buildAiSceneStrategyPayload() {
+  const scenes = [
+    "dimension_supplement",
+    "dimension_mapping",
+    "title_clean",
+    "match_assist",
+    "source_clean",
+  ];
+  const data = {};
+  scenes.forEach((scene) => {
+    const primaryEl = document.querySelector(`[data-scene-primary="${scene}"]`);
+    const fallbackEl = document.querySelector(
+      `[data-scene-fallback="${scene}"]`,
+    );
+    data[scene] = {
+      primary: String(primaryEl?.value || "").trim(),
+      fallback: String(fallbackEl?.value || "").trim(),
+    };
+  });
+  return data;
 }
 
 function buildServerConfigPayload() {

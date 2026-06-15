@@ -51,13 +51,12 @@ def detect_provider(base_url: str) -> Optional[str]:
 class WebSearchConfig:
     detected_provider: Optional[str] = None
     search_type: str = ""
+    # T2.9: ai_scene_strategy 统一控制每个场景的模型选择，enabled 字段仅作历史字段保留。
     enabled: bool = False
     enabled_for_scrape: bool = True
     enabled_for_series_scrape: bool = True
 
     def should_search(self, scenario: str) -> bool:
-        if not self.enabled:
-            return False
         if self.detected_provider is None:
             return False
         if scenario == "scrape":
@@ -70,7 +69,7 @@ class WebSearchConfig:
         return self.detected_provider
 
     def supports_web_search(self) -> bool:
-        return self.enabled and self.detected_provider is not None
+        return self.detected_provider is not None
 
     def effective_search_type(self) -> str:
         if self.search_type:
@@ -87,6 +86,7 @@ def build_web_search_config(ai_search_config: dict) -> WebSearchConfig:
     return WebSearchConfig(
         detected_provider=detected,
         search_type=ai_search_config.get("search_type", ""),
+        # ai_search.enabled 字段读取后仅作历史字段保留（运行时由 ai_scene_strategy 决定）。
         enabled=ai_search_config.get("enabled", False),
         enabled_for_scrape=ai_search_config.get("enabled_for_scrape", True),
         enabled_for_series_scrape=ai_search_config.get("enabled_for_series_scrape", True),

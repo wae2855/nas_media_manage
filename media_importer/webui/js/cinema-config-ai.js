@@ -1,57 +1,58 @@
 // cinema-config-ai.js - extracted from cinema-config.js
 
-function syncAiSearchEnabledState() {
-  const enabled = !!document.getElementById("cfg-ai_search-enabled")?.checked;
-  const fields = document.querySelectorAll(
-    '#cfg-ai_search-provider, #cfg-ai_search-model, #cfg-ai_search-search_type, ' +
-    '#cfg-ai_search-api_key, #cfg-ai_search-base_url, #cfg-ai_search-timeout, ' +
-    '#cfg-ai_search-max_retries, #cfg-ai_search-retry_delay, #cfg-ai_search-verify_ssl'
-  );
-  fields.forEach((el) => {
-    if (el.closest('.config-collapse-card, .cinema-config-section')) {
-      const card = el.closest('.config-collapse-card, .cinema-config-section');
-      if (card) card.style.opacity = enabled ? '' : '0.5';
-    }
-    el.disabled = !enabled;
-  });
-}
-
 function syncAiSearchOptions(clearModel) {
-  const provider = document.getElementById("cfg-ai_search-provider")?.value || "";
+  const provider =
+    document.getElementById("cfg-ai_search-provider")?.value || "";
   const modelSelect = document.getElementById("cfg-ai_search-model");
   const searchTypeSelect = document.getElementById("cfg-ai_search-search_type");
   const baseUrlInput = document.getElementById("cfg-ai_search-base_url");
 
   // Update model options based on provider
-  if (modelSelect && typeof PROVIDER_MODEL_MAP !== "undefined" && PROVIDER_MODEL_MAP[provider]) {
+  if (
+    modelSelect &&
+    typeof PROVIDER_MODEL_MAP !== "undefined" &&
+    PROVIDER_MODEL_MAP[provider]
+  ) {
     const currentModel = modelSelect.value;
     const models = PROVIDER_MODEL_MAP[provider];
-    modelSelect.innerHTML = '<option value="">选择模型</option>' +
-      models.map(m => `<option value="${m.value}">${m.label}</option>`).join("");
+    modelSelect.innerHTML =
+      '<option value="">选择模型</option>' +
+      models
+        .map((m) => `<option value="${m.value}">${m.label}</option>`)
+        .join("");
     if (!clearModel && currentModel) {
       modelSelect.value = currentModel;
     }
   }
 
   // Update search type options based on provider
-  if (searchTypeSelect && typeof SEARCH_TYPE_MAP !== "undefined" && SEARCH_TYPE_MAP[provider]) {
+  if (
+    searchTypeSelect &&
+    typeof SEARCH_TYPE_MAP !== "undefined" &&
+    SEARCH_TYPE_MAP[provider]
+  ) {
     const currentType = searchTypeSelect.value;
     const types = SEARCH_TYPE_MAP[provider];
-    searchTypeSelect.innerHTML = '<option value="">选择搜索类型</option>' +
-      types.map(t => `<option value="${t.value}">${t.label}</option>`).join("");
+    searchTypeSelect.innerHTML =
+      '<option value="">选择搜索类型</option>' +
+      types
+        .map((t) => `<option value="${t.value}">${t.label}</option>`)
+        .join("");
     if (currentType) searchTypeSelect.value = currentType;
   } else if (searchTypeSelect) {
     searchTypeSelect.innerHTML = '<option value="">选择搜索类型</option>';
   }
 
   // Auto-fill base URL based on provider
-  if (baseUrlInput && typeof PROVIDER_BASE_URL_MAP !== "undefined" && PROVIDER_BASE_URL_MAP[provider]) {
+  if (
+    baseUrlInput &&
+    typeof PROVIDER_BASE_URL_MAP !== "undefined" &&
+    PROVIDER_BASE_URL_MAP[provider]
+  ) {
     if (!baseUrlInput.value.trim()) {
       baseUrlInput.value = PROVIDER_BASE_URL_MAP[provider];
     }
   }
-
-  syncAiSearchEnabledState();
 }
 
 async function loadPromptDefaults() {
@@ -64,55 +65,144 @@ async function loadPromptDefaults() {
 async function resetActivePrompt(group) {
   const defaults = await loadPromptDefaults();
   const wrapper = document.querySelector(`[data-prompt-tabs="${group}"]`);
-  const active =
-    wrapper?.querySelector(".prompt-tab.active")?.dataset.promptTab;
+  if (!wrapper) return;
+  // 5-tab 区域（ai-prompts）：找当前激活的 .prompt-tab-content → 内部 textarea
+  if (group === "ai-prompts") {
+    const activePanel = wrapper.parentElement.querySelector(
+      ".prompt-tab-content.active",
+    );
+    const activeKey = activePanel?.dataset?.promptContent;
+    if (!activeKey) return;
+    const textarea = activePanel.querySelector("textarea");
+    if (textarea) {
+      textarea.value = (defaults.prompts && defaults.prompts[activeKey]) || "";
+    }
+    return;
+  }
+  // 旧版 ai-assist / ai-search 区域（高级选项 details 内嵌）
+  const active = wrapper.querySelector(".prompt-tab.active")?.dataset.promptTab;
   if (!active) return;
   const textarea = wrapper.querySelector(
     `#cfg-${group === "ai-assist" ? "ai_assist" : "ai_search"}-${active}`,
   );
-  if (textarea) textarea.value = defaults[active] || "";
+  if (textarea)
+    textarea.value = (defaults.prompts && defaults.prompts[active]) || "";
 }
 
 function bindAiConfigInteractions() {
   document
     .getElementById("cfg-ai_search-provider")
     ?.addEventListener("change", () => syncAiSearchOptions(true));
+  // 旧版 ai-assist / ai-search 提示词区（高级选项 details 内嵌的 textarea 切换）
   document
-    .getElementById("cfg-ai_search-enabled")
-    ?.addEventListener("change", syncAiSearchEnabledState);
-  document.querySelectorAll("[data-prompt-tabs]").forEach((wrapper) => {
+    .querySelectorAll(
+      "[data-prompt-tabs='ai-assist'], [data-prompt-tabs='ai-search']",
+    )
+    .forEach((wrapper) => {
+      wrapper.addEventListener("click", (event) => {
+        const tab = event.target.closest("[data-prompt-tab]");
+        if (!tab) return;
+        const key = tab.dataset.promptTab;
+        wrapper
+          .querySelectorAll(".prompt-tab")
+          .forEach((item) => item.classList.toggle("active", item === tab));
+        wrapper
+          .querySelectorAll(".prompt-tab-panel")
+          .forEach((panel) =>
+            panel.classList.toggle("active", panel.id.endsWith(key)),
+          );
+      });
+    });
+  // T2.3 plan: API Key 区页签切换（data-apikey-tab）
+  document.querySelectorAll("[data-apikey-tabs]").forEach((wrapper) => {
     wrapper.addEventListener("click", (event) => {
-      const tab = event.target.closest("[data-prompt-tab]");
+      const tab = event.target.closest("[data-apikey-tab]");
       if (!tab) return;
-      const key = tab.dataset.promptTab;
+      const key = tab.dataset.apikeyTab;
       wrapper
         .querySelectorAll(".prompt-tab")
         .forEach((item) => item.classList.toggle("active", item === tab));
-      wrapper
-        .querySelectorAll(".prompt-tab-panel")
+      const container =
+        wrapper.closest(".config-collapse-body") || wrapper.parentElement;
+      container
+        .querySelectorAll(".apikey-tab-content")
         .forEach((panel) =>
-          panel.classList.toggle("active", panel.id.endsWith(key)),
+          panel.classList.toggle("active", panel.dataset.apikeyContent === key),
         );
     });
   });
+  // T2.4 plan: 提示词区 5 tab 切换（独立于旧 prompt-tab-panel；按 data-prompt-content 激活 .prompt-tab-content）
+  document
+    .querySelectorAll("[data-prompt-tabs='ai-prompts']")
+    .forEach((wrapper) => {
+      wrapper.addEventListener("click", (event) => {
+        const tab = event.target.closest("[data-prompt-tab]");
+        if (!tab) return;
+        const key = tab.dataset.promptTab;
+        wrapper
+          .querySelectorAll(".prompt-tab")
+          .forEach((item) => item.classList.toggle("active", item === tab));
+        const container =
+          wrapper.closest(".config-collapse-body") || wrapper.parentElement;
+        container
+          .querySelectorAll(".prompt-tab-content")
+          .forEach((panel) =>
+            panel.classList.toggle(
+              "active",
+              panel.dataset.promptContent === key,
+            ),
+          );
+      });
+    });
   document.querySelectorAll("[data-prompt-reset]").forEach((btn) => {
     btn.addEventListener("click", () =>
       resetActivePrompt(btn.dataset.promptReset),
     );
   });
+  // T2.6 plan: 场景策略下拉事件（更新 ai-scene-strategy-status 徽章）
+  document
+    .querySelectorAll("[data-scene-primary], [data-scene-fallback]")
+    .forEach((sel) => {
+      sel.addEventListener("change", updateAiConfigStatus);
+    });
+  // T2.4 plan: 首次加载时把 descriptions 注入到 .prompt-help-body
+  loadPromptDefaults()
+    .then((defaults) => {
+      const descs = defaults.descriptions || {};
+      document.querySelectorAll("[data-prompt-description]").forEach((el) => {
+        const key = el.dataset.promptDescription;
+        if (descs[key]) el.textContent = descs[key];
+      });
+    })
+    .catch(() => {});
 }
 
-async function testLlmConnection() {
-  const payload = buildAiSearchPayload().ai_search;
+async function testLlmConnection(triggerEl) {
+  // 根据 data-llm-scenario 区分测试 ai_assist 还是 ai_search，默认 ai_search（兼容旧调用）
+  const scenario = triggerEl?.dataset?.llmScenario || "ai_search";
+  const payload =
+    scenario === "ai_assist"
+      ? buildAiAssistPayload().ai_assist
+      : buildAiSearchPayload().ai_search;
   if (!payload.base_url) {
-    showToast("请先选择厂商或填写接口地址");
+    showToast(
+      scenario === "ai_assist"
+        ? "请先填写 AI 辅助的模型 URL"
+        : "请先选择厂商或填写接口地址",
+    );
     return;
   }
   if (!payload.model) {
-    showToast("请先选择模型ID");
+    showToast(
+      scenario === "ai_assist" ? "请先填写 AI 辅助的模型 ID" : "请先选择模型ID",
+    );
     return;
   }
-  showToast("正在测试 LLM 连通性...");
+  showToast(
+    scenario === "ai_assist"
+      ? "正在测试 AI 辅助连通性..."
+      : "正在测试 LLM 连通性...",
+  );
   const result = await requestApi("POST", "/config/test-llm", {
     api_key: payload.api_key,
     base_url: payload.base_url,
@@ -236,4 +326,3 @@ async function runAiAssistDemo(scenario, demoFile) {
     resultBody.textContent = "请求异常: " + (e.message || e);
   }
 }
-

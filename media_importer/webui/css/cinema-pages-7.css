@@ -428,6 +428,15 @@
 .toggle-row-inline small { font-size: 12px; color: var(--muted); }
 
 .ai-demo-modal-content { max-width: 620px; width: 90%; }
+.demo-modal,
+.demo-modal-content { /* alias 兼容 plan §T2.1 类名 */ }
+.demo-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); }
+.demo-modal-content { background: var(--bg-elevated, #1a1a1a); border-radius: var(--radius-xl, 16px); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); border: 1px solid var(--border-default, #333); max-height: 85vh; overflow-y: auto; }
+.demo-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border-default, #333); }
+.demo-modal-header h3 { margin: 0; font-size: 16px; }
+.demo-modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--muted, #888); padding: 0 4px; line-height: 1; }
+.demo-modal-close:hover { color: var(--fg-primary, #fff); }
+.demo-modal-body { padding: 20px; }
 
 /* AI demo modal overlay (used in index.html) */
 .modal-overlay {

@@ -119,8 +119,14 @@ function bindEvents() {
         rules: saveRulesConfig,
         scrape: () => saveProvidersConfig(""),
         ai: saveLlmConfig,
+        // T2.10 后：每个 tab 独立保存（key 用下划线与配置 section 名一致）
+        ai_assist: saveAiAssistConfig,
+        ai_search: saveAiScrapeConfig,
+        // 向后兼容老 key（连字符形式，当前 HTML 已不使用）
         "ai-assist": saveAiAssistConfig,
         "ai-scrape": saveAiScrapeConfig,
+        "ai-prompts": saveAiPromptsConfig,
+        "ai-scene-strategy": saveAiSceneStrategyConfig,
         naming: saveImportOptionsConfig,
         security: saveSecurityConfig,
         hermes: saveHermesConfig,
@@ -142,7 +148,7 @@ function bindEvents() {
     }
     const llmTest = event.target.closest("[data-llm-test]");
     if (llmTest) {
-      testLlmConnection();
+      testLlmConnection(llmTest);
       return;
     }
     const collapseToggle = event.target.closest("[data-collapse-toggle]");

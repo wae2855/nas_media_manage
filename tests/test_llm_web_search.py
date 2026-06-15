@@ -48,9 +48,10 @@ class TestWebSearchConfig:
         assert cfg.supports_web_search() is False
 
     def test_disabled_ignores_scenario(self):
+        # T2.9: enabled 字段运行时不再依赖，仅保留字段兼容旧 yaml。
         cfg = WebSearchConfig(enabled=False, detected_provider="qwen",
                               enabled_for_scrape=True)
-        assert cfg.should_search("scrape") is False
+        assert cfg.should_search("scrape") is True
 
     def test_scenario_flags_respected(self):
         cfg = WebSearchConfig(enabled=True, detected_provider="qwen",

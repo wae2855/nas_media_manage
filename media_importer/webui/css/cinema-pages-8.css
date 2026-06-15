@@ -16,6 +16,7 @@
 .config-collapse-status { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: rgba(234,191,99,0.12); color: var(--gold-2); }
 .status-configured { background: rgba(38,194,131,0.14); color: var(--green); }
 .status-unconfigured { background: rgba(217,79,69,0.1); color: var(--red); }
+.default-pill { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: rgba(56,132,255,0.14); color: var(--blue, #3884ff); font-weight: 600; margin-left: 6px; vertical-align: middle; }
 .toggle-pill-inline { transform: scale(0.85); margin: 0 2px; }
 
 .info-intro {
@@ -479,4 +480,70 @@
     .scrape-flow-hero {
         flex-direction: column;
     }
+}
+
+/* ============== AI 三区域配置（plan §T2.2-T2.5） ============== */
+.apikey-tab-content { display: none; padding: 12px 0; }
+.apikey-tab-content.active { display: block; }
+.info-callout {
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(234,191,99,0.08);
+    border: 1px solid rgba(234,191,99,0.20);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--fg-secondary, #d0d0d0);
+}
+.prompt-edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 16px;
+}
+.prompt-edit-main textarea { width: 100%; }
+.prompt-help-disclosure summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 6px 0;
+}
+.prompt-help-disclosure[open] summary { margin-bottom: 8px; }
+.prompt-help-body {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted, #888);
+    padding: 4px 0 8px;
+}
+.prompt-tab-content { display: none; }
+.prompt-tab-content.active { display: block; }
+.scene-strategy-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    align-items: start;
+}
+.scene-strategy-row:last-child { border-bottom: none; }
+.scene-strategy-label b { display: block; font-size: 14px; margin-bottom: 4px; }
+.scene-strategy-label small {
+    display: block;
+    font-size: 12px;
+    color: var(--muted, #888);
+    line-height: 1.5;
+    max-width: 520px;
+}
+.scene-strategy-selects {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+}
+.scene-strategy-selects label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted, #888);
+}
+.scene-strategy-selects select {
+    min-width: 160px;
 }

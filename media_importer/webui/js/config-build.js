@@ -2,25 +2,6 @@
   return !value || value.indexOf("***") !== -1;
 }
 
-function updateAiConfigStatus() {
-  var scrapeKey = document.getElementById("cfg-llm_api_key")?.value;
-  var scrapeStatus = document.getElementById("ai-scrape-status");
-  if (scrapeStatus) {
-    scrapeStatus.textContent = scrapeKey ? "已配置" : "未配置";
-    scrapeStatus.className =
-      "config-collapse-status " +
-      (scrapeKey ? "status-configured" : "status-unconfigured");
-  }
-  var assistModel = document.getElementById("cfg-llm_fast_model")?.value;
-  var assistStatus = document.getElementById("ai-assist-status");
-  if (assistStatus) {
-    assistStatus.textContent = assistModel ? "已配置" : "未配置";
-    assistStatus.className =
-      "config-collapse-status " +
-      (assistModel ? "status-configured" : "status-unconfigured");
-  }
-}
-
 var _cachedProviderSchemas = {};
 
 async function loadProviderConfigUI(metadata) {

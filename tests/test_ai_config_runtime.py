@@ -161,10 +161,15 @@ class TestSearchTypeInjection:
 
 
 class TestAiSearchDisabled:
-    """验证 ai_search.enabled=false 时不调用联网搜索。"""
+    """T2.9 后：ai_scene_strategy 统一控制联网搜索启用，ai_search.enabled 仅作历史字段保留。
+    enabled=False 时 web_search_config.enabled 仍为 False（字段保留），
+    但 should_search 仅看 provider/scenario，不再要求 enabled=True。
+    """
 
     def test_disabled_ai_search_no_web_search_injection(self):
-        """关闭 AI 联网搜索后，_inject_search 不应被调用。"""
+        """关闭 AI 联网搜索后，web_search_config.enabled 应为 False（字段保留），
+        但 should_search 看 provider 是否存在（T2.9 后）。
+        """
         from media_importer.scraper.llm_scraper import LLMScraper
 
         config = {
@@ -178,11 +183,11 @@ class TestAiSearchDisabled:
             }
         }
         scraper = LLMScraper(config)
-        # web_search_config.enabled 应为 False
         assert scraper.web_search_config.enabled is False, (
-            "ai_search.enabled=false 时 web_search_config.enabled 应为 False"
+            "ai_search.enabled=false 时 web_search_config.enabled 应为 False（字段保留）"
         )
-        assert scraper.web_search_config.should_search("scrape") is False
+        # T2.9: should_search 不再依赖 enabled，仅看 provider/scenario
+        assert scraper.web_search_config.should_search("scrape") is True
 
     def test_disabled_ai_search_does_not_inject_params(self):
         """关闭后 _do_call 不应注入搜索参数。"""

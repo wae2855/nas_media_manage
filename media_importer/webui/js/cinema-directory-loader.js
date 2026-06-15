@@ -126,8 +126,6 @@ async function loadDirectoryConfig() {
     "cfg-ai_assist-prompt_source_clean",
     aiAssist.prompt_source_clean || "",
   );
-  document.getElementById("cfg-ai_search-enabled").checked =
-    aiSearch.enabled !== false;
   setFieldValue(
     "cfg-ai_search-provider",
     aiSearch.provider || (llm.web_search || {}).provider || "",
@@ -158,7 +156,25 @@ async function loadDirectoryConfig() {
     "cfg-ai_search-prompt_dimension_supplement",
     aiSearch.prompt_dimension_supplement || "",
   );
-  syncAiSearchEnabledState();
+  // T2.6 plan: 新增 ai_scene_strategy 字段回填（5 场景 × 2 下拉）
+  const aiStrategy = rawConfig.ai_scene_strategy || {};
+  const sceneKeys = [
+    "dimension_supplement",
+    "dimension_mapping",
+    "title_clean",
+    "match_assist",
+    "source_clean",
+  ];
+  sceneKeys.forEach((scene) => {
+    const sec = aiStrategy[scene] || {};
+    const primaryEl = document.querySelector(`[data-scene-primary="${scene}"]`);
+    const fallbackEl = document.querySelector(
+      `[data-scene-fallback="${scene}"]`,
+    );
+    if (primaryEl)
+      primaryEl.value = sec.primary || primaryEl.value || "ai_assist";
+    if (fallbackEl) fallbackEl.value = sec.fallback || "";
+  });
   updateAiConfigStatus();
   document.getElementById("cfg-source-cleaner-enabled-inline").checked =
     !!sourceCleaner.enabled;
@@ -268,4 +284,3 @@ async function loadDirectoryConfig() {
     console.warn("renderRuleList 失败,继续后续同步", err);
   }
 }
-

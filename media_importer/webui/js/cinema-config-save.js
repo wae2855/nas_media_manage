@@ -81,6 +81,47 @@ async function saveLlmConfig() {
   await saveAiScrapeConfig();
 }
 
+// T2.6 plan: 新增 ai_prompts / ai_scene_strategy 两个 section save 函数
+// (T2.10: saveAiApikeyConfig 已删除，API Key 区拆分到 saveAiAssistConfig / saveAiScrapeConfig)
+
+async function saveAiPromptsConfig() {
+  const payload = buildAiPromptsPayload();
+  const result = await requestApi("POST", "/config/section", {
+    section: "ai_prompts",
+    data: payload,
+  });
+  showToast(result.message || "AI 提示词配置已保存");
+  if (result.code === 200) {
+    await loadDirectoryConfig();
+  }
+}
+
+async function saveAiSceneStrategyConfig() {
+  const payload = buildAiSceneStrategyPayload();
+  // 前端校验 primary 非空
+  const required = [
+    "dimension_supplement",
+    "dimension_mapping",
+    "title_clean",
+    "match_assist",
+    "source_clean",
+  ];
+  for (const scene of required) {
+    if (!payload[scene].primary) {
+      showToast(`场景 ${scene} 的优先模型不能为空`);
+      return;
+    }
+  }
+  const result = await requestApi("POST", "/config/section", {
+    section: "ai_scene_strategy",
+    data: payload,
+  });
+  showToast(result.message || "AI 场景策略已保存");
+  if (result.code === 200) {
+    await loadDirectoryConfig();
+  }
+}
+
 async function saveAiAssistConfig() {
   const payload = buildAiAssistPayload();
   if (!payload.ai_assist.base_url || !payload.ai_assist.model) {
@@ -99,13 +140,20 @@ async function saveAiAssistConfig() {
 
 async function saveAiScrapeConfig() {
   const payload = buildAiSearchPayload();
+  // T2.9 plan: 不再依赖 ai_search.enabled。如果用户填了 AI 搜索字段，要求齐全；全留空允许保存（表示未启用）。
+  const filled =
+    payload.ai_search.provider ||
+    payload.ai_search.model ||
+    payload.ai_search.search_type ||
+    payload.ai_search.api_key ||
+    payload.ai_search.base_url;
   if (
-    payload.ai_search.enabled &&
+    filled &&
     (!payload.ai_search.provider ||
       !payload.ai_search.model ||
       !payload.ai_search.search_type)
   ) {
-    showToast("启用AI联网搜索增强时，厂商、模型ID和搜索类型都必须选择");
+    showToast("AI联网搜索增强：厂商、模型ID和搜索类型都必填");
     return;
   }
   const result = await requestApi("POST", "/config/section", {

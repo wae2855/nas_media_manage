@@ -225,33 +225,9 @@ function updateWebSearchSupport() {
 }
 
 function updateAiConfigStatus() {
-  const searchEnabled = !!document.getElementById("cfg-ai_search-enabled")
-    ?.checked;
-  const searchModel = String(
-    document.getElementById("cfg-ai_search-model")?.value || "",
-  ).trim();
-  const searchProvider = String(
-    document.getElementById("cfg-ai_search-provider")?.value || "",
-  ).trim();
-  const searchKey = String(
-    document.getElementById("cfg-ai_search-api_key")?.value || "",
-  ).trim();
-  const searchConfigured =
-    searchEnabled && searchProvider && searchModel && searchKey;
-  const scrapeStatus = document.getElementById("ai-scrape-status");
-  if (scrapeStatus) {
-    if (!searchEnabled) {
-      scrapeStatus.textContent = "已关闭";
-      scrapeStatus.className = "config-collapse-status";
-    } else if (searchConfigured) {
-      scrapeStatus.textContent = "已配置";
-      scrapeStatus.className = "config-collapse-status status-configured";
-    } else {
-      scrapeStatus.textContent = "未配置";
-      scrapeStatus.className = "config-collapse-status status-unconfigured";
-    }
-  }
+  // T2.6 plan: 按 3 个 card（ai-apikey / ai-prompts / ai-scene-strategy）分别更新状态徽章
 
+  // 1) API Key 区：ai_assist 或 ai_search 任一配置完整即视为已配置
   const assistModel = String(
     document.getElementById("cfg-ai_assist-model")?.value || "",
   ).trim();
@@ -262,17 +238,77 @@ function updateAiConfigStatus() {
     document.getElementById("cfg-ai_assist-base_url")?.value || "",
   ).trim();
   const assistConfigured = assistModel && assistKey && assistBaseUrl;
-  const assistStatus = document.getElementById("ai-assist-status");
-  if (assistStatus) {
-    if (assistConfigured) {
-      assistStatus.textContent = "已配置";
-      assistStatus.className = "config-collapse-status status-configured";
+
+  const searchModel = String(
+    document.getElementById("cfg-ai_search-model")?.value || "",
+  ).trim();
+  const searchProvider = String(
+    document.getElementById("cfg-ai_search-provider")?.value || "",
+  ).trim();
+  const searchKey = String(
+    document.getElementById("cfg-ai_search-api_key")?.value || "",
+  ).trim();
+  const searchConfigured = searchProvider && searchModel && searchKey;
+
+  const apikeyConfigured = assistConfigured || searchConfigured;
+  const apikeyStatus = document.getElementById("ai-apikey-status");
+  if (apikeyStatus) {
+    if (apikeyConfigured) {
+      apikeyStatus.textContent = "已配置";
+      apikeyStatus.className = "config-collapse-status status-configured";
     } else {
-      assistStatus.textContent = "未配置";
-      assistStatus.className = "config-collapse-status status-unconfigured";
+      apikeyStatus.textContent = "未配置";
+      apikeyStatus.className = "config-collapse-status status-unconfigured";
     }
   }
 
+  // 2) 提示词区：5 个 prompt 任一非默认（用户填过）即视为已配置
+  const promptFields = [
+    "cfg-ai_assist-prompt_title_clean",
+    "cfg-ai_assist-prompt_match_assist",
+    "cfg-ai_assist-prompt_dimension_mapping",
+    "cfg-ai_assist-prompt_source_clean",
+    "cfg-ai_search-prompt_dimension_supplement",
+  ];
+  const promptsConfigured = promptFields.some((id) => {
+    const el = document.getElementById(id);
+    return el && String(el.value || "").trim() !== "";
+  });
+  const promptsStatus = document.getElementById("ai-prompts-status");
+  if (promptsStatus) {
+    if (promptsConfigured) {
+      promptsStatus.textContent = "已自定义";
+      promptsStatus.className = "config-collapse-status status-configured";
+    } else {
+      promptsStatus.textContent = "使用默认";
+      promptsStatus.className = "config-collapse-status status-unconfigured";
+    }
+  }
+
+  // 3) 场景策略区：5 个场景 primary 都已配置
+  const scenes = [
+    "dimension_supplement",
+    "dimension_mapping",
+    "title_clean",
+    "match_assist",
+    "source_clean",
+  ];
+  const strategyConfigured = scenes.every((scene) => {
+    const el = document.querySelector(`[data-scene-primary="${scene}"]`);
+    return el && String(el.value || "").trim() !== "";
+  });
+  const strategyStatus = document.getElementById("ai-scene-strategy-status");
+  if (strategyStatus) {
+    if (strategyConfigured) {
+      strategyStatus.textContent = "已配置";
+      strategyStatus.className = "config-collapse-status status-configured";
+    } else {
+      strategyStatus.textContent = "未配置";
+      strategyStatus.className = "config-collapse-status status-unconfigured";
+    }
+  }
+
+  // 兼容旧 id（保留 scrape-mode-status）
   const scrapeModeStatus = document.getElementById("scrape-mode-status");
   if (scrapeModeStatus) {
     scrapeModeStatus.textContent = "Provider 优先";
