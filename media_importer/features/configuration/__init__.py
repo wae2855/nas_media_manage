@@ -19,12 +19,6 @@ from media_importer.core.config_loader import (
     validate_config as validate_loaded_config,
     validate_dimension_values,
 )
-from media_importer.core.config_migrations import (
-    BOOL_FALSE_STRINGS,
-    BOOL_TRUE_STRINGS,
-    BOOL_KEYS,
-    _normalize_bool_strings,
-)
 from media_importer.core.config_validator import (
     check_path,
     test_hermes_webhook,
@@ -34,11 +28,7 @@ from media_importer.core.config_validator import (
 from media_importer.core.config_view import ConfigView
 
 __all__ = [
-    "BOOL_FALSE_STRINGS",
-    "BOOL_TRUE_STRINGS",
-    "BOOL_KEYS",
     "ConfigView",
-    "_normalize_bool_strings",
     "SECTION_FIELD_MAP",
     "build_config_permission_payload",
     "build_config_ui_payload",

@@ -1,11 +1,11 @@
 import re
-import math
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 
 
+# TitleMatcher 内部候选排序所需阈值。任务状态由 MatchResult.level 决定，
+# 本配置不再作为任务状态判定依据。
 DEFAULT_CONFIDENCE_CONFIG = {
-    # TitleMatcher 仍使用的阈值（保留）
     "provider_match_threshold": 0.85,
     "title_exact_with_year": 1.0,
     "title_exact_with_season": 0.9,
@@ -13,10 +13,6 @@ DEFAULT_CONFIDENCE_CONFIG = {
     "title_exact_year_mismatch": 0.4,
     "title_fuzzy_year_coeff": 0.7,
     "title_min_similarity": 0.3,
-    # 兼容保留（不再实际使用）
-    "pass_threshold": 0.8,
-    "confirm_threshold": 0.5,
-    "review_threshold": 0.3,
     "source_priority": ["tmdb", "ai", "file"],
     "dimensions": {},
 }
@@ -43,20 +39,6 @@ class MatchResult:
     reason: str = ""
 
 
-@dataclass
-class ConfidenceResult:
-    final_confidence: float
-    search_conf: float = 0.0
-    data_conf: float = 1.0
-    data_gate: float = 1.0
-    gate_blocked: Optional[Dict[str, Any]] = None
-    veto: Optional[Dict[str, Any]] = None
-    llm_raw_confidence: Optional[float] = None
-    dimensions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    scrape_trace: Dict[str, Any] = field(default_factory=dict)
-    confidence_detail: Dict[str, Any] = field(default_factory=dict)
-
-
 _RESOLUTION_PATTERNS = re.compile(
     r'[.\s_-](1080[pi]|720p|2160p|4320p|4[Kk]|UHD|FHD|MiniHD|MiniWT|HDS)(?=[.\s_-]|$)',
     re.IGNORECASE
@@ -70,7 +52,7 @@ _RELEASE_GROUP_END = re.compile(r'[.\s_-]-([A-Za-z0-9_.@&\u4e00-\u9fff\u3400-\u4
 _RELEASE_GROUP_TAIL = re.compile(r'[.\s_-]([A-Z][A-Z0-9]{2,})$')
 _SEASON_EPISODE = re.compile(r'[.\s_-]?[Ss](\d+)[Ee](\d+)(?:[Ee](\d+))?', re.IGNORECASE)
 _SEASON_ONLY = re.compile(r'[.\s_-]?[Ss](\d+)(?![Ee]\d)', re.IGNORECASE)
-_YEAR_PATTERN = re.compile(r'[.\s_(](19\d{2}|20\d{2})(?=[.\s_)]|$)')
+_YEAR_PATTERN = re.compile(r'[.\s_(](19\d{2}|20\d{2})[Pp]?(?=[.\s_)]|$)')
 _YEAR_PAREN = re.compile(r'\s*\((19\d{2}|20\d{2})\)')
 _AD_PATTERN = re.compile(r'(www\.|https?://|\.com\b|\.net\b|\.org\b)', re.IGNORECASE)
 _AD_FULL_PATTERN = re.compile(r'(?:www\.|https?://)?[a-zA-Z0-9-]+\.(com|net|org)\b[.\s_-]*[\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]*', re.IGNORECASE)
@@ -92,13 +74,3 @@ _CODEC_PREFIX_RE = re.compile(
     r'^(MA\d*|Atmos|TrueHD|AC3|DTS|FLAC|AAC|DDP\d*\.?\d*|DD\d*\.?\d*|HEVC|AVC|x264|x265|XviD|HDR\d*|DV|SBS|Remux|PROPER|REPACK)$',
     re.IGNORECASE
 )
-
-
-def _calc_R(total_results: int, formula: str = "log", cap: int = 10, min_val: float = 0.1) -> float:
-    """兼容保留：R 值计算已不再使用，返回 1.0。"""
-    return 1.0
-
-
-def _aggregate(values: List[float], weights: List[float], method: str = "geometric_mean") -> float:
-    """兼容保留：聚合计算已不再使用，返回 1.0。"""
-    return 1.0

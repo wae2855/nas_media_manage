@@ -153,7 +153,7 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
 
         has_running_tasks = state._global_task_manager and state._global_task_manager.has_running_tasks()
 
-        safe_sections = {"source_cleaner", "confidence", "advanced"}
+        safe_sections = {"source_cleaner", "advanced"}
         body_sections = set(body.keys())
         is_safe_update = body_sections.issubset(safe_sections)
 

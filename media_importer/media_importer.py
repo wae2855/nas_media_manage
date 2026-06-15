@@ -236,8 +236,17 @@ def cmd_health(args):
     temp_dir = config.get("temp_dir", "")
     checks["temp_dir"] = "ok" if os.path.isdir(temp_dir) else "error"
 
-    llm_cfg = config.get("llm", {})
-    checks["llm_api"] = "ok" if llm_cfg.get("api_key") else "missing_api_key"
+    ai_assist = config.get("ai_assist", {})
+    ai_search = config.get("ai_search", {})
+    assist_ok = bool(
+        ai_assist.get("api_key") and ai_assist.get("base_url") and ai_assist.get("model")
+    )
+    search_ok = bool(
+        ai_search.get("api_key") and ai_search.get("model")
+    )
+    checks["ai_api"] = "ok" if (assist_ok or search_ok) else "missing_api_key"
+    checks["ai_assist_configured"] = "ok" if assist_ok else "missing"
+    checks["ai_search_configured"] = "ok" if search_ok else "missing"
 
     hermes_cfg = config.get("hermes", {})
     checks["hermes"] = "ok" if hermes_cfg.get("enabled") else "disabled"

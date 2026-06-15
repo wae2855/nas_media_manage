@@ -139,7 +139,7 @@ class TMDbProvider(MetadataProvider):
                 results.append(DimensionMapping(
                     name=mapping["name"],
                     value=mapping["value"],
-                    confidence=mapping.get("confidence", 1.0),
+                    source_reliability=mapping.get("source_reliability", 1.0),
                     source="tmdb",
                 ))
         return results
@@ -187,6 +187,3 @@ class TMDbProvider(MetadataProvider):
             "3. 如果 TMDb 数据与文件名信息有冲突，以 TMDb 数据为准，但季/集编号以文件名为准。\n\n"
             "以下维度的映射数据已自动提取为参考（如为 null 表示未提供），请对每个维度给出判断：\n"
         )
-
-    def get_prompt_file_name(self) -> str:
-        return "tmdb_prompts.md"

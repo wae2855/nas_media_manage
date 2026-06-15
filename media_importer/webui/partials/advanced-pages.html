@@ -22,7 +22,7 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
                             <b>先处理真正会影响主流程的项</b>
                         </div>
-                        <small>优先看入库名称规范、影视分类维度和AI刮削提示词。</small>
+                        <small>优先看入库名称规范、影视分类维度和安全配置。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
@@ -45,7 +45,6 @@
     <section class="advanced-card-list">
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="naming-config"><div><h3>入库名称规范</h3><p>决定电影、剧集、字幕和重名文件最后怎样命名。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="dimensions-config"><div><h3>影视分类维度</h3><p>控制哪些维度参与分类判断、变量输出和目录映射。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
-        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="prompt-config"><div><h3>AI刮削提示词</h3><p>分别调整纯 AI 推理与 LLM+TMDB 整理时使用的提示词。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="security-config"><div><h3>安全配置</h3><p>控制 API 认证和监听端口，属于低频但高影响的设置。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="hermes-config"><div><h3>Hermes通知</h3><p>配置外部通知链路、重试策略和测试入口。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="system-settings"><div><h3>系统设置</h3><p>管理应用目录、并发数以及视频和字幕识别范围。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
@@ -66,7 +65,7 @@
             <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
         </div>
     </div>
-    <section class="config-panel advanced-host-panel confidence-simulator-page">
+    <section class="config-panel advanced-host-panel match-preview-page">
         <div class="config-form-grid">
             <article class="form-card form-card-full config-guide-card">
                 <span>这一页先做什么</span>
@@ -83,7 +82,7 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
                             <b>查看匹配路径</b>
                         </div>
-                        <small>Provider精确匹配 → AI上下文辅助 → 用户确认，每一步都有清晰说明。</small>
+                        <small>Provider精确匹配 → 🤖 AI上下文辅助匹配 → 用户确认，每一步都有清晰说明。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
@@ -95,29 +94,24 @@
                 </div>
             </article>
         </div>
-        <article class="confidence-simulator">
+        <article class="match-preview">
             <div>
-                <span class="confidence-kicker">刮削测试</span>
+                <span class="match-preview-kicker">三级匹配模拟</span>
                 <h3>输入一个文件名，测试三级匹配刮削流程</h3>
-                <p>Provider精确匹配 → AI上下文辅助匹配 → 用户确认，展示完整匹配路径和入库决策。</p>
+                <p>Provider精确匹配 → 🤖 AI上下文辅助匹配 → 用户确认，展示完整匹配路径和入库决策。</p>
             </div>
-            <div class="confidence-sim-row">
-                <input id="confidence-sim-filename" type="text" placeholder="例如：Dune.Part.Two.2024.1080p.mkv">
-                <button class="btn btn-primary" type="button" id="btn-confidence-simulate">刮削开始</button>
+            <div class="match-preview-row">
+                <input id="match-preview-filename" type="text" placeholder="例如：Dune.Part.Two.2024.1080p.mkv">
+                <button class="btn btn-primary" type="button" id="btn-match-preview">刮削开始</button>
             </div>
-            <div class="confidence-sim-result" id="confidence-sim-result">输入文件名后，系统将执行三级匹配刮削并展示完整路径。</div>
+            <div class="match-preview-result" id="match-preview-result">输入文件名后，系统将执行三级匹配刮削并展示完整路径。</div>
         </article>
     </section>
 </section>
 
 <section class="page-view" data-view="metadata-config">
-    <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>影视刮削配置</h2><p>承接旧“AI刮削 / 元数据源配置”，让新手先确认 Provider 和搜索策略。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
+    <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>影视刮削配置</h2><p>统一管理 Provider、搜索策略和元数据源。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
     <section class="config-grid"><article><b>Provider 顺序</b><span>TMDB、Provider、文件名与 AI 数据源优先级。</span></article><article><b>搜索策略</b><span>标题清洗、年份匹配、结果数量与降级策略。</span></article><article><b>可用性检查</b><span>展示连接状态、API Key 状态和最近测试结果。</span></article></section>
-</section>
-
-<section class="page-view" data-view="ai-config">
-    <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>AI 配置</h2><p>承接旧“AI刮削 / LLM配置”，集中配置模型、端点、密钥和测试入口。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
-    <section class="config-grid"><article><b>LLM 服务</b><span>Base URL、模型名、API Key 脱敏展示。</span></article><article><b>调用参数</b><span>温度、超时、重试和并发限制。</span></article><article><b>连接测试</b><span>发送最小请求，返回可读的成功或失败原因。</span></article></section>
 </section>
 
 <section class="page-view" data-view="schedule-config">
@@ -245,114 +239,6 @@
             <div class="dim-section">
                 <h4 class="dim-section-title">可添加维度</h4>
                 <div id="dim-available-list" class="dim-list"></div>
-            </div>
-        </div>
-    </section>
-</section>
-
-<section class="page-view" data-view="prompt-config">
-    <div class="page-hero">
-        <div>
-            <div class="eyebrow">高级配置</div>
-            <h2>AI刮削提示词</h2>
-            <div class="path-breadcrumb" aria-label="当前路径">
-                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>AI刮削提示词</strong>
-            </div>
-            <p>把纯 AI 与 LLM+TMDB 提示词拆开配置，同时保留恢复默认、完整预览和编写指南。</p>
-        </div>
-        <div class="hero-action-group">
-            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
-            <button class="btn btn-primary" type="button" data-prompt-action="save-all">保存全部</button>
-        </div>
-    </div>
-    <section class="config-panel advanced-host-panel">
-        <div class="config-form-grid">
-            <article class="form-card form-card-full config-guide-card">
-                <span>这一页先做什么</span>
-                <div class="config-guide-list compact">
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"></use></svg></span>
-                            <b>先改纯 AI 提示词</b>
-                        </div>
-                        <small>没有 TMDB 结果时，它决定 AI 如何直接从文件名推理。</small>
-                    </div>
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clapper"></use></svg></span>
-                            <b>再调 LLM+TMDB 提示词</b>
-                        </div>
-                        <small>有 TMDB 数据时，它主要负责整理、补全和纠偏。</small>
-                    </div>
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                            <b>保存前先预览完整提示词</b>
-                        </div>
-                        <small>最终发送给模型的内容会自动拼上维度规则和 Schema，建议先看一遍。</small>
-                    </div>
-                </div>
-            </article>
-        </div>
-        <div class="advanced-disclosure-list">
-            <button class="advanced-disclosure-item active" data-advanced-disclosure="prompt-llm">
-                <div><strong>LLM纯AI</strong><small>无 TMDB 数据时，直接从文件名与维度规则推理</small></div>
-                <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
-            </button>
-            <div class="advanced-disclosure-panel active" data-advanced-panel="prompt-llm">
-                <textarea id="prompt-system" class="prompt-editor-textarea" placeholder="系统提示词..."></textarea>
-                <div class="advanced-action-row">
-                    <button class="btn btn-secondary" type="button" data-prompt-action="reset-system">恢复默认</button>
-                    <button class="btn btn-secondary" type="button" data-prompt-action="preview-system">预览完整提示词</button>
-                </div>
-            </div>
-
-            <button class="advanced-disclosure-item" data-advanced-disclosure="prompt-tmdb">
-                <div><strong>LLM+TMDB</strong><small>有 TMDB 数据时，由 AI 负责整理、校验与维度补全</small></div>
-                <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
-            </button>
-            <div class="advanced-disclosure-panel" data-advanced-panel="prompt-tmdb">
-                <textarea id="prompt-tmdb" class="prompt-editor-textarea" placeholder="LLM+TMDB 系统提示词..."></textarea>
-                <div class="advanced-action-row">
-                    <button class="btn btn-secondary" type="button" data-prompt-action="reset-tmdb">恢复默认</button>
-                    <button class="btn btn-secondary" type="button" data-prompt-action="preview-tmdb">预览完整提示词</button>
-                </div>
-            </div>
-
-            <button class="advanced-disclosure-item" data-advanced-disclosure="prompt-guide">
-                <div><strong>编写指南</strong><small>提示词结构、维度规则和优化建议</small></div>
-                <i aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-down"></use></svg></i>
-            </button>
-            <div class="advanced-disclosure-panel" data-advanced-panel="prompt-guide">
-                <div class="guide-stack">
-                    <section class="guide-block">
-                        <h3>提示词结构</h3>
-                        <p>提示词分为上下两半：上半部是你可编辑的系统提示词，下半部是系统自动追加的维度列表与 JSON Schema。</p>
-                    </section>
-                    <section class="guide-block">
-                        <h3>维度判断规则</h3>
-                        <ul>
-                            <li>维度判断内容来自“影视分类维度”中的 AI 提示词。</li>
-                            <li>启用或禁用维度会自动影响最终拼接内容。</li>
-                            <li>使用“预览完整提示词”可以查看最终发送给模型的完整文本。</li>
-                        </ul>
-                    </section>
-                    <section class="guide-block">
-                        <h3>两种提示词区别</h3>
-                        <ul>
-                            <li><strong>LLM纯AI</strong>：没有 TMDB 结果时，AI 从文件名直接推理。</li>
-                            <li><strong>LLM+TMDB</strong>：已有 TMDB 数据时，AI 负责整理、补全与纠偏。</li>
-                        </ul>
-                    </section>
-                    <section class="guide-block">
-                        <h3>优化建议</h3>
-                        <ul>
-                            <li>给出标题翻译的正反例，减少多语言命名误差。</li>
-                            <li>把维度专属规则写在对应维度的 AI 提示词中，而不是全部堆在系统提示词里。</li>
-                            <li>在系统提示词中明确 confidence 的评分基准，方便后续自动入库与人工确认协作。</li>
-                        </ul>
-                    </section>
-                </div>
             </div>
         </div>
     </section>

@@ -25,7 +25,7 @@ class SearchItem:
 @dataclass
 class SearchResult:
     items: List[SearchItem]
-    total_results: int
+    total_results: int = 0
 
 
 @dataclass
@@ -52,7 +52,7 @@ class MediaDetails:
 class DimensionMapping:
     name: str
     value: Any
-    confidence: float
+    source_reliability: float
     source: str
 
 
@@ -104,6 +104,3 @@ class MetadataProvider(ABC):
             "3. 如果 {provider_name} 数据与文件名信息有冲突，以 {provider_name} 数据为准，但季/集编号以文件名为准。\n\n"
             "以下维度的映射数据已自动提取为参考（如为 null 表示未提供），请对每个维度给出判断：\n"
         )
-
-    def get_prompt_file_name(self) -> str:
-        return f"{self.provider_type}_prompts.md"

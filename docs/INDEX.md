@@ -18,7 +18,7 @@
 | `media_importer/features/import_flow/` | 入库流程业务域，持有 PipelineRunner、steps、确认和 services 实现 | [features/import-flow.md](features/import-flow.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_feature_import_flow.py`、`tests/test_import_flow_services.py`、`tests/test_classify_preview.py` |
 | `media_importer/features/source_files/` | 源文件处理策略，持有成功入库、跳过、临时文件和伴生文件清理规则 | [features/source-files.md](features/source-files.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_import_flow_services.py`、`tests/test_recycle_safety.py`、`tests/test_architecture_guards.py` |
 | `media_importer/features/source_cleaning/` | 源目录清理业务域，持有清理器实现和记录入口 | [features/source-cleaning.md](features/source-cleaning.md) | [architecture/source-cleaner.md](architecture/source-cleaner.md) | `tests/test_feature_source_cleaning.py` |
-| `media_importer/features/scraping/` | 刮削、LLM、三级匹配引擎、TMDB 和维度匹配业务入口 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_match_engine.py`、`tests/test_feature_entrypoints.py` |
+| `media_importer/features/scraping/` | 刮削、LLM、三级匹配引擎、维度解析、提示词解析、TMDB 和维度匹配业务入口 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_match_engine.py`、`tests/test_feature_entrypoints.py`、`tests/test_ai_config_runtime.py`、`tests/test_dimension_resolution.py`、`tests/test_match_engine_keyword_loop.py`、`tests/test_prompt_runtime.py` |
 | `media_importer/features/providers/` | 元数据 Provider 注册和工厂业务入口 | [features/providers.md](features/providers.md) | [architecture/scraping.md](architecture/scraping.md) | Provider/API 测试 |
 | `media_importer/features/prompts/` | 提示词模板和默认提示词业务入口 | [features/prompts.md](features/prompts.md) | [architecture/scraping.md](architecture/scraping.md) | Prompt tests |
 | `media_importer/scraper/` | LLM 刮削、Provider、匹配引擎、维度映射实现位置 | [features/scraping.md](features/scraping.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_match_engine.py` |
@@ -44,7 +44,10 @@
 
 ## Current Plans
 
+- [去历史兼容化清理计划](plans/2026-06-13-refactor-remove-legacy-compatibility-plan.md) — 新产品模式下删除旧配置、旧 API、旧 UI、旧字段和旧 shim，收敛到当前事实源
+- [去历史兼容化验收与回归测试计划](plans/2026-06-13-legacy-cleanup-acceptance-test-plan.md) — 自动化、API、Playwright 和组合场景验收，作为 scraper 整包迁移前置门槛
 - [三级匹配策略重构](plans/2026-06-12-refactor-three-tier-matching-plan.md) — complete, 替代置信度公式体系，ADR-0005
+- [AI 配置重设计完成计划](plans/2026-06-13-ai-config-redesign-completion-plan.md) — 后端契约修复完成，search_type 注入、ai_assist/ai_search 分离、media_type 兼容、confirm_reason 持久化、真实 dim_sources、二级关键词回搜、PromptResolver
 - [Status+Stage 双层任务状态模型重构](plans/2026-06-09-task-status-stage-refactor.md) — Phase 1-4 开发完成，待验收
 - [CANCELLED 任务取消能力](plans/2026-06-10-cancelled-task-feature.md) — 为排队任务增加取消能力，CANCELLED 状态完整实现
 - [任务工作台交互与失败语义细化](plans/2026-06-10-task-workbench-interaction-refinement.md) — 卡片点击选中、详情编辑布局重构、孤儿 RUNNING 标记为 FAILED

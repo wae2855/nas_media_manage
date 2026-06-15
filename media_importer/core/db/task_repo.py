@@ -58,6 +58,11 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict:
             row['match_trace'] = json.loads(row['match_trace'])
         except (json.JSONDecodeError, TypeError):
             pass
+    if row and row.get('dim_sources'):
+        try:
+            row['dim_sources'] = json.loads(row['dim_sources'])
+        except (json.JSONDecodeError, TypeError):
+            pass
     if row:
         subs = get_subtitles_by_task(conn, task_id)
         row['subtitle_files'] = [s.get('target_path', '') or s.get('source_path', '')
@@ -129,7 +134,8 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.percentage, t.file_size_mb, t.retry_count, "
                 "t.scrape_title_cn, t.scrape_title_en, t.scrape_year, "
                 "t.scrape_media_type, t.scrape_season, t.scrape_episode, "
-                "t.scrape_confidence, t.scrape_trace, t.scrape_result, t.import_path, t.final_filename, "
+                "t.scrape_trace, t.scrape_result, t.confirm_reason, t.dim_sources, "
+                "t.import_path, t.final_filename, "
                 "t.skip_reason, t.error_message, t.import_success, "
                 "t.confirm_status, t.video_path, t.file_location, "
                 "t.import_video_path, t.provider_type, t.provider_id, "
@@ -155,6 +161,11 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 row['scrape_result'] = json.loads(row['scrape_result'])
             except (json.JSONDecodeError, TypeError):
                 pass
+        if row.get('dim_sources'):
+            try:
+                row['dim_sources'] = json.loads(row['dim_sources'])
+            except (json.JSONDecodeError, TypeError):
+                pass
     total_pages = max(1, (total + page_size - 1) // page_size)
     return rows, total, total_pages
 
@@ -167,8 +178,9 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "percentage", "bytes_copied", "total_bytes",
         "scrape_result", "scrape_title_cn", "scrape_title_en",
         "scrape_year", "scrape_media_type", "scrape_season",
-        "scrape_episode", "scrape_dimensions", "scrape_confidence",
+        "scrape_episode", "scrape_dimensions",
         "scrape_trace", "match_level", "match_concerns", "match_trace",
+        "confirm_reason", "dim_sources",
         "classify_result", "import_path", "final_filename",
         "dedup_result", "dedup_existing_file", "import_video_path",
         "video_path", "file_location", "import_success", "confirm_status", "confirmed_at",
@@ -180,7 +192,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:

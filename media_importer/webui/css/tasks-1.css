@@ -1,0 +1,501 @@
+/* tasks-1.css - part 1 of 3 */
+/* ============== 状态筛选页签 (任务列表) ============== */
+.status-filter-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 0 0 12px 0;
+}
+
+.status-filter-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    user-select: none;
+}
+
+.status-filter-tab:hover {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--text-primary);
+}
+
+.status-filter-tab.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+/* ============== 任务行 - 双行布局 ============== */
+.task-row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.task-row-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.task-row-title .task-filename {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.task-row-title .task-filename:hover {
+    color: var(--primary-color);
+}
+
+.task-row-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+}
+
+.task-scrape-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--primary-color);
+    font-size: 11px;
+}
+
+.task-scrape-chip.type-movie {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+}
+
+.task-scrape-chip.type-tv {
+    background: rgba(139, 92, 246, 0.1);
+    color: #A78BFA;
+}
+
+.task-subtitle-cell {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.task-subtitle-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(100, 116, 139, 0.12);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.task-subtitle-count:hover {
+    background: rgba(100, 116, 139, 0.25);
+}
+
+.task-subtitle-count.has-subs {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+}
+
+/* ============== 状态角标 ============== */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-badge-PENDING {
+    background: rgba(245, 158, 11, 0.15);
+    color: #F59E0B;
+}
+
+.status-badge-PROCESSING {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3B82F6;
+    position: relative;
+    overflow: hidden;
+}
+
+.status-badge-PROCESSING::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: conic-gradient(from 0deg, transparent, rgba(59,130,246,0.4), transparent);
+    animation: rotate-border 1.5s linear infinite;
+}
+
+@keyframes rotate-border {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+.processing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--primary-color);
+    font-size: 12px;
+    animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+.processing-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+.status-badge-SUCCESS {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+}
+
+.status-badge-FAILED {
+    background: rgba(239, 68, 68, 0.15);
+    color: #EF4444;
+}
+
+.status-badge-SKIPPED {
+    background: rgba(100, 116, 139, 0.15);
+    color: #94A3B8;
+}
+
+.status-badge-CONFIRMING {
+    background: rgba(139, 92, 246, 0.15);
+    color: #A78BFA;
+}
+
+/* ============== 入库路径列 ============== */
+.task-import-path {
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.task-import-path:hover {
+    color: var(--text-primary);
+}
+
+/* ============== 操作列按钮 ============== */
+.task-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
+.task-action-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+
+.task-action-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.task-action-btn:hover {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.task-action-btn.confirm:hover {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.task-action-btn.reclassify:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--primary-color);
+}
+
+.task-action-btn.rollback:hover {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
+.task-action-btn.retry:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--primary-color);
+}
+
+.task-action-btn.ignore:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+}
+
+.task-action-btn.copy-path:hover {
+    background: rgba(100, 116, 139, 0.2);
+    color: var(--text-primary);
+}
+
+.task-action-btn.delete {
+    color: var(--text-muted);
+}
+
+.task-action-btn.delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+}
+
+/* ============== 弹窗系统 ============== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.modal-dialog {
+    background: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    max-width: 640px;
+    width: 92%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-dialog.modal-lg {
+    max-width: 800px;
+}
+
+.modal-dialog.modal-md {
+    max-width: 540px;
+}
+
+.modal-dialog.modal-sm {
+    max-width: 420px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.modal-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ============== 分页控件 ============== */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 0 4px;
+}
+
+.pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--primary-color);
+}
+
+.pagination-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 8px;
+}
+
+/* ============== 详情弹窗内容 ============== */
+.detail-dim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+}
+
+.detail-dim-item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+}
+
+.detail-dim-item.dim-default {
+    border-left-color: #64748B;
+    background: rgba(100, 116, 139, 0.08);
+}
+
+.detail-dim-key {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.detail-dim-val {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.detail-dim-edit {
+    font-size: 12px;
+    color: var(--primary-color);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.detail-dim-edit:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.detail-dim-select {
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+.detail-dim-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* ============== 字幕表格 ============== */
+.subtitle-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.subtitle-table th,
+.subtitle-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+}
+
+.subtitle-table th {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;

@@ -1,0 +1,315 @@
+/* tasks-3.css - part 3 of 3 */
+}
+
+.delete-confirm-location {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.delete-location-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background: rgba(100, 116, 139, 0.15);
+    color: var(--text-secondary);
+}
+
+.delete-confirm-options {
+    padding: 12px;
+    background: var(--bg-surface);
+    border-radius: 8px;
+    margin-bottom: 0;
+}
+
+.delete-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.delete-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--danger-color);
+    cursor: pointer;
+}
+
+.delete-confirm-warning {
+    font-size: 12px;
+    color: var(--warning-color);
+    margin: 0;
+    padding-left: 24px;
+}
+
+.delete-confirm-danger-note {
+    font-size: 12px;
+    color: var(--danger-color);
+    margin: 4px 0 0 0;
+    padding-left: 24px;
+}
+
+.scrape-trace-timeline {
+    position: relative;
+    padding-left: 24px;
+}
+
+.scrape-trace-step {
+    position: relative;
+    padding-bottom: 16px;
+    padding-left: 20px;
+}
+
+.scrape-trace-step:last-child {
+    padding-bottom: 0;
+}
+
+.scrape-trace-dot {
+    position: absolute;
+    left: -8px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
+    z-index: 1;
+}
+
+.scrape-trace-line {
+    position: absolute;
+    left: -3px;
+    top: 18px;
+    width: 2px;
+    bottom: 0;
+    background: var(--border-color);
+}
+
+.scrape-trace-content {
+    min-width: 0;
+}
+
+.scrape-trace-label {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.scrape-trace-detail {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin-bottom: 2px;
+}
+
+.scrape-trace-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.scrape-trace-extra {
+    margin-top: 6px;
+    padding: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+}
+
+/* Confidence Detail Modal */
+.conf-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.conf-detail-modal {
+    background: var(--bg-base, #fff);
+    border-radius: 12px;
+    max-width: 800px;
+    width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.conf-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.conf-detail-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+.conf-detail-header .conf-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+}
+.conf-detail-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+.conf-trace-step {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 0 12px;
+    min-height: 40px;
+}
+.conf-trace-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.conf-trace-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+.conf-trace-line {
+    width: 2px;
+    flex: 1;
+    min-height: 8px;
+    background: var(--border-color, #e5e7eb);
+}
+.conf-trace-content {
+    padding-bottom: 16px;
+}
+.conf-step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.conf-step-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.conf-step-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+.conf-detail-card {
+    background: var(--bg-surface, #f9fafb);
+    border: 1px solid var(--border-subtle, #e5e7eb);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+}
+.conf-kv {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+}
+.conf-k {
+    color: var(--text-secondary, #6b7280);
+    min-width: 80px;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+.conf-v {
+    color: var(--text-primary, #111827);
+    word-break: break-all;
+}
+.conf-dim-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 6px;
+}
+.conf-dim-table th {
+    text-align: left;
+    padding: 4px 8px;
+    background: var(--bg-base, #fff);
+    border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+    color: var(--text-secondary, #6b7280);
+    font-weight: 600;
+}
+.conf-dim-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    color: var(--text-primary, #111827);
+}
+.conf-dim-table .source-tag {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+}
+.conf-calc-flow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    font-size: 14px;
+}
+.conf-calc-num {
+    font-weight: 700;
+    font-family: monospace;
+}
+.conf-calc-op {
+    color: var(--text-secondary, #6b7280);
+    font-size: 16px;
+}
+.conf-calc-result {
+    font-size: 20px;
+    font-weight: 800;
+    font-family: monospace;
+}
+.conf-decision-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 8px;
+}
+.conf-clickable {
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.conf-clickable:hover {
+    opacity: 0.7;
+}
+.conf-veto-alert {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #991B1B;
+    font-size: 13px;
+}

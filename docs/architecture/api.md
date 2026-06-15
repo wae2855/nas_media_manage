@@ -154,3 +154,77 @@ PENDING/QUEUED
 ## Standards
 
 见 [../standards/api.md](../standards/api.md)。
+
+## Config API: AI 配置字段
+
+### ai_assist 配置段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `base_url` | string | "" | AI 辅助模型 API 地址 |
+| `model` | string | "" | AI 辅助模型 ID |
+| `api_key` | string | "" | API Key（返回时脱敏为 `***`） |
+| `timeout` | int | 30 | 请求超时（秒） |
+| `max_retries` | int | 2 | 最大重试次数 |
+| `retry_delay` | int | 3 | 重试间隔（秒） |
+| `verify_ssl` | bool | true | 是否验证 SSL 证书 |
+| `prompt_title_clean` | string | "" | 标题清洗提示词（空=使用默认） |
+| `prompt_match_assist` | string | "" | 匹配辅助提示词（空=使用默认） |
+| `prompt_dimension_mapping` | string | "" | 维度映射提示词（空=使用默认） |
+| `prompt_source_clean` | string | "" | 源目录清理提示词（空=使用默认） |
+
+### ai_search 配置段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | bool | false | 是否启用 AI 联网搜索增强 |
+| `provider` | string | "" | 搜索厂商：zhipu/qwen/moonshot |
+| `model` | string | "" | 搜索模型 ID |
+| `search_type` | string | "" | 搜索类型（厂商相关） |
+| `api_key` | string | "" | API Key（返回时脱敏为 `***`） |
+| `base_url` | string | "" | 搜索模型 API 地址 |
+| `prompt_dimension_supplement` | string | "" | 维度补全提示词（空=使用默认） |
+
+### GET /api/config/prompt-defaults
+
+返回各场景默认提示词，供前端"恢复默认"使用。
+
+响应体：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "prompt_title_clean": "你是一个影视标题提取助手...",
+    "prompt_match_assist": "你是一个影视搜索关键词优化助手...",
+    "prompt_dimension_mapping": "...",
+    "prompt_dimension_supplement": "..."
+  }
+}
+```
+
+## Scraping: 三级匹配与维度确认
+
+### 匹配流程
+
+1. **第一级**：Provider 精确匹配（标题+年份）→ AUTO_PASS
+2. **第二级**：AI 建议关键词 → Provider 回搜 → 唯一精确匹配 → CONTEXT_PASS
+3. **第三级**：用户确认 → NEEDS_CONFIRM
+
+### 维度来源追踪
+
+每个维度来源记录为以下格式之一：
+- `provider:tmdb` / `provider:douban` — Provider 直接映射
+- `ai_assist` — AI 辅助模型分析
+- `ai_search` — AI 联网搜索补全
+- `file` — 文件分析（ffprobe 等）
+- `unknown` — 无法确定来源
+
+### 任务字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `confirm_reason` | string | 需要用户确认的原因（持久化到 DB） |
+| `dim_sources` | dict | 逐维度来源追踪 |
+| `match_level` | string | AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM |
+| `scrape_media_type` | string | 优先使用 media_type，兼容 type |

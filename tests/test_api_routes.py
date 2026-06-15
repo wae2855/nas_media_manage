@@ -68,13 +68,10 @@ class TestAPIRoutes(unittest.TestCase):
             "GET", "/api/providers/tmdb/genres", "_provider_genres_list",
             {"provider_type": "tmdb"},
         )
-        route = self.assert_route(
+        self.assert_route(
             "POST", "/api/providers/tmdb/search", "_provider_search",
             {"provider_type": "tmdb"},
         )
-
-        self.assertTrue(route.pass_body)
-        self.assertTrue(route.body_before_params)
 
     def test_dimension_routes(self):
         self.assert_route(
@@ -107,50 +104,31 @@ class TestAPIRoutes(unittest.TestCase):
                     f"{route.method} {route.pattern} -> {route.handler_name}",
                 )
 
-    def test_dispatch_orders_task_params_before_body(self):
+    def test_dispatch_unified_kwargs_signature(self):
+        """新 dispatch 统一 handler 签名 (self, *, body, params, query)。"""
         handler = APIHandler.__new__(APIHandler)
         calls = []
         handler._check_auth = lambda: True
-        handler._task_reclassify = lambda task_id, body: calls.append((task_id, body))
+        handler._task_reclassify = lambda *, body, params, query: calls.append(("reclassify", body, params, query))
+        handler._provider_search = lambda *, body, params, query: calls.append(("search", body, params, query))
+        handler._delete_task = lambda *, body, params, query: calls.append(("delete", body, params, query))
 
-        handled = handler._dispatch_api_route(
-            "POST",
-            "/api/tasks/t1/reclassify",
+        handler._dispatch_api_route(
+            "POST", "/api/tasks/t1/reclassify",
             body={"dimensions": {"media_type": "movie"}},
         )
-
-        self.assertTrue(handled)
-        self.assertEqual(calls, [("t1", {"dimensions": {"media_type": "movie"}})])
-
-    def test_dispatch_orders_provider_body_before_params(self):
-        handler = APIHandler.__new__(APIHandler)
-        calls = []
-        handler._check_auth = lambda: True
-        handler._provider_search = lambda body, provider_type: calls.append((body, provider_type))
-
-        handled = handler._dispatch_api_route(
-            "POST",
-            "/api/providers/tmdb/search",
+        handler._dispatch_api_route(
+            "POST", "/api/providers/tmdb/search",
             body={"query": "Inception"},
         )
-
-        self.assertTrue(handled)
-        self.assertEqual(calls, [({"query": "Inception"}, "tmdb")])
-
-    def test_dispatch_extracts_delete_files_from_body(self):
-        handler = APIHandler.__new__(APIHandler)
-        calls = []
-        handler._check_auth = lambda: True
-        handler._delete_task = lambda task_id, delete_files=False: calls.append((task_id, delete_files))
-
-        handled = handler._dispatch_api_route(
-            "POST",
-            "/api/tasks/t1/delete",
+        handler._dispatch_api_route(
+            "POST", "/api/tasks/t1/delete",
             body={"delete_files": True},
         )
 
-        self.assertTrue(handled)
-        self.assertEqual(calls, [("t1", True)])
+        self.assertEqual(calls[0], ("reclassify", {"dimensions": {"media_type": "movie"}}, {"task_id": "t1"}, {}))
+        self.assertEqual(calls[1], ("search", {"query": "Inception"}, {"provider_type": "tmdb"}, {}))
+        self.assertEqual(calls[2], ("delete", {"delete_files": True}, {"task_id": "t1"}, {}))
 
 
 if __name__ == "__main__":

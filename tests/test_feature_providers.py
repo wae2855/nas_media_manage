@@ -133,7 +133,7 @@ def test_tmdb_provider_search_details_and_dimension_mapping(monkeypatch):
         DimensionMapping(
             name="restricted_level",
             value="13-16",
-            confidence=1.0,
+            source_reliability=1.0,
             source="tmdb",
         )
     ]

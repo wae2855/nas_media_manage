@@ -56,7 +56,7 @@ class SourceCleaner:
         self.protect_extensions = set(cleaner.protect_extensions)
         self.blacklist_patterns = cleaner.blacklist_patterns
         self.cleanup_empty_dirs = cleaner.cleanup_empty_dirs
-        self.ai_prompt = cleaner.ai_prompt or AI_SYSTEM_PROMPT
+        self.ai_prompt = self.view.ai_assist.prompt_source_clean or AI_SYSTEM_PROMPT
 
         self.video_extensions = set(self.view.paths.video_extensions)
         self.subtitle_extensions = set(self.view.paths.subtitle_extensions)
@@ -313,13 +313,13 @@ class SourceCleaner:
         return results
 
     def _ai_analyze_directory(self, dir_path: str, files: list) -> dict:
-        llm_config = self.view.llm
-        api_key = llm_config.api_key
+        ai_assist = self.view.ai_assist
+        api_key = ai_assist.api_key
         if not api_key:
             return {}
 
-        api_base = llm_config.effective_fast_base_url
-        model = llm_config.source_cleaner_model
+        api_base = ai_assist.base_url
+        model = ai_assist.model
 
         prompt = self._build_cleaner_prompt(dir_path, files)
         try:
@@ -334,7 +334,9 @@ class SourceCleaner:
         return f"{self.ai_prompt}\n\n【待分析目录】\n目录: {dir_path}\n文件列表:\n{files_desc}"
 
     def _call_llm(self, api_base: str, api_key: str, model: str, prompt: str) -> str:
-        url = f"{api_base.rstrip('/')}/chat/completions"
+        # 兼容 base_url 已含 /chat/completions 的填法
+        trimmed = (api_base or "").rstrip("/")
+        url = trimmed if trimmed.endswith("/chat/completions") else f"{trimmed}/chat/completions"
         body = json.dumps({
             "model": model,
             "messages": [

@@ -19,6 +19,7 @@ EXTERNAL_UI_FILES = {
     "test_confidence_ui.py",
     "test_confidence_v2_ui.py",
     "test_scrape_ui.py",
+    "test_source_cleaner_e2e.py",
 }
 
 SELF_STARTED_UI_FILES = {

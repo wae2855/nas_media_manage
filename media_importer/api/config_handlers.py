@@ -18,34 +18,33 @@ from .utils import json_response
 
 
 class ConfigHandlersMixin:
-    def _config(self):
-        prompts_data = self._load_prompts_for_ui()
-        payload = build_config_ui_payload(globals._config, prompts_data)
+    def _config(self, *, body: dict, params: dict, query: dict):
+        payload = build_config_ui_payload(globals._config)
         json_response(self, 200, data=payload)
 
-    def _config_save(self, body: dict):
+    def _config_save(self, *, body: dict, params: dict, query: dict):
         save_config(self, body, globals_module=globals, respond=json_response)
 
-    def _config_save_section(self, body: dict):
+    def _config_save_section(self, *, body: dict, params: dict, query: dict):
         section = body.get("section", "")
         data = body.get("data", {})
 
         try:
             section_body = build_section_config_update(section, data, globals._config)
-            self._config_save(section_body)
+            self._config_save(body=section_body, params={}, query={})
         except (KeyError, ValueError) as e:
             json_response(self, 400, message=str(e))
         except Exception as e:
             json_response(self, 500, message=f"保存区块配置失败: {str(e)}")
 
-    def _config_validate(self):
+    def _config_validate(self, *, body: dict, params: dict, query: dict):
         try:
             results = validate_config(globals._config, test_llm=False, test_hermes=False)
             json_response(self, 200, data=results, message="配置验证完成: " + results['overall'])
         except Exception as e:
             json_response(self, 500, message="配置验证失败: " + str(e))
 
-    def _config_reload(self):
+    def _config_reload(self, *, body: dict, params: dict, query: dict):
 
         try:
             config_path = globals._config.get("_config_path") if globals._config else None
@@ -71,7 +70,7 @@ class ConfigHandlersMixin:
         except Exception as e:
             json_response(self, 500, message="配置重载失败: " + str(e))
 
-    def _reload_watcher(self):
+    def _reload_watcher(self, *, body: dict, params: dict, query: dict):
         globals._global_watcher = restart_watcher(
             globals._config,
             current_watcher=globals._global_watcher,
@@ -79,7 +78,7 @@ class ConfigHandlersMixin:
             logger=globals._global_logger,
         )
 
-    def _config_check_permission(self, body: dict):
+    def _config_check_permission(self, *, body: dict, params: dict, query: dict):
         try:
             from media_importer.monitor.permission_checker import check_config_permissions
             result = build_config_permission_payload(
@@ -91,7 +90,7 @@ class ConfigHandlersMixin:
         except Exception as e:
             json_response(self, 500, message=f"权限检测异常: {e}")
 
-    def _path_test(self, body: dict):
+    def _path_test(self, *, body: dict, params: dict, query: dict):
         try:
             from media_importer.monitor.permission_checker import check_path_permission, get_current_user
             result = build_path_test_payload(body, check_path_permission, get_current_user)
@@ -101,10 +100,10 @@ class ConfigHandlersMixin:
         except Exception as e:
             json_response(self, 500, message=f"路径测试异常: {e}")
 
-    def _watcher_status(self):
+    def _watcher_status(self, *, body: dict, params: dict, query: dict):
         json_response(self, 200, data=build_watcher_status_payload(globals._global_watcher))
 
-    def _watcher_control(self, query):
+    def _watcher_control(self, *, body: dict, params: dict, query: dict):
         action = query.get("action", [None])[0]
         if not globals._global_watcher:
             json_response(self, 400, message="Watcher not initialized")
@@ -117,11 +116,11 @@ class ConfigHandlersMixin:
             globals._global_watcher.start()
             json_response(self, 200, message="轮询已恢复")
         elif action == "status":
-            self._watcher_status()
+            self._watcher_status(body=body, params=params, query=query)
         else:
             json_response(self, 400, message="Invalid action: use pause/resume/status")
 
-    def _list_tasks(self, query):
+    def _list_tasks(self, *, body: dict, params: dict, query: dict):
         result = list_tasks_for_api(
             query,
             globals._global_task_manager,
@@ -200,8 +199,8 @@ class ConfigHandlersMixin:
 
         sensitive_fields = [
             ("server", "api_key"),
-            ("llm", "api_key"),
-            ("llm", "fast_api_key"),
+            ("ai_assist", "api_key"),
+            ("ai_search", "api_key"),
             ("hermes", "webhook", "secret"),
         ]
 

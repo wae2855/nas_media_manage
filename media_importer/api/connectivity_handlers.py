@@ -6,29 +6,74 @@ from .utils import json_response
 from media_importer.core.metrics import get_metrics
 
 
+# AI 场景 → 配置节映射
+AI_ASSIST_SCENARIOS = frozenset({
+    "extract_title",
+    "source_cleaner",
+    "match_assist",
+    "dimension_mapping",
+    "dimension_supplement",
+})
+AI_SEARCH_SCENARIOS = frozenset({
+    "scrape",
+    "series_scrape",
+    "dimension_supplement",
+})
+
+
 class ConnectivityHandlersMixin:
-    def _config_test_llm(self, body: dict):
-        base_url = body.get("base_url", "")
-        api_key = body.get("api_key", "")
-        model = body.get("model", "")
+    def _resolve_ai_endpoint(self, scenario: str, body: dict, *, config_override: dict = None):
+        """根据场景从 ai_assist / ai_search 配置中解析 (base_url, api_key, model)。
 
-        if not api_key or self._is_masked_value(api_key):
-            api_key = self._get_real_config_value("llm", "api_key")
-            if not api_key:
-                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
-                return
+        - assist 场景：标题提取 / 源目录清理 / 匹配辅助 / 维度映射 → 走 ai_assist
+        - search 场景：刮削 / 系列刮削 / 联网增强 → 走 ai_search
+        - body 字段优先（前端掩码 *** 时按配置回退）
+        """
+        config_override = config_override or {}
 
-        if not base_url or self._is_masked_value(base_url):
-            base_url = self._get_real_config_value("llm", "base_url")
-            if not base_url:
-                json_response(self, 200, data={"success": False, "message": "API 地址未配置"})
-                return
+        def _merge_section(current_cfg: dict, override: dict) -> dict:
+            """合并 override 到 current_cfg，跳过掩码值，避免掩码覆盖真实配置。"""
+            merged = dict(current_cfg or {})
+            for k, v in (override or {}).items():
+                if isinstance(v, str) and self._is_masked_value(v):
+                    continue
+                merged[k] = v
+            return merged
 
+        if scenario in AI_ASSIST_SCENARIOS:
+            base_cfg = globals._config.get("ai_assist", {}) if globals._config else {}
+            cfg = _merge_section(base_cfg, config_override.get("ai_assist", {}))
+            section = "ai_assist"
+        elif scenario in AI_SEARCH_SCENARIOS:
+            base_cfg = globals._config.get("ai_search", {}) if globals._config else {}
+            cfg = _merge_section(base_cfg, config_override.get("ai_search", {}))
+            section = "ai_search"
+        else:
+            return None, None, None, f"未知场景: {scenario}"
+
+        base_url = body.get("base_url") or cfg.get("base_url", "")
+        api_key = body.get("api_key") or cfg.get("api_key", "")
+        model = body.get("model") or cfg.get("model", "")
+
+        if api_key and self._is_masked_value(api_key):
+            api_key = base_cfg.get("api_key", "")
+        if base_url and self._is_masked_value(base_url):
+            base_url = base_cfg.get("base_url", "")
+
+        if not api_key:
+            return None, None, None, f"{section}.api_key 未配置"
+        if not base_url:
+            return None, None, None, f"{section}.base_url 未配置"
         if not model:
-            model = self._get_real_config_value("llm", "model")
-            if not model:
-                json_response(self, 200, data={"success": False, "message": "模型名称未配置"})
-                return
+            return None, None, None, f"{section}.model 未配置"
+        return base_url, api_key, model, None
+
+    def _config_test_llm(self, *, body: dict, params: dict, query: dict):
+        scenario = body.get("scenario", "extract_title")
+        base_url, api_key, model, err = self._resolve_ai_endpoint(scenario, body)
+        if err:
+            json_response(self, 200, data={"success": False, "message": err})
+            return
 
         try:
             from media_importer.features.configuration import test_llm_api
@@ -37,7 +82,7 @@ class ConnectivityHandlersMixin:
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
 
-    def _config_ai_demo(self, body: dict):
+    def _config_ai_demo(self, *, body: dict, params: dict, query: dict):
         scenario = body.get("scenario", "")
         demo_content = body.get("demo_content", "")
         config_override = body.get("config_override", {})
@@ -46,43 +91,29 @@ class ConnectivityHandlersMixin:
             json_response(self, 200, data={"success": False, "message": "缺少 scenario 参数"})
             return
 
+        if scenario not in AI_ASSIST_SCENARIOS and scenario not in AI_SEARCH_SCENARIOS:
+            json_response(self, 200, data={"success": False, "message": "未知场景: " + scenario})
+            return
+
+        base_url, api_key, model, err = self._resolve_ai_endpoint(
+            scenario, body, config_override=config_override,
+        )
+        if err:
+            json_response(self, 200, data={"success": False, "message": err})
+            return
+
         try:
             import time as _time
 
-            # Assist scenarios (extract_title, source_cleaner) use fast/assist model, no scrape required
-            if scenario in ("extract_title", "source_cleaner"):
-                from media_importer.features.configuration import test_llm_api
-
-                llm_config = dict(globals._config.get("llm", {})) if globals._config else {}
-                if config_override and config_override.get("llm"):
-                    llm_config.update(config_override["llm"])
-
-                fast_model = llm_config.get("fast_model", "")
-                fast_base_url = llm_config.get("fast_base_url", "")
-                fast_api_key = llm_config.get("fast_api_key", "")
-
-                if not fast_model:
-                    json_response(self, 200, data={"success": False, "message": "辅助模型ID未配置"})
-                    return
-                if not fast_base_url:
-                    fast_base_url = llm_config.get("base_url", "")
-                if not fast_api_key or self._is_masked_value(fast_api_key):
-                    fast_api_key = self._get_real_config_value("llm", "fast_api_key")
-                    if not fast_api_key:
-                        fast_api_key = self._get_real_config_value("llm", "api_key")
-                if not fast_api_key:
-                    json_response(self, 200, data={"success": False, "message": "API Key 未配置（辅助区域或刮削区域）"})
-                    return
-
-                start = _time.time()
+            start = _time.time()
+            if scenario in AI_ASSIST_SCENARIOS:
                 if scenario == "extract_title":
                     from media_importer.scraper.llm_scraper import LLMScraper
                     test_config = dict(globals._config or {})
-                    test_config["llm"] = {
-                        "api_key": fast_api_key,
-                        "base_url": fast_base_url,
-                        "model": fast_model,
-                        "enabled": True,
+                    test_config["ai_assist"] = {
+                        "api_key": api_key,
+                        "base_url": base_url,
+                        "model": model,
                     }
                     scraper = LLMScraper(test_config)
                     filename = demo_content or "The.Dark.Knight.2008.2160p.UHD.BluRay.x265.mkv"
@@ -93,94 +124,68 @@ class ConnectivityHandlersMixin:
                         "scenario": scenario,
                         "input": filename,
                         "result": result,
-                        "model": fast_model,
+                        "model": model,
                         "elapsed_ms": elapsed,
                     })
                 elif scenario == "source_cleaner":
-                    ok, msg = test_llm_api(fast_base_url, fast_api_key, fast_model, timeout=15)
+                    from media_importer.features.configuration import test_llm_api
+                    ok, msg = test_llm_api(base_url, api_key, model, timeout=15)
                     elapsed = int((_time.time() - start) * 1000)
                     json_response(self, 200, data={
                         "success": ok,
                         "scenario": scenario,
-                        "model": fast_model,
+                        "model": model,
+                        "result": {"message": msg},
+                        "elapsed_ms": elapsed,
+                    })
+                else:
+                    from media_importer.features.configuration import test_llm_api
+                    ok, msg = test_llm_api(base_url, api_key, model, timeout=15)
+                    elapsed = int((_time.time() - start) * 1000)
+                    json_response(self, 200, data={
+                        "success": ok,
+                        "scenario": scenario,
+                        "model": model,
                         "result": {"message": msg},
                         "elapsed_ms": elapsed,
                     })
                 return
 
-            # Scrape scenarios require AI scrape to be enabled (honor config_override)
+            # AI search 场景：scrape / series_scrape
             from media_importer.scraper.llm_scraper import LLMScraper
-
             saved_config = dict(globals._config) if globals._config else {}
-            merged_llm = dict(saved_config.get("llm", {}))
-            if config_override and config_override.get("llm"):
-                merged_llm.update(config_override["llm"])
-
-            api_key = merged_llm.get("api_key", "")
-            if not api_key or self._is_masked_value(api_key):
-                api_key = self._get_real_config_value("llm", "api_key")
-            if not api_key:
-                json_response(self, 200, data={"success": False, "message": "API Key 未配置"})
-                return
-
-            enabled = bool(merged_llm.get("enabled", False))
-            if not enabled:
-                json_response(self, 200, data={"success": False, "message": "AI 刮削未启用，请先开启 AI 刮削开关"})
-                return
-
-            model = merged_llm.get("model", "")
-            base_url = merged_llm.get("base_url", "")
-            if not model or not base_url:
-                json_response(self, 200, data={"success": False, "message": "模型ID或接口地址未配置"})
-                return
-
             demo_config = dict(saved_config)
-            demo_config["llm"] = merged_llm
-            demo_config["llm"]["api_key"] = api_key
-
+            demo_config["ai_search"] = {
+                "api_key": api_key,
+                "base_url": base_url,
+                "model": model,
+            }
             scraper = LLMScraper(demo_config)
             if not scraper.enabled:
                 json_response(self, 200, data={"success": False, "message": "AI 刮削未生效，请检查配置是否完整（API Key、接口地址、模型）"})
                 return
 
-            # 判断是否启用了联网搜索增强
             search_enhanced = scraper.web_search_config.should_search(scenario) if hasattr(scraper, 'web_search_config') else False
-            start = _time.time()
-
-            if scenario == "scrape":
-                filename = demo_content or "Inception.2010.1080p.BluRay.x264.mp4"
-                result = scraper.scrape(filename)
-                elapsed = int((_time.time() - start) * 1000)
-                json_response(self, 200, data={
-                    "success": True,
-                    "scenario": scenario,
-                    "input": filename,
-                    "result": result,
-                    "search_enhanced": search_enhanced,
-                    "elapsed_ms": elapsed,
-                })
-
-            elif scenario == "series_scrape":
+            filename = demo_content or "Inception.2010.1080p.BluRay.x264.mp4"
+            if scenario == "series_scrape":
                 filename = demo_content or "Breaking.Bad.S01E01.1080p.BluRay.x264.mp4"
-                result = scraper.scrape(filename)
-                elapsed = int((_time.time() - start) * 1000)
-                json_response(self, 200, data={
-                    "success": True,
-                    "scenario": scenario,
-                    "input": filename,
-                    "result": result,
-                    "search_enhanced": search_enhanced,
-                    "elapsed_ms": elapsed,
-                })
 
-            else:
-                json_response(self, 200, data={"success": False, "message": "未知场景: " + scenario})
+            result = scraper.scrape(filename)
+            elapsed = int((_time.time() - start) * 1000)
+            json_response(self, 200, data={
+                "success": True,
+                "scenario": scenario,
+                "input": filename,
+                "result": result,
+                "search_enhanced": search_enhanced,
+                "elapsed_ms": elapsed,
+            })
 
         except Exception as e:
             import traceback
             json_response(self, 200, data={"success": False, "message": "演示异常: " + str(e)})
 
-    def _config_test_hermes(self, body: dict):
+    def _config_test_hermes(self, *, body: dict, params: dict, query: dict):
         base_url = body.get("base_url", "")
         route_name = body.get("route_name", "")
         secret = body.get("secret", "")
@@ -207,7 +212,7 @@ class ConnectivityHandlersMixin:
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
 
-    def _config_test_tmdb(self, body: dict):
+    def _config_test_tmdb(self, *, body: dict, params: dict, query: dict):
         api_key = body.get("api_key", "")
 
         if not api_key or self._is_masked_value(api_key):
@@ -225,7 +230,7 @@ class ConnectivityHandlersMixin:
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
 
-    def _health(self):
+    def _health(self, *, body: dict, params: dict, query: dict):
         from media_importer.infrastructure.filesystem import check_write_permission
         checks = {}
         overall = "ok"
@@ -266,12 +271,21 @@ class ConnectivityHandlersMixin:
             checks["log_dir"] = "error"
             overall = "degraded"
 
+        # AI 配置检查：ai_assist 或 ai_search 任一配置完整即视为可用
         try:
-            llm_config = globals._config.get("llm", {})
-            api_key = llm_config.get("api_key", "")
-            checks["llm_api"] = "ok" if api_key else "skipped"
+            ai_assist = globals._config.get("ai_assist", {}) if globals._config else {}
+            ai_search = globals._config.get("ai_search", {}) if globals._config else {}
+            assist_ok = bool(
+                ai_assist.get("api_key") and ai_assist.get("base_url") and ai_assist.get("model")
+            )
+            search_ok = bool(
+                ai_search.get("api_key") and ai_search.get("model")
+            )
+            checks["ai_api"] = "ok" if (assist_ok or search_ok) else "skipped"
+            checks["ai_assist_configured"] = "ok" if assist_ok else "skipped"
+            checks["ai_search_configured"] = "ok" if search_ok else "skipped"
         except Exception:
-            checks["llm_api"] = "skipped"
+            checks["ai_api"] = "skipped"
 
         try:
             hermes_enabled = globals._config.get("hermes", {}).get("enabled", False)
@@ -297,7 +311,7 @@ class ConnectivityHandlersMixin:
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
         }, message=f"Health check: {overall}")
 
-    def _metrics(self):
+    def _metrics(self, *, body: dict, params: dict, query: dict):
         m = get_metrics()
         counts = globals._global_task_manager.count_by_status_and_stage() if globals._global_task_manager else {}
         json_response(self, 200, data={
@@ -305,7 +319,7 @@ class ConnectivityHandlersMixin:
             "queue_by_status": counts
         })
 
-    def _logs(self, query: dict):
+    def _logs(self, *, body: dict, params: dict, query: dict):
         limit = int(query.get("limit", [100])[0])
         task_id = query.get("task_id", [None])[0]
 

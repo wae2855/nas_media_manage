@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     scrape_season INTEGER,
     scrape_episode INTEGER,
     scrape_dimensions TEXT DEFAULT '{}',
-    scrape_confidence REAL DEFAULT 0,
     match_level TEXT DEFAULT NULL,
     match_concerns TEXT DEFAULT NULL,
     match_trace TEXT DEFAULT NULL,
@@ -48,6 +47,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     error_code INTEGER DEFAULT 0,
     error_message TEXT DEFAULT '',
     scrape_trace TEXT DEFAULT '',
+    confirm_reason TEXT DEFAULT '',
+    dim_sources TEXT DEFAULT NULL,
     provider_type TEXT DEFAULT '',
     provider_id TEXT DEFAULT '',
     source_fingerprint TEXT DEFAULT '',
@@ -100,6 +101,8 @@ CREATE TABLE IF NOT EXISTS dimensions (
     color TEXT DEFAULT '#6c757d',
     is_system INTEGER DEFAULT 1,
     is_enabled INTEGER DEFAULT 0,
+    trust_ai_assist INTEGER NOT NULL DEFAULT 1,
+    trust_ai_search INTEGER NOT NULL DEFAULT 0,
     required_tier TEXT DEFAULT 'free',
     description TEXT DEFAULT ''
 )
@@ -125,6 +128,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#3b82f6",
         "is_system": 1,
         "is_enabled": 1,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 1,
         "required_tier": "free",
         "description": "区分电影和电视剧，决定目录结构形态"
     },
@@ -147,6 +152,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#f59e0b",
         "is_system": 1,
         "is_enabled": 1,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "free",
         "description": "将纪录片从虚构作品中分离"
     },
@@ -173,6 +180,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#ec4899",
         "is_system": 1,
         "is_enabled": 1,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "free",
         "description": "按年龄分级隔离成人内容"
     },
@@ -195,6 +204,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#8b5cf6",
         "is_system": 1,
         "is_enabled": 0,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "free",
         "description": "将动漫/动画从真人作品中分离"
     },
@@ -239,6 +250,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#10b981",
         "is_system": 1,
         "is_enabled": 0,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "pro",
         "description": "按制片国家/地区分拣"
     },
@@ -267,6 +280,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#06b6d4",
         "is_system": 1,
         "is_enabled": 0,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "pro",
         "description": "按原始语言分拣（中/英/日/韩）"
     },
@@ -293,6 +308,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#f97316",
         "is_system": 1,
         "is_enabled": 0,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "pro",
         "description": "按视频分辨率分拣（4K/1080P/720P）"
     },
@@ -333,6 +350,8 @@ DEFAULT_DIMENSIONS = [
         "color": "#ef4444",
         "is_system": 1,
         "is_enabled": 0,
+        "trust_ai_assist": 1,
+        "trust_ai_search": 0,
         "required_tier": "premium",
         "description": "按影视类型分拣（恐怖/科幻/战争/喜剧/动作/剧情等）"
     },

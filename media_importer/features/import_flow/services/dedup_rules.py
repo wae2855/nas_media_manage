@@ -189,7 +189,7 @@ def check_duplicate(import_path: str, scraped_info: dict, strategy: str, new_fil
             title_info.append(scraped_info['title_en'])
         title = ' / '.join(title_info) if title_info else '视频'
         
-        media_type = scraped_info.get('type', 'video')
+        media_type = scraped_info.get('media_type', 'video')
         if media_type == 'tv' and scraped_info.get('season') and scraped_info.get('episode'):
             title += f" S{scraped_info['season']:02d}E{scraped_info['episode']:02d}"
         elif scraped_info.get('year'):

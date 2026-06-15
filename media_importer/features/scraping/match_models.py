@@ -34,7 +34,7 @@ class MatchResult:
     concerns: List[MatchConcern] = field(default_factory=list)
     trace_steps: List[MatchTraceStep] = field(default_factory=list)
     candidates: List[dict] = field(default_factory=list)  # 第三级的候选列表
-    confidence_reason: str = ""  # 匹配成功或失败的原因说明
+    confirm_reason: str = ""     # 匹配成功或失败的原因说明（NEEDS_CONFIRM 时填充原因）
 
     def to_dict(self) -> dict:
         """转换为可序列化的字典。"""
@@ -60,5 +60,5 @@ class MatchResult:
                 for s in self.trace_steps
             ],
             "candidates": self.candidates,
-            "confidence_reason": self.confidence_reason,
+            "confirm_reason": self.confirm_reason,
         }

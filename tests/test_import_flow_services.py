@@ -16,14 +16,6 @@ from media_importer.features.import_flow.services import (
 )
 
 
-class FakeConfidenceEngine:
-    def __init__(self, level):
-        self.level = level
-
-    def get_confidence_level(self, confidence, gate_blocked=None):
-        return self.level
-
-
 class FakeCleanupService:
     def __init__(self):
         self.recycled = []
@@ -216,7 +208,7 @@ class TestImportService(unittest.TestCase):
                 "scrape_result": {
                     "title_cn": "测试电影",
                     "year": "2026",
-                    "type": "movie",
+                    "media_type": "movie",
                 },
             }
 
@@ -244,20 +236,19 @@ class TestImportService(unittest.TestCase):
 class TestReviewDecisionService(unittest.TestCase):
     def test_missing_required_fields_requires_confirm(self):
         decision = ReviewDecisionService().evaluate(
-            {"title_cn": "测试电影", "confidence": 0.9},
-            FakeConfidenceEngine("SUCCESS"),
+            {"title_cn": "测试电影"},
         )
 
         self.assertEqual(decision.action, "confirm")
         self.assertIn("媒体类型", decision.reason)
 
-    def test_low_confidence_fails(self):
+    def test_incomplete_mock_data_fails(self):
         decision = ReviewDecisionService().evaluate(
             {
                 "title_cn": "测试电影",
                 "title_en": "Test",
                 "year": "2026",
-                "type": "movie",
+                "media_type": "movie",
                 "match_level": "NEEDS_CONFIRM",
                 "match_concerns": [{"code": "NO_YEAR_MULTI_MATCH", "message": "找到多部同名作品"}],
             },
@@ -272,7 +263,7 @@ class TestReviewDecisionService(unittest.TestCase):
                 "title_cn": "测试电影",
                 "title_en": "Test",
                 "year": "2026",
-                "type": "movie",
+                "media_type": "movie",
                 "match_level": "NEEDS_CONFIRM",
                 "match_concerns": [{"code": "FUZZY_TITLE", "message": "标题不完全匹配"}],
             },
@@ -285,7 +276,7 @@ class TestReviewDecisionService(unittest.TestCase):
         decision = ReviewDecisionService().evaluate(
             {
                 "title_cn": "测试电影",
-                "type": "movie",
+                "media_type": "movie",
                 "match_level": "AUTO_PASS",
             },
         )

@@ -29,8 +29,8 @@ def check_tier_access(required_tier: str) -> bool:
 
 
 def get_dimensions_for_scrape(conn) -> list:
-    from media_importer.core.db import get_enabled_dimensions
-    dims = get_enabled_dimensions(conn)
+    from media_importer.core.db import get_all_dimensions
+    dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
         source_type = dim.get('source_type', '')
@@ -42,13 +42,14 @@ def get_dimensions_for_scrape(conn) -> list:
                 'values': [v['value'] for v in dim.get('value_list', [])],
                 'ai_prompt': ai_prompt,
                 'source_type': source_type,
+                'is_enabled': dim.get('is_enabled', 1),
             })
     return result
 
 
 def get_dimensions_for_tmdb(conn) -> list:
-    from media_importer.core.db import get_enabled_dimensions
-    dims = get_enabled_dimensions(conn)
+    from media_importer.core.db import get_all_dimensions
+    dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
         if dim.get('source_type') == 'ai+tmdb' and dim.get('tmdb_field'):
@@ -58,13 +59,14 @@ def get_dimensions_for_tmdb(conn) -> list:
                 'source_type': dim['source_type'],
                 'tmdb_field': dim.get('tmdb_field', ''),
                 'value_list': dim.get('value_list', []),
+                'is_enabled': dim.get('is_enabled', 1),
             })
     return result
 
 
 def get_dimensions_for_provider(conn, provider_type: str) -> list:
-    from media_importer.core.db import get_enabled_dimensions
-    dims = get_enabled_dimensions(conn)
+    from media_importer.core.db import get_all_dimensions
+    dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
         if dim.get('source_type') != 'ai+provider':
@@ -89,13 +91,14 @@ def get_dimensions_for_provider(conn, provider_type: str) -> list:
             'source_type': dim['source_type'],
             'provider_mappings': provider_mappings,
             'value_list': dim.get('value_list', []),
+            'is_enabled': dim.get('is_enabled', 1),
         })
     return result
 
 
 def get_dimensions_for_file(conn) -> list:
-    from media_importer.core.db import get_enabled_dimensions
-    dims = get_enabled_dimensions(conn)
+    from media_importer.core.db import get_all_dimensions
+    dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
         if dim.get('source_type') == 'file':
@@ -103,6 +106,7 @@ def get_dimensions_for_file(conn) -> list:
                 'name': dim['name'],
                 'label': dim['label'],
                 'value_list': dim.get('value_list', []),
+                'is_enabled': dim.get('is_enabled', 1),
             })
     return result
 
@@ -129,7 +133,7 @@ def map_tmdb_to_dimension(dim_config: dict, tmdb_data: dict, release_dates: list
     if tmdb_field == 'release_dates':
         return _map_restricted_level(name, value_list, release_dates or [])
 
-    return {'name': name, 'value': None, 'confidence': 0}
+    return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 def _extract_genre_ids(provider_data: dict) -> set:
@@ -149,7 +153,7 @@ def _map_region_v2(name: str, mapping: dict, provider_data: dict) -> dict:
     field = mapping.get('field', 'origin_country')
     origin_countries = provider_data.get(field, [])
     if not origin_countries:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     first_country = origin_countries[0] if isinstance(origin_countries, list) else origin_countries
 
@@ -157,30 +161,30 @@ def _map_region_v2(name: str, mapping: dict, provider_data: dict) -> dict:
     for rule_value, rule_config in match_rules.items():
         codes = rule_config.get('codes', [])
         if first_country in codes:
-            return {'name': name, 'value': rule_value, 'confidence': 1.0}
+            return {'name': name, 'value': rule_value, 'source_reliability': 1.0}
 
-    return {'name': name, 'value': 'other', 'confidence': 1.0}
+    return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
 
 def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict) -> dict:
     field = mapping.get('field', 'original_language')
     original_language = provider_data.get(field, '')
     if not original_language:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     match_rules = mapping.get('match_rules', {})
     for rule_value, rule_config in match_rules.items():
         langs = rule_config.get('languages', [])
         if original_language in langs:
-            return {'name': name, 'value': rule_value, 'confidence': 1.0}
+            return {'name': name, 'value': rule_value, 'source_reliability': 1.0}
 
-    return {'name': name, 'value': 'other', 'confidence': 1.0}
+    return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
 
 def _map_genre_by_rules(name: str, mapping: dict, value_list: list, provider_data: dict) -> dict:
     genre_ids = _extract_genre_ids(provider_data)
     if not genre_ids:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     match_rules = mapping.get('match_rules', {})
 
@@ -192,34 +196,34 @@ def _map_genre_by_rules(name: str, mapping: dict, value_list: list, provider_dat
             continue
         rule_ids = set(str(i) for i in rule_config.get('ids', []))
         if genre_ids & rule_ids:
-            return {'name': name, 'value': vl['value'], 'confidence': 0.9}
+            return {'name': name, 'value': vl['value'], 'source_reliability': 0.9}
 
     for vl in sorted_values:
         if vl.get('value') == 'other':
-            return {'name': name, 'value': 'other', 'confidence': 0.9}
+            return {'name': name, 'value': 'other', 'source_reliability': 0.9}
 
-    return {'name': name, 'value': 'other', 'confidence': 0.9}
+    return {'name': name, 'value': 'other', 'source_reliability': 0.9}
 
 
 def _map_bool_genre(name: str, mapping: dict, provider_data: dict) -> dict:
     genre_ids = _extract_genre_ids(provider_data)
     if not genre_ids:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     match_rules = mapping.get('match_rules', {})
     true_config = match_rules.get('true', {})
     true_ids = set(str(i) for i in true_config.get('ids', []))
 
     if genre_ids & true_ids:
-        return {'name': name, 'value': 'true', 'confidence': 1.0}
+        return {'name': name, 'value': 'true', 'source_reliability': 1.0}
     elif genre_ids:
-        return {'name': name, 'value': 'false', 'confidence': 0.9}
+        return {'name': name, 'value': 'false', 'source_reliability': 0.9}
     else:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 def _map_genre_by_names(name: str, mapping: dict, provider_data: dict) -> dict:
-    return {'name': name, 'value': None, 'confidence': 0}
+    return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dates: list = None, provider_type: str = "tmdb") -> dict:
@@ -228,11 +232,11 @@ def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dat
 
     provider_mappings = dim_config.get('provider_mappings', {})
     if not isinstance(provider_mappings, dict):
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     mapping = provider_mappings.get(provider_type, {})
     if not mapping:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     match_type = mapping.get('match_type', '')
 
@@ -254,7 +258,7 @@ def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dat
     if match_type == 'genre_names':
         return _map_genre_by_names(name, mapping, provider_data)
 
-    return {'name': name, 'value': None, 'confidence': 0}
+    return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 get_dimensions_for_tmdb = lambda conn: get_dimensions_for_provider(conn, 'tmdb')
@@ -265,42 +269,42 @@ map_tmdb_to_dimension = lambda dim_config, tmdb_data, release_dates=None: map_pr
 def _map_region(name: str, value_list: list, tmdb_data: dict) -> dict:
     origin_countries = tmdb_data.get('origin_country', [])
     if not origin_countries:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     first_country = origin_countries[0] if isinstance(origin_countries, list) else origin_countries
 
     for vl in value_list:
         tmdb_codes = vl.get('tmdb_codes', [])
         if first_country in tmdb_codes:
-            return {'name': name, 'value': vl['value'], 'confidence': 1.0}
+            return {'name': name, 'value': vl['value'], 'source_reliability': 1.0}
 
     for vl in value_list:
         if vl.get('value') == 'other':
-            return {'name': name, 'value': 'other', 'confidence': 1.0}
+            return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
-    return {'name': name, 'value': None, 'confidence': 0}
+    return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 def _map_origin_lang(name: str, value_list: list, tmdb_data: dict) -> dict:
     original_language = tmdb_data.get('original_language', '')
     if not original_language:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     for vl in value_list:
         if vl.get('value') == original_language:
-            return {'name': name, 'value': original_language, 'confidence': 1.0}
+            return {'name': name, 'value': original_language, 'source_reliability': 1.0}
 
     for vl in value_list:
         if vl.get('value') == 'other':
-            return {'name': name, 'value': 'other', 'confidence': 1.0}
+            return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
-    return {'name': name, 'value': 'other', 'confidence': 1.0}
+    return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
 
 def _map_broad_genre(name: str, value_list: list, tmdb_data: dict) -> dict:
     genres = tmdb_data.get('genres', [])
     if not genres:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     genre_ids = []
     for g in genres:
@@ -310,7 +314,7 @@ def _map_broad_genre(name: str, value_list: list, tmdb_data: dict) -> dict:
             genre_ids.append(g)
 
     if not genre_ids:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     sorted_values = sorted(value_list, key=lambda x: x.get('priority', 99))
 
@@ -318,19 +322,19 @@ def _map_broad_genre(name: str, value_list: list, tmdb_data: dict) -> dict:
         tmdb_genre_ids = vl.get('tmdb_genre_ids', [])
         for gid in genre_ids:
             if gid in tmdb_genre_ids:
-                return {'name': name, 'value': vl['value'], 'confidence': 0.9}
+                return {'name': name, 'value': vl['value'], 'source_reliability': 0.9}
 
     for vl in sorted_values:
         if vl.get('value') == 'other':
-            return {'name': name, 'value': 'other', 'confidence': 0.9}
+            return {'name': name, 'value': 'other', 'source_reliability': 0.9}
 
-    return {'name': name, 'value': 'other', 'confidence': 0.9}
+    return {'name': name, 'value': 'other', 'source_reliability': 0.9}
 
 
 def _map_documentary(name: str, value_list: list, tmdb_data: dict) -> dict:
     genres = tmdb_data.get('genres', [])
     if not genres:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     genre_ids = []
     for g in genres:
@@ -340,17 +344,17 @@ def _map_documentary(name: str, value_list: list, tmdb_data: dict) -> dict:
             genre_ids.append(g)
 
     if 99 in genre_ids:
-        return {'name': name, 'value': 'true', 'confidence': 1.0}
+        return {'name': name, 'value': 'true', 'source_reliability': 1.0}
     elif genre_ids:
-        return {'name': name, 'value': 'false', 'confidence': 0.9}
+        return {'name': name, 'value': 'false', 'source_reliability': 0.9}
     else:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 def _map_animation(name: str, value_list: list, tmdb_data: dict) -> dict:
     genres = tmdb_data.get('genres', [])
     if not genres:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     genre_ids = []
     for g in genres:
@@ -360,16 +364,16 @@ def _map_animation(name: str, value_list: list, tmdb_data: dict) -> dict:
             genre_ids.append(g)
 
     if 16 in genre_ids:
-        return {'name': name, 'value': 'true', 'confidence': 1.0}
+        return {'name': name, 'value': 'true', 'source_reliability': 1.0}
     elif genre_ids:
-        return {'name': name, 'value': 'false', 'confidence': 0.9}
+        return {'name': name, 'value': 'false', 'source_reliability': 0.9}
     else:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
 
 def _map_restricted_level(name: str, value_list: list, release_dates: list) -> dict:
     if not release_dates:
-        return {'name': name, 'value': None, 'confidence': 0}
+        return {'name': name, 'value': None, 'source_reliability': 0}
 
     country_priority = ['US', 'GB', 'DE', 'FR', 'CN', 'JP', 'KR', 'AU', 'CA']
 
@@ -392,8 +396,8 @@ def _map_restricted_level(name: str, value_list: list, release_dates: list) -> d
         tv_rating = result.get('rating', '').strip().upper()
         if tv_rating and tv_rating in CERTIFICATION_TO_LEVEL:
             level = CERTIFICATION_TO_LEVEL[tv_rating]
-            confidence = 1.0 if iso == 'US' else 0.95
-            return {'name': name, 'value': level, 'confidence': confidence}
+            source_reliability = 1.0 if iso == 'US' else 0.95
+            return {'name': name, 'value': level, 'source_reliability': source_reliability}
 
         dates = result.get('release_dates', [])
         if not dates:
@@ -403,7 +407,7 @@ def _map_restricted_level(name: str, value_list: list, release_dates: list) -> d
             cert = rd.get('certification', '').strip().upper()
             if cert in CERTIFICATION_TO_LEVEL:
                 level = CERTIFICATION_TO_LEVEL[cert]
-                confidence = 1.0 if iso == 'US' else 0.95
-                return {'name': name, 'value': level, 'confidence': confidence}
+                source_reliability = 1.0 if iso == 'US' else 0.95
+                return {'name': name, 'value': level, 'source_reliability': source_reliability}
 
-    return {'name': name, 'value': None, 'confidence': 0}
+    return {'name': name, 'value': None, 'source_reliability': 0}

@@ -50,7 +50,7 @@ def test_scrape_button_in_config_subtab():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         _navigate_to_config(page)
-        btn = page.locator(".config-sub-tab-action:has-text('刮削与置信度计算')")
+        btn = page.locator(".config-sub-tab-action:has-text('刮削与搜索测试')")
         assert btn.count() >= 1, "Scrape button not found in config sub-tab bar"
         assert btn.first.is_visible(), "Scrape button not visible in config sub-tab bar"
         browser.close()
@@ -62,7 +62,7 @@ def test_scrape_modal_opens():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         _navigate_to_config(page)
-        btn = page.locator(".config-sub-tab-action:has-text('刮削与置信度计算')")
+        btn = page.locator(".config-sub-tab-action:has-text('刮削与搜索测试')")
         btn.first.click()
         time.sleep(0.5)
         modal = page.locator("#scrape-preview-modal")

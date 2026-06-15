@@ -8,17 +8,17 @@ SECTION_FIELD_MAP = {
     "path_rules": ["path_rules", "fallback_dir"],
     "import_options": ["manual_review", "duplicate_handling", "filename_templates"],
     "metadata.providers": ["metadata"],
-    "llm": ["llm"],
+    "ai_assist": ["ai_assist"],
+    "ai_search": ["ai_search"],
     "server": ["server"],
     "hermes": ["hermes"],
     "file_watcher": ["file_watcher"],
     "advanced": ["log_dir", "task_queue", "video_extensions", "subtitle_extensions"],
-    "confidence": ["confidence"],
     "source_cleaner": ["source_cleaner"],
 }
 
 
-def build_config_ui_payload(config: dict, prompts_data: dict) -> dict:
+def build_config_ui_payload(config: dict) -> dict:
     masked = mask_sensitive(config) if config else {}
     source_policy = masked.get("source_policy", {})
     if "cleanup_mode" not in source_policy:
@@ -31,7 +31,7 @@ def build_config_ui_payload(config: dict, prompts_data: dict) -> dict:
         source_policy["delete_source_after_import"] = source_policy.get(
             "cleanup_source_after_done", True
         )
-    return {"config": masked, "prompts": prompts_data}
+    return {"config": masked}
 
 
 def build_section_config_update(section: str, data: dict, current_config: dict) -> dict:
@@ -93,12 +93,6 @@ def _merge_provider_sensitive_fields(section_body: dict, current_config: dict):
 
     current_config = current_config or {}
     existing_providers = current_config.get("metadata", {}).get("providers", [])
-    legacy_configs = {}
-    legacy_metadata = current_config.get("metadata", {})
-    for provider_type in set(provider.get("type", "") for provider in new_providers):
-        legacy = legacy_metadata.get(provider_type, {})
-        if isinstance(legacy, dict) and legacy.get("api_key"):
-            legacy_configs[provider_type] = legacy
 
     for new_provider in new_providers:
         provider_type = new_provider.get("type", "")
@@ -115,5 +109,3 @@ def _merge_provider_sensitive_fields(section_body: dict, current_config: dict):
             continue
         if existing_provider and existing_provider.get("api_key") not in ("", "***", None):
             new_provider["api_key"] = existing_provider["api_key"]
-        elif legacy_configs.get(provider_type, {}).get("api_key"):
-            new_provider["api_key"] = legacy_configs[provider_type]["api_key"]

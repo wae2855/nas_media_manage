@@ -71,7 +71,6 @@ def test_feature_consumers_use_feature_public_apis():
         ],
         root / "media_importer" / "api" / "tmdb_handlers.py": [
             "from media_importer.features.scraping import TMDbClient",
-            "from media_importer.features.scraping import TMDbClient, TMDbError",
         ],
         root / "media_importer" / "features" / "import_flow" / "steps" / "scrape.py": [
             "from media_importer.features.scraping import get_dimensions_for_file",
@@ -99,28 +98,8 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "features" / "import_flow" / "services" / "source_cleanup.py": [
             "from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService",
         ],
-        root / "media_importer" / "storage" / "classifier.py": [
-            "from media_importer.features.import_flow.services.classification_rules import",
-        ],
-        root / "media_importer" / "storage" / "dedup_checker.py": [
-            "from media_importer.features.import_flow.services.dedup_rules import",
-        ],
-        root / "media_importer" / "storage" / "file_scanner.py": [
-            "from media_importer.features.import_flow.scan_service import FileScanner, scan_source_dir",
-        ],
-        root / "media_importer" / "storage" / "file_copier.py": [
-            "from media_importer.infrastructure.filesystem import FileCopier",
-        ],
         root / "media_importer" / "monitor" / "file_watcher.py": [
             "from media_importer.features.import_flow import scan_source_dir",
-        ],
-        root / "media_importer" / "storage" / "file_mover.py": [
-            "from media_importer.features.import_flow.services.file_operations import (",
-            "from media_importer.features.import_flow.services.naming import (",
-        ],
-        root / "media_importer" / "storage" / "source_cleaner.py": [
-            "from media_importer.features.source_cleaning import cleaner as _cleaner",
-            "sys.modules[__name__] = _cleaner",
         ],
         root / "media_importer" / "api" / "source_cleaner_handlers.py": [
             "from media_importer.features.source_cleaning.application_service import (",
@@ -132,7 +111,6 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.configuration import ConfigView",
             "from media_importer.features.providers import create_providers",
             "from media_importer.features.providers import (",
-            "from media_importer.features.scraping.confidence_engine import",
         ],
         root / "media_importer" / "scraper" / "providers" / "__init__.py": [
             "from media_importer.features.providers import",
@@ -143,9 +121,6 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "scraper" / "providers" / "tmdb_provider.py": [
             "from media_importer.features.providers.tmdb_provider import TMDbProvider",
         ],
-        root / "media_importer" / "scraper" / "confidence_engine.py": [
-            "from media_importer.features.scraping.confidence_engine import",
-        ],
         root / "media_importer" / "scraper" / "dimension_manager.py": [
             "from media_importer.features.scraping.dimension_manager import",
         ],
@@ -155,21 +130,6 @@ def test_feature_consumers_use_feature_public_apis():
         root / "media_importer" / "scraper" / "llm_scraper.py": [
             "from media_importer.features.configuration import ConfigView",
             "from media_importer.features.prompts.prompt_builder import LLMPromptBuilder",
-        ],
-        root / "media_importer" / "scraper" / "llm_prompts.py": [
-            "from media_importer.features.prompts.prompt_builder import LLMPromptBuilder",
-        ],
-        root / "media_importer" / "api" / "prompt_handlers.py": [
-            "from media_importer.features.prompts import (",
-            "load_global_prompt_for_ui",
-            "save_global_prompt",
-            "reset_global_prompt",
-        ],
-        root / "media_importer" / "api" / "provider_handlers.py": [
-            "from media_importer.features.prompts import (",
-            "load_provider_prompt_for_ui",
-            "save_provider_prompt",
-            "reset_provider_prompt",
         ],
     }
 
@@ -235,17 +195,8 @@ def test_feature_public_apis_are_importable():
         get_provider_class,
     )
     from media_importer.features.prompts import LLMPromptBuilder
-    from media_importer.features.prompts import (
-        load_global_prompt_for_ui,
-        load_provider_prompt_for_ui,
-        reset_global_prompt,
-        reset_provider_prompt,
-        save_global_prompt,
-        save_provider_prompt,
-    )
     from media_importer.features.scraping import (
         CleanResult,
-        ConfidenceEngine,
         DimensionActionResult,
         LLMScraper,
         MetadataScraper,
@@ -309,8 +260,6 @@ def test_feature_public_apis_are_importable():
     assert update_task is not None
     assert init_db is not None
     assert FileCopier.__module__ == "media_importer.infrastructure.filesystem.file_copier"
-    assert ConfidenceEngine is not None
-    assert ConfidenceEngine.__module__ == "media_importer.features.scraping.confidence_engine"
     assert DimensionActionResult.__module__ == "media_importer.features.scraping.dimensions_service"
     assert LLMScraper is not None
     assert MetadataScraper is not None
@@ -333,9 +282,3 @@ def test_feature_public_apis_are_importable():
     assert TMDbProvider.__module__ == "media_importer.features.providers.tmdb_provider"
     assert LLMPromptBuilder is not None
     assert LLMPromptBuilder.__module__ == "media_importer.features.prompts.prompt_builder"
-    assert load_global_prompt_for_ui.__module__ == "media_importer.features.prompts.application_service"
-    assert load_provider_prompt_for_ui.__module__ == "media_importer.features.prompts.application_service"
-    assert save_global_prompt.__module__ == "media_importer.features.prompts.application_service"
-    assert save_provider_prompt.__module__ == "media_importer.features.prompts.application_service"
-    assert reset_global_prompt.__module__ == "media_importer.features.prompts.application_service"
-    assert reset_provider_prompt.__module__ == "media_importer.features.prompts.application_service"

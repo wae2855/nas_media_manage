@@ -3,11 +3,6 @@ import time
 import copy
 
 from media_importer.api import globals
-from media_importer.features.prompts import (
-    load_provider_prompt_for_ui,
-    reset_provider_prompt,
-    save_provider_prompt,
-)
 from .utils import json_response
 
 
@@ -21,19 +16,7 @@ class ProviderHandlersMixin:
         providers = globals._config.get("metadata", {}).get("providers", []) if globals._config else []
         for p in providers:
             if p.get("type") == provider_type:
-                config = dict(p)
-                if not config.get("api_key") or config.get("api_key") == "***":
-                    legacy = globals._config.get("metadata", {}).get(provider_type, {}) if globals._config else {}
-                    if legacy and isinstance(legacy, dict):
-                        for key in ("api_key", "language", "fallback_language", "request_timeout", "max_retries"):
-                            if key in legacy and (key not in config or config.get(key) in (None, "", "***")):
-                                config[key] = legacy[key]
-                return config
-        legacy = globals._config.get("metadata", {}).get(provider_type, {}) if globals._config else {}
-        if legacy and isinstance(legacy, dict) and legacy.get("api_key"):
-            config = {"type": provider_type, "enabled": legacy.get("enabled", True)}
-            config.update(legacy)
-            return config
+                return dict(p)
         return {}
 
     def _create_provider_instance(self, provider_type: str):
@@ -49,9 +32,8 @@ class ProviderHandlersMixin:
         except Exception:
             return None
 
-    def _providers_list(self):
-        from media_importer.features.providers import get_all_registered_providers, create_providers
-        from media_importer.features.configuration import mask_sensitive
+    def _providers_list(self, *, body: dict, params: dict, query: dict):
+        from media_importer.features.providers import get_all_registered_providers
 
         all_providers = get_all_registered_providers()
         enabled_types = set()
@@ -59,12 +41,6 @@ class ProviderHandlersMixin:
             for p in globals._config.get("metadata", {}).get("providers", []):
                 if p.get("enabled", False):
                     enabled_types.add(p.get("type", ""))
-            if not enabled_types:
-                metadata = globals._config.get("metadata", {})
-                for ptype in all_providers:
-                    legacy = metadata.get(ptype, {})
-                    if isinstance(legacy, dict) and legacy.get("enabled", False):
-                        enabled_types.add(ptype)
 
         result = []
         for ptype, cls in all_providers.items():
@@ -82,7 +58,8 @@ class ProviderHandlersMixin:
 
         json_response(self, 200, data={"providers": result})
 
-    def _provider_test(self, body: dict, provider_type: str):
+    def _provider_test(self, *, body: dict, params: dict, query: dict):
+        provider_type = params.get("provider_type", "")
         provider = self._create_provider_instance(provider_type)
         if not provider:
             json_response(self, 200, data={"success": False, "message": f"Provider '{provider_type}' 未配置或创建失败"})
@@ -95,7 +72,8 @@ class ProviderHandlersMixin:
         except Exception as e:
             json_response(self, 200, data={"success": False, "message": "测试异常: " + str(e)})
 
-    def _provider_genres_list(self, provider_type: str):
+    def _provider_genres_list(self, *, body: dict, params: dict, query: dict):
+        provider_type = params.get("provider_type", "")
         now = time.time()
         cache = ProviderHandlersMixin._genres_cache.get(provider_type)
         cache_time = ProviderHandlersMixin._genres_cache_time.get(provider_type, 0)
@@ -118,11 +96,12 @@ class ProviderHandlersMixin:
         except Exception as e:
             json_response(self, 503, message=f"获取类型列表失败: {str(e)}")
 
-    def _provider_preview(self, body: dict, provider_type: str):
-        query = (body or {}).get("query", "").strip()
+    def _provider_preview(self, *, body: dict, params: dict, query: dict):
+        provider_type = params.get("provider_type", "")
+        query_str = (body or {}).get("query", "").strip()
         media_type = (body or {}).get("type", "movie")
 
-        if not query:
+        if not query_str:
             json_response(self, 400, message="请输入影视名称")
             return
 
@@ -132,7 +111,7 @@ class ProviderHandlersMixin:
             return
 
         try:
-            search_result = provider.search(query, media_type=media_type)
+            search_result = provider.search(query_str, media_type=media_type)
             if not search_result.items:
                 json_response(self, 200, data={"found": False, "message": "未找到匹配结果"})
                 return
@@ -159,12 +138,13 @@ class ProviderHandlersMixin:
         except Exception as e:
             json_response(self, 500, message=f"预览异常: {str(e)}")
 
-    def _provider_search(self, body: dict, provider_type: str):
-        query = (body or {}).get("query", "").strip()
+    def _provider_search(self, *, body: dict, params: dict, query: dict):
+        provider_type = params.get("provider_type", "")
+        query_str = (body or {}).get("query", "").strip()
         media_type = (body or {}).get("type", "movie")
         language = (body or {}).get("language", "").strip() or None
 
-        if not query:
+        if not query_str:
             json_response(self, 400, message="请输入影视名称")
             return
 
@@ -174,7 +154,7 @@ class ProviderHandlersMixin:
             return
 
         try:
-            search_result = provider.search(query, media_type=media_type)
+            search_result = provider.search(query_str, media_type=media_type)
 
             items = []
             for item in search_result.items[:10]:
@@ -197,7 +177,8 @@ class ProviderHandlersMixin:
         except Exception as e:
             json_response(self, 500, message=f"搜索异常: {str(e)}")
 
-    def _provider_details(self, body: dict, provider_type: str):
+    def _provider_details(self, *, body: dict, params: dict, query: dict):
+        provider_type = params.get("provider_type", "")
         item_id = (body or {}).get("id")
         media_type = (body or {}).get("type", "movie")
 
@@ -220,25 +201,3 @@ class ProviderHandlersMixin:
             })
         except Exception as e:
             json_response(self, 500, message=f"详情获取异常: {str(e)}")
-
-    def _provider_prompts_get(self, provider_type: str):
-        config_path = globals._config.get("_config_path") if globals._config else None
-        json_response(self, 200, data=load_provider_prompt_for_ui(config_path, provider_type))
-
-    def _provider_prompts_save(self, body: dict, provider_type: str):
-        try:
-            config_path = globals._config.get("_config_path") if globals._config else None
-            display_name = save_provider_prompt(config_path, provider_type, body)
-            json_response(self, 200, message=f"LLM+{display_name} 提示词已保存，重启服务后生效")
-        except ValueError as e:
-            json_response(self, 400, message=str(e))
-        except Exception as e:
-            json_response(self, 500, message=f"保存提示词失败: {str(e)}")
-
-    def _provider_prompts_reset(self, body: dict, provider_type: str):
-        try:
-            config_path = globals._config.get("_config_path") if globals._config else None
-            display_name = reset_provider_prompt(config_path, provider_type)
-            json_response(self, 200, message=f"已恢复出厂默认 LLM+{display_name} 提示词，重启服务后生效")
-        except Exception as e:
-            json_response(self, 500, message=f"恢复默认提示词失败: {str(e)}")

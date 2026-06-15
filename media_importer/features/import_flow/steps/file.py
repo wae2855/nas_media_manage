@@ -120,7 +120,7 @@ class FileStepsMixin:
             templates = self.config.get('filename_templates', {})
             video_ext = os.path.splitext(task.get("video_path", ""))[1]
             scraped = task.get("scrape_result", {})
-            if scraped.get('type') == 'tv':
+            if scraped.get('media_type') == 'tv':
                 template = templates.get('tv', '')
             else:
                 template = templates.get('movie', '')

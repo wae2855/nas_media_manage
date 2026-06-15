@@ -8,11 +8,6 @@ STATUS_SKIPPED = "SKIPPED"
 STATUS_SUCCESS = "SUCCESS"
 STATUS_CANCELLED = "CANCELLED"
 
-# 旧状态常量保留为向后兼容别名
-STATUS_PROCESSING = "PENDING"       # 旧 PROCESSING → 现在由 stage=RUNNING 表达
-STATUS_CONFIRMING = "PENDING"       # 旧 CONFIRMING → 现在由 stage=AWAIT_REVIEW 表达
-STATUS_NEEDS_REVIEW = "PENDING"     # 旧 NEEDS_REVIEW → 现在由 stage=AWAIT_REVIEW 表达
-
 # --- 处理环节（stage，仅 status=PENDING 时有意义） ---
 STAGE_QUEUED = "QUEUED"
 STAGE_RUNNING = "RUNNING"
@@ -103,6 +98,7 @@ def mark_confirming(task, reason=_NO_FIELD, *, video_path: str = None) -> dict:
         video_path=video_path if video_path is not None else current_video_path(task),
         file_location=FILE_LOCATION_TEMP,
         error_message=reason,
+        confirm_reason=reason,
     )
 
 

@@ -10,16 +10,15 @@ from media_importer.features.configuration import (
 def test_build_config_ui_payload_masks_sensitive_and_adds_compat_fields():
     payload = build_config_ui_payload(
         {
-            "llm": {"api_key": "secret"},
+            "ai_assist": {"api_key": "secret"},
             "source_policy": {"cleanup_source_after_done": False},
-        },
-        {"global": []},
+        }
     )
 
-    assert payload["config"]["llm"]["api_key"] == "***"
+    assert payload["config"]["ai_assist"]["api_key"] == "***"
     assert payload["config"]["source_policy"]["cleanup_mode"] == "read_only"
     assert payload["config"]["source_policy"]["delete_source_after_import"] is False
-    assert payload["prompts"] == {"global": []}
+    assert "prompts" not in payload
 
 
 def test_build_section_config_update_keeps_existing_provider_api_key():

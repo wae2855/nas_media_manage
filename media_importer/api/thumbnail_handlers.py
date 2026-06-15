@@ -57,7 +57,7 @@ def _get_thumbnail_dir() -> str:
 class ThumbnailHandlersMixin:
     """提供缩略图列表和文件服务的 API"""
 
-    def _thumbnails_list(self):
+    def _thumbnails_list(self, *, body: dict, params: dict, query: dict):
         """GET /api/thumbnails — 返回 Thumbnail 目录下的图片列表，按修改时间倒序，最多 12 张"""
         thumb_dir = _get_thumbnail_dir()
         if not thumb_dir:
@@ -91,9 +91,9 @@ class ThumbnailHandlersMixin:
         except Exception as e:
             json_response(self, 500, message=f"读取缩略图目录失败: {e}")
 
-    def _thumbnails_serve(self, filename):
+    def _thumbnails_serve(self, *, body: dict, params: dict, query: dict):
         """GET /api/thumbnails/{filename} — 返回单张缩略图文件"""
-        filename = unquote(filename)
+        filename = unquote(params.get("filename", ""))
         thumb_dir = _get_thumbnail_dir()
         if not thumb_dir:
             json_response(self, 404, message="缩略图目录未配置或不存在")

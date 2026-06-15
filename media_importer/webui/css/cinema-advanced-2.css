@@ -1,0 +1,203 @@
+/* cinema-advanced-2.css - part 2 of 2 */
+.sim-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.sim-step-line {
+    width: 2px;
+    flex: 1;
+    min-height: 16px;
+}
+
+/* --- 步骤内容 --- */
+.sim-step-content {
+    flex: 1;
+    padding-bottom: 28px;
+    min-width: 0;
+}
+.sim-step:last-child .sim-step-content {
+    padding-bottom: 0;
+}
+
+/* --- 步骤头部（标题 + 标签） --- */
+.sim-step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.sim-step-title {
+    font-size: 14px;
+    font-weight: 700;
+}
+.sim-step-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+/* --- 键值对 --- */
+.sim-kv {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin-top: 5px;
+    font-size: 13px;
+    line-height: 1.55;
+}
+.sim-k {
+    flex-shrink: 0;
+    min-width: 110px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.sim-v {
+    color: var(--ink);
+}
+.sim-v-highlight {
+    font-weight: 600;
+    color: var(--gold-2);
+}
+.sim-v-score {
+    font-weight: 700;
+}
+
+/* --- 警告信息 --- */
+.sim-warning {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #F59E0B;
+}
+
+/* --- 队列决策框 --- */
+.sim-queue-decision {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    border-width: 1px;
+    border-style: solid;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+/* --- 维度标签列表 --- */
+.sim-dim-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.sim-dim-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+/* =============================================
+   Scrape Preview — 进度条
+   ============================================= */
+.sim-preview-progress {
+    padding: 8px 0;
+}
+.sim-progress-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 14px;
+}
+.sim-progress-step {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 0 8px 16px;
+    border-left: 2px solid var(--line);
+    margin-bottom: 2px;
+}
+.sim-progress-step:first-of-type {
+    border-left-color: var(--gold);
+}
+.sim-progress-step.sim-progress-done {
+    border-left-color: var(--green);
+}
+.sim-progress-step.sim-progress-running {
+    border-left-color: var(--gold);
+}
+.sim-progress-step.sim-progress-failed {
+    border-left-color: var(--red);
+}
+
+@keyframes simProgressFade {
+    0% { opacity: 0; transform: translateY(-4px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+.sim-progress-new {
+    animation: simProgressFade 0.35s ease-out both;
+}
+
+.sim-progress-step-label {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink);
+}
+.sim-progress-step-message {
+    font-size: 12px;
+    color: var(--muted);
+}
+.sim-progress-step-elapsed {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* --- 旋转动画 --- */
+@keyframes simSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.sim-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--line);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: simSpin 0.7s linear infinite;
+    margin: 20px auto;
+}
+.sim-spinner-inline {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--line);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: simSpin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+@media (max-width: 920px) {
+    .advanced-action-row,
+    .hero-action-group {
+        width: 100%;
+    }
+}

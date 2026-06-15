@@ -21,24 +21,15 @@ from media_importer.scraper.llm_scraper import LLMScrapeError, LLMScraper
 from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
 from .confidence_models import (
     CleanResult,
-    ConfidenceResult,
     DEFAULT_CONFIDENCE_CONFIG,
     MatchResult,
-    _aggregate,
-    _calc_R,
 )
-from .confidence_engine import (
-    ConfidenceEngine,
-    FilenameCleaner,
-    TitleMatcher,
-    _similarity,
-)
+from media_importer.scraper.filename_cleaner import FilenameCleaner
+from media_importer.scraper.title_matcher import TitleMatcher, _similarity
 from .metadata_scraper import MetadataScraper
 
 __all__ = [
     "CleanResult",
-    "ConfidenceEngine",
-    "ConfidenceResult",
     "DEFAULT_CONFIDENCE_CONFIG",
     "DimensionActionResult",
     "FilenameCleaner",
@@ -49,8 +40,6 @@ __all__ = [
     "TMDbClient",
     "TMDbError",
     "TitleMatcher",
-    "_aggregate",
-    "_calc_R",
     "_similarity",
     "check_tier_access",
     "disable_dimension_detail",

@@ -17,6 +17,10 @@
 |------|--------|-------|
 | `tests/test_api_routes.py` | current | API route table. |
 | `tests/test_config_view.py` | current | Config facade defaults and consumers. |
+| `tests/test_configuration_validate.py` | current | `validate_config()` 全部分支（目录/冲突/弃用字段/源清理器/刮削模式/AI 辅助）。 |
+| `tests/test_path_rules.py` | current | `build_path_test_payload()` 入参、异常、user 注入。 |
+| `tests/test_dimensions_aggregation.py` | current | `dimension_manager` 纯函数：分级映射/genre 归一化/region/lang/genre_by_rules/bool_genre/provider 分发。 |
+| `tests/test_recycle_list_payload.py` | current | `list_recycle_dir()` 字段契约/分页/zone 过滤/restorable 判定。 |
 | `tests/test_task_context_lifecycle.py` | current | Task context and lifecycle. |
 | `tests/test_task_operations.py` | current | Task manager operations. |
 | `tests/test_import_flow_services.py` | current | Import flow services. |
@@ -39,6 +43,7 @@
 | `tests/test_scrape_ui.py` | gated | External service UI. |
 | `tests/test_frontend_recycle.py` | gated | Self-started UI; keep until frontend rewrite. |
 | `tests/test_integration_recycle.py` | gated | Self-started service integration. |
+| `tests/test_source_cleaner_e2e.py` | gated | Source Cleaner 完整 E2E 套件（脚本式，外部服务）；从 `scripts/test_source_cleaner.py` 迁移而来，模块级守卫让 pytest 默认跳过。手动跑：`python tests/test_source_cleaner_e2e.py`。 |
 
 ## Archive Candidates
 

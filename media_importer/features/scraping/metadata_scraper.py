@@ -10,8 +10,11 @@ from media_importer.features.providers import (
     DimensionMapping,
 )
 from media_importer.scraper.llm_scraper import LLMScraper
-from media_importer.features.scraping.confidence_engine import (
-    FilenameCleaner, TitleMatcher, ConfidenceEngine, CleanResult, MatchResult
+from media_importer.scraper.filename_cleaner import FilenameCleaner
+from media_importer.scraper.title_matcher import TitleMatcher, MatchResult
+from media_importer.features.scraping.confidence_models import (
+    DEFAULT_CONFIDENCE_CONFIG,
+    CleanResult,
 )
 from media_importer.features.configuration import ConfigView
 from media_importer.scraper.metadata_scrape_flow import scrape_metadata, scrape_series_metadata
@@ -23,9 +26,8 @@ class MetadataScraper:
         self.view = ConfigView.from_dict(config)
         self.providers = create_providers(config)
         self.llm_scraper = LLMScraper(config)
-        self.confidence_engine = ConfidenceEngine(self.view.metadata.confidence)
         self._cleaner = FilenameCleaner()
-        self._matcher = TitleMatcher(self.view.metadata.confidence)
+        self._matcher = TitleMatcher()
 
     def _preprocess_filename(self, filename: str) -> tuple:
         clean_name = os.path.splitext(filename)[0]
@@ -70,7 +72,7 @@ class MetadataScraper:
         import logging
         _log = logging.getLogger(__name__)
 
-        match_threshold = min_threshold if min_threshold is not None else self.confidence_engine._config.get("provider_match_threshold", 0.85)
+        match_threshold = min_threshold if min_threshold is not None else DEFAULT_CONFIDENCE_CONFIG.get("provider_match_threshold", 0.85)
         media_type_hint = "tv" if season is not None else None
 
         best_match = None
@@ -148,7 +150,7 @@ class MetadataScraper:
                       "status": "no_results", "reason": f"{provider.display_name} 搜索无结果", "best_T": 0.0}
         else:
             status = {"provider_type": provider.provider_type, "display_name": provider.display_name,
-                      "status": "below_threshold", "reason": f"匹配度低于阈值 (T={best_T:.3f})", "best_T": best_T}
+                      "status": "below_threshold", "reason": "Provider 候选未达到自动匹配条件", "best_T": best_T}
 
         return None, status
 
@@ -270,7 +272,7 @@ class MetadataScraper:
         from media_importer.features.scraping import get_dimensions_for_provider
         dim_configs = get_dimensions_for_provider(conn, provider.provider_type)
         dim_mappings = provider.map_dimensions(dim_configs, details)
-        return {dm.name: {'value': dm.value, 'confidence': dm.confidence, 'source': dm.source} for dm in dim_mappings}
+        return {dm.name: {'value': dm.value, 'source_reliability': dm.source_reliability, 'source': dm.source} for dm in dim_mappings}
 
     def _map_tmdb_dimensions(self, tmdb_data: dict, conn, media_type: str = "movie",
                             tmdb_id: int = None) -> dict:

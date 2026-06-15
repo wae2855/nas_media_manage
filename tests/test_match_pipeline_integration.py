@@ -24,7 +24,7 @@ class TestMatchToReviewIntegration(unittest.TestCase):
             "title_cn": "盗梦空间",
             "title_en": "Inception",
             "year": 2010,
-            "type": "movie",
+            "media_type": "movie",
         }
         decision = self.review_service.evaluate(scraped)
         self.assertEqual(decision.action, "continue")
@@ -36,7 +36,7 @@ class TestMatchToReviewIntegration(unittest.TestCase):
             "title_cn": "盗梦空间",
             "title_en": "Inception",
             "year": 2010,
-            "type": "movie",
+            "media_type": "movie",
             "match_concerns": [],
         }
         decision = self.review_service.evaluate(scraped)
@@ -49,7 +49,7 @@ class TestMatchToReviewIntegration(unittest.TestCase):
             "title_cn": "蜘蛛侠",
             "title_en": "Spider-Man",
             "year": 2002,
-            "type": "movie",
+            "media_type": "movie",
             "match_concerns": [
                 {"code": "NO_YEAR_MULTI_MATCH", "message": "找到3部同名作品", "detail": "..."},
             ],
@@ -71,7 +71,7 @@ class TestMatchToReviewIntegration(unittest.TestCase):
         scraped = {
             "match_level": d["match_level"],
             "title_cn": "Test",
-            "type": "movie",
+            "media_type": "movie",
             "year": 2020,
             "match_concerns": d["concerns"],
         }
@@ -96,7 +96,7 @@ class TestTier2JudgeIntegration(unittest.TestCase):
             }
         }
         scraper = LLMScraper(config)
-        mock_response = '{"selected_index": 0, "confidence": 0.85, "reason": "标题精确匹配"}'
+        mock_response = '{"suggested_query": "Inception", "certainty": "high", "reason": "标题精确匹配"}'
         with patch.object(scraper, '_do_call', return_value=mock_response):
             result = scraper.tier2_judge(
                 original_filename="Inception.2010.mkv",
@@ -104,8 +104,8 @@ class TestTier2JudgeIntegration(unittest.TestCase):
                 year=2010,
                 candidates=[{"id": 27205, "title": "Inception", "year": 2010}],
             )
-        self.assertEqual(result["selected_index"], 0)
-        self.assertAlmostEqual(result["confidence"], 0.85)
+        self.assertEqual(result["suggested_query"], "Inception")
+        self.assertEqual(result["certainty"], "high")
         self.assertIn("精确匹配", result["reason"])
 
     def test_tier2_judge_handles_malformed_response(self):
@@ -128,8 +128,8 @@ class TestTier2JudgeIntegration(unittest.TestCase):
                 clean_title="Test",
                 candidates=[],
             )
-        self.assertEqual(result["selected_index"], -1)
-        self.assertEqual(result["confidence"], 0.0)
+        self.assertEqual(result["suggested_query"], "Test")
+        self.assertEqual(result["certainty"], "low")
 
 
 if __name__ == "__main__":

@@ -32,14 +32,15 @@ All use discrete match/no-match decisions, not continuous probability values.
 Replace the mathematical confidence formula with a three-tier discrete matching strategy:
 
 1. **Tier 1 - Provider Exact Match**: Clean filename -> extract title/year/season/episode -> search Provider -> exact match (title + year) -> AUTO_PASS
-2. **Tier 2 - Context-Assisted Match**: Collect directory context (parent folder, sibling files) + Provider candidates -> AI selects from candidates -> AUTO_PASS
+2. **Tier 2 - Keyword-Guided Re-Search**: AI assist model suggests refined search keywords -> Provider re-search with suggested keywords -> unique exact match -> CONTEXT_PASS. No exact match after re-search -> take top candidate + concerns -> Tier 3. Max 2 re-search loops.
 3. **Tier 3 - User Confirmation**: Present top Provider candidates + match concern reasons -> user selects
 
 Key principles:
 - Matching (which work) and dimensions (what category) are decoupled
 - Match concern reasons replace confidence numbers for user communication
-- AI is used for context-assisted judgment (Tier 2) and dimension completion, not for primary matching
+- AI is used for keyword suggestion (Tier 2) and dimension completion, not for primary matching
 - TitleMatcher L1-L7 levels are preserved but T values are no longer used as multiplication factors
+- **Deprecated**: The old "AI selects from candidates directly and auto-passes" strategy is replaced by "AI suggests keywords -> Provider re-search -> unique exact match only"
 
 Dimension confirmation follows a three-level priority:
 1. **Provider Direct Mapping**: Structured data from Provider (TMDB/豆瓣) mapped via deterministic rules. 100% trusted. Example: `genre_ids=99` → `documentary=true`, `origin_country=["JP"]` → `region=jp`. `media_type` is hardcoded from the search endpoint used (`/search/movie` → movie, `/search/tv` → tv).
@@ -77,8 +78,8 @@ Let AI identify works directly from filename + context.
 ### Negative
 - **Loss of fine-grained tuning**: Users who understood the formula can no longer tweak thresholds
   - Mitigation: The vast majority of users never touched these settings
-- **AI dependency for Tier 2**: Every non-exact match triggers an AI call
-  - Mitigation: Cost is ~0.3 yuan per 1000 files, negligible
+- **AI dependency for Tier 2**: Every non-exact match triggers an AI call + Provider re-search
+  - Mitigation: Cost is ~0.5 yuan per 1000 files, negligible. Max 2 re-search loops prevent runaway costs.
 - **ai_only mode removal**: Breaking change for users who configured it
   - Mitigation: Auto-migration to provider_first with graceful degradation when no Provider is configured
 - **No probability output**: Cannot rank candidates by likelihood
@@ -87,5 +88,51 @@ Let AI identify works directly from filename + context.
 ### Risks
 - Tier 1 exact match rate may be below 80% for poorly named files
   - Mitigation: Benchmark dataset of 100+ real filenames to validate
-- AI Tier 2 may not be reliable enough without web search
+- AI Tier 2 keyword suggestion may not be reliable enough without web search
   - Mitigation: Graceful degradation to Tier 3, and assumption marked as "to be verified"
+- Provider re-search may return different results than original search
+  - Mitigation: Trace records each keyword suggestion and re-search result for auditability
+
+## Unified Field Contract
+
+### Scrape Result Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `media_type` | str | **Primary field** for media type (movie/tv). Use this in new code. |
+| `type` | str | **Legacy compatibility** alias for `media_type`. Read both, write `media_type`. |
+| `confirm_reason` | str | Human-readable reason why task needs confirmation. Persisted to DB. |
+| `dim_sources` | dict | Per-dimension source tracking: `{ "dim_name": "provider:tmdb\|provider:douban\|ai_assist\|ai_search\|file\|unknown" }` |
+| `match_level` | str | One of `AUTO_PASS`, `CONTEXT_PASS`, `NEEDS_CONFIRM` |
+
+### dim_sources Format
+
+```json
+{
+  "media_type": "provider:tmdb",
+  "documentary": "provider:tmdb",
+  "restricted_level": "ai_assist",
+  "region": "provider:tmdb",
+  "origin_lang": "ai_search",
+  "resolution_tier": "file",
+  "broad_genre": "unknown"
+}
+```
+
+Extension fields (reserved, not yet mandatory):
+- `source_label`: Human-readable label (e.g., "TMDB genre_ids=99")
+- `evidence`: Raw data that led to this value
+- `trusted`: Whether this source is trusted per user config
+
+### ai_assist vs ai_search Responsibility Boundary
+
+| Task | Model | Config Source |
+|------|-------|---------------|
+| Title cleaning | ai_assist | `ai_assist.base_url/model/api_key` |
+| Match keyword suggestion (Tier 2) | ai_assist | `ai_assist.base_url/model/api_key` |
+| Complex dimension mapping | ai_assist | `ai_assist.base_url/model/api_key` |
+| Source directory cleanup | ai_assist | `ai_assist.base_url/model/api_key` |
+| Missing dimension web search | ai_search | `ai_search.base_url/model/api_key` |
+| **NOT**: Full work scraping fallback | Neither | Provider-only |
+
+`ai_search` MUST NOT be used as a work scraping fallback. It only fills missing dimensions after Provider scraping.

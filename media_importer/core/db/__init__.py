@@ -17,12 +17,6 @@ from .connection import (
 )
 from .migrations import (
     _seed_dimensions,
-    _migrate_dimensions,
-    _migrate_region,
-    _migrate_broad_genre,
-    _migrate_restricted_level,
-    _migrate_source_type,
-    _migrate_tmdb_field,
 )
 from .dimension_repo import (
     get_all_dimensions,

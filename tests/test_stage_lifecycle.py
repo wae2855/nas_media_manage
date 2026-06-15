@@ -75,11 +75,11 @@ class TestStageLifecycle(unittest.TestCase):
 
     def test_mark_confirming_records_reason(self):
         task = {"video_path": "/temp/movie.mkv"}
-        fields = mark_confirming(task, "置信度较低")
+        fields = mark_confirming(task, "需要人工确认")
 
         self.assertEqual(fields["status"], STATUS_PENDING)
         self.assertEqual(fields["stage"], STAGE_AWAIT_REVIEW)
-        self.assertEqual(fields["error_message"], "置信度较低")
+        self.assertEqual(fields["error_message"], "需要人工确认")
 
     def test_mark_needs_review_same_stage_as_confirming(self):
         task = {"video_path": "/temp/movie.mkv"}

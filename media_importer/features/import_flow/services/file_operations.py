@@ -37,7 +37,7 @@ def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
 
     video_ext = os.path.splitext(video_path)[1]
 
-    if scraped_info.get('type') == 'tv':
+    if scraped_info.get('media_type') == 'tv':
         template = filename_templates.get('tv', '{title_cn}.{title_en}.{year}.S{season}E{episode}.{ext}')
     else:
         template = filename_templates.get('movie', '{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}')

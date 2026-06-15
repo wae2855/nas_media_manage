@@ -16,24 +16,180 @@ adr: docs/decisions/0005-three-tier-matching.md
 
 本计划将设计方案 v6 拆分为 3 个 Phase，每个 Phase 可独立交付和验证。Phase 内按任务编号顺序执行，带依赖关系的任务标注了前置条件。
 
-```
-Phase 1 — 配置结构 + DB 变更（后端，无 UI 改动）
-  T1.1 ~ T1.8
+**开发后评审状态（2026-06-13）**：
+- Phase 1 ✅ 基础设施已完成（配置对象、迁移函数、DB 新列、提示词 API）
+- Phase 2 ✅ UI 已完成（前端控件齐全），但后端数据源未完全连通
+- Phase 3 ⚠️ 壳已搭，核心逻辑未完全切换
 
-Phase 2 — UI 重写（前端，依赖 Phase 1 的 API 和 DB）
-  T2.1 ~ T2.8
+**紧急修复清单**（评审发现的 P0/P1 问题，需优先处理）：
 
-Phase 3 — 刮削逻辑切换（后端核心逻辑，依赖 Phase 1 + 2）
-  T3.1 ~ T3.8
+| # | 优先级 | 问题 | 状态 |
+|---|--------|------|------|
+| #1 | P0 | `llm_scraper.py` 仍读旧 `llm` 字段，新配置不生效 | 🔴 待修复 |
+| #2 | P0 | `confirm_reason` 仅存内存，未写入 DB | 🔴 待修复 |
+| #3 | P1 | `dim_sources` 维度来源追踪——DB 有字段、前端有读取，中间未写入 | 🔴 待修复 |
+| #4 | P1 | `validate_config` 仍强制要求旧 `llm.api_key` | 🟡 待修复 |
+| #7 | P2 | `trust_ai_assist/trust_ai_search` 未影响刮削判断逻辑 | 🟡 待修复 |
+| #5 | P3 | `ai_only` 残留代码未清理 | 🟢 待处理 |
+| #8 | P3 | 迁移无幂等保护，无 schema_version | 🟢 待处理 |
+
+---
+
+## 🔥 紧急修复（Hot Fixes）
+
+### HF-1 llm_scraper.py 配置源切换（P0）
+
+**问题**：构造函數仍硬编码读 `ConfigView.from_dict(config).llm`，用户在 UI 配置的 `ai_assist`/`ai_search` 完全不生效。
+
+**文件**：`media_importer/scraper/llm_scraper.py`
+
+**操作**：修改 `__init__`，优先读 `ai_assist`/`ai_search`，fallback 到 `llm`：
+
+```python
+def __init__(self, config: dict):
+    ai_assist = config.get("ai_assist", {})
+    ai_search = config.get("ai_search", {})
+    llm = config.get("llm", {})
+
+    # AI辅助模型（fast_*）
+    self.fast_model = ai_assist.get("model") or llm.get("fast_model") or llm.get("model", "")
+    self.fast_base_url = ai_assist.get("base_url") or llm.get("fast_base_url") or llm.get("base_url", "")
+    self.fast_api_key = ai_assist.get("api_key") or llm.get("fast_api_key") or llm.get("api_key", "")
+
+    # AI联网搜索增强模型
+    self.model = ai_search.get("model") or llm.get("model", "")
+    self.base_url = ai_search.get("base_url") or llm.get("base_url", "")
+    self.api_key = ai_search.get("api_key") or llm.get("api_key", "")
+
+    # Web搜索配置
+    from media_importer.features.scraping.web_search_config import build_web_search_config
+    self.web_search_config = build_web_search_config(ai_search or llm.get("web_search", {}))
+
+    # 其他参数
+    self.timeout = ai_assist.get("timeout") or llm.get("timeout", 30)
+    self.max_retries = ai_assist.get("max_retries") or llm.get("max_retries", 2)
+    self.verify_ssl = ai_assist.get("verify_ssl", True) if ai_assist.get("verify_ssl") is not None else llm.get("verify_ssl", True)
+
+    # legacy 字段保留给上层兼容
+    self.fallback_model = llm.get("fallback_model", "")
+    self.confidence_threshold = llm.get("confidence_threshold", 0)
 ```
+
+**验证**：旧 `llm` 配置用户升级后刮削正常；新 `ai_assist`/`ai_search` 配置用户刮削生效。
+
+---
+
+### HF-2 confirm_reason 写入 DB（P0）
+
+**问题**：`_step_validate` 只写 `task["_confirm_reason"]` 内存字段，`confirm_reason` 未写入 DB。
+
+**文件**：`media_importer/features/import_flow/steps/scrape.py`
+
+**操作**：在 `db_update_task` 调用中加入 `confirm_reason`：
+
+```python
+db_update_task(
+    self.task_manager.conn, task.get("task_id", ""),
+    ...
+    confirm_reason=task.get("_confirm_reason", ""),
+)
+```
+
+**验证**：待确认任务在 DB 中 `confirm_reason` 非空，重启后仍能展示确认原因。
+
+---
+
+### HF-3 dim_sources 维度来源写入 DB（P1）
+
+**问题**：`dim_sources` DB 字段和前端展示逻辑已就绪，但 `scrape.py` 和 `metadata_scrape_flow.py` 均未构造和写入。
+
+**文件**：`media_importer/features/import_flow/steps/scrape.py`
+
+**操作**：
+
+1. 在 `_step_scrape` 中，从 `scrape_result` 获取或构造 `dim_sources`：
+```python
+import json as _json
+dim_sources = result.get("dim_sources", {})
+if not dim_sources:
+    # 临时兜底：根据 result 中是否有 ai_invoked 标记来源
+    dim_sources = self._infer_dim_sources(result, file_dimensions, scrape_dimensions)
+task["dim_sources"] = dim_sources
+```
+
+2. 在 `db_update_task` 调用中加入：
+```python
+db_update_task(
+    ...
+    dim_sources=dim_sources,
+)
+```
+
+3. 新增 `_infer_dim_sources()` 辅助函数（临时方案，正式方案在 Phase 3 T3.4 中实现）：
+```python
+def _infer_dim_sources(self, result: dict, file_dimensions: dict, scrape_dimensions: dict) -> dict:
+    """根据 result 推断各维度来源。临时方案，正式方案见 Phase 3 T3.4。"""
+    sources = {}
+    scrape_trace = result.get("scrape_trace", {})
+    ai_invoked = scrape_trace.get("ai_invoked", False) if isinstance(scrape_trace, dict) else False
+
+    for dim_name in scrape_dimensions:
+        if dim_name in file_dimensions:
+            sources[dim_name] = "file"
+        elif ai_invoked:
+            sources[dim_name] = "ai_assist"
+        else:
+            sources[dim_name] = "provider:tmdb"
+    return sources
+```
+
+**验证**：任务卡片刮削过程展开区能看到维度来源图标，不再是空。
+
+---
+
+### HF-4 validate_config 改用新字段校验（P1）
+
+**问题**：`validate_config` 强制要求旧 `llm.api_key`，但新用户 UI 上已无 `llm` 区块。
+
+**文件**：`media_importer/core/config_loader.py`
+
+**操作**：修改校验逻辑，支持 Provider-only 模式（不强制 AI 配置）：
+
+```python
+def validate_config(config: dict) -> list:
+    errors = []
+    llm = config.get("llm", {})
+    ai_assist = config.get("ai_assist", {})
+    ai_search = config.get("ai_search", {})
+
+    # Provider-only 模式：至少有一个 Provider 配置即可，不强制 AI
+    if not config.get("providers"):
+        # 检查是否有 TMDB 等 Provider（通过 providers 区块）
+        pass  # 保留原有 Provider 校验
+
+    # AI 配置为可选项（NAS 用例可用 Provider-only）
+    # 如果用户配置了 AI 但未填写完整，给出提示而非报错
+    for section, name in (("ai_assist", "AI辅助"), ("ai_search", "AI联网搜索增强")):
+        s = config.get(section, {})
+        if s and s.get("api_key") and s["api_key"] != "your-api-key-here":
+            # 检查必填字段
+            if section == "ai_assist":
+                if not s.get("base_url") or not s.get("model"):
+                    errors.append(f"{name}已配置 API Key，但缺少 base_url 或 model")
+            elif section == "ai_search":
+                if not s.get("provider") or not s.get("model"):
+                    errors.append(f"{name}已配置 API Key，但缺少 provider 或 model")
+
+    return errors
+```
+
+**验证**：无 AI 配置时服务正常启动；配置 AI 但字段不完整时给出明确提示。
 
 ---
 
 ## Phase 1：配置结构 + DB 变更
 
-**目标**：新增 `ai_assist` / `ai_search` 配置结构，DB 新增维度信任字段和任务来源追踪字段，配置迁移逻辑。此阶段完成后，前端暂不改动，旧 `llm` 配置仍可正常工作。
-
-### T1.1 新增 AiAssistConfig / AiSearchConfig dataclass
+**✅ 状态**：已完成（所有 T1.1-T1.8 任务均已实现）
 
 **文件**：`media_importer/core/config_view.py`
 
@@ -493,6 +649,8 @@ def handle_get_prompt_defaults(handler) -> dict:
 
 ## Phase 2：UI 重写
 
+**✅ 状态**：已完成（前端控件齐全，T2.1-T2.7 均已实现），**但后端数据源未完全连通（HFT-3）**。
+
 **目标**：重写前端 AI 配置界面、维度信任配置、模拟刮削展示、任务卡片刮削过程。依赖 Phase 1 的 API 和 DB 变更。
 
 ### T2.1 替换刮削模式卡片为展示卡
@@ -667,6 +825,8 @@ def handle_get_prompt_defaults(handler) -> dict:
 ---
 
 ## Phase 3：刮削逻辑切换
+
+**⚠️ 状态**：部分完成。T3.1（配置源切换）、T3.2（search_type）**待通过 HF-1 实现**；T3.3-T3.8 未实现（正式维度三级来源逻辑未落地）。
 
 **目标**：将刮削逻辑从旧 `llm` 配置切换到 `ai_assist` / `ai_search`，实现维度确认三级流程、confirm_reason 生成、第二级循环清洗。依赖 Phase 1 + 2。
 

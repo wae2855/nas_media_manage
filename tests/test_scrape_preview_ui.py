@@ -20,7 +20,7 @@ class TestScrapePreviewUI(unittest.TestCase):
                     "provider_first": {
                         "result": {
                             "title_cn": "盗梦空间", "title_en": "Inception",
-                            "year": 2010, "type": "movie", "confidence": 0.95,
+                            "year": 2010, "type": "movie",
                             "match_level": "AUTO_PASS", "match_concerns": [],
                         },
                     },

@@ -71,23 +71,11 @@ class APIHandler(
             return True
 
         handler = getattr(self, match.route.handler_name)
-        args = []
-        if match.route.pass_self:
-            args.append(self)
-        if match.route.pass_body and match.route.body_before_params:
-            args.append(body or {})
-        for param_name in match.route.param_names:
-            args.append(match.params[param_name])
-        if match.route.pass_query:
-            args.append(query or {})
-        if match.route.pass_body and not match.route.body_before_params:
-            args.append(body or {})
-        if match.route.body_delete_files:
-            args.append(bool((body or {}).get("delete_files", False)))
-
-        result = handler(*args)
-        if match.route.handler_name == "_load_prompts_for_ui":
-            json_response(self, 200, data=result)
+        handler(
+            body=body or {},
+            params=match.params,
+            query=query or {},
+        )
         return True
 
     def do_GET(self):
@@ -152,8 +140,8 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
         stage = task.get("stage", "")
         tid = task.get("task_id", "")
 
-        # 旧 PROCESSING / 当前 PENDING/RUNNING 任务 → 标记为 FAILED
-        if status == "PROCESSING" or (status == "PENDING" and stage == "RUNNING"):
+        # PENDING/RUNNING 任务 → 标记为 FAILED
+        if status == "PENDING" and stage == "RUNNING":
             temp_video = task.get("video_path", "")
             if temp_video and os.path.exists(temp_video):
                 try:
@@ -181,8 +169,8 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
             db_update_task(task_manager.conn, tid, **fields)
             failed_count += 1
 
-        # 旧 CONFIRMING / AWAIT_REVIEW 任务 → 保护 temp 文件不被清理
-        elif status == "CONFIRMING" or (status == "PENDING" and stage == "AWAIT_REVIEW"):
+        # PENDING/AWAIT_REVIEW 任务 → 保护 temp 文件不被清理
+        elif status == "PENDING" and stage == "AWAIT_REVIEW":
             temp_video = task.get("video_path", "")
             if temp_video:
                 active_temp_files.add(os.path.abspath(temp_video))

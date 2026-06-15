@@ -27,9 +27,7 @@ from media_importer.features.tasks import (
     start_processing,
 )
 from media_importer.core.task_lifecycle import (
-    STATUS_CONFIRMING,
-    STATUS_NEEDS_REVIEW,
-    STATUS_PROCESSING,
+    STATUS_PENDING,
 )
 from media_importer.features.import_flow import TaskContext
 
@@ -69,10 +67,9 @@ class TestTaskContext(unittest.TestCase):
             "title_cn": "盗梦空间",
             "title_en": "Inception",
             "year": "2010",
-            "type": "movie",
+            "media_type": "movie",
             "season": None,
             "episode": None,
-            "confidence": 0.91,
             "dimensions": {"media_type": "movie"},
         })
 
@@ -80,7 +77,6 @@ class TestTaskContext(unittest.TestCase):
         self.assertEqual(task["scrape_title_en"], "Inception")
         self.assertEqual(task["scrape_year"], "2010")
         self.assertEqual(task["scrape_media_type"], "movie")
-        self.assertEqual(task["scrape_confidence"], 0.91)
         self.assertEqual(task["scrape_dimensions"], {"media_type": "movie"})
 
     def test_to_update_fields_returns_selected_fields_only(self):
@@ -99,7 +95,7 @@ class TestTaskLifecycle(unittest.TestCase):
                 "start",
                 {},
                 lambda task: start_processing(task, started_at="2026-06-02T10:00:00"),
-                {"status": STATUS_PROCESSING, "started_at": "2026-06-02T10:00:00"},
+                {"status": STATUS_PENDING, "started_at": "2026-06-02T10:00:00"},
                 [],
             ),
             (
@@ -109,7 +105,7 @@ class TestTaskLifecycle(unittest.TestCase):
                     task, current_step=3, step_name="scrape", percentage=35
                 ),
                 {
-                    "status": STATUS_PROCESSING,
+                    "status": STATUS_PENDING,
                     "current_step": 3,
                     "step_name": "scrape",
                     "percentage": 35,
@@ -128,7 +124,7 @@ class TestTaskLifecycle(unittest.TestCase):
                 {"video_path": "/temp/movie.mkv"},
                 lambda task: mark_confirming(task, "needs confirm"),
                 {
-                    "status": STATUS_CONFIRMING,
+                    "status": STATUS_PENDING,
                     "confirm_status": CONFIRM_PENDING,
                     "file_location": FILE_LOCATION_TEMP,
                     "video_path": "/temp/movie.mkv",
@@ -151,7 +147,7 @@ class TestTaskLifecycle(unittest.TestCase):
                 {"video_path": "/temp/movie.mkv"},
                 lambda task: mark_needs_review(task, "manual review"),
                 {
-                    "status": STATUS_NEEDS_REVIEW,
+                    "status": STATUS_PENDING,
                     "file_location": FILE_LOCATION_TEMP,
                     "video_path": "/temp/movie.mkv",
                     "error_message": "manual review",
@@ -213,9 +209,9 @@ class TestTaskLifecycle(unittest.TestCase):
 
         fields = start_processing(task, started_at="2026-05-31T10:00:00")
 
-        self.assertEqual(fields["status"], STATUS_PROCESSING)
+        self.assertEqual(fields["status"], STATUS_PENDING)
         self.assertEqual(fields["started_at"], "2026-05-31T10:00:00")
-        self.assertEqual(task["status"], STATUS_PROCESSING)
+        self.assertEqual(task["status"], STATUS_PENDING)
 
     def test_mark_temp_ready_tracks_current_temp_video(self):
         task = {"source_path": "/source/movie.mkv", "video_path": "/temp/movie.mkv"}
@@ -231,7 +227,7 @@ class TestTaskLifecycle(unittest.TestCase):
 
         fields = mark_confirming(task)
 
-        self.assertEqual(fields["status"], STATUS_CONFIRMING)
+        self.assertEqual(fields["status"], STATUS_PENDING)
         self.assertEqual(fields["confirm_status"], "PENDING")
         self.assertNotIn("error_message", fields)
         self.assertEqual(task["error_message"], "old")
@@ -239,10 +235,10 @@ class TestTaskLifecycle(unittest.TestCase):
     def test_mark_confirming_records_reason_when_provided(self):
         task = {"video_path": "/temp/movie.mkv"}
 
-        fields = mark_confirming(task, "置信度较低")
+        fields = mark_confirming(task, "需要人工确认")
 
-        self.assertEqual(fields["status"], STATUS_CONFIRMING)
-        self.assertEqual(fields["error_message"], "置信度较低")
+        self.assertEqual(fields["status"], STATUS_PENDING)
+        self.assertEqual(fields["error_message"], "需要人工确认")
 
     def test_mark_needs_review_records_temp_location(self):
         task = {"video_path": "/temp/movie.mkv"}

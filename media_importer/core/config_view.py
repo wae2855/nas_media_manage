@@ -74,57 +74,49 @@ class ManualReviewConfig:
 @dataclass(frozen=True)
 class MetadataProviderConfig:
     providers: list = field(default_factory=list)
-    confidence: dict = field(default_factory=dict)
-    scrape_mode: str = "provider_first"  # provider_first | ai_only
+    scrape_mode: str = "provider_first"  # 当前唯一模式：provider_first
 
 
 @dataclass(frozen=True)
-class LLMConfig:
-    # `enabled` is deprecated since 2026-06. AI availability is determined solely by
-    # `is_configured()` (api_key + base_url + model all present). The field is kept
-    # for backward compatibility with existing config files.
-    enabled: bool = False  # deprecated
+class AiAssistConfig:
+    base_url: str = ""
+    model: str = ""
     api_key: str = ""
-    base_url: str = "https://api.openai.com/v1"
-    model: str = "gpt-3.5-turbo"
-    fast_model: str = ""
-    fast_base_url: str = ""
-    fast_api_key: str = ""
-    source_cleaner_model: str = "gpt-4o-mini"
     timeout: int = 30
     max_retries: int = 2
     retry_delay: int = 3
-    fallback_model: str = ""
-    confidence_threshold: float = 0.8
     verify_ssl: bool = True
-    system_prompt: str = ""
-    web_search: dict = field(default_factory=dict)  # Web search config (dict key: enabled/provider/enabled_for_*)
+    prompt_title_clean: str = ""
+    prompt_match_assist: str = ""
+    prompt_dimension_mapping: str = ""
+    prompt_source_clean: str = ""
 
     @property
     def is_configured(self) -> bool:
-        """Check if AI scrape is properly configured (api_key + base_url + model)."""
         return bool(self.api_key and self.base_url and self.model)
+
+
+@dataclass(frozen=True)
+class AiSearchConfig:
+    enabled: bool = True
+    provider: str = ""
+    model: str = ""
+    search_type: str = ""
+    api_key: str = ""
+    base_url: str = ""
+    timeout: int = 30
+    max_retries: int = 2
+    retry_delay: int = 3
+    verify_ssl: bool = True
+    prompt_dimension_supplement: str = ""
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.model)
 
     @property
     def is_effective(self) -> bool:
-        """Check if AI scrape is available.
-
-        As of 2026-06: only depends on `is_configured()`. The legacy `enabled` field
-        is ignored. To control whether AI is used, set `scrape_mode` instead.
-        """
-        return self.is_configured
-
-    @property
-    def effective_fast_model(self) -> str:
-        return self.fast_model or self.fallback_model or self.model
-
-    @property
-    def effective_fast_base_url(self) -> str:
-        return self.fast_base_url or self.base_url
-
-    @property
-    def effective_fast_api_key(self) -> str:
-        return self.fast_api_key or self.api_key
+        return self.enabled and self.is_configured
 
 
 @dataclass(frozen=True)
@@ -147,7 +139,6 @@ class SourceCleanerConfig:
     protect_extensions: tuple = field(default_factory=lambda: (".nfo", ".jpg", ".png"))
     blacklist_patterns: list = field(default_factory=lambda: ["RARBG*", "*/Sample/*", "*/sample/*"])
     cleanup_empty_dirs: bool = True
-    ai_prompt: str = ""
 
 
 @dataclass(frozen=True)
@@ -159,7 +150,8 @@ class ConfigView:
     filename_templates: FilenameTemplateConfig
     manual_review: ManualReviewConfig
     metadata: MetadataProviderConfig
-    llm: LLMConfig
+    ai_assist: AiAssistConfig
+    ai_search: AiSearchConfig
     scanner: ScannerConfig
     source_cleaner: SourceCleanerConfig
 
@@ -172,7 +164,8 @@ class ConfigView:
         duplicate_handling = _dict(config.get("duplicate_handling"))
         filename_templates = _dict(config.get("filename_templates"))
         metadata = _dict(config.get("metadata"))
-        llm = _dict(config.get("llm"))
+        ai_assist = _dict(config.get("ai_assist"))
+        ai_search = _dict(config.get("ai_search"))
         source_cleaner = _dict(config.get("source_cleaner"))
 
         paths = PathConfig(
@@ -211,26 +204,33 @@ class ConfigView:
             ),
             metadata=MetadataProviderConfig(
                 providers=_list(metadata.get("providers")),
-                confidence=_dict(config.get("confidence")),
                 scrape_mode=metadata.get("scrape_mode", "provider_first"),
             ),
-            llm=LLMConfig(
-                enabled=llm.get("enabled", False),
-                api_key=llm.get("api_key", ""),
-                base_url=llm.get("base_url") or llm.get("api_base", "https://api.openai.com/v1"),
-                model=llm.get("model", "gpt-3.5-turbo"),
-                fast_model=llm.get("fast_model", ""),
-                fast_base_url=llm.get("fast_base_url", ""),
-                fast_api_key=llm.get("fast_api_key", ""),
-                source_cleaner_model=llm.get("source_cleaner_model", "") or llm.get("fast_model", "") or llm.get("model", "gpt-4o-mini"),
-                timeout=llm.get("timeout", 30),
-                max_retries=llm.get("max_retries", 2),
-                retry_delay=llm.get("retry_delay", 3),
-                fallback_model=llm.get("fallback_model", ""),
-                confidence_threshold=llm.get("confidence_threshold", 0.8),
-                verify_ssl=llm.get("verify_ssl", True),
-                system_prompt=llm.get("system_prompt", ""),
-                web_search=_dict(llm.get("web_search", {})),
+            ai_assist=AiAssistConfig(
+                base_url=ai_assist.get("base_url", ""),
+                model=ai_assist.get("model", ""),
+                api_key=ai_assist.get("api_key", ""),
+                timeout=ai_assist.get("timeout", 30),
+                max_retries=ai_assist.get("max_retries", 2),
+                retry_delay=ai_assist.get("retry_delay", 3),
+                verify_ssl=ai_assist.get("verify_ssl", True),
+                prompt_title_clean=ai_assist.get("prompt_title_clean", ""),
+                prompt_match_assist=ai_assist.get("prompt_match_assist", ""),
+                prompt_dimension_mapping=ai_assist.get("prompt_dimension_mapping", ""),
+                prompt_source_clean=ai_assist.get("prompt_source_clean", ""),
+            ),
+            ai_search=AiSearchConfig(
+                enabled=ai_search.get("enabled", True),
+                provider=ai_search.get("provider", ""),
+                model=ai_search.get("model", ""),
+                search_type=ai_search.get("search_type", ""),
+                api_key=ai_search.get("api_key", ""),
+                base_url=ai_search.get("base_url", ""),
+                timeout=ai_search.get("timeout", 30),
+                max_retries=ai_search.get("max_retries", 2),
+                retry_delay=ai_search.get("retry_delay", 3),
+                verify_ssl=ai_search.get("verify_ssl", True),
+                prompt_dimension_supplement=ai_search.get("prompt_dimension_supplement", ""),
             ),
             scanner=ScannerConfig(
                 scan_source=config.get("scan_source", True),
@@ -249,7 +249,6 @@ class ConfigView:
                 protect_extensions=_extensions(_list(source_cleaner.get("protect_extensions"), [".nfo", ".jpg", ".png"])),
                 blacklist_patterns=_list(source_cleaner.get("blacklist_patterns"), ["RARBG*", "*/Sample/*", "*/sample/*"]),
                 cleanup_empty_dirs=source_cleaner.get("cleanup_empty_dirs", True),
-                ai_prompt=source_cleaner.get("ai_prompt", ""),
             ),
         )
 

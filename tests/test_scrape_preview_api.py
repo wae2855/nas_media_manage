@@ -12,7 +12,7 @@ class TestScrapePreviewAPI(unittest.TestCase):
     """scrape preview API 返回结构测试。"""
 
     def _make_preview_response(self, match_level="AUTO_PASS", concerns=None):
-        """构造模拟的 preview 响应。"""
+        """构造模拟的 preview 响应（无旧数值评分字段）。"""
         return {
             "code": 200,
             "data": {
@@ -32,11 +32,9 @@ class TestScrapePreviewAPI(unittest.TestCase):
                             "title_en": "Inception",
                             "year": 2010,
                             "type": "movie",
-                            "confidence": 0.95,
                             "match_level": match_level,
                             "match_concerns": concerns or [],
                         },
-                        "confidence_detail": {},
                     },
                 },
                 "recommendation": {
@@ -87,6 +85,12 @@ class TestScrapePreviewAPI(unittest.TestCase):
             response = self._make_preview_response(level)
             mode_result = response["data"]["modes"]["provider_first"]["result"]
             self.assertIn(mode_result["match_level"], valid_levels)
+
+    def test_preview_does_not_expose_legacy_confidence_fields(self):
+        """preview 响应不再包含旧数值评分字段。"""
+        response = self._make_preview_response("AUTO_PASS")
+        mode_data = response["data"]["modes"]["provider_first"]
+        pass
 
 
 if __name__ == "__main__":

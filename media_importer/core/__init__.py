@@ -2,7 +2,7 @@ from .config_loader import load_config, mask_sensitive, validate_config, validat
 from .config_view import (
     ConfigView, PathConfig, SourcePolicyConfig, DedupConfig,
     FilenameTemplateConfig, ManualReviewConfig, MetadataProviderConfig,
-    LLMConfig, ScannerConfig, SourceCleanerConfig,
+    ScannerConfig, SourceCleanerConfig,
 )
 from .config_validator import validate_config as full_validate_config, test_llm_api, test_hermes_webhook, check_path
 from .task_manager import TaskManager, VALID_STATUSES

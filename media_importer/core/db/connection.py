@@ -9,7 +9,6 @@ from .constants import (
     CREATE_DIMENSIONS_TABLE,
     CREATE_TASKS_INDEXES,
     CREATE_SUBTITLES_INDEXES,
-    DEFAULT_DIMENSIONS,
 )
 
 
@@ -42,75 +41,15 @@ def init_db(db_path: str) -> sqlite3.Connection:
 
 
 def _migrate_schema(conn: sqlite3.Connection):
-    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    if "tasks" in tables:
-        existing = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
-        if "video_path" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN video_path TEXT DEFAULT ''")
-        if "file_location" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN file_location TEXT DEFAULT 'source'")
-            conn.execute("UPDATE tasks SET file_location='import' WHERE status='SUCCESS' AND import_success=1")
-            conn.execute("UPDATE tasks SET file_location='deleted' WHERE status='SKIPPED'")
-            conn.execute("UPDATE tasks SET file_location='recycle' WHERE status='NEEDS_REVIEW'")
-            conn.execute("UPDATE tasks SET file_location='temp' WHERE status='CONFIRMING'")
-        else:
-            source_count = conn.execute("SELECT COUNT(*) FROM tasks WHERE file_location='source' AND status='SUCCESS' AND import_success=1").fetchone()[0]
-            if source_count > 0:
-                conn.execute("UPDATE tasks SET file_location='import' WHERE file_location='source' AND status='SUCCESS' AND import_success=1")
-                conn.execute("UPDATE tasks SET file_location='deleted' WHERE file_location='source' AND status='SKIPPED'")
-                conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='NEEDS_REVIEW'")
-                conn.execute("UPDATE tasks SET file_location='temp' WHERE file_location='source' AND status='CONFIRMING'")
-        if "import_video_path" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN import_video_path TEXT DEFAULT ''")
-        if "scrape_trace" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN scrape_trace TEXT DEFAULT ''")
-        if "provider_type" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN provider_type TEXT DEFAULT ''")
-        if "provider_id" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN provider_id TEXT DEFAULT ''")
-        if "source_fingerprint" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN source_fingerprint TEXT DEFAULT ''")
-        if "source_file_size" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN source_file_size INTEGER DEFAULT 0")
-        if "source_mtime" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN source_mtime TEXT DEFAULT ''")
-        if "thumbnail_path" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN thumbnail_path TEXT DEFAULT ''")
-        if "match_level" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN match_level TEXT DEFAULT NULL")
-        if "match_concerns" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN match_concerns TEXT DEFAULT NULL")
-        if "match_trace" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN match_trace TEXT DEFAULT NULL")
-        conn.execute("UPDATE tasks SET status='SKIPPED' WHERE status='DUPLICATE_REVIEW'")
-        conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='FAILED' AND import_success=0")
-        conn.execute("UPDATE tasks SET file_location='recycle' WHERE file_location='source' AND status='SKIPPED'")
-        if "stage" not in existing:
-            conn.execute("ALTER TABLE tasks ADD COLUMN stage TEXT DEFAULT 'QUEUED'")
-            conn.execute("UPDATE tasks SET status='CONFIRMING' WHERE status='NEEDS_REVIEW'")
-            conn.execute("UPDATE tasks SET stage='QUEUED' WHERE status='PENDING'")
-            conn.execute("UPDATE tasks SET stage='RUNNING' WHERE status='PROCESSING'")
-            conn.execute("UPDATE tasks SET stage='AWAIT_REVIEW' WHERE status='CONFIRMING'")
-            conn.execute("UPDATE tasks SET stage='DONE' WHERE status IN ('SUCCESS','FAILED','SKIPPED')")
-            conn.execute("UPDATE tasks SET status='PENDING' WHERE status IN ('PROCESSING','CONFIRMING')")
-    if "dimensions" in tables:
-        dim_existing = {row[1] for row in conn.execute("PRAGMA table_info(dimensions)").fetchall()}
-        if "default_value_list" not in dim_existing:
-            conn.execute("ALTER TABLE dimensions ADD COLUMN default_value_list TEXT DEFAULT ''")
-            for d in DEFAULT_DIMENSIONS:
-                name = d['name']
-                existing_row = conn.execute(
-                    "SELECT default_value_list FROM dimensions WHERE name=?", (name,)
-                ).fetchone()
-                if existing_row and (not existing_row[0] or existing_row[0] == ''):
-                    conn.execute(
-                        "UPDATE dimensions SET default_value_list=? WHERE name=?",
-                        (d['default_value_list'], name)
-                    )
-    if "task_subtitles" in tables:
-        sub_existing = {row[1] for row in conn.execute("PRAGMA table_info(task_subtitles)").fetchall()}
-        if "target_path" not in sub_existing:
-            conn.execute("ALTER TABLE task_subtitles ADD COLUMN target_path TEXT DEFAULT ''")
+    """DB schema 初始化：当前事实直接以最终 schema 创建表，无需 v1/v2 阶段迁移。
+
+    产品未上线：CREATE_*_TABLE 已是最终 schema，不存在旧库升级。
+    保留 schema_version 框架以便未来升级，但当前不再插入任何历史阶段记录。
+    """
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_version "
+        "(version INTEGER PRIMARY KEY, applied_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+    )
 
 
 def _row_to_dict(row) -> dict:

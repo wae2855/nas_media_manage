@@ -1,53 +1,14 @@
 import os
 
-from media_importer.api import globals
-from media_importer.features.prompts import (
-    load_global_prompt_for_ui,
-    reset_global_prompt,
-    save_global_prompt,
-)
+from media_importer.features.prompts import PromptDefaults
 from .utils import json_response
 
 
 class PromptHandlersMixin:
-    def _load_prompts_for_ui(self) -> dict:
-        try:
-            config_path = globals._config.get("_config_path") if globals._config else None
-            return load_global_prompt_for_ui(config_path)
-        except Exception as e:
-            import sys, traceback
-            print(f"[ERROR] _load_prompts_for_ui failed: {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            return {"system_prompt": "", "using_custom": False}
+    def _prompt_defaults(self, *, body: dict, params: dict, query: dict):
+        json_response(self, 200, data=PromptDefaults.get_all())
 
-    def _load_tmdb_prompts_for_ui(self) -> dict:
-        return self._provider_prompts_get("tmdb")
-
-    def _config_save_prompts(self, body: dict):
-        try:
-            config_path = globals._config.get("_config_path") if globals._config else None
-            save_global_prompt(config_path, body)
-            json_response(self, 200, message="提示词已保存，重启服务后生效")
-        except ValueError as e:
-            json_response(self, 400, message=str(e))
-        except Exception as e:
-            json_response(self, 500, message="保存提示词失败: " + str(e))
-
-    def _config_reset_prompts(self):
-        try:
-            config_path = globals._config.get("_config_path") if globals._config else None
-            reset_global_prompt(config_path)
-            json_response(self, 200, message="已恢复出厂默认提示词，重启服务后生效")
-        except Exception as e:
-            json_response(self, 500, message="恢复默认提示词失败: " + str(e))
-
-    def _config_save_tmdb_prompts(self, body: dict):
-        self._provider_prompts_save(body, 'tmdb')
-
-    def _config_reset_tmdb_prompts(self):
-        self._provider_prompts_reset({}, 'tmdb')
-
-    def _skill(self):
+    def _skill(self, *, body: dict, params: dict, query: dict):
         skill_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "..", "hermes", "skills", "nas-ops", "nas-media-importer", "SKILL.md"
@@ -71,7 +32,7 @@ class PromptHandlersMixin:
         self.wfile.write(body_bytes)
         self.wfile.flush()
 
-    def _skills_list(self):
+    def _skills_list(self, *, body: dict, params: dict, query: dict):
         skills_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "..", "hermes", "skills"

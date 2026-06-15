@@ -27,14 +27,17 @@ from .utils import json_response
 
 
 class TaskHandlersMixin:
-    def _get_task(self, task_id: str):
+    def _get_task(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = get_task_for_api(globals._global_task_manager, task_id)
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _delete_task(self, task_id: str, delete_files: bool = False):
+    def _delete_task(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
+        delete_files = bool((body or {}).get("delete_files", False))
         delete_task(self, task_id, delete_files, globals_module=globals, respond=json_response)
 
-    def _clear_tasks(self, body: dict):
+    def _clear_tasks(self, *, body: dict, params: dict, query: dict):
         result = clear_tasks_for_api(
             globals._global_task_manager,
             body.get("status"),
@@ -42,7 +45,8 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _retry_task(self, task_id: str):
+    def _retry_task(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = retry_task_for_api(
             globals._global_task_manager,
             globals._global_pipeline,
@@ -51,7 +55,8 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_cancel(self, task_id: str):
+    def _task_cancel(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = cancel_task_for_api(
             globals._global_task_manager,
             task_id,
@@ -59,7 +64,7 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _queue_retry_all(self):
+    def _queue_retry_all(self, *, body: dict, params: dict, query: dict):
         result = retry_all_failed_for_api(
             globals._global_task_manager,
             globals._global_pipeline,
@@ -67,19 +72,20 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _queue_pause(self):
+    def _queue_pause(self, *, body: dict, params: dict, query: dict):
         result = pause_queue_for_api(globals._global_pipeline, globals._global_metrics)
         json_response(self, result.code, message=result.message)
 
-    def _queue_resume(self):
+    def _queue_resume(self, *, body: dict, params: dict, query: dict):
         result = resume_queue_for_api(globals._global_pipeline, globals._global_metrics)
         json_response(self, result.code, message=result.message)
 
-    def _queue_status(self):
+    def _queue_status(self, *, body: dict, params: dict, query: dict):
         result = get_queue_status_for_api(globals._global_pipeline, globals._global_task_manager)
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_confirm(self, task_id: str):
+    def _task_confirm(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = confirm_task_for_api(
             globals._global_pipeline,
             globals._global_task_manager,
@@ -87,7 +93,8 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_reclassify(self, task_id: str, body: dict):
+    def _task_reclassify(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = reclassify_task_for_api(
             globals._global_pipeline,
             task_id,
@@ -96,7 +103,8 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_classify_preview(self, task_id: str, body: dict):
+    def _task_classify_preview(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         task = get_task_for_api(globals._global_task_manager, task_id) if globals._global_task_manager else None
         if not task or task.code != 200:
             json_response(self, 404, message=f"Task not found: {task_id}")
@@ -116,7 +124,8 @@ class TaskHandlersMixin:
         )
         json_response(self, 200, data=result)
 
-    def _task_ignore(self, task_id: str):
+    def _task_ignore(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = ignore_task_for_api(
             globals._global_task_manager,
             globals._config or {},
@@ -124,11 +133,13 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_subtitles(self, task_id: str):
+    def _task_subtitles(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = get_task_subtitles_for_api(globals._global_task_manager, task_id)
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_rename(self, task_id: str, body: dict):
+    def _task_rename(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
         result = rename_task_file_for_api(
             globals._global_task_manager,
             task_id,
@@ -136,22 +147,22 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_confirm_all(self):
+    def _task_confirm_all(self, *, body: dict, params: dict, query: dict):
         result = confirm_all_tasks_for_api(
             globals._global_pipeline,
             globals._global_task_manager,
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _task_stats(self):
+    def _task_stats(self, *, body: dict, params: dict, query: dict):
         result = get_task_stats_for_api(globals._global_task_manager)
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _run_batch(self):
+    def _run_batch(self, *, body: dict, params: dict, query: dict):
         result = run_batch_for_api(globals._global_pipeline)
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _run_file(self, body: dict):
+    def _run_file(self, *, body: dict, params: dict, query: dict):
         result = run_file_for_api(
             globals._config or {},
             globals._global_task_manager,
@@ -160,7 +171,7 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
-    def _restart_service(self):
+    def _restart_service(self, *, body: dict, params: dict, query: dict):
         import subprocess
         import sys
         import time
@@ -173,7 +184,7 @@ class TaskHandlersMixin:
             trim_pkgvar = os.environ.get("TRIM_PKGVAR", "")
             if trim_pkgvar:
                 cmd_main = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                        "..", "cmd", "main")
+                                         "..", "cmd", "main")
                 if not os.path.isfile(cmd_main):
                     cmd_main = "/var/apps/nas-media-importer/cmd/main"
 

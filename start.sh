@@ -30,29 +30,14 @@ get_port_pids() {
 
 port_check_with_message() {
     local port=$1
-    local pids
-    pids=$(get_port_pids "$port") || true
-    pids=$(echo "$pids" | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
+    local pids=""
+    pids="$(get_port_pids "$port" || true)"
+    pids="$(echo "$pids" | tr '\n' ' ' | sed 's/^ *//;s/ *$//')"
     if [ -n "$pids" ]; then
-        log_warn "端口 $port 已被占用（PID: $pids）"
-        if [ -t 0 ]; then
-            local reply=""
-            read -r -p "是否自动清理占用进程？(Y/n): " -n 1 reply || reply="Y"
-            echo ""
-            if [[ $reply =~ ^[Yy]$ || -z $reply ]]; then
-                kill -9 $pids 2>/dev/null || true
-                sleep 1
-                log_info "端口已释放"
-            else
-                log_error "请手动关闭占用进程或使用其他端口"
-                echo "  使用其他端口: $0 $CONFIG $HOST <新端口>"
-                exit 1
-            fi
-        else
-            log_info "自动清理端口 $port"
-            kill -9 $pids 2>/dev/null || true
-            sleep 1
-        fi
+        log_warn "端口 $port 已被占用（PID: $pids），自动清理..."
+        kill -9 $pids 2>/dev/null || true
+        sleep 1
+        log_info "端口已释放"
     fi
 }
 

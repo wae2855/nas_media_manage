@@ -55,7 +55,9 @@ def test_llm_api(base_url: str, api_key: str, model: str, timeout: int = 10) -> 
         return False, "API地址未配置"
     
     try:
-        test_url = base_url.rstrip("/") + "/chat/completions"
+        # 兼容 base_url 已含 /chat/completions 的填法
+        trimmed = base_url.rstrip("/")
+        test_url = trimmed if trimmed.endswith("/chat/completions") else trimmed + "/chat/completions"
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -198,9 +200,9 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes:
     norm_recycle = recycle_dir.rstrip("/") if recycle_dir else ""
 
     if source_policy.get("cleanup_mode") is not None:
-        add_check("source_policy.cleanup_mode", "warning", "cleanup_mode 已废弃，请使用 cleanup_source_after_done 替代")
+        add_check("source_policy.cleanup_mode", "warning", "cleanup_mode 不再使用，请迁移到 cleanup_source_after_done")
     if source_policy.get("delete_source_after_import") is not None:
-        add_check("source_policy.delete_source_after_import", "warning", "delete_source_after_import 已废弃，请使用 cleanup_source_after_done 替代")
+        add_check("source_policy.delete_source_after_import", "warning", "delete_source_after_import 不再使用，请迁移到 cleanup_source_after_done")
 
     cleanup_after_done = source_policy.get("cleanup_source_after_done")
     if cleanup_after_done is not None and not isinstance(cleanup_after_done, bool):
@@ -268,72 +270,79 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes:
         ok, msg = check_path(log_dir, require_write=True)
         add_check("log_dir", "ok" if ok else "error", msg)
     
-    llm_config = config.get("llm", {})
     metadata_config = config.get("metadata", {})
     scrape_mode = metadata_config.get("scrape_mode", "provider_first")
-    valid_scrape_modes = ("provider_first", "ai_only")
+    valid_scrape_modes = ("provider_first",)
     if scrape_mode not in valid_scrape_modes:
         add_check("metadata.scrape_mode", "error",
                    "scrape_mode 必须为 " + "/".join(valid_scrape_modes) + " 之一，当前: " + str(scrape_mode))
     else:
         mode_labels = {
             "provider_first": "Provider优先（AI仅补充缺失维度）",
-            "ai_only": "纯AI刮削（不使用元数据源API）",
         }
         add_check("metadata.scrape_mode", "ok", "刮削模式: " + mode_labels.get(scrape_mode, scrape_mode))
 
-        # Cross-validate scrape_mode with provider/LLM config
-        # As of 2026-06: AI availability is determined by field completeness
-        # (api_key + base_url + model), not by the deprecated `llm.enabled` flag.
-        llm_api_key = llm_config.get("api_key", "")
-        llm_base_url = llm_config.get("base_url", "")
-        llm_model = llm_config.get("model", "")
-        llm_configured = bool(llm_api_key and llm_base_url and llm_model)
-        tmdb_enabled = False
-        for p in metadata_config.get("providers", []):
-            if p.get("enabled") and p.get("type") == "tmdb":
-                tmdb_enabled = True
-            elif p.get("type") == "tmdb" and metadata_config.get("tmdb", {}).get("enabled"):
-                tmdb_enabled = True
-        if not tmdb_enabled and metadata_config.get("tmdb", {}).get("enabled"):
-            tmdb_enabled = True
+        tmdb_enabled = any(
+            p.get("enabled") for p in metadata_config.get("providers", [])
+            if p.get("type") == "tmdb"
+        )
 
         if scrape_mode == "provider_first" and not tmdb_enabled and not any(
             p.get("enabled") for p in metadata_config.get("providers", [])
         ):
             add_check("metadata.scrape_mode_provider", "warning",
-                       "Provider优先模式但未启用任何元数据源，将降级到纯AI刮削")
-        if scrape_mode == "ai_only" and not llm_configured:
-            add_check("metadata.scrape_mode_llm", "error",
-                       "纯AI模式需要完整配置AI刮削（需填写 API Key、接口地址、模型ID）")
+                       "Provider优先模式但未启用任何元数据源")
 
 
-    if not llm_config.get("api_key"):
-        add_check("llm_api_key", "error", "LLM API Key 未配置")
-    elif llm_config.get("api_key") == "***":
-        add_check("llm_api_key", "warning", "LLM API Key 为掩码值，请重新输入真实密钥")
+    ai_assist = config.get("ai_assist", {})
+    ai_search = config.get("ai_search", {})
+
+    if not ai_assist.get("api_key"):
+        add_check("ai_assist.api_key", "error", "AI辅助 API Key 未配置")
+    elif ai_assist.get("api_key") == "***":
+        add_check("ai_assist.api_key", "warning", "AI辅助 API Key 为掩码值，请重新输入真实密钥")
     else:
-        add_check("llm_api_key", "ok", "LLM API Key 已配置")
-    
-    if not llm_config.get("base_url"):
-        add_check("llm_base_url", "error", "LLM API 地址未配置")
-    elif not llm_config.get("base_url", "").startswith(("http://", "https://")):
-        add_check("llm_base_url", "error", "LLM API 地址格式错误，应以 http:// 或 https:// 开头")
+        add_check("ai_assist.api_key", "ok", "AI辅助 API Key 已配置")
+
+    if not ai_assist.get("base_url"):
+        add_check("ai_assist.base_url", "error", "AI辅助 API 地址未配置")
+    elif not ai_assist.get("base_url", "").startswith(("http://", "https://")):
+        add_check("ai_assist.base_url", "error", "AI辅助 API 地址格式错误，应以 http:// 或 https:// 开头")
     else:
-        add_check("llm_base_url", "ok", "LLM API 地址格式正确")
-    
-    if not llm_config.get("model"):
-        add_check("llm_model", "error", "LLM 模型名称未配置")
+        add_check("ai_assist.base_url", "ok", "AI辅助 API 地址格式正确")
+
+    if not ai_assist.get("model"):
+        add_check("ai_assist.model", "error", "AI辅助 模型名称未配置")
     else:
-        add_check("llm_model", "ok", "LLM 模型: " + llm_config.get("model"))
-    
+        add_check("ai_assist.model", "ok", "AI辅助 模型: " + ai_assist.get("model"))
+
+    if not ai_search.get("api_key"):
+        add_check("ai_search.api_key", "error", "AI联网增强 API Key 未配置")
+    elif ai_search.get("api_key") == "***":
+        add_check("ai_search.api_key", "warning", "AI联网增强 API Key 为掩码值，请重新输入真实密钥")
+    else:
+        add_check("ai_search.api_key", "ok", "AI联网增强 API Key 已配置")
+
+    if ai_search.get("enabled", True) and not ai_search.get("model"):
+        add_check("ai_search.model", "error", "AI联网增强 模型名称未配置")
+    elif ai_search.get("model"):
+        add_check("ai_search.model", "ok", "AI联网增强 模型: " + ai_search.get("model"))
+
     if test_llm:
-        llm_ok, llm_msg = test_llm_api(
-            llm_config.get("base_url", ""),
-            llm_config.get("api_key", ""),
-            llm_config.get("model", "")
-        )
-        add_check("llm_api", "ok" if llm_ok else "error", llm_msg)
+        if ai_assist.get("api_key") and ai_assist.get("base_url") and ai_assist.get("model"):
+            llm_ok, llm_msg = test_llm_api(
+                ai_assist.get("base_url", ""),
+                ai_assist.get("api_key", ""),
+                ai_assist.get("model", "")
+            )
+            add_check("llm_api", "ok" if llm_ok else "error", llm_msg)
+        elif ai_search.get("api_key") and ai_search.get("base_url", "") and ai_search.get("model"):
+            llm_ok, llm_msg = test_llm_api(
+                ai_search.get("base_url", ""),
+                ai_search.get("api_key", ""),
+                ai_search.get("model", "")
+            )
+            add_check("llm_api", "ok" if llm_ok else "error", llm_msg)
     
     hermes_config = config.get("hermes", {})
     if hermes_config.get("enabled", False):
@@ -382,79 +391,6 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes:
             add_check("path_rules_count", "ok", "共 " + str(len(path_rules)) + " 条规则")
         else:
             add_check("path_rules", "ok", "入库规则格式正确，共 " + str(len(path_rules)) + " 条")
-    
-    confidence = config.get("confidence", {})
-    if confidence:
-        valid_r_formulas = ["inverse", "log", "sqrt", "flat"]
-        r_formula = confidence.get("R_formula", "")
-        if r_formula and r_formula not in valid_r_formulas:
-            add_check("confidence.R_formula", "error", "R_formula 必须为 " + "/".join(valid_r_formulas) + " 之一，当前: " + str(r_formula))
-        elif r_formula:
-            add_check("confidence.R_formula", "ok", "R_formula: " + r_formula)
-
-        valid_aggregation = ["product", "geometric_mean", "min"]
-        aggregation_method = confidence.get("aggregation_method", "")
-        if aggregation_method and aggregation_method not in valid_aggregation:
-            add_check("confidence.aggregation_method", "error", "aggregation_method 必须为 " + "/".join(valid_aggregation) + " 之一，当前: " + str(aggregation_method))
-        elif aggregation_method:
-            add_check("confidence.aggregation_method", "ok", "aggregation_method: " + aggregation_method)
-
-        threshold_keys_01 = [
-            "pass_threshold", "confirm_threshold", "review_threshold",
-            "tmdb_match_threshold", "title_exact_with_year", "title_exact_no_year",
-            "title_exact_year_mismatch", "title_fuzzy_year_coeff", "title_min_similarity",
-            "R_min_value", "tmdb_dim_confidence", "file_dim_confidence", "dim_missing_confidence"
-        ]
-        for key in threshold_keys_01:
-            val = confidence.get(key)
-            if val is not None:
-                if not isinstance(val, (int, float)) or val < 0 or val > 1:
-                    add_check("confidence." + key, "error", key + " 必须为 0-1 之间的数值，当前: " + str(val))
-
-        pass_t = confidence.get("pass_threshold")
-        confirm_t = confidence.get("confirm_threshold")
-        review_t = confidence.get("review_threshold")
-        if pass_t is not None and confirm_t is not None and pass_t <= confirm_t:
-            add_check("confidence.pass_vs_confirm", "error", "pass_threshold 必须大于 confirm_threshold（当前: " + str(pass_t) + " vs " + str(confirm_t) + "）")
-        if confirm_t is not None and review_t is not None and confirm_t <= review_t:
-            add_check("confidence.confirm_vs_review", "error", "confirm_threshold 必须大于 review_threshold（当前: " + str(confirm_t) + " vs " + str(review_t) + "）")
-
-        r_max_cap = confidence.get("R_max_results_cap")
-        if r_max_cap is not None:
-            if not isinstance(r_max_cap, int) or r_max_cap < 1:
-                add_check("confidence.R_max_results_cap", "error", "R_max_results_cap 必须为正整数，当前: " + str(r_max_cap))
-
-        ai_cap_keys = [k for k in confidence if k.startswith("ai_cap_")]
-        for key in ai_cap_keys:
-            val = confidence.get(key)
-            if val is not None:
-                if not isinstance(val, (int, float)) or val < 0 or val > 1:
-                    add_check("confidence." + key, "error", key + " 必须为 0-1 之间的数值，当前: " + str(val))
-
-        dimensions = confidence.get("dimensions", {})
-        if dimensions:
-            for dim_name, dim_conf in dimensions.items():
-                if not isinstance(dim_conf, dict):
-                    add_check("confidence.dimensions." + dim_name, "warning", "维度 " + dim_name + " 配置格式不正确，应为字典")
-                    continue
-                weight = dim_conf.get("weight")
-                if weight is not None:
-                    if not isinstance(weight, (int, float)) or weight <= 0:
-                        add_check("confidence.dimensions." + dim_name + ".weight", "error", "维度 " + dim_name + " 的 weight 必须为正数，当前: " + str(weight))
-                veto = dim_conf.get("veto_threshold")
-                if veto is not None:
-                    if not isinstance(veto, (int, float)) or veto < 0 or veto > 1:
-                        add_check("confidence.dimensions." + dim_name + ".veto_threshold", "error", "维度 " + dim_name + " 的 veto_threshold 必须为 0-1 之间的数值，当前: " + str(veto))
-                source_conf = dim_conf.get("source_confidence")
-                if source_conf is not None:
-                    if not isinstance(source_conf, dict):
-                        add_check("confidence.dimensions." + dim_name + ".source_confidence", "warning", "维度 " + dim_name + " 的 source_confidence 应为字典")
-                    else:
-                        for src_key, src_val in source_conf.items():
-                            if not isinstance(src_val, (int, float)) or src_val < 0 or src_val > 1:
-                                add_check("confidence.dimensions." + dim_name + ".source_confidence." + src_key, "error", "维度 " + dim_name + " source_confidence." + src_key + " 必须为 0-1 之间的数值，当前: " + str(src_val))
-    else:
-        add_check("confidence", "warning", "confidence 配置未设置，将使用默认置信度参数")
     
     try:
         disk_check_dir = config.get("temp_dir", "/tmp")

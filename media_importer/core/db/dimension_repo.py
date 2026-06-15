@@ -54,7 +54,7 @@ def get_dimension(conn: sqlite3.Connection, name: str) -> dict:
 def update_dimension(conn: sqlite3.Connection, name: str, **fields) -> dict:
     valid_columns = {
         "label", "ai_prompt", "tmdb_field", "provider_mappings", "value_list",
-        "color", "description",
+        "trust_ai_assist", "trust_ai_search", "color", "description",
     }
     update_fields = {}
     for k, v in fields.items():

@@ -5,8 +5,6 @@ Covers:
 - Web search scenario routing
 - Search injection per provider (zhipu, qwen, moonshot)
 - Error classification for search vs non-search errors
-- Config migration from MCP to web_search
-- LLMConfig field changes
 - detect_provider function
 - Kimi/Moonshot multi-turn tool_calls handling
 """
@@ -21,7 +19,6 @@ from media_importer.features.scraping.web_search_config import (
     WebSearchConfig, detect_provider, SUPPORTED_PROVIDERS, PROVIDER_DETECTION_MAP,
 )
 from media_importer.core.config_view import ConfigView
-from media_importer.core.config_migrations import _migrate_mcp_to_web_search
 
 
 # ========================================================================
@@ -209,91 +206,17 @@ class TestExceptionHierarchy:
 
 
 # ========================================================================
-# Config migration tests
-# ========================================================================
-
-class TestConfigMigration:
-    def test_mcp_to_web_search_basic(self):
-        config = {
-            "llm": {
-                "provider": "openai",
-                "mcp": {
-                    "enabled": True,
-                    "scenarios": {
-                        "scrape": True,
-                        "series_scrape": False,
-                    },
-                },
-            }
-        }
-        _migrate_mcp_to_web_search(config)
-        assert "mcp" not in config["llm"]
-        assert "provider" not in config["llm"]
-        ws = config["llm"]["web_search"]
-        assert ws["enabled"] is True
-        assert ws["enabled_for_scrape"] is True
-        assert ws["enabled_for_series_scrape"] is False
-
-    def test_mcp_disabled_no_web_search(self):
-        config = {"llm": {"mcp": {"enabled": False}}}
-        _migrate_mcp_to_web_search(config)
-        assert "web_search" not in config["llm"]
-        assert "mcp" not in config["llm"]
-
-    def test_no_mcp_no_change(self):
-        config = {"llm": {"api_key": "sk-test"}}
-        _migrate_mcp_to_web_search(config)
-        assert "web_search" not in config["llm"]
-        assert "mcp" not in config["llm"]
-
-    def test_provider_removed_even_without_mcp(self):
-        config = {"llm": {"provider": "openai", "api_key": "sk-test"}}
-        _migrate_mcp_to_web_search(config)
-        assert "provider" not in config["llm"]
-
-
-# ========================================================================
-# LLMConfig field tests
-# ========================================================================
-
-class TestLLMConfig:
-    def test_source_cleaner_model_three_level_fallback(self):
-        llm_raw = {
-            "api_key": "sk-test",
-            "base_url": "https://test.com/v1",
-            "model": "gpt-4o",
-            "fast_model": "gpt-4o-mini",
-            "source_cleaner_model": "",
-        }
-        config = {"llm": llm_raw}
-        view = ConfigView.from_dict(config)
-        assert view.llm.source_cleaner_model == "gpt-4o-mini"
-
-    def test_source_cleaner_model_explicit(self):
-        llm_raw = {
-            "api_key": "sk-test",
-            "base_url": "https://test.com/v1",
-            "model": "gpt-4o",
-            "fast_model": "gpt-4o-mini",
-            "source_cleaner_model": "custom-cleaner",
-        }
-        config = {"llm": llm_raw}
-        view = ConfigView.from_dict(config)
-        assert view.llm.source_cleaner_model == "custom-cleaner"
-
-
-# ========================================================================
 # LLMScraper web search integration tests
 # ========================================================================
 
 class TestLLMScraperWebSearch:
     def test_auto_detect_provider_from_base_url(self):
         config = {
-            "llm": {
+            "ai_search": {
                 "api_key": "sk-test",
                 "base_url": "https://open.bigmodel.cn/api/paas/v4",
                 "model": "glm-4-flash",
-                "web_search": {"enabled": True},
+                "enabled": True,
             }
         }
         from media_importer.scraper.llm_scraper import LLMScraper

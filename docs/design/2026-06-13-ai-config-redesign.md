@@ -12,6 +12,27 @@
 
 ---
 
+## 0. 开发状态（2026-06-13）
+
+**Phase 1 ✅**：配置结构 + DB 变更 —— 已完成
+**Phase 2 ✅**：UI 重写 —— 已完成（前端控件齐全，后端数据源待连通）
+**Phase 3 ⚠️**：刮削逻辑切换 —— 部分完成，待 Hot Fix 修复
+
+**待修复 P0/P1 问题**：
+- HF-1：llm_scraper.py 仍读旧 llm 字段 → 新配置不生效
+- HF-2：confirm_reason 未写入 DB → 重启后丢失
+- HF-3：dim_sources 未构造和写入 DB → 任务卡片来源展示为空
+- HF-4：validate_config 强制要求旧 llm.api_key → 新用户报错
+
+**待实现 P2/P3**：
+- trust_ai_assist/trust_ai_search 判断逻辑接入 review/match_engine
+- 第二级匹配改为"AI 建议关键词 → 循环回第一级"（可选，当前 AI 选候选已比旧版强）
+- 正式维度三级来源逻辑（T3.4，已知 HF-3 为临时兜底）
+- ai_only 残留代码清理
+- 迁移幂等性增强
+
+---
+
 ## 1. 完整刮削流程
 
 ### 1.1 流程总览

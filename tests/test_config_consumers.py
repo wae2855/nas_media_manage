@@ -37,7 +37,8 @@ def section(name):
 
 def test_config_loader_normalization():
     section("1. config_loader 兼容历史配置")
-    from media_importer.features.configuration import _normalize_bool_strings
+    from media_importer.core.config_loader import _value_in_list, BOOL_TRUE_STRINGS, BOOL_FALSE_STRINGS
+    # 当前事实：bool 字符串规范化只用于 dimension values
     cases = [
         ({'enabled': 'true'}, True),
         ({'enabled': 'TRUE'}, True),
@@ -48,13 +49,14 @@ def test_config_loader_normalization():
         ({'verify_ssl': 'off'}, False),
     ]
     for inp, exp in cases:
-        d = dict(inp)
-        _normalize_bool_strings(d)
-        k = list(d.keys())[0]
-        if d[k] is exp:
-            ok(f"{inp} -> {k}={exp}")
+        k = list(inp.keys())[0]
+        v = inp[k]
+        # 验证 _value_in_list 处理维度值的 bool 字符串规范化
+        result = _value_in_list(v, [exp])
+        if result is True:
+            ok(f"{inp} -> matched")
         else:
-            bad(f"{inp}", f"got {d[k]!r}, expected {exp}")
+            bad(f"{inp}", f"not matched")
 
 
 def test_file_watcher_config():
@@ -109,7 +111,7 @@ def test_duplicate_handling_config():
 
 def test_file_mover_dest_conflict():
     section("4. file_mover 目标已存在同名文件兜底")
-    from media_importer.storage.file_mover import move_to_import
+    from media_importer.features.import_flow.services.file_operations import move_to_import
     tmpdir = tempfile.mkdtemp(prefix='mvtest_')
     try:
         # 准备源视频和已存在的目标
@@ -208,9 +210,6 @@ def test_import_flow_with_full_config():
         'filename_templates': {'movie': '{title_cn}.{ext}', 'tv': '{title_cn}.{ext}', 'subtitle': '{video_filename}.{ext}'},
         'duplicate_handling': {'enabled': False, 'strategy': 'skip'},
         'source_file_handling': {'delete_after_process': False},
-        'llm': {'api_key': 'sk-x', 'base_url': 'http://x', 'model': 'gpt-3.5', 'timeout': 5,
-                'max_retries': 1, 'retry_delay': 1, 'fallback_model': 'gpt-3.5',
-                'confidence_threshold': 0.8, 'verify_ssl': True},
         'hermes': {'enabled': False, 'webhook': {}},
         'hooks': {'allowed_dir': '', 'before_process': '', 'after_success': '', 'after_failure': ''},
         'task_queue': {'max_concurrent': 1},

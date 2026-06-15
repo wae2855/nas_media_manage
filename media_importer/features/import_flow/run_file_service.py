@@ -51,7 +51,7 @@ def run_file_for_api(
         return RunFileResult(code=400, message=f"文件类型校验失败: {message}")
 
     if not os.path.isfile(file_path):
-        return RunFileResult(code=404, message=f"文件不存在: {file_path}")
+        return RunFileResult(code=404, message=f"File not found: {file_path}")
 
     def run_one():
         video_file = os.path.basename(file_path)

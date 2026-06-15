@@ -124,7 +124,14 @@ class TaskManager:
 
     def retry_task(self, task_id: str) -> dict:
         task = db_get_task(self.conn, task_id)
-        if not task or task.get("status") not in ("FAILED", "SKIPPED", "CANCELLED"):
+        if not task:
+            return None
+        status = task.get("status", "")
+        stage = task.get("stage", "")
+        allowed = status in ("FAILED", "SKIPPED", "CANCELLED") or (
+            status == "PENDING" and stage == "AWAIT_REVIEW"
+        )
+        if not allowed:
             return None
         db_update_task(self.conn, task_id, **reset_for_retry(task))
         return db_get_task(self.conn, task_id)
