@@ -7,12 +7,13 @@ from media_importer.core.metrics import get_metrics
 
 
 # AI 场景 → 配置节映射
+# 场景归属遵循 plan §3.10：dimension_supplement 单归一 AI_SEARCH；
+# AI_ASSIST 场景包含 AI 辅助相关场景。
 AI_ASSIST_SCENARIOS = frozenset({
     "extract_title",
     "source_cleaner",
     "match_assist",
     "dimension_mapping",
-    "dimension_supplement",
 })
 AI_SEARCH_SCENARIOS = frozenset({
     "scrape",

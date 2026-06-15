@@ -14,11 +14,12 @@ from media_importer.scraper._llm_client_impl import (
     _do_call_impl,
     _parse_response_impl,
     _retry_with_fallback_impl,
+    _call_with_retry_impl,
+    _resolve_connection,
 )
 from media_importer.scraper._llm_match_assist import (
     _extract_title_impl,
     _tier2_correct_impl,
-    _tier2_judge_impl,
 )
 
 
@@ -30,6 +31,7 @@ class LLMScraper:
         ai_assist = cfg_view.ai_assist
         ai_search = cfg_view.ai_search
 
+        self.view = cfg_view
         self.fast_model = ai_assist.model
         self.fast_base_url = ai_assist.base_url
         self.fast_api_key = ai_assist.api_key
@@ -47,6 +49,9 @@ class LLMScraper:
 
         from media_importer.features.scraping.prompt_resolver import PromptResolver
         self.prompt_resolver = PromptResolver.from_config(config)
+
+        from media_importer.features.scraping.scene_strategy import SceneStrategyResolver
+        self.scene_strategy = SceneStrategyResolver(cfg_view)
 
         from media_importer.features.scraping.web_search_config import build_web_search_config
         web_search_cfg = {
@@ -114,8 +119,21 @@ class LLMScraper:
         return _parse_response_impl(self, raw_text)
 
     def _retry_with_fallback(self, system_prompt: str, user_content: str,
-                              use_fast: bool = False, scenario: str = None) -> Dict[str, Any]:
-        return _retry_with_fallback_impl(self, system_prompt, user_content, use_fast, scenario)
+                              scene: str = None, scenario: str = None,
+                              use_fast: bool = None) -> Dict[str, Any]:
+        return _retry_with_fallback_impl(self, system_prompt, user_content,
+                                         scene=scene, scenario=scenario,
+                                         use_fast=use_fast)
+
+    def call_with_prompt(self, system_prompt: str, user_prompt: str,
+                         scene: str, scenario: str = None) -> str:
+        """通用 LLM 调用入口（供 SourceCleaner 等非刮削场景使用）。
+
+        复用 SceneStrategyResolver 的多模型 fallback 与重试逻辑；
+        返回原始响应字符串（不调用 _parse_response_impl），由调用方自行解析。
+        """
+        return _call_with_retry_impl(self, system_prompt, user_prompt,
+                                     scene=scene, scenario=scenario)
 
     def extract_title(self, prompt: str) -> str:
         return _extract_title_impl(self, prompt)
@@ -142,10 +160,10 @@ class LLMScraper:
             user_content_parts.append("字幕文件: 无")
 
         user_content = '\n'.join(user_content_parts)
-        custom_prompt = self.prompt_resolver.get_dimension_supplement_prompt()
-        system_prompt = custom_prompt if custom_prompt else self.prompt_builder._build_system_prompt()
+        system_prompt = self.prompt_resolver.get_dimension_supplement_prompt()
 
-        result = _retry_with_fallback_impl(self, system_prompt, user_content, scenario="scrape")
+        result = _retry_with_fallback_impl(self, system_prompt, user_content,
+                                          scene="dimension_supplement", scenario="scrape")
         result["search_enhanced"] = self.web_search_config.should_search("scrape")
         return result
 
@@ -176,11 +194,10 @@ class LLMScraper:
         user_content_parts.append(provider_context)
 
         user_content = '\n'.join(user_content_parts)
-        custom_prompt = self.prompt_resolver.get_dimension_mapping_prompt()
-        system_prompt = custom_prompt if custom_prompt else self.prompt_builder._build_system_prompt_with_provider(
-            exclude_dims=exclude_dims, provider_name=provider_name)
+        system_prompt = self.prompt_resolver.get_dimension_mapping_prompt()
 
-        result = _retry_with_fallback_impl(self, system_prompt, user_content, use_fast=True, scenario="scrape")
+        result = _retry_with_fallback_impl(self, system_prompt, user_content,
+                                          scene="dimension_mapping", scenario="scrape")
 
         if provider_dimensions:
             ai_dims = result.get('dimensions', {})
@@ -193,10 +210,10 @@ class LLMScraper:
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
         user_content = f"剧名:\n{series_name}"
-        custom_prompt = self.prompt_resolver.get_dimension_supplement_prompt()
-        system_prompt = custom_prompt if custom_prompt else self.prompt_builder._build_series_prompt()
+        system_prompt = self.prompt_resolver.get_dimension_supplement_prompt()
 
-        result = _retry_with_fallback_impl(self, system_prompt, user_content, scenario="series_scrape")
+        result = _retry_with_fallback_impl(self, system_prompt, user_content,
+                                          scene="dimension_supplement", scenario="series_scrape")
         result["search_enhanced"] = self.web_search_config.should_search("series_scrape")
         return result
 
@@ -208,11 +225,10 @@ class LLMScraper:
             provider_context
         ]
         user_content = '\n'.join(user_content_parts)
-        custom_prompt = self.prompt_resolver.get_dimension_mapping_prompt()
-        system_prompt = custom_prompt if custom_prompt else self.prompt_builder._build_series_prompt_with_provider(
-            provider_name=provider_name)
+        system_prompt = self.prompt_resolver.get_dimension_mapping_prompt()
 
-        result = _retry_with_fallback_impl(self, system_prompt, user_content, use_fast=True, scenario="series_scrape")
+        result = _retry_with_fallback_impl(self, system_prompt, user_content,
+                                          scene="dimension_mapping", scenario="series_scrape")
         result["search_enhanced"] = False
         return result
 
@@ -224,18 +240,3 @@ class LLMScraper:
         year: Optional[int] = None,
     ) -> dict:
         return _tier2_correct_impl(self, original_filename, path_context, clean_title, year)
-
-    def tier2_judge(
-        self,
-        original_filename: str,
-        clean_title: str,
-        cjk_title: str = "",
-        year: Optional[int] = None,
-        season: Optional[int] = None,
-        episode: Optional[int] = None,
-        context: Optional[dict] = None,
-        candidates: Optional[list] = None,
-    ) -> dict:
-        return _tier2_judge_impl(
-            self, original_filename, clean_title, cjk_title,
-            year, season, episode, context, candidates)

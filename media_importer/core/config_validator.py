@@ -328,6 +328,36 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False, test_hermes:
     elif ai_search.get("model"):
         add_check("ai_search.model", "ok", "AI联网增强 模型: " + ai_search.get("model"))
 
+    VALID_SCENE_MODELS = {"ai_assist", "ai_search"}
+    REQUIRED_SCENES = (
+        "dimension_supplement", "dimension_mapping",
+        "title_clean", "match_assist", "source_clean",
+    )
+    ai_strategy = config.get("ai_scene_strategy", {}) or {}
+    if not isinstance(ai_strategy, dict):
+        ai_strategy = {}
+    for scene in REQUIRED_SCENES:
+        section = ai_strategy.get(scene, {}) or {}
+        if not isinstance(section, dict):
+            section = {}
+        primary = section.get("primary", "")
+        fallback = section.get("fallback", "")
+        if not primary:
+            add_check(f"ai_scene_strategy.{scene}.primary", "error",
+                       f"ai_scene_strategy.{scene}.primary 不能为空")
+        elif primary not in VALID_SCENE_MODELS:
+            add_check(f"ai_scene_strategy.{scene}.primary", "error",
+                       f"ai_scene_strategy.{scene}.primary 必须是 {sorted(VALID_SCENE_MODELS)} 之一，当前: {primary}")
+        else:
+            add_check(f"ai_scene_strategy.{scene}.primary", "ok",
+                       f"AI 场景 {scene} 优先模型: {primary}")
+        if fallback and fallback not in VALID_SCENE_MODELS:
+            add_check(f"ai_scene_strategy.{scene}.fallback", "error",
+                       f"ai_scene_strategy.{scene}.fallback 必须是 {sorted(VALID_SCENE_MODELS)} 之一或留空，当前: {fallback}")
+        elif fallback:
+            add_check(f"ai_scene_strategy.{scene}.fallback", "ok",
+                       f"AI 场景 {scene} 次选模型: {fallback}")
+
     if test_llm:
         if ai_assist.get("api_key") and ai_assist.get("base_url") and ai_assist.get("model"):
             llm_ok, llm_msg = test_llm_api(

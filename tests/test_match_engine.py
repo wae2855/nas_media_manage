@@ -244,7 +244,7 @@ class TestTier2ContextMatch(unittest.TestCase):
         with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
             mock_match.return_value = MagicMock(level="L5", T=0.6)
             with patch('media_importer.scraper.llm_scraper.LLMScraper') as MockLLM:
-                MockLLM.return_value.tier2_judge.side_effect = Exception("API timeout")
+                MockLLM.return_value.tier2_correct.side_effect = Exception("API timeout")
                 result = self.engine.match(
                     "Test.2020.mkv", [self.provider],
                     video_path="/downloads/Test.2020.mkv"

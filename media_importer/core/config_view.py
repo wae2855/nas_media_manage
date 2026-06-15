@@ -90,10 +90,42 @@ class AiAssistConfig:
     prompt_match_assist: str = ""
     prompt_dimension_mapping: str = ""
     prompt_source_clean: str = ""
+    log_prompt: bool = True
 
     @property
     def is_configured(self) -> bool:
         return bool(self.api_key and self.base_url and self.model)
+
+
+@dataclass
+class SceneModelConfig:
+    primary: str = ""
+    fallback: str = ""
+
+
+@dataclass
+class AiSceneStrategyConfig:
+    dimension_supplement: SceneModelConfig = field(default_factory=SceneModelConfig)
+    dimension_mapping: SceneModelConfig = field(default_factory=SceneModelConfig)
+    title_clean: SceneModelConfig = field(default_factory=SceneModelConfig)
+    match_assist: SceneModelConfig = field(default_factory=SceneModelConfig)
+    source_clean: SceneModelConfig = field(default_factory=SceneModelConfig)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AiSceneStrategyConfig":
+        result = cls()
+        for key in (
+            "dimension_supplement", "dimension_mapping",
+            "title_clean", "match_assist", "source_clean",
+        ):
+            section = data.get(key, {}) or {}
+            if not isinstance(section, dict):
+                section = {}
+            setattr(result, key, SceneModelConfig(
+                primary=str(section.get("primary", "")),
+                fallback=str(section.get("fallback", "")),
+            ))
+        return result
 
 
 @dataclass(frozen=True)
@@ -152,6 +184,7 @@ class ConfigView:
     metadata: MetadataProviderConfig
     ai_assist: AiAssistConfig
     ai_search: AiSearchConfig
+    ai_scene_strategy: AiSceneStrategyConfig
     scanner: ScannerConfig
     source_cleaner: SourceCleanerConfig
 
@@ -218,6 +251,10 @@ class ConfigView:
                 prompt_match_assist=ai_assist.get("prompt_match_assist", ""),
                 prompt_dimension_mapping=ai_assist.get("prompt_dimension_mapping", ""),
                 prompt_source_clean=ai_assist.get("prompt_source_clean", ""),
+                log_prompt=ai_assist.get("log_prompt", True),
+            ),
+            ai_scene_strategy=AiSceneStrategyConfig.from_dict(
+                config.get("ai_scene_strategy", {}) or {}
             ),
             ai_search=AiSearchConfig(
                 enabled=ai_search.get("enabled", True),

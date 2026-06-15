@@ -19,6 +19,10 @@
 | 9 | 提示词"恢复默认"作用范围 | 当前 tab |
 | 10 | API Key 区保存按钮 | 区域统一一个（非 tab 级） |
 | 11 | AI 调用日志 | 统一结构化日志（`ai.scene.*` 前缀），不写数据库；默认 INFO 记录提示词摘要（前 200 字符），DEBUG 记录完整提示词；可通过 `ai_assist.log_prompt=false` 关闭 |
+| 12 | 多模型 fallback 共享实现 | 抽出 `_run_with_strategy_impl` 作为唯一共享入口，`_retry_with_fallback_impl`（返回 dict）和 `_call_with_retry_impl`（返回 raw）都走它，区别只在 `on_success` 回调。所有日志埋点、多模型 fallback、错误分类都在共享方法里（Phase 1 已实施） |
+| 13 | 场景 3/4 走 raw 入口 | `_extract_title_impl` / `_tier2_correct_impl` 改用 `_call_with_retry_impl`（而非 `_retry_with_fallback_impl`），因为它们需要 raw 文本自行解析（前者返回纯标题字符串，后者自己解析 JSON），不能走强制 JSON 解析的 `_parse_response_impl`（Phase 1 已实施） |
+| 14 | `SceneStrategyResolver` 兜底 | 当 `model_sequence` 返回空列表时，`_run_with_strategy_impl` 兜底到 `["ai_search"]` 并输出 `ai.scene.strategy_missing` warning 日志，便于排查"配置未生效"。生产路径（`load_config.setdefault` 已覆盖）不会触发，主要为测试和绕过 `load_config` 的路径提供防御性兜底（Phase 1 已实施） |
+| 15 | `tier2_judge` 测试清理 | 删除 `_tier2_judge_impl` 时需同步删除 3 个调用它的测试（执行模型已确认并清理） |
 
 ---
 
@@ -371,67 +375,35 @@ class SceneStrategyResolver:
 
 ---
 
-#### T1.8 扩展 `_retry_with_fallback_impl` 为多模型 fallback
+#### T1.8 抽出 `_run_with_strategy_impl` 共享实现（多模型 fallback + 日志）
 
-**文件**：`media_importer/scraper/_llm_client_impl.py:188-212`
+**状态**：✅ Phase 1 已完成，实际实现比原 plan 更优雅（见决策 12）
 
-**改动前**：
+**文件**：`media_importer/scraper/_llm_client_impl.py`
 
-```python
-def _retry_with_fallback_impl(self, system_prompt, user_content, use_fast=False, scenario=None):
-    if use_fast:
-        models_to_try = [(self.fast_model, self.fast_base_url, self.fast_api_key, False)]
-    else:
-        models_to_try = [(self.model, self.base_url, self.api_key, True)]
-    last_error = None
-    for model, base_url, api_key, use_search in models_to_try:
-        for attempt in range(self.max_retries):
-            ...
-    raise last_error
-```
+**实际实现要点**（执行模型重构后）：
 
-**改动后**：
+1. **抽出 `_run_with_strategy_impl(self, system_prompt, user_content, scene, scenario, on_success)`** 作为共享入口，参数 `on_success(raw, cfg_key, model, attempt)` 是单次成功回调，决定返回 dict 还是 raw。
+2. **`_retry_with_fallback_impl`** 改为薄包装，`on_success` 调 `_parse_response_impl` 转 dict。
+3. **`_call_with_retry_impl`** 是新增的薄包装，`on_success` 直接返回 raw 字符串。
+4. **`_resolve_connection(cfg_key)`** 模块级函数：`ai_assist` → fast_model 配置 + `default_use_search=False`；`ai_search` → 主模型配置 + `default_use_search=True`。
+5. **兜底**（决策 14）：`model_sequence` 返回空时兜底到 `["ai_search"]`，并输出 `ai.scene.strategy_missing` warning 日志。
+6. **日志埋点**（决策 11）：全部 8 种事件都在 `_run_with_strategy_impl` 内，不在 `_do_call_impl` 重复埋点。
+7. **`use_fast` 兼容**：`_retry_with_fallback_impl` 保留 `use_fast` 参数用于老入口，`True → scene="dimension_mapping"`，`False → scene="dimension_supplement"`。
 
-```python
-def _retry_with_fallback_impl(self, system_prompt, user_content, scene, scenario=None):
-    strategy = self.scene_strategy.model_sequence(scene)
-    if not strategy:
-        raise LLMScrapeError(f"场景 {scene} 未配置任何模型")
-    last_error = None
-    for cfg_key in strategy:
-        model, base_url, api_key, default_use_search = self._resolve_connection(cfg_key)
-        for attempt in range(self.max_retries):
-            try:
-                search_scenario = scenario if default_use_search else None
-                raw = self._do_call(system_prompt, user_content, model,
-                                    base_url, api_key, scenario=search_scenario)
-                return _parse_response_impl(self, raw)
-            except (LLMScrapeError, LLMApiError, LLMWebSearchError) as e:
-                last_error = e
-                if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay)
-        logger.warning(f"场景 {scene} 模型 {cfg_key} 重试 {self.max_retries} 次均失败，尝试下一个")
-    raise last_error
-
-def _resolve_connection(self, cfg_key: str):
-    if cfg_key == "ai_assist":
-        return self.fast_model, self.fast_base_url, self.fast_api_key, False
-    if cfg_key == "ai_search":
-        return self.model, self.base_url, self.api_key, True
-    raise ValueError(f"未知模型配置: {cfg_key}")
-```
-
-**配套改动**：`LLMScraper.__init__`（`scraper/llm_scraper.py:28-49`）增加：
+**配套改动**：`LLMScraper.__init__`（`scraper/llm_scraper.py:29-54`）已注入：
 
 ```python
 from media_importer.features.scraping.scene_strategy import SceneStrategyResolver
-self.scene_strategy = SceneStrategyResolver(view)
+self.scene_strategy = SceneStrategyResolver(cfg_view)
 ```
 
 **验收**：
-- 单测：mock `_do_call` 第一次抛 `LLMApiError`、第二次返回成功，断言重试了 `max_retries` 次后成功
-- 单测：`scene` 配置 `primary=ai_assist, fallback=ai_search`，primary 全部重试失败后切到 fallback
-- 单测：`scene` 配置 `primary=ai_assist, fallback=""`，primary 全部失败后抛 `LLMScrapeError`
+- ✅ 单测：mock `_do_call` 第一次抛 `LLMApiError`、第二次返回成功，断言重试了 `max_retries` 次后成功
+- ✅ 单测：`scene` 配置 `primary=ai_assist, fallback=ai_search`，primary 全部重试失败后切到 fallback
+- ✅ 单测：`scene` 配置 `primary=ai_assist, fallback=""`，primary 全部失败后抛最后一个错误
+- ✅ 单测：兜底场景输出 `ai.scene.strategy_missing` warning
+- ✅ 单测：日志事件齐全（见 `tests/test_ai_call_logging.py` 10 个用例）
 
 ---
 
@@ -460,22 +432,32 @@ def call_with_prompt(self, system_prompt: str, user_prompt: str, scene: str) -> 
 
 #### T1.10 改造 5 个 scrape 调用点（传入 scene，移除 use_fast）
 
+**状态**：✅ Phase 1 已完成
+
 **文件**：`media_importer/scraper/llm_scraper.py` + `media_importer/scraper/_llm_match_assist.py`
 
-**改动清单**：
+**实际改动清单**（决策 12 + 决策 13）：
 
-| 方法 | 位置 | 改动前签名/调用 | 改动后签名/调用 |
-|------|------|----------------|----------------|
-| `LLMScraper.scrape()` | `llm_scraper.py:123-150` | 内部调 `self._retry_with_fallback(..., use_fast=False, scenario="scrape")` | `self._retry_with_fallback(..., scene="dimension_supplement", scenario="scrape")` |
-| `LLMScraper.scrape_with_context()` | `llm_scraper.py:152-192` | `use_fast=True` | `scene="dimension_mapping"` |
-| `LLMScraper.scrape_series()` | `llm_scraper.py:194-202` | `use_fast=False` | `scene="dimension_supplement"` |
-| `LLMScraper.scrape_series_with_context()` | `llm_scraper.py:203-217` | `use_fast=True` | `scene="dimension_mapping"` |
-| `_extract_title_impl` | `_llm_match_assist.py:9-25` | 直接调 `self._do_call(..., self.fast_model, ...)` | 改为 `self._retry_with_fallback(..., scene="title_clean")`，删除内联 fast_model 参数 |
-| `_tier2_correct_impl` | `_llm_match_assist.py:28-98` | 直接调 `self._do_call(..., self.fast_model, ...)` | 改为 `self._retry_with_fallback(..., scene="match_assist")` |
+| 方法 | 改动后调用入口 | scene |
+|------|---------------|-------|
+| `LLMScraper.scrape()` | `_retry_with_fallback_impl` | `dimension_supplement` |
+| `LLMScraper.scrape_with_context()` | `_retry_with_fallback_impl` | `dimension_mapping` |
+| `LLMScraper.scrape_series()` | `_retry_with_fallback_impl` | `dimension_supplement` |
+| `LLMScraper.scrape_series_with_context()` | `_retry_with_fallback_impl` | `dimension_mapping` |
+| `_extract_title_impl`（场景 3） | **`_call_with_retry_impl`**（决策 13） | `title_clean` |
+| `_tier2_correct_impl`（场景 4） | **`_call_with_retry_impl`**（决策 13） | `match_assist` |
+
+**关键设计（决策 13）**：场景 3/4 必须走 `_call_with_retry_impl`（返回 raw），不能走 `_retry_with_fallback_impl`（返回 dict）。原因：
+- 场景 3 `_extract_title_impl` 返回纯标题字符串，不是 JSON
+- 场景 4 `_tier2_correct_impl` 自己解析 JSON（兼容 think 标签/markdown 代码块/字段补全）
+- `_retry_with_fallback_impl` 内部调 `_parse_response_impl` 会强制 JSON 解析，破坏这两个场景
+
+两个入口共享 `_run_with_strategy_impl`，所以多模型 fallback、重试、错误分类、日志埋点完全一致。
 
 **验收**：
-- 编译通过
-- 单测：每个调用点都按场景策略选模型
+- ✅ 编译通过
+- ✅ 单测：每个调用点都按场景策略选模型
+- ✅ 单测：场景 3/4 的多模型 fallback 完整可用（共享 `_run_with_strategy_impl`）
 
 ---
 
@@ -600,105 +582,80 @@ def _prompt_defaults(self, ...):
 
 | 事件 | 级别 | 日志内容 | 触发位置 |
 |------|------|---------|---------|
-| 场景开始 | INFO | `ai.scene.start scene=<scene> model=<cfg_key> attempt=1/<max_retries> prompt_len=<len>` | `_retry_with_fallback_impl` 进入每个模型循环时 |
+| 场景开始 | INFO | `ai.scene.start scene=<scene> model=<cfg_key> attempt=1/<max_retries> prompt_len=<len>` | `_run_with_strategy_impl` 进入每个模型循环时 |
 | 单次尝试开始 | DEBUG | `ai.scene.attempt scene=<scene> model=<cfg_key> attempt=<n>` | `_do_call_impl` 入口 |
-| 单次尝试成功 | INFO | `ai.scene.success scene=<scene> model=<cfg_key> attempt=<n> elapsed_ms=<ms>` | `_retry_with_fallback_impl` try 块成功后 |
+| 单次尝试成功 | INFO | `ai.scene.success scene=<scene> model=<cfg_key> attempt=<n> elapsed_ms=<ms>` | `_run_with_strategy_impl` try 块成功后 |
 | 单次尝试失败将重试 | WARNING | `ai.scene.retry scene=<scene> model=<cfg_key> attempt=<n> error=<type> reason=<msg> next_attempt_in=<s>` | try 块 except 后，且非最后一次重试 |
 | 切换 fallback 模型 | WARNING | `ai.scene.fallback scene=<scene> from=<cfg_key> to=<next_cfg_key> reason=all_retries_failed` | 模型循环切换到下一个时 |
 | 场景彻底失败 | ERROR | `ai.scene.failure scene=<scene> last_model=<cfg_key> last_error=<type> reason=<msg> total_elapsed_ms=<ms>` | 全部重试 + fallback 都失败后 |
-| 提示词完整记录 | DEBUG | `ai.scene.prompt scene=<scene> system_prompt=<full_text> user_prompt=<full_text>` | `_do_call_impl` 发送 HTTP 前 |
-| 提示词摘要（默认开） | INFO | `ai.scene.prompt_summary scene=<scene> system_prompt_len=<n> system_prompt_preview=<前200字符> user_prompt_len=<n> user_prompt_preview=<前200字符>` | `_do_call_impl` 发送 HTTP 前 |
+| 提示词完整记录 | DEBUG | `ai.scene.prompt scene=<scene> system_prompt=<full_text> user_prompt=<full_text>` | `_run_with_strategy_impl` 内（仅 DEBUG 级别） |
+| 提示词摘要（默认开） | INFO | `ai.scene.prompt_summary scene=<scene> system_prompt_len=<n> system_prompt_preview=<前200字符> user_prompt_len=<n> user_prompt_preview=<前200字符>` | `_run_with_strategy_impl` 内（受 `ai_assist.log_prompt` 控制） |
+| 配置缺失兜底 | WARNING | `ai.scene.strategy_missing scene=<scene> fallback_to=ai_search reason=ai_scene_strategy_not_configured` | `model_sequence` 返回空时（决策 14） |
+| 业务上下文 | INFO | `ai.scene.business scene=<scene> trigger=<触发条件> ...` | 场景 3/4/5 入口处 |
 
-**关键实现**：
+**状态**：✅ Phase 1 已完成
+
+**关键实现**（埋点位置见决策 11 + 12）：
+
+所有 8 种日志事件统一埋在 `_run_with_strategy_impl`（`media_importer/scraper/_llm_client_impl.py:214-304`），**不在 `_do_call_impl` 重复埋点**。这样：
+- `_retry_with_fallback_impl`（场景 1/2）和 `_call_with_retry_impl`（场景 3/4/5）共享同一段日志代码
+- 每次调用只产生一条 `prompt_summary` 和一条 `prompt` 日志（避免重复）
+- 日志带 attempt 维度（`attempt=1/2`），便于追踪每次重试
+
+**埋点结构**：
 
 ```python
-# media_importer/scraper/_llm_client_impl.py
-import time
-import logging
-logger = logging.getLogger("media_importer.ai")
-
-def _retry_with_fallback_impl(self, system_prompt, user_content, scene, scenario=None):
+def _run_with_strategy_impl(self, system_prompt, user_content, scene, scenario, on_success):
     strategy = self.scene_strategy.model_sequence(scene)
-    total_start = time.monotonic()
-    last_error = None
-    for cfg_key in strategy:
-        model, base_url, api_key, default_use_search = self._resolve_connection(cfg_key)
+    if not strategy:
+        logger.warning(f"ai.scene.strategy_missing scene={scene} fallback_to=ai_search ...")
+        strategy = ["ai_search"]
+
+    for idx, cfg_key in enumerate(strategy):
         for attempt in range(self.max_retries):
-            logger.info(
-                f"ai.scene.start scene={scene} model={cfg_key} "
-                f"attempt={attempt + 1}/{self.max_retries} "
-                f"system_prompt_len={len(system_prompt)} user_prompt_len={len(user_content)}"
-            )
-            t0 = time.monotonic()
+            logger.info(f"ai.scene.start scene={scene} model={cfg_key} attempt={attempt+1}/{self.max_retries} ...")
+            if log_prompt_enabled:
+                logger.info(f"ai.scene.prompt_summary scene={scene} ... preview={system_prompt[:200]!r} ...")
+            logger.debug(f"ai.scene.prompt scene={scene} ... system_prompt={system_prompt!r} ...")
             try:
-                search_scenario = scenario if default_use_search else None
-                raw = self._do_call(system_prompt, user_content, model,
-                                    base_url, api_key, scenario=search_scenario)
-                elapsed_ms = int((time.monotonic() - t0) * 1000)
-                logger.info(
-                    f"ai.scene.success scene={scene} model={cfg_key} "
-                    f"attempt={attempt + 1} elapsed_ms={elapsed_ms}"
-                )
-                return _parse_response_impl(self, raw)
+                raw = self._do_call(...)
+                logger.info(f"ai.scene.success scene={scene} model={cfg_key} attempt={attempt+1} elapsed_ms=...")
+                return on_success(raw, cfg_key, model, attempt + 1)
             except (LLMScrapeError, LLMApiError, LLMWebSearchError) as e:
-                last_error = e
-                elapsed_ms = int((time.monotonic() - t0) * 1000)
                 if attempt < self.max_retries - 1:
-                    logger.warning(
-                        f"ai.scene.retry scene={scene} model={cfg_key} "
-                        f"attempt={attempt + 1} elapsed_ms={elapsed_ms} "
-                        f"error={type(e).__name__} reason={str(e)[:200]} "
-                        f"next_attempt_in={self.retry_delay}s"
-                    )
+                    logger.warning(f"ai.scene.retry scene={scene} ... error=... next_attempt_in=...")
                     time.sleep(self.retry_delay)
                 else:
-                    logger.warning(
-                        f"ai.scene.model_exhausted scene={scene} model={cfg_key} "
-                        f"attempts={self.max_retries} last_error={type(e).__name__}"
-                    )
-        # 当前模型全部重试失败，切换到下一个 fallback 模型
-        if cfg_key != strategy[-1]:
-            logger.warning(
-                f"ai.scene.fallback scene={scene} from={cfg_key} "
-                f"to={strategy[strategy.index(cfg_key) + 1]} reason=all_retries_failed"
-            )
-    total_elapsed_ms = int((time.monotonic() - total_start) * 1000)
-    logger.error(
-        f"ai.scene.failure scene={scene} last_model={cfg_key} "
-        f"last_error={type(last_error).__name__} reason={str(last_error)[:200]} "
-        f"total_elapsed_ms={total_elapsed_ms}"
-    )
+                    logger.warning(f"ai.scene.model_exhausted scene={scene} ... last_error=...")
+        if idx < len(strategy) - 1:
+            logger.warning(f"ai.scene.fallback scene={scene} from={cfg_key} to={strategy[idx+1]} ...")
+    logger.error(f"ai.scene.failure scene={scene} last_model=... total_elapsed_ms=...")
     raise last_error
-
-
-# _do_call_impl 中增加提示词日志
-def _do_call_impl(self, system_prompt, user_content, model, base_url, api_key, scenario=None):
-    # 提示词完整记录（DEBUG 级别，默认关闭）
-    logger.debug(
-        f"ai.scene.prompt scene={self._current_scene} model={model} "
-        f"system_prompt={system_prompt!r} user_prompt={user_content!r}"
-    )
-    # 提示词摘要（INFO 级别，默认开启）
-    logger.info(
-        f"ai.scene.prompt_summary scene={self._current_scene} model={model} "
-        f"system_prompt_len={len(system_prompt)} "
-        f"system_prompt_preview={system_prompt[:200]!r} "
-        f"user_prompt_len={len(user_content)} "
-        f"user_prompt_preview={user_content[:200]!r}"
-    )
-    # ... 原有 HTTP 调用逻辑 ...
 ```
 
-> 注：`_do_call_impl` 需要从调用上下文拿到 `scene`，可通过 `self._current_scene` 实例字段在 `_retry_with_fallback_impl` 入口处设置。
-
-**配置开关**（新增到 `ai_assist` section）：
+**配置开关**（已实施）：
 
 ```yaml
 ai_assist:
-  log_prompt: true   # 默认 true，记录提示词摘要（INFO）；完整提示词（DEBUG）由 logging 配置控制
+  log_prompt: true   # 默认 true，记录 prompt_summary（INFO）；prompt（DEBUG）由 logging 配置控制
 ```
 
-`config_view.AiAssistConfig` 新增 `log_prompt: bool = True` 字段。`_do_call_impl` 中根据此字段决定是否记录提示词。
+`config_view.AiAssistConfig` 已新增 `log_prompt: bool = True` 字段。`_run_with_strategy_impl` 根据此字段决定是否记录提示词。
+
+**业务入口日志**（场景 3/4/5 入口处）：
+
+```python
+# _extract_title_impl 入口（场景 3）
+logger.info(f"ai.scene.business scene=title_clean trigger=year_suspect_or_low_match prompt_len=...")
+
+# _tier2_correct_impl 入口（场景 4）
+logger.info(f"ai.scene.business scene=match_assist trigger=tier1_no_match filename=... clean_title=...")
+
+# _ai_analyze_directory 入口（场景 5）
+ai_logger.info(f"ai.scene.business scene=source_clean trigger=manual dir=... file_count=...")
+```
+
+> 注：场景 3 的 trigger 当前是合并标签 `year_suspect_or_low_match`，未区分 3 种细分条件（year_suspect / L4/L6/L7 / no_provider_result）。如需细分，可在 `_do_ai_clean` 调用方传入具体 trigger（列为 Phase 3 优化项）。
 
 **日志示例（一次成功的场景 4 调用）**：
 
@@ -1202,31 +1159,37 @@ PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python -m compileall -
 
 ## 4. 执行顺序建议
 
-### 阶段 A：后端基础设施（T1.1 - T1.14）
+### 阶段 A：后端基础设施（T1.1 - T1.15）— ✅ Phase 1 已完成
 
-依赖顺序：
+实际完成顺序（含偏离说明，见决策 12-15）：
 
 ```
-T1.1 PromptDefaults 迁移
-  └→ T1.2 PromptResolver 改造
-       └→ T1.3 使用点改造（5 处）
+T1.1 PromptDefaults 迁移 ✅
+  └→ T1.2 PromptResolver 改造 ✅
+       └→ T1.3 使用点改造（5 处）✅ + 决策 15：同步清理 tier2_judge 测试
 
-T1.4 config_view 新增 dataclass
-  └→ T1.5 config_loader.setdefault
-       └→ T1.6 config_validator 校验
-            └→ T1.7 SceneStrategyResolver
-                 └→ T1.8 _retry_with_fallback 扩展
-                      ├→ T1.9 call_with_prompt 新增
-                      │    └→ T1.11 SourceCleaner 改造
-                      └→ T1.10 5 个调用点传入 scene
+T1.4 config_view 新增 dataclass ✅
+  └→ T1.5 config_loader.setdefault ✅
+       └→ T1.6 config_validator 校验 ✅
+            └→ T1.7 SceneStrategyResolver ✅
+                 └→ T1.8 抽出 _run_with_strategy_impl 共享实现 ✅（决策 12，比原 plan 更优雅）
+                      ├→ T1.9 call_with_prompt 新增 ✅
+                      │    └→ T1.11 SourceCleaner 改造 ✅
+                      └→ T1.10 5 个调用点传入 scene ✅ + 决策 13：场景 3/4 走 _call_with_retry_impl
 
-T1.12 /api/config/prompt-defaults 升级（依赖 T1.1）
-T1.13 /api/config/section 新增 3 个 section（依赖 T1.4-T1.6）
-T1.14 connectivity_handlers 修复（独立）
-T1.15 AI 调用统一日志（依赖 T1.8，与 T1.10/T1.11 同步实施）
+T1.12 /api/config/prompt-defaults 升级 ✅（依赖 T1.1）
+T1.13 /api/config/section 新增 3 个 section ✅（依赖 T1.4-T1.6）
+T1.14 connectivity_handlers 修复 ✅（独立）
+T1.15 AI 调用统一日志 ✅（埋点统一在 _run_with_strategy_impl）
 ```
 
-### 阶段 B：前端 UI（T2.1 - T2.6）
+**Phase 1 实际产出**：
+- 总改动文件数：20 个（12 修改 + 2 删除 + 4 新建 + 2 测试辅助修改）
+- 净减少约 146 行（删除死代码 + 抽取共享实现）
+- 新增 18 个单元测试，588 个回归测试全过
+- 编译通过
+
+### 阶段 B：前端 UI（T2.1 - T2.6）— 待开始
 
 依赖顺序：
 
@@ -1239,9 +1202,9 @@ T2.1 补全 demo 模态 HTML（独立先行，修复 broken）
             └→ T2.6 JS 模块改造
 ```
 
-### 阶段 C：测试与文档（T3.1 - T3.5）
+### 阶段 C：测试与文档（T3.1 - T3.5）— 待开始
 
-- T3.1 单测可与阶段 A 同步写（TDD）
+- T3.1 单测可与阶段 A 同步写（TDD）— Phase 1 已补齐 18 个
 - T3.2 集成测试在阶段 A 完成后写
 - T3.3 回归测试在阶段 A + B 完成后跑
 - T3.4 UI 测试在阶段 B 完成后写
@@ -1251,23 +1214,28 @@ T2.1 补全 demo 模态 HTML（独立先行，修复 broken）
 
 ## 5. 验收标准（整体）
 
-完成后整体应满足：
+### 阶段 A 验收（Phase 1）— ✅ 已通过
 
 1. **后端**：
-   - 所有单元测试 + 集成测试通过
-   - `python -m compileall -q media_importer tests` 编译通过
-   - `python -m pytest tests/test_architecture_guards.py` 通过
-   - 5 个内联兜底字面量全部删除（grep 验证）
-   - SourceCleaner 不再直接使用 urllib（grep 验证）
-   - 跑一个完整入库任务，日志中能 grep 到至少 5 个场景的 `ai.scene.start` 记录（含 scene/model/attempt/elapsed_ms）
+   - ✅ 所有单元测试 + 集成测试通过（588 个）
+   - ✅ `python -m compileall -q media_importer tests` 编译通过
+   - ✅ `python -m pytest tests/test_architecture_guards.py` 通过
+   - ✅ 5 个内联兜底字面量全部删除（grep 验证）
+   - ✅ SourceCleaner 不再直接使用 urllib（grep 验证）
+   - ✅ 日志埋点齐全（`tests/test_ai_call_logging.py` 10 个用例通过）
+   - ⏳ 跑一个完整入库任务，日志中能 grep 到至少 5 个场景的 `ai.scene.start` 记录（待集成测/手工验证）
+
+### 阶段 B 验收（Phase 2）— 待执行
 
 2. **前端**：
    - AI 配置页 3 个手风琴区域默认全折叠
-   - API Key 区两个 tab 切换 + 各自测试按钮可用
+   - API Key 区两个 tab 切换 + 各自测试按钮可用（AI 辅助 tab 必须补【测试连通性】）
    - 提示词区 5 tab + 右侧 help + 每页签恢复默认
    - 场景区 5 行 × 2 下拉 + primary 必填校验
    - 3 个独立保存按钮各自 POST 对应 section
    - 模拟测试模态能正常弹出（修复 broken）
+
+### 阶段 C 验收（Phase 3）— 待执行
 
 3. **回归**：
    - 所有原有测试通过

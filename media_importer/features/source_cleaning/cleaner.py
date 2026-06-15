@@ -2,42 +2,18 @@ import os
 import re
 import json
 import logging
-import urllib.request
-import urllib.error
 from datetime import datetime
 from media_importer.features.configuration import ConfigView
+from media_importer.features.prompts.defaults import PromptDefaults
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
 
 logger = logging.getLogger(__name__)
+ai_logger = logging.getLogger("media_importer.ai")
 
 __all__ = ["AI_SYSTEM_PROMPT", "SourceCleaner"]
 
-AI_SYSTEM_PROMPT = """你是"影音库AI智能整理"系统的源目录清理助手。你的任务是分析源目录中的文件，判断哪些是垃圾文件应该删除，哪些是影视相关文件应该保留。
 
-【分析原则】
-1. 整体视角：分析整个目录的文件构成，而非孤立判断单个文件
-2. 容量对比：同一目录下，视频文件大小差异显著时，小文件大概率是广告/样本/预告
-3. 命名模式：文件名含 sample、trailer、预告、花絮、广告等关键词的应删除
-4. 关联识别：与视频同名的 .nfo、.jpg、.png 等是影视元数据/海报，应保留
-5. 字幕文件：.srt、.ass 等字幕文件应保留
-6. 保守原则：无法确定时倾向于保留，避免误删
-
-【判断标准】
-- 主视频文件（通常最大的视频文件）→ 保留
-- 字幕文件 → 保留
-- 与主视频同名的元数据/海报 → 保留
-- 样本/预告/广告视频（明显小于主视频）→ 删除
-- BT下载附带的无用文件（.url, .txt说明, 下载站广告图）→ 删除
-- 无法判断的文件 → 保留
-
-【输出格式】
-请严格按以下JSON格式返回，不要添加任何解释文字：
-{
-    "analysis": "简要分析说明",
-    "decisions": {
-        "文件名": {"action": "keep或delete", "reason": "判断理由"}
-    }
-}"""
+AI_SYSTEM_PROMPT = PromptDefaults.SOURCE_CLEAN
 
 
 class SourceCleaner:
@@ -56,7 +32,12 @@ class SourceCleaner:
         self.protect_extensions = set(cleaner.protect_extensions)
         self.blacklist_patterns = cleaner.blacklist_patterns
         self.cleanup_empty_dirs = cleaner.cleanup_empty_dirs
-        self.ai_prompt = self.view.ai_assist.prompt_source_clean or AI_SYSTEM_PROMPT
+
+        from media_importer.scraper.llm_scraper import LLMScraper
+        from media_importer.features.scraping.prompt_resolver import PromptResolver
+        self.llm = LLMScraper(config)
+        self.prompt_resolver = PromptResolver.from_config(config)
+        self.ai_prompt = self.prompt_resolver.get_source_clean_prompt()
 
         self.video_extensions = set(self.view.paths.video_extensions)
         self.subtitle_extensions = set(self.view.paths.subtitle_extensions)
@@ -313,17 +294,16 @@ class SourceCleaner:
         return results
 
     def _ai_analyze_directory(self, dir_path: str, files: list) -> dict:
-        ai_assist = self.view.ai_assist
-        api_key = ai_assist.api_key
-        if not api_key:
+        if not self.view.ai_assist.api_key and not self.view.ai_search.api_key:
             return {}
 
-        api_base = ai_assist.base_url
-        model = ai_assist.model
-
+        ai_logger.info(
+            f"ai.scene.business scene=source_clean trigger=manual "
+            f"dir={dir_path!r} file_count={len(files)}"
+        )
         prompt = self._build_cleaner_prompt(dir_path, files)
         try:
-            response_text = self._call_llm(api_base, api_key, model, prompt)
+            response_text = self._call_llm(prompt)
             return self._parse_ai_response(response_text)
         except Exception as e:
             logger.warning(f"AI 分析目录失败 {dir_path}: {e}")
@@ -333,27 +313,13 @@ class SourceCleaner:
         files_desc = json.dumps(files, ensure_ascii=False, indent=2)
         return f"{self.ai_prompt}\n\n【待分析目录】\n目录: {dir_path}\n文件列表:\n{files_desc}"
 
-    def _call_llm(self, api_base: str, api_key: str, model: str, prompt: str) -> str:
-        # 兼容 base_url 已含 /chat/completions 的填法
-        trimmed = (api_base or "").rstrip("/")
-        url = trimmed if trimmed.endswith("/chat/completions") else f"{trimmed}/chat/completions"
-        body = json.dumps({
-            "model": model,
-            "messages": [
-                {"role": "system", "content": self.ai_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 2000,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(url, data=body, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Authorization", f"Bearer {api_key}")
-
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"]
+    def _call_llm(self, prompt: str) -> str:
+        """调用 LLM 分析目录。统一通过 LLMScraper.call_with_prompt，按 source_clean 场景策略选模型。"""
+        return self.llm.call_with_prompt(
+            system_prompt=self.ai_prompt,
+            user_prompt=prompt,
+            scene="source_clean",
+        )
 
     def _parse_ai_response(self, response_text: str) -> dict:
         try:

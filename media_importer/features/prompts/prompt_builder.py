@@ -64,55 +64,7 @@ class LLMPromptBuilder:
   2. 使用常见的意译名称
   3. 切勿机械直译导致歧义
 
-【维度判断】
-当前需要判断的维度："""
-
-    TIER2_CORRECT_PROMPT = """你是一个影视标题纠正助手。根据原始文件名和目录上下文，纠正标题并判断确定性。
-
-## 核心规则
-
-1. 文件名中的数字可能是分辨率（2160p、1080p）、年份（2017）或标题本身（2046、2012）。
-2. **分辨率的判断**：数字后带 p/i/px 后缀 → 分辨率，不是年份也不是标题。
-3. **年份的判断**：四位数字（1900-2029范围），前后有点或分隔符 → 年份。
-4. **标题内含数字**：如果数字是标题固定部分（如「银翼杀手2049」、「2012」），必须在 corrected_title 中保留。
-5. **标题就是数字**：当整个文件名的核心就是数字（如 2012.2009.mkv），corrected_title 保留数字，年份从文件名中的年份提取。
-
-## 6个示例
-
-示例1：
-  文件名: 美丽人生.2160P.mkv
-  路径: /video/电影/美丽人生.2160P.mkv
-  → {"corrected_title": "美丽人生", "corrected_year": null, "media_type_hint": "movie", "certainty": "medium", "reason": "标题含2160P，识别为分辨率后缀，标题应为美丽人生", "suggestion": "美丽人生"}
-
-示例2：
-  文件名: 银翼杀手2049.2017.BluRay.2160p.mkv
-  路径: /video/银翼杀手2049.2017.BluRay.2160p.mkv
-  → {"corrected_title": "银翼杀手2049", "corrected_year": 2017, "media_type_hint": "movie", "certainty": "high", "reason": "2049是标题固定部分，2017是年份，2160p是分辨率", "suggestion": "银翼杀手2049"}
-
-示例3：
-  文件名: 2012.2009.1080p.BluRay.mkv
-  路径: /video/2012.2009.1080p.BluRay.mkv
-  → {"corrected_title": "2012", "corrected_year": 2009, "media_type_hint": "movie", "certainty": "high", "reason": "标题就是数字2012，年份2009，1080p是分辨率", "suggestion": "2012"}
-
-示例4：
-  文件名: 2046.2004.720p.mkv
-  路径: /video/2046.2004.720p.mkv
-  → {"corrected_title": "2046", "corrected_year": 2004, "media_type_hint": "movie", "certainty": "high", "reason": "标题就是数字2046，年份2004，720p是分辨率", "suggestion": "2046"}
-
-示例5：
-  文件名: jinji.S01E02.mp4
-  路径: /tv/紧急/jinji.S01E02.mp4
-  → {"corrected_title": "jinji", "corrected_year": null, "media_type_hint": "tv", "certainty": "medium", "reason": "可能是剧集，标题为jinji，无年份信息", "suggestion": "jinji"}
-
-示例6：
-  文件名: xXx.Return.of.Xander.Cage.2017.1080p.BluRay.x264-CHDWEB.mkv
-  路径: /video/xXx.Return.of.Xander.Cage.2017.1080p.BluRay.x264-CHDWEB.mkv
-  → {"corrected_title": "xXx: Return of Xander Cage", "corrected_year": 2017, "media_type_hint": "movie", "certainty": "high", "reason": "标准命名，标题和年份明确", "suggestion": "xXx: Return of Xander Cage"}
-
-## 输出格式
-
-返回 JSON，不要包含任何其他文字：
-{"corrected_title": "纠正后的标题", "corrected_year": 年份或null, "media_type_hint": "movie|tv|null", "certainty": "high|medium|low", "reason": "判断理由", "suggestion": "建议的搜索关键词"}"""
+【维度判断】\n当前需要判断的维度："""
 
     def __init__(self, dimensions=None):
         self.dimensions = dimensions or []

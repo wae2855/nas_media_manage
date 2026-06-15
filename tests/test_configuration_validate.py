@@ -50,6 +50,13 @@ def _make_config(tmp_path, **overrides):
             "model": "gpt-4o-mini",
             "enabled": True,
         },
+        "ai_scene_strategy": {
+            "dimension_supplement": {"primary": "ai_search", "fallback": ""},
+            "dimension_mapping": {"primary": "ai_assist", "fallback": ""},
+            "title_clean": {"primary": "ai_assist", "fallback": ""},
+            "match_assist": {"primary": "ai_search", "fallback": ""},
+            "source_clean": {"primary": "ai_assist", "fallback": ""},
+        },
     }
     cfg["source_policy"].update(overrides.pop("source_policy_overrides", {}))
     cfg.update(overrides)

@@ -198,6 +198,25 @@ def load_config(config_path: str = None) -> dict:
 
     config.setdefault("fallback_dir", "")
 
+    ai_strategy = config.setdefault("ai_scene_strategy", {})
+    if not isinstance(ai_strategy, dict):
+        ai_strategy = {}
+        config["ai_scene_strategy"] = ai_strategy
+    DEFAULT_SCENE_STRATEGY = {
+        "dimension_supplement": {"primary": "ai_search", "fallback": ""},
+        "dimension_mapping": {"primary": "ai_assist", "fallback": ""},
+        "title_clean": {"primary": "ai_assist", "fallback": ""},
+        "match_assist": {"primary": "ai_search", "fallback": ""},
+        "source_clean": {"primary": "ai_assist", "fallback": ""},
+    }
+    for scene, defaults in DEFAULT_SCENE_STRATEGY.items():
+        section = ai_strategy.setdefault(scene, {})
+        if not isinstance(section, dict):
+            section = {}
+            ai_strategy[scene] = section
+        section.setdefault("primary", defaults["primary"])
+        section.setdefault("fallback", defaults["fallback"])
+
     errors = validate_config(config)
     if errors:
         print("配置校验警告（服务仍可启动，请通过前台完善配置）:")

@@ -1,5 +1,6 @@
 """LLM HTTP client implementation — extracted from LLMScraper."""
 import json
+import logging
 import re
 import time
 import ssl
@@ -8,6 +9,8 @@ import urllib.error
 from typing import Dict, Any
 
 from media_importer.scraper.exceptions import LLMApiError, LLMWebSearchError, LLMScrapeError
+
+logger = logging.getLogger("media_importer.ai")
 
 
 def _build_payload_int(self, system_prompt: str, user_content: str, model: str) -> dict:
@@ -128,12 +131,13 @@ def _do_call_impl(self, system_prompt: str, user_content: str, model: str,
         provider = self.web_search_config.effective_provider()
         _inject_web_search_impl(self, payload, provider)
 
+    # 注：提示词日志由 _run_with_strategy_impl 统一记录（带 attempt 维度），
+    # 此处不再重复输出，避免每次调用产生两条 prompt_summary。
+
     try:
         return self._send_request(url, payload, api_key)
     except Exception as e:
         if isinstance(e, LLMWebSearchError):
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning("web search failed, falling back to normal call: %s", e)
             fallback_payload = _build_payload_int(self, system_prompt, user_content, model)
             return self._send_request(url, fallback_payload, api_key)
@@ -185,28 +189,141 @@ def _parse_response_impl(self, raw_text: str) -> Dict[str, Any]:
         raise LLMScrapeError(f"JSON解析失败: {str(e)}, 原始内容: {raw_text[:200]}")
 
 
-def _retry_with_fallback_impl(self, system_prompt: str, user_content: str,
-                               use_fast: bool = False, scenario: str = None) -> Dict[str, Any]:
-    if use_fast:
-        models_to_try = [(self.fast_model, self.fast_base_url, self.fast_api_key, False)]
-    else:
-        models_to_try = [(self.model, self.base_url, self.api_key, True)]
+def _resolve_connection(self, cfg_key: str):
+    if cfg_key == "ai_assist":
+        return self.fast_model, self.fast_base_url, self.fast_api_key, False
+    if cfg_key == "ai_search":
+        return self.model, self.base_url, self.api_key, True
+    raise ValueError(f"未知模型配置: {cfg_key}")
 
+
+def _run_with_strategy_impl(self, system_prompt, user_content, scene, scenario,
+                            on_success):
+    """场景策略 + 多模型重试 + 结构化日志 共享实现。
+
+    参数：
+    - on_success(raw_response, cfg_key, model, attempt)：单次成功回调，
+      返回最终结果；用于 _retry_with_fallback_impl 转 dict、_call_with_retry_impl 直接返回 raw。
+    """
+    if not hasattr(self, "scene_strategy"):
+        raise LLMScrapeError("LLMScraper 未注入 scene_strategy；请通过 __init__ 传入 ConfigView")
+
+    strategy = self.scene_strategy.model_sequence(scene)
+    if not strategy:
+        logger.warning(
+            f"ai.scene.strategy_missing scene={scene} fallback_to=ai_search "
+            f"reason=ai_scene_strategy_not_configured"
+        )
+        strategy = ["ai_search"]
+
+    total_start = time.monotonic()
     last_error = None
 
-    for model, base_url, api_key, use_search in models_to_try:
+    log_prompt_enabled = bool(getattr(self, "view", None) and self.view.ai_assist.log_prompt)
+
+    for idx, cfg_key in enumerate(strategy):
+        try:
+            model, base_url, api_key, default_use_search = _resolve_connection(self, cfg_key)
+        except ValueError as e:
+            last_error = e
+            continue
         for attempt in range(self.max_retries):
+            logger.info(
+                f"ai.scene.start scene={scene} model={cfg_key} "
+                f"attempt={attempt + 1}/{self.max_retries} "
+                f"system_prompt_len={len(system_prompt)} user_prompt_len={len(user_content)}"
+            )
+            if log_prompt_enabled:
+                logger.info(
+                    f"ai.scene.prompt_summary scene={scene} model={cfg_key} "
+                    f"system_prompt_len={len(system_prompt)} "
+                    f"system_prompt_preview={system_prompt[:200]!r} "
+                    f"user_prompt_len={len(user_content)} "
+                    f"user_prompt_preview={user_content[:200]!r}"
+                )
+            logger.debug(
+                f"ai.scene.prompt scene={scene} model={cfg_key} "
+                f"system_prompt={system_prompt!r} user_prompt={user_content!r}"
+            )
+            t0 = time.monotonic()
             try:
-                search_scenario = scenario if (use_search and scenario) else None
-                raw_response = self._do_call(system_prompt, user_content, model,
-                                             base_url, api_key, scenario=search_scenario)
-                return _parse_response_impl(self, raw_response)
+                search_scenario = scenario if (default_use_search and scenario) else None
+                # 注入 scene 到 _do_call_impl 上下文，供 prompt 日志使用
+                self._current_scene = scene
+                self._current_cfg_key = cfg_key
+                raw = self._do_call(system_prompt, user_content, model,
+                                    base_url, api_key, scenario=search_scenario)
+                elapsed_ms = int((time.monotonic() - t0) * 1000)
+                logger.info(
+                    f"ai.scene.success scene={scene} model={cfg_key} "
+                    f"attempt={attempt + 1} elapsed_ms={elapsed_ms}"
+                )
+                return on_success(raw, cfg_key, model, attempt + 1)
             except (LLMScrapeError, LLMApiError, LLMWebSearchError) as e:
                 last_error = e
+                elapsed_ms = int((time.monotonic() - t0) * 1000)
                 if attempt < self.max_retries - 1:
+                    logger.warning(
+                        f"ai.scene.retry scene={scene} model={cfg_key} "
+                        f"attempt={attempt + 1} elapsed_ms={elapsed_ms} "
+                        f"error={type(e).__name__} reason={str(e)[:200]} "
+                        f"next_attempt_in={self.retry_delay}s"
+                    )
                     time.sleep(self.retry_delay)
-                continue
+                else:
+                    logger.warning(
+                        f"ai.scene.model_exhausted scene={scene} model={cfg_key} "
+                        f"attempts={self.max_retries} last_error={type(e).__name__}"
+                    )
+        # 当前模型全部重试失败，切换到下一个 fallback 模型
+        if idx < len(strategy) - 1:
+            logger.warning(
+                f"ai.scene.fallback scene={scene} from={cfg_key} "
+                f"to={strategy[idx + 1]} reason=all_retries_failed"
+            )
 
+    total_elapsed_ms = int((time.monotonic() - total_start) * 1000)
+    logger.error(
+        f"ai.scene.failure scene={scene} last_model={strategy[-1]} "
+        f"last_error={type(last_error).__name__ if last_error else 'Unknown'} "
+        f"reason={str(last_error)[:200] if last_error else 'unknown'} "
+        f"total_elapsed_ms={total_elapsed_ms}"
+    )
     if last_error:
         raise last_error
     raise LLMScrapeError("所有重试均失败")
+
+
+def _retry_with_fallback_impl(self, system_prompt: str, user_content: str,
+                               scene: str = None, scenario: str = None,
+                               use_fast: bool = None) -> Dict[str, Any]:
+    """多模型 fallback 重试入口（返回 parse 后的 dict）。
+
+    参数约定：
+    - scene：5 个场景 key。SceneStrategyResolver 获取模型序列。
+    - use_fast：旧兼容入口（True → scene="dimension_mapping"，False → scene="dimension_supplement"）。
+    """
+    if scene is None:
+        scene = "dimension_mapping" if use_fast else "dimension_supplement"
+
+    def _on_success(raw, cfg_key, model, attempt):
+        return _parse_response_impl(self, raw)
+
+    return _run_with_strategy_impl(
+        self, system_prompt, user_content, scene, scenario, _on_success,
+    )
+
+
+def _call_with_retry_impl(self, system_prompt: str, user_content: str,
+                          scene: str, scenario: str = None) -> str:
+    """通用 LLM 调用入口：按场景策略多模型重试并 fallback，返回原始响应字符串。
+
+    与 _retry_with_fallback_impl 区别：
+    - 不调用 _parse_response_impl，保留 raw 文本给调用方自行解析（适合非刮削场景如 source_clean）。
+    """
+    def _on_success(raw, cfg_key, model, attempt):
+        return raw
+
+    return _run_with_strategy_impl(
+        self, system_prompt, user_content, scene, scenario, _on_success,
+    )
