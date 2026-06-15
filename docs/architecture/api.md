@@ -168,6 +168,7 @@ PENDING/QUEUED
 | `max_retries` | int | 2 | 最大重试次数 |
 | `retry_delay` | int | 3 | 重试间隔（秒） |
 | `verify_ssl` | bool | true | 是否验证 SSL 证书 |
+| `log_prompt` | bool | true | 是否记录提示词日志（INFO 级别输出前 200 字符摘要，DEBUG 输出完整内容） |
 | `prompt_title_clean` | string | "" | 标题清洗提示词（空=使用默认） |
 | `prompt_match_assist` | string | "" | 匹配辅助提示词（空=使用默认） |
 | `prompt_dimension_mapping` | string | "" | 维度映射提示词（空=使用默认） |
@@ -177,13 +178,25 @@ PENDING/QUEUED
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `enabled` | bool | false | 是否启用 AI 联网搜索增强 |
+| `enabled` | bool | true | 是否启用 AI 联网搜索增强（已废弃，由场景策略控制） |
 | `provider` | string | "" | 搜索厂商：zhipu/qwen/moonshot |
 | `model` | string | "" | 搜索模型 ID |
 | `search_type` | string | "" | 搜索类型（厂商相关） |
 | `api_key` | string | "" | API Key（返回时脱敏为 `***`） |
 | `base_url` | string | "" | 搜索模型 API 地址 |
-| `prompt_dimension_supplement` | string | "" | 维度补全提示词（空=使用默认） |
+| `prompt_dimension_supplement` | string | "" | 维度补全提示词（空=使用默认，现划归到 `ai_search` 段） |
+
+### ai_scene_strategy 配置段
+
+5 个场景，每个场景有 `primary`（必填）和 `fallback`（可选）两个模型选择。
+
+| 场景 | primary 默认值 | 说明 |
+|------|---------------|------|
+| `dimension_supplement` | `ai_search` | 刮削缺失补充：Provider 命中但维度不全，且场景 2 失败后的兜底 |
+| `dimension_mapping` | `ai_assist` | 刮削结果归类：Provider 数据映射到本地维度体系 |
+| `title_clean` | `ai_assist` | 文件标题清洗：从脏文件名提取干净标题 |
+| `match_assist` | `ai_search` | 影视名 AI 推测：Tier1 精确匹配失败后进入 Tier2 推测 |
+| `source_clean` | `ai_assist` | 源目录清理分析：独立于刮削流程，由清理 API 触发 |
 
 ### GET /api/config/prompt-defaults
 
@@ -195,13 +208,43 @@ PENDING/QUEUED
 {
   "code": 200,
   "data": {
-    "prompt_title_clean": "你是一个影视标题提取助手...",
-    "prompt_match_assist": "你是一个影视搜索关键词优化助手...",
-    "prompt_dimension_mapping": "...",
-    "prompt_dimension_supplement": "..."
+    "prompts": {
+      "prompt_title_clean": "你是一个影视标题提取助手...",
+      "prompt_match_assist": "你是一个影视搜索关键词优化助手...",
+      "prompt_dimension_mapping": "你是影视维度映射助手...",
+      "prompt_dimension_supplement": "你是影视维度补充助手...",
+      "prompt_source_clean": "你是\"影音库AI智能整理\"系统的源目录清理助手..."
+    },
+    "descriptions": {
+      "prompt_title_clean": "文件标题清洗：从脏文件名中清洗出干净标题...",
+      "prompt_match_assist": "影视名AI推测：通过文件名 + 文件夹路径 + 同级文件名...",
+      "prompt_dimension_mapping": "刮削结果归类：Provider 刮削到的原始字段...",
+      "prompt_dimension_supplement": "刮削缺失补充：Provider 刮削结果缺失的维度...",
+      "prompt_source_clean": "源目录清理分析：由 AI 分析源目录下每个子目录的文件构成..."
+    }
   }
 }
 ```
+
+### 新增 PUT /api/config/section
+
+支持按 section 局部更新配置。
+
+| section 名 | 更新内容 |
+|-----------|----------|
+| `ai_assist` | AI 辅助所有字段 |
+| `ai_search` | AI 联网搜索所有字段 |
+| `ai_prompts` | 5 个提示词字段（来自 ai_assist.prompt_* + ai_search.prompt_dimension_supplement） |
+| `ai_scene_strategy` | 5 场景的 primary/fallback |
+
+### GET /api/config/section/{section}
+
+支持按 section 读取配置，返回对应 section 的字段 + 状态信息。
+
+| section | 返回内容 |
+|---------|---------|
+| `ai_assist` | ai_assist 配置段 + 脱敏 api_key |
+| `ai_search` | ai_search 配置段 + 脱敏 api_key |
 
 ## Scraping: 三级匹配与维度确认
 
