@@ -23,6 +23,9 @@
 | 13 | 场景 3/4 走 raw 入口 | `_extract_title_impl` / `_tier2_correct_impl` 改用 `_call_with_retry_impl`（而非 `_retry_with_fallback_impl`），因为它们需要 raw 文本自行解析（前者返回纯标题字符串，后者自己解析 JSON），不能走强制 JSON 解析的 `_parse_response_impl`（Phase 1 已实施） |
 | 14 | `SceneStrategyResolver` 兜底 | 当 `model_sequence` 返回空列表时，`_run_with_strategy_impl` 兜底到 `["ai_search"]` 并输出 `ai.scene.strategy_missing` warning 日志，便于排查"配置未生效"。生产路径（`load_config.setdefault` 已覆盖）不会触发，主要为测试和绕过 `load_config` 的路径提供防御性兜底（Phase 1 已实施） |
 | 15 | `tier2_judge` 测试清理 | 删除 `_tier2_judge_impl` 时需同步删除 3 个调用它的测试（执行模型已确认并清理） |
+| 16 | 废弃 `ai_search.enabled` 开关 | 场景策略已统一控制每个场景的模型选择，`ai_search.enabled` 成为冗余且造成混淆（关闭后整个区域变灰）。前端删除开关 UI 与 `syncAiSearchEnabledState` 联动；后端 `web_search_config` 不再依赖 `enabled` 字段；配置里 `ai_search.enabled` 保留但不再强制（向后兼容） |
+| 17 | API Key 区拆分到各 tab 独立保存 | 删除 card 头部的统一【保存】按钮；AI 辅助 tab 内部加【保存】→ POST `ai_assist` section；AI 搜索 tab 内部加【保存】→ POST `ai_search` section；复用已有 section 机制，避免用户不配 AI 搜索时被强制校验 |
+| 18 | 前端静态资源强制刷新 | Phase 2 改动后用户浏览器可能加载旧版 JS（`?v=1` 缓存），导致"恢复默认变空"、"保存报错"等假象。所有改动过的 JS 文件引用升级 `?v=N` |
 
 ---
 
@@ -1008,6 +1011,185 @@ logger.info(f"ai.scene.business scene=source_clean trigger=manual dir={dir_path!
 
 ---
 
+### Phase 2 补充修正：用户验证反馈（共 4 个任务）
+
+> **背景**：Phase 2 首次实现后用户手工浏览器验证发现 7 个问题，全部限定在前端 UI 与少量字段废弃，不动摇整体架构。决策 16/17/18 已加入 §0。本节任务必须在 Phase 3 之前完成，否则 UI 测试会失败。
+
+---
+
+#### T2.7 UI 文案与样式调整（问题 1, 2, 3 部分, 4 部分）
+
+**文件**：`media_importer/webui/index.html` + `media_importer/webui/css/cinema-pages-8.css`
+
+**改动清单**：
+
+| # | 改动 | 位置 | 改前 | 改后 |
+|---|------|------|------|------|
+| 1 | card 标题改名 | index.html `#ai-apikey-card` 头部 `<b>` | `AI 的 API Key 配置`（或类似） | `API Key 配置` |
+| 2 | API Key 区 tab 样式调整 | cinema-pages-8.css `.apikey-tab-content + .prompt-tab` | 看起来像按钮 | 复用提示词区 `.prompt-tab` 的页签样式（已有 active/下划线/底色） |
+| 3 | 删除两个 tab 内的默认折叠说明 details | index.html `data-apikey-content="ai_assist"` 和 `"ai_search"` 内的首个 `<details class="ai-help-disclosure">` | 默认折叠的"用在哪里"说明 | 整段删除（用户反馈多余） |
+| 4 | 提示词区 help details 默认展开 | index.html 5 个 `<details class="prompt-help-disclosure">` | 无 `open` 属性，默认折叠 | 加 `open` 属性，默认展开 |
+| 5 | 提示词区按钮文案改名 | index.html 5 处 `data-prompt-reset="ai-prompts"` | `恢复当前分页默认` | `恢复默认` |
+
+**验收**：
+- UI 测：`#ai-apikey-card` 标题显示"API Key 配置"
+- UI 测：API Key 区两个 tab 看起来是页签（不是按钮），切换有明显的 active 状态
+- UI 测：API Key 区两个 tab 内不再有"用在哪里"折叠说明
+- UI 测：提示词区每个 tab 的右侧 help details 默认展开
+- UI 测：提示词区按钮文案是"恢复默认"
+
+---
+
+#### T2.8 前端 JS 引用版本号升级（问题 7 + 问题 4 根因）
+
+**文件**：`media_importer/webui/index.html`
+
+**问题**：Phase 2 改动后用户浏览器可能加载 `?v=1` 的旧版 JS 缓存，导致：
+- "恢复默认"把输入框清空（旧版 JS 读 `defaults.prompt_xxx` 扁平结构，找不到值）
+- 保存按钮"报错"（实际是旧版 JS 行为）
+- descriptions 不注入
+
+**改动**：把所有改过 Phase 2 的 JS 文件引用从 `?v=1` 升级到 `?v=2`：
+
+```html
+<!-- 改前 -->
+<script src="js/cinema-config-payloads.js?v=1"></script>
+<script src="js/cinema-config-save.js?v=1"></script>
+<script src="js/cinema-config-ai.js?v=1"></script>
+<script src="js/cinema-directory-loader.js?v=1"></script>
+<script src="js/cinema-app-events.js?v=1"></script>
+<script src="js/cinema-reel.js?v=1"></script>
+
+<!-- 改后 -->
+<script src="js/cinema-config-payloads.js?v=2"></script>
+<script src="js/cinema-config-save.js?v=2"></script>
+<script src="js/cinema-config-ai.js?v=2"></script>
+<script src="js/cinema-directory-loader.js?v=2"></script>
+<script src="js/cinema-app-events.js?v=2"></script>
+<script src="js/cinema-reel.js?v=2"></script>
+```
+
+**验收**：
+- UI 测：用户 hard refresh（Cmd+Shift+R）后加载新版 JS
+- UI 测：点【恢复默认】输入框被填充为系统默认值（不再变空）
+- UI 测：3 个保存按钮不再"报错"
+- UI 测：右侧 help details 显示后端返回的 description 文本
+
+---
+
+#### T2.9 废弃 `ai_search.enabled` 开关（决策 16，问题 5）
+
+**文件**：
+- `media_importer/webui/index.html`（删除开关 UI）
+- `media_importer/webui/js/cinema-config-ai.js`（删除 `syncAiSearchEnabledState` 联动）
+- `media_importer/webui/js/cinema-config-payloads.js`（payload 不再带 enabled 字段）
+- `media_importer/webui/js/cinema-directory-loader.js`（不再回填 enabled）
+- `media_importer/webui/js/cinema-reel.js`（状态徽章不再判断 enabled）
+- `media_importer/features/scraping/web_search_config.py`（不再依赖 enabled，向后兼容）
+
+**前端改动**：
+
+1. **删除开关 article**（index.html `#ai-apikey-card` 的 AI 搜索 tab 内）：
+   ```html
+   <!-- 删除整段 -->
+   <article class="form-card form-card-full ai-search-toggle-card">
+     <span>功能开关</span>
+     <label class="toggle-row-inline">
+       <input id="cfg-ai_search-enabled" type="checkbox" checked />
+       <b>启用 AI联网搜索增强</b>
+     </label>
+     <p>关闭后不再调用支持联网搜索的大模型...</p>
+   </article>
+   ```
+
+2. **删除 `syncAiSearchEnabledState` 函数**（cinema-config-ai.js:3-17）和它在其他地方的调用（grep `syncAiSearchEnabledState` 找到所有调用点）。
+
+3. **payload 不再包含 enabled**：
+   - `buildAiApikeyPayload`：删除 `ai_search.enabled` 行
+   - `buildAiSearchPayload`：删除 `ai_search.enabled` 行
+
+4. **回填不再设置 enabled**：`cinema-directory-loader.js:129-130` 删除。
+
+5. **状态徽章不再判断 enabled**（cinema-reel.js `updateAiConfigStatus` 的 `searchConfigured` 判断）：改为只看 provider/model/api_key 是否齐全。
+
+**后端改动**：
+
+6. **`web_search_config` 不再依赖 enabled**（决策 16 向后兼容）：
+
+   文件：`media_importer/features/scraping/web_search_config.py`
+   
+   找到 `build_web_search_config` 和 `is_effective` / `should_search` 等方法中读 `enabled` 字段的位置，改为：
+   - `is_effective()`：只看 provider/model/api_key 是否齐全，不再要求 `enabled=True`
+   - 配置里仍接受 `enabled` 字段（向后兼容），但运行时忽略
+
+**验收**：
+- UI 测：AI 搜索 tab 不再有"启用 AI 联网搜索增强"开关
+- UI 测：AI 搜索 tab 的字段（provider/model/api_key 等）默认可编辑，不会因为某个开关关闭而变灰
+- UI 测：配置了 AI 搜索的 api_key + model + provider 后，场景策略选 ai_search 的场景能正常调用
+- 单测：`web_search_config.is_effective()` 不再依赖 `enabled` 字段
+- 单测：旧配置 `ai_search.enabled: false` 仍能正常加载（向后兼容）
+
+---
+
+#### T2.10 API Key 区拆分到各 tab 独立保存（决策 17，问题 6）
+
+**文件**：
+- `media_importer/webui/index.html`（删除 card 头部保存按钮，每个 tab 内部加保存按钮）
+- `media_importer/webui/js/cinema-config-save.js`（删除 `saveAiApikeyConfig`，复用 `saveAiAssistConfig` / `saveAiScrapeConfig`）
+- `media_importer/webui/js/cinema-app-events.js`（路由 `data-config-save="ai-apikey"` 改为新值）
+
+**前端改动**：
+
+1. **删除 card 头部保存按钮**（index.html `#ai-apikey-card` 的 `config-collapse-header-right`）：
+   ```html
+   <!-- 删除 -->
+   <div class="config-collapse-header-right">
+     <button class="btn btn-primary btn-xs" type="button" data-config-save="ai-apikey">保存</button>
+   </div>
+   ```
+   
+   header 改为纯展示（只显示标题 + 状态徽章）。
+
+2. **AI 辅助 tab 内部加保存按钮**（替换原【测试连通性】+【模拟测试】那一行）：
+   ```html
+   <div class="inline-action-row">
+     <button class="btn btn-primary btn-sm" type="button" data-config-save="ai_assist">保存</button>
+     <button class="btn btn-secondary btn-sm" type="button" data-llm-test="inline" data-llm-scenario="ai_assist">测试连通性</button>
+     <button class="btn btn-secondary btn-sm" type="button" id="btn-ai-assist-demo">模拟测试</button>
+   </div>
+   ```
+
+3. **AI 搜索 tab 内部加保存按钮**：
+   ```html
+   <div class="inline-action-row">
+     <button class="btn btn-primary btn-sm" type="button" data-config-save="ai_search">保存</button>
+     <button class="btn btn-secondary btn-sm" type="button" data-llm-test="inline">测试连通性</button>
+     <button class="btn btn-secondary btn-sm" type="button" id="btn-ai-scrape-demo">模拟测试</button>
+   </div>
+   ```
+
+4. **JS 路由调整**（cinema-app-events.js）：
+   - `data-config-save="ai_assist"` → 调用 `saveAiAssistConfig()`（已有，POST section `ai_assist`）
+   - `data-config-save="ai_search"` → 调用 `saveAiScrapeConfig()`（已有，POST section `ai_search`）
+   - 删除 `data-config-save="ai-apikey"` 的路由分支
+
+5. **删除 `saveAiApikeyConfig` 函数**（cinema-config-save.js:86-109）和 `buildAiApikeyPayload`（cinema-config-payloads.js:303-361）—— 不再需要。`saveAiAssistConfig` / `saveAiScrapeConfig` 已能独立保存各自 section。
+
+6. **测试连通性仍然区分 scenario**（T2.6 已修复，保留不变）。
+
+**验收**：
+- UI 测：`#ai-apikey-card` 头部不再有【保存】按钮
+- UI 测：AI 辅助 tab 内部有【保存】按钮，点击后只 POST `ai_assist` section（不包含 ai_search 字段）
+- UI 测：AI 搜索 tab 内部有【保存】按钮，点击后只 POST `ai_search` section（不包含 ai_assist 字段）
+- UI 测：用户只配 AI 辅助不配 AI 搜索时，AI 辅助 tab 保存成功（无强制校验 AI 搜索字段）
+- UI 测：API Key 状态徽章仍正常显示（"已配置"/"未配置"）
+
+---
+
+
+
+---
+
 ### Phase 3：测试与文档（共 5 个任务）
 
 ---
@@ -1189,25 +1371,46 @@ T1.15 AI 调用统一日志 ✅（埋点统一在 _run_with_strategy_impl）
 - 新增 18 个单元测试，588 个回归测试全过
 - 编译通过
 
-### 阶段 B：前端 UI（T2.1 - T2.6）— 待开始
+### 阶段 B：前端 UI（T2.1 - T2.6）— ✅ Phase 2 首次实现已完成
+
+实际完成顺序：
+
+```
+T2.1 补全 demo 模态 HTML ✅
+  └→ T2.2 重排 3 个手风琴 ✅
+       ├→ T2.3 API Key 区 ✅
+       ├→ T2.4 提示词区 ✅
+       └→ T2.5 场景区 ✅
+            └→ T2.6 JS 模块改造 ✅
+```
+
+**Phase 2 首次实现 Review 发现的问题**（已在 review 中修复）：
+- 🔴 P0 `buildAiApikeyPayload` api_key 处理错误 → 已修复（改用 `preserveApiKey`）
+- 🟡 P1 AI 辅助 tab 测试连通性测错对象 → 已修复（区分 `data-llm-scenario`）
+- ℹ️ demo payload 优化 → 已修复（改用 `buildAiApikeyPayload`）
+
+**用户手工验证发现的问题**（待 T2.7-T2.10 修正）：
+- 问题 1-4, 7 → T2.7 + T2.8
+- 问题 5（废弃 `ai_search.enabled`）→ T2.9
+- 问题 6（API Key 区拆分独立保存）→ T2.10
+
+### 阶段 B+：Phase 2 补充修正（T2.7 - T2.10）— ⏳ 待开始
 
 依赖顺序：
 
 ```
-T2.1 补全 demo 模态 HTML（独立先行，修复 broken）
-  └→ T2.2 重排 3 个手风琴
-       ├→ T2.3 API Key 区
-       ├→ T2.4 提示词区
-       └→ T2.5 场景区
-            └→ T2.6 JS 模块改造
+T2.7 UI 文案与样式调整（独立）
+T2.8 JS 引用版本号升级（独立，与 T2.7 并行）
+  └→ T2.9 废弃 ai_search.enabled 开关（依赖 T2.8 用户能加载新版 JS）
+       └→ T2.10 API Key 区拆分独立保存（依赖 T2.9 删除开关后再重构保存按钮）
 ```
 
 ### 阶段 C：测试与文档（T3.1 - T3.5）— 待开始
 
 - T3.1 单测可与阶段 A 同步写（TDD）— Phase 1 已补齐 18 个
 - T3.2 集成测试在阶段 A 完成后写
-- T3.3 回归测试在阶段 A + B 完成后跑
-- T3.4 UI 测试在阶段 B 完成后写
+- T3.3 回归测试在阶段 A + B + B+ 完成后跑
+- T3.4 UI 测试在阶段 B+ 完成后写（避免测试用例与修正后的 UI 不一致）
 - T3.5 文档同步最后做
 
 ---
@@ -1225,19 +1428,37 @@ T2.1 补全 demo 模态 HTML（独立先行，修复 broken）
    - ✅ 日志埋点齐全（`tests/test_ai_call_logging.py` 10 个用例通过）
    - ⏳ 跑一个完整入库任务，日志中能 grep 到至少 5 个场景的 `ai.scene.start` 记录（待集成测/手工验证）
 
-### 阶段 B 验收（Phase 2）— 待执行
+### 阶段 B 验收（Phase 2 首次实现）— ✅ 静态结构齐全，待手工浏览器验证
 
 2. **前端**：
-   - AI 配置页 3 个手风琴区域默认全折叠
-   - API Key 区两个 tab 切换 + 各自测试按钮可用（AI 辅助 tab 必须补【测试连通性】）
-   - 提示词区 5 tab + 右侧 help + 每页签恢复默认
-   - 场景区 5 行 × 2 下拉 + primary 必填校验
-   - 3 个独立保存按钮各自 POST 对应 section
-   - 模拟测试模态能正常弹出（修复 broken）
+   - ✅ AI 配置页 3 个手风琴区域默认全折叠（静态检查通过）
+   - ✅ API Key 区两个 tab 切换 + 各自测试按钮可用（静态检查通过）
+   - ✅ 提示词区 5 tab + 右侧 help + 每页签恢复默认（静态检查通过）
+   - ✅ 场景区 5 行 × 2 下拉 + primary 必填校验（静态检查通过）
+   - ✅ 3 个独立保存按钮各自 POST 对应 section（静态检查通过）
+   - ✅ 模拟测试模态能正常弹出（静态检查通过）
+   - ⏳ 用户手工浏览器验证（部分问题已发现，见 T2.7-T2.10）
+
+### 阶段 B+ 验收（Phase 2 补充修正）— 待执行
+
+3. **前端修正**：
+   - card 标题改为"API Key 配置"
+   - API Key 区 tab 样式像页签（不是按钮）
+   - API Key 区两个 tab 内不再有"用在哪里"折叠说明
+   - 提示词区 help details 默认展开
+   - 提示词区按钮文案改为"恢复默认"
+   - JS 引用版本号升级（避免缓存旧版）
+   - AI 搜索 tab 不再有"启用 AI 联网搜索增强"开关
+   - AI 搜索字段默认可编辑，不会因开关关闭变灰
+   - `#ai-apikey-card` 头部不再有【保存】按钮
+   - 每个 tab 内部独立【保存】按钮，各自 POST `ai_assist` / `ai_search` section
+   - 用户只配 AI 辅助不配 AI 搜索时，AI 辅助 tab 保存成功
+   - 点【恢复默认】输入框被填充为系统默认值（不变空）
+   - 3 个保存按钮正常工作（不报错）
 
 ### 阶段 C 验收（Phase 3）— 待执行
 
-3. **回归**：
+4. **回归**：
    - 所有原有测试通过
    - 5 个场景的容错行为（失败降级）原样保留
 
