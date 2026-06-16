@@ -60,7 +60,7 @@ class ScrapeStepsMixin:
                 series_dims = self._get_series_dimensions(task, result)
                 if series_dims:
                     original_dims = dict(result.get('dimensions', {}))
-                    result['dimensions'].update(series_dims)
+                    result.setdefault('dimensions', {}).update(series_dims)
                     task["scrape_result"] = result
                     changed = {k: f'{original_dims.get(k)} -> {v}'
                                for k, v in series_dims.items()
@@ -142,12 +142,13 @@ class ScrapeStepsMixin:
                 result=result,
             )
             if trust_issues:
-                trust_msg = "；".join(trust_issues)
-                existing_reason = task.get("_confirm_reason", "")
-                if existing_reason:
-                    task["_confirm_reason"] = f"{existing_reason}；{trust_msg}"
-                else:
-                    task["_confirm_reason"] = trust_msg
+                concerns = result.get('match_concerns', [])
+                for issue in trust_issues:
+                    concerns.append({
+                        "code": "DIM_TRUST_DOWNGRADE",
+                        "message": issue,
+                        "detail": "",
+                    })
                 result['match_level'] = 'NEEDS_CONFIRM'
                 task["_needs_confirm"] = True
 
@@ -175,7 +176,6 @@ class ScrapeStepsMixin:
                 provider_type=result.get('provider_type', ''),
                 provider_id=result.get('provider_id', ''),
                 thumbnail_path=thumbnail_path,
-                confirm_reason=task.get("_confirm_reason", ""),
                 dim_sources=dim_sources,
             )
 
@@ -225,9 +225,13 @@ class ScrapeStepsMixin:
 
         if decision.action == "confirm":
             task["_needs_confirm"] = True
-            # 不覆盖已有的 _confirm_reason（可能来自 trust 检查）
-            if not task.get("_confirm_reason"):
-                task["_confirm_reason"] = decision.reason
+            if decision.reason:
+                concerns = scraped.get('match_concerns', [])
+                concerns.append({
+                    "code": "VALIDATE_CONFIRM",
+                    "message": decision.reason,
+                    "detail": "",
+                })
             self._log("warn", decision.reason, task, "validate")
             return
 

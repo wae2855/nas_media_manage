@@ -24,6 +24,7 @@ from media_importer.features.source_files import SourceCleanupService
 from media_importer.features.import_flow.scan_service import FileScanner
 from media_importer.infrastructure.filesystem import FileCopier
 from media_importer.features.scraping import MetadataScraper
+from media_importer.features.scraping.match_enums import TierShortReason
 from media_importer.features.import_flow.services.file_operations import delete_source_files
 from media_importer.notify.hooks import HookRunner
 from media_importer.features.import_flow.utils import PipelineSkipError
@@ -166,7 +167,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 return False
 
             if task.get("_needs_confirm"):
-                confirm_reason = task.get("_confirm_reason", "刮削信息不足")
+                confirm_reason = task.get("_confirm_reason", TierShortReason.UNKNOWN)
                 db_update_task(self.task_manager.conn, tid,
                                **mark_confirming(ctx, confirm_reason))
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')} - {confirm_reason}", task)
