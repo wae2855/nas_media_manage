@@ -6,7 +6,7 @@ import time
 import ssl
 import urllib.request
 import urllib.error
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from media_importer.scraper.exceptions import LLMApiError, LLMWebSearchError, LLMScrapeError
 
@@ -119,7 +119,7 @@ def _classify_error_impl(status_code: int, body: dict) -> Exception:
 
 
 def _do_call_impl(self, system_prompt: str, user_content: str, model: str,
-                  base_url: str, api_key: str, scenario: str = None) -> str:
+                  base_url: str, api_key: str, scenario: Optional[str] = None) -> str:
     trimmed = (base_url or "").rstrip("/")
     if trimmed.endswith("/chat/completions"):
         url = trimmed
@@ -295,8 +295,8 @@ def _run_with_strategy_impl(self, system_prompt, user_content, scene, scenario,
 
 
 def _retry_with_fallback_impl(self, system_prompt: str, user_content: str,
-                               scene: str = None, scenario: str = None,
-                               use_fast: bool = None) -> Dict[str, Any]:
+                               scene: Optional[str] = None, scenario: Optional[str] = None,
+                               use_fast: Optional[bool] = None) -> Dict[str, Any]:
     """多模型 fallback 重试入口（返回 parse 后的 dict）。
 
     参数约定：
@@ -315,7 +315,7 @@ def _retry_with_fallback_impl(self, system_prompt: str, user_content: str,
 
 
 def _call_with_retry_impl(self, system_prompt: str, user_content: str,
-                          scene: str, scenario: str = None) -> str:
+                          scene: str, scenario: Optional[str] = None) -> str:
     """通用 LLM 调用入口：按场景策略多模型重试并 fallback，返回原始响应字符串。
 
     与 _retry_with_fallback_impl 区别：

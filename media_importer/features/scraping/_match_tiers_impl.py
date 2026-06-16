@@ -21,6 +21,29 @@ def _sort_candidates_by_trust(candidates: list) -> list:
     ), reverse=True)
 
 
+def _infer_media_type_from_path(path_context: dict | None) -> str:
+    """从路径上下文推断 media_type。"""
+    if not path_context:
+        return ""
+
+    tv_keywords = ("电视剧", "TV", "Series", "剧集", "国产剧", "日剧", "韩剧", "美剧", "动漫")
+    movie_keywords = ("电影", "Movie", "Film", "Movies", "Films")
+
+    parent = (path_context.get("parent_folder") or "").lower()
+    grandparent = (path_context.get("grandparent_folder") or "").lower()
+    combined = f"{parent} {grandparent}"
+
+    for kw in tv_keywords:
+        if kw.lower() in combined:
+            return "tv"
+
+    for kw in movie_keywords:
+        if kw.lower() in combined:
+            return "movie"
+
+    return ""
+
+
 def _call_collect_context(self, video_path):
     """Lazy import to resolve _collect_context from match_engine at call time."""
     from media_importer.features.scraping.match_engine import MatchEngine
@@ -42,6 +65,7 @@ def _tier1_exact_match_impl(
     season: Optional[int],
     episode: Optional[int],
     providers: list,
+    path_context=None,
 ) -> Optional[MatchResult]:
     """第一级：Provider 精确匹配。"""
     trace_steps = []
@@ -57,11 +81,18 @@ def _tier1_exact_match_impl(
             search_titles.append(clean_title)
 
         for search_title in search_titles:
-            try:
-                search_result = provider.search(search_title, year=year)
-            except Exception as e:
-                logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
-                continue
+            search_result = None
+            search_years = [year] if year is not None else [None]
+            if year is not None:
+                search_years.append(None)
+            for try_year in search_years:
+                try:
+                    search_result = provider.search(search_title, year=try_year)
+                except Exception as e:
+                    logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
+                    continue
+                if search_result and search_result.items:
+                    break
 
             if not search_result or not search_result.items:
                 continue
@@ -122,60 +153,6 @@ def _tier1_exact_match_impl(
                 # == end of single-match ==
 
             elif len(exact_matches) > 1:
-                # 尝试用评分差距打破平局：若第一名评分远超第二名，自动选择
-                matches_with_score = []
-                for item, mr in exact_matches:
-                    score = item.vote_average if item.vote_average is not None else 0.0
-                    matches_with_score.append((item, mr, score))
-                matches_with_score.sort(key=lambda x: x[2], reverse=True)
-                top_item, top_mr, top_score = matches_with_score[0]
-                second_score = matches_with_score[1][2] if len(matches_with_score) > 1 else 0.0
-
-                if top_score > 0 and (top_score - second_score) >= 1.5 and top_score >= 6.0:
-                    logger.info(
-                        f"[tier1] 评分差距打破平局: top={top_item.title}({top_score}), "
-                        f"second={second_score}, total_matches={len(exact_matches)}"
-                    )
-                    trace_steps.append(MatchTraceStep(
-                        tier=1,
-                        name="Provider精确匹配",
-                        matched=True,
-                        search_query=f"{search_title} (year={year})",
-                        match_level=top_mr.level,
-                        reason=f"同名{len(exact_matches)}部，自动选择评分最高({top_score})：{top_item.title}",
-                    ))
-                    return MatchResult(
-                        match_level="AUTO_PASS",
-                        provider_id=top_item.item_id,
-                        provider_title=top_item.title,
-                        match_tier=1,
-                        trace_steps=trace_steps,
-                        candidates=[{
-                            "id": top_item.item_id,
-                            "title": top_item.title,
-                            "original_title": getattr(top_item, 'original_title', '') or '',
-                            "year": top_item.year,
-                            "media_type": top_item.media_type,
-                            "overview": getattr(top_item, 'overview', '')[:100] if hasattr(top_item, 'overview') and getattr(top_item, 'overview', None) else '',
-                            "provider_type": top_item.provider_type,
-                            "poster_url": getattr(top_item, 'poster_url', '') or '',
-                            "vote_average": top_item.vote_average or 0,
-                            "vote_count": top_item.raw_data.get("vote_count", 0) if top_item.raw_data else 0,
-                            "popularity": top_item.raw_data.get("popularity", 0) if top_item.raw_data else 0,
-                        }],
-                        confirm_reason="",
-                        tier_short_reason=TierShortReason.TIER1_TOP_RATED.format(count=len(exact_matches)),
-                        selected_candidate=SelectedCandidate(
-                            provider_type=top_item.provider_type,
-                            provider_id=str(top_item.item_id),
-                            title=top_item.title,
-                            year=top_item.year,
-                            media_type=top_item.media_type,
-                            why_selected=WhySelected.TOP_RATED,
-                            score=top_item.vote_average,
-                        ),
-                    )
-
                 self._pending_candidates = [
                     {
                         "id": item.item_id,
@@ -191,34 +168,84 @@ def _tier1_exact_match_impl(
                     }
                     for item, _ in exact_matches
                 ]
+
+                if year is None:
+                    preferred_type = _infer_media_type_from_path(path_context)
+                    if preferred_type:
+                        filtered = [c for c in self._pending_candidates if c.get("media_type") == preferred_type]
+                        if filtered:
+                            self._pending_candidates = filtered
+
                 self._pending_candidates = _sort_candidates_by_trust(self._pending_candidates)
                 self._pending_candidates = self._pending_candidates[:10]
+                self._pending_candidate_type = "exact"
+                top = self._pending_candidates[0]
+
                 self._pending_concerns.append(MatchConcern(
                     code="NO_YEAR_MULTI_MATCH",
                     message=f"找到 {len(exact_matches)} 部同名作品",
-                    detail=f"搜索 '{search_title}' 返回 {len(exact_matches)} 条精确匹配",
+                    detail=f"已按热度预选: {top['title']} ({top.get('year', '')})",
                 ))
                 trace_steps.append(MatchTraceStep(
                     tier=1,
                     name="Provider精确匹配",
                     matched=False,
                     search_query=f"{search_title} (year={year})",
-                    reason=f"多个精确匹配({len(exact_matches)}条)，无法自动确定",
+                    reason=f"多个精确匹配({len(exact_matches)}条)，已预选: {top['title']} ({top.get('year', '')})",
                 ))
 
+                return MatchResult(
+                    match_level="NEEDS_CONFIRM",
+                    provider_id=top["id"],
+                    provider_title=top["title"],
+                    match_tier=1,
+                    concerns=self._pending_concerns,
+                    trace_steps=trace_steps,
+                    candidates=self._pending_candidates[:5],
+                    tier_short_reason=TierShortReason.TIER1_MULTI.format(count=len(exact_matches)),
+                    selected_candidate=SelectedCandidate(
+                        provider_type=top["provider_type"],
+                        provider_id=str(top["id"]),
+                        title=top["title"],
+                        year=top.get("year"),
+                        media_type=top.get("media_type", ""),
+                        why_selected=WhySelected.TOP_RATED,
+                        score=top.get("vote_average"),
+                    ),
+                )
+
             else:
+                # 有 Provider 结果但无精确匹配：保留模糊候选传给 Tier 2 AI
+                fuzzy_candidates = [
+                    {
+                        "id": item.item_id,
+                        "title": item.title,
+                        "original_title": getattr(item, 'original_title', '') or '',
+                        "year": item.year,
+                        "media_type": item.media_type,
+                        "provider_type": item.provider_type,
+                        "vote_average": item.vote_average or 0,
+                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
+                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
+                        "poster_url": getattr(item, 'poster_url', '') or '',
+                    }
+                    for item in items[:10]
+                ]
+                fuzzy_candidates = _sort_candidates_by_trust(fuzzy_candidates)
+                self._pending_candidates = fuzzy_candidates
+                self._pending_candidate_type = "fuzzy"
                 if year and search_result and search_result.items:
                     self._pending_concerns.append(MatchConcern(
                         code="FUZZY_TITLE",
                         message="标题不完全匹配，最高相似度不足",
-                        detail=f"搜索 '{search_title}' 无精确匹配",
+                        detail=f"搜索 '{search_title}' 无精确匹配，保留 {len(fuzzy_candidates)} 条模糊候选供 AI 参考",
                     ))
                 trace_steps.append(MatchTraceStep(
                     tier=1,
                     name="Provider精确匹配",
                     matched=False,
                     search_query=f"{search_title} (year={year})",
-                    reason="无精确匹配",
+                    reason=f"无精确匹配，Provider 返回 {len(items)} 条结果，保留 {len(fuzzy_candidates)} 条模糊候选",
                 ))
 
     if not trace_steps:
@@ -227,6 +254,7 @@ def _tier1_exact_match_impl(
             message="Provider 未找到精准匹配作品",
             detail="",
         ))
+        self._pending_candidate_type = "none"
         trace_steps.append(MatchTraceStep(
             tier=1,
             name="Provider精确匹配",
@@ -410,27 +438,32 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
     """统一搜索 Provider 返回候选列表。"""
     candidates = []
     for provider in providers:
-        try:
-            search_result = provider.search(title, year=year)
-            if search_result and search_result.items:
-                for item in search_result.items[:5]:
-                    candidates.append({
-                        "id": item.item_id,
-                        "title": item.title,
-                        "original_title": getattr(item, 'original_title', '') or item.title,
-                        "year": item.year or _extract_year_from_raw(item.raw_data),
-                        "media_type": item.media_type,
-                        "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
-                        "provider_type": item.provider_type,
-                        "poster_url": getattr(item, 'poster_url', '') or '',
-                        # 可信度字段
-                        "vote_average": item.vote_average or 0,
-                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
-                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
-                    })
-        except Exception as e:
-            logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
-            continue
+        search_years = [year] if year is not None else [None]
+        if year is not None:
+            search_years.append(None)
+        for try_year in search_years:
+            try:
+                search_result = provider.search(title, year=try_year)
+                if search_result and search_result.items:
+                    for item in search_result.items[:5]:
+                        candidates.append({
+                            "id": item.item_id,
+                            "title": item.title,
+                            "original_title": getattr(item, 'original_title', '') or item.title,
+                            "year": item.year or _extract_year_from_raw(item.raw_data),
+                            "media_type": item.media_type,
+                            "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
+                            "provider_type": item.provider_type,
+                            "poster_url": getattr(item, 'poster_url', '') or '',
+                            "vote_average": item.vote_average or 0,
+                            "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
+                            "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
+                        })
+            except Exception as e:
+                logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
+                continue
+            if candidates:
+                break
         if candidates:
             break
     candidates = _sort_candidates_by_trust(candidates)
@@ -454,6 +487,20 @@ def _tier2_context_match_impl(
     context = _call_collect_context(self, video_path) if video_path else {}
     # 把 Tier 1 候选塞入 AI 上下文
     context["provider_candidates"] = getattr(self, '_pending_candidates', None) or []
+    # 把 Tier 1 搜索结果传给 AI：让它知道这个名字已经搜过了，要换名字
+    candidate_type = getattr(self, '_pending_candidate_type', 'none')
+    candidate_count = len(context.get("provider_candidates", []))
+    context["tier1_search_info"] = {
+        "searched_title": clean_title,
+        "searched_year": year,
+        "candidate_type": candidate_type,  # "exact" / "fuzzy" / "none"
+        "candidate_count": candidate_count,
+        "provider_results": (
+            "0 条结果" if candidate_type == "none"
+            else f"{candidate_count} 条精确匹配" if candidate_type == "exact"
+            else f"{candidate_count} 条模糊匹配（标题不完全一致）"
+        ),
+    }
     original_filename = video_path or clean_title
 
     try:

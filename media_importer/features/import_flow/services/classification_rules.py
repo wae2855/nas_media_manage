@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import re
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 BOOL_TRUE_STRINGS = {'true', 'yes', 'on'}
@@ -19,7 +19,7 @@ def _to_comparable(value):
 
 
 def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any],
-                     enabled_dims: set = None) -> bool:
+                     enabled_dims: Optional[set] = None) -> bool:
     if enabled_dims is not None:
         conditions = {k: v for k, v in conditions.items() if k in enabled_dims}
     if not conditions:
@@ -45,7 +45,7 @@ def match_conditions(dimensions: Dict[str, Any], conditions: Dict[str, Any],
     return True
 
 
-def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Dict[str, Any] = None) -> str:
+def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Optional[Dict[str, Any]] = None) -> str:
     result = template
 
     title_cn = scraped_info.get('title_cn')
@@ -107,7 +107,7 @@ def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Dic
     return result.rstrip('/') + '/'
 
 
-def classify(scraped_info: dict, path_rules: list, enabled_dims: set = None) -> str:
+def classify(scraped_info: dict, path_rules: list, enabled_dims: Optional[set] = None) -> str:
     dimensions = scraped_info.get('dimensions', {})
 
     for rule in path_rules:

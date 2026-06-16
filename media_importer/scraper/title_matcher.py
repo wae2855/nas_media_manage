@@ -3,7 +3,7 @@ from media_importer.features.scraping.confidence_models import MatchResult, DEFA
 
 
 def _normalize_title(title: str) -> str:
-    return title.lower().replace(' ', '').replace('.', '').replace('-', '').replace('_', '')
+    return title.lower().replace(' ', '').replace('.', '').replace('-', '').replace('_', '').replace(':', '').replace('：', '')
 
 
 def _similarity(a: str, b: str) -> float:

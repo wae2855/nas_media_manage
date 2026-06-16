@@ -47,8 +47,37 @@ class TestTier1ExactMatch(unittest.TestCase):
             mock_match.return_value = MagicMock(level="L3", T=0.7)
             result = self.engine.match("Spider-Man.mkv", [self.provider])
         self.assertEqual(result.match_level, "NEEDS_CONFIRM")
+        self.assertEqual(result.match_tier, 1)
+        selected = result.selected_candidate
+        assert selected is not None
+        self.assertEqual(selected.provider_id, "1")
         concern_codes = [c.code for c in result.concerns]
         self.assertIn("NO_YEAR_MULTI_MATCH", concern_codes)
+
+    def test_no_year_multiple_exact_matches_prefers_path_media_type(self):
+        """无年份多同名 + 电视剧路径 → 优先 TV 候选"""
+        from media_importer.features.providers.base import SearchItem
+        self.provider.search.return_value = SearchResult(items=[
+            SearchItem(item_id="1", title="大汉王朝", year=2004, media_type="movie",
+                       provider_type="tmdb", original_title="大汉王朝", poster_url=None,
+                       vote_average=8.0, raw_data={"popularity": 100, "vote_count": 1000}),
+            SearchItem(item_id="2", title="大汉王朝", year=2004, media_type="tv",
+                       provider_type="tmdb", original_title="大汉王朝", poster_url=None,
+                       vote_average=7.0, raw_data={"popularity": 10, "vote_count": 100}),
+        ])
+        with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
+            mock_match.return_value = MagicMock(level="L3", T=0.7)
+            result = self.engine.match(
+                "大汉王朝.mkv",
+                [self.provider],
+                video_path="/media/电视剧/大汉王朝/大汉王朝.mkv",
+            )
+        self.assertEqual(result.match_level, "NEEDS_CONFIRM")
+        self.assertEqual(result.match_tier, 1)
+        selected = result.selected_candidate
+        assert selected is not None
+        self.assertEqual(selected.provider_id, "2")
+        self.assertEqual(selected.media_type, "tv")
 
     def test_no_title_extracted(self):
         """无法提取标题 → NEEDS_CONFIRM + NO_TITLE"""

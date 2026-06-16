@@ -24,7 +24,6 @@ from media_importer.scraper._llm_match_assist import (
 
 
 class LLMScraper:
-    DEFAULT_SYSTEM_PROMPT = LLMPromptBuilder.DEFAULT_SYSTEM_PROMPT
 
     def __init__(self, config: dict):
         cfg_view = ConfigView.from_dict(config)
@@ -85,18 +84,6 @@ class LLMScraper:
         db_dims = get_dimensions_for_scrape(conn)
         if db_dims:
             self.prompt_builder.load_dimensions(db_dims)
-
-    @staticmethod
-    def _get_default_prompts() -> dict:
-        return LLMPromptBuilder._get_default_prompts()
-
-    @staticmethod
-    def _get_default_provider_prompt(provider_type='tmdb') -> str:
-        return LLMPromptBuilder._get_default_provider_prompt(provider_type)
-
-    @staticmethod
-    def _get_default_tmdb_prompt() -> str:
-        return LLMPromptBuilder._get_default_tmdb_prompt()
 
     def _build_payload(self, system_prompt: str, user_content: str, model: str) -> dict:
         return _build_payload_int(self, system_prompt, user_content, model)

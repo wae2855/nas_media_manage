@@ -7,6 +7,10 @@ from media_importer.features.scraping.confidence_models import (
     _RELEASE_GROUP_TAIL,
     _SEASON_EPISODE,
     _SEASON_ONLY,
+    _CN_SEASON_EPISODE,
+    _CN_SEASON,
+    _CN_EPISODE,
+    _BARE_EPISODE,
     _YEAR_PATTERN,
     _YEAR_PAREN,
     _AD_PATTERN,
@@ -57,6 +61,35 @@ class FilenameCleaner:
                 season = int(so_match.group(1))
                 removed.append(f"季=S{season:02d}")
             name = _SEASON_ONLY.sub('', name)
+
+        if season is None:
+            cn_se_match = _CN_SEASON_EPISODE.search(_EXTENSION_PATTERN.sub('', filename))
+            if cn_se_match:
+                season = int(cn_se_match.group(1))
+                episode = int(cn_se_match.group(2))
+                removed.append(f"季集=S{season:02d}E{episode:02d}")
+
+        if season is None:
+            cn_s_match = _CN_SEASON.search(_EXTENSION_PATTERN.sub('', filename))
+            if cn_s_match:
+                season = int(cn_s_match.group(1))
+                removed.append(f"季=S{season:02d}")
+
+        if episode is None:
+            cn_e_match = _CN_EPISODE.search(_EXTENSION_PATTERN.sub('', filename))
+            if cn_e_match:
+                episode = int(cn_e_match.group(1))
+                removed.append(f"集=E{episode:02d}")
+
+        if season is None and episode is None:
+            bare_match = _BARE_EPISODE.search(name)
+            if bare_match:
+                num = int(bare_match.group(1))
+                if not (1900 <= num <= 2099) and num not in (720, 1080, 2160):
+                    episode = num
+                    season = 1
+                    name = name[:bare_match.start(1)] + name[bare_match.end(1):]
+                    removed.append(f"集=E{episode:02d}")
 
         year = None
         year_suspect = False

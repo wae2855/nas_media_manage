@@ -60,7 +60,9 @@
 │  │    → 不进入 Tier 2（标题已精确匹配，AI 无增量信息）     │
 │  │                                                         │
 │  ├─ 模糊匹配（无 L1/L2/L3 精确）                          │
-│  │    → 返回 None（fallthrough 到 Tier 2）                 │
+│  │    → 保留 Provider 返回结果到 _pending_candidates       │
+│  │    → 标记 _pending_candidate_type="fuzzy"               │
+│  │    → 返回 None（fallthrough 到 Tier 2，AI 收到模糊候选） │
 │  │                                                         │
 │  └─ 所有 Provider 无结果                                  │
 │       → 返回 None（fallthrough 到 Tier 2）                 │
@@ -200,6 +202,18 @@ self._pending_candidates = self._pending_candidates[:10]
 - 优先从 `_pending_candidates` 中按 `selected_candidate_id` 查找
 - 若未指定 ID 或 ID 不在候选中，按 `corrected_year` 过滤候选
 - 都不满足才重新搜索 Provider
+
+### 3.4 路径上下文推断 media_type
+
+当文件名无季/集信息（season=None）时，从路径上下文推断媒体类型：
+
+| 路径关键词 | 推断 media_type | 效果 |
+|-----------|:---:|------|
+| 电视剧/TV/Series/剧集/国产剧/日剧/韩剧/美剧/动漫 | tv | 多匹配时优先 TV 候选 |
+| 电影/Movie/Film | movie | 多匹配时优先电影候选 |
+| 无明确信号 | 不推断 | 不过滤 |
+
+推断仅在候选过滤阶段生效（缩小候选范围），不影响 Provider 搜索。
 
 ---
 

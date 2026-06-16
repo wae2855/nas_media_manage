@@ -18,6 +18,17 @@ class TestFilenameCleaner(unittest.TestCase):
         self.assertEqual(result.season, 1)
         self.assertEqual(result.episode, 1)
 
+    def test_chinese_bare_episode(self):
+        result = self.cleaner.clean("大汉王朝01.mkv")
+        self.assertEqual(result.clean_title, "大汉王朝")
+        self.assertEqual(result.season, 1)
+        self.assertEqual(result.episode, 1)
+
+    def test_chinese_episode_does_not_match_plain_title(self):
+        result = self.cleaner.clean("美丽人生.mkv")
+        self.assertEqual(result.season, None)
+        self.assertEqual(result.episode, None)
+
 
 if __name__ == "__main__":
     unittest.main()

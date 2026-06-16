@@ -172,6 +172,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     bindAiConfigInteractions();
   loadDirectoryConfig();
   if (typeof checkApiKeyRequired === "function") checkApiKeyRequired();
+
+  try {
+    const configResult = await requestApi("GET", "/config");
+    if (configResult.code === 200 && configResult.data) {
+      const rawConfig = configResult.data.config || configResult.data;
+      const metadata = rawConfig.metadata || {};
+      await loadInlineProviderConfigs(metadata);
+    }
+  } catch (e) {
+    console.warn("独立加载 Provider 配置失败", e);
+  }
+
+  if (typeof loadDimensions === "function") {
+    try {
+      await loadDimensions();
+    } catch (e) {
+      console.warn("独立加载维度定义失败", e);
+    }
+  }
+
+  try {
+    await loadDimensionVars();
+  } catch (e) {
+    console.warn("独立加载已启用维度失败", e);
+  }
 });
 
 function updateScrapeModeHint() {

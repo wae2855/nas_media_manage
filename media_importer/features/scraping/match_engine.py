@@ -64,14 +64,15 @@ class MatchEngine:
                 )],
             )
 
+        video_path = video_path or filename
+        context = self._collect_context(video_path) if video_path else {}
+
         # 通过 wrapper 方法调用（测试 patch 生效）
         result = self._tier1_exact_match(
-            clean_title, cjk_title, year, season, episode, providers
+            clean_title, cjk_title, year, season, episode, providers, path_context=context
         )
         if result:
             return result
-
-        video_path = video_path or filename
         result = self._tier2_context_match(
             clean_title, cjk_title, year, season, episode, providers, video_path
         )
@@ -90,10 +91,11 @@ class MatchEngine:
         season: Optional[int],
         episode: Optional[int],
         providers: list,
+        path_context=None,
     ) -> Optional[MatchResult]:
         """第一级：Provider 精确匹配（thin wrapper，测试可 patch）。"""
         return _tier1_exact_match_impl(
-            self, clean_title, cjk_title, year, season, episode, providers
+            self, clean_title, cjk_title, year, season, episode, providers, path_context=path_context
         )
 
     def _tier2_context_match(

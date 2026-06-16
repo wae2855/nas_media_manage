@@ -401,7 +401,9 @@ function renderErrorState(message) {
 async function rescrapeTask(taskId) {
   if (!confirm("确定重新刮削此任务吗？将从刮削开始重新处理。")) return;
   try {
-    const resp = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/retry`, { method: "POST" });
+    const resp = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/retry`, {
+      method: "POST",
+    });
     const result = await resp.json();
     showToast(result.message || "重试请求已发送");
     if (result.code === 200) {
@@ -410,8 +412,4 @@ async function rescrapeTask(taskId) {
   } catch (e) {
     showToast("重试请求失败");
   }
-}
-  }
-  // fallback: trigger retry via batch handler
-  handleTaskActions("retry-task", [String(taskId)]);
 }

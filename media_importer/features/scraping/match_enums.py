@@ -5,7 +5,7 @@ class TierShortReason:
     """L2: 一句话原因枚举（程序兜底，AI 应优先返回 ≤30 字）"""
     # Tier 1
     TIER1_UNIQUE = "唯一精确匹配"
-    TIER1_TOP_RATED = "同名{count}部，自动选评分最高"
+    TIER1_TOP_RATED = "同名{count}部，预选热度最高，请确认"
     TIER1_MULTI = "{count}部同名作品，需确认"
     TIER1_FUZZY = "标题不完全匹配"
     TIER1_NO_RESULT = "Provider 无结果"

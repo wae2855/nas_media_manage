@@ -170,7 +170,7 @@ def _map_region_v2(name: str, mapping: dict, provider_data: dict) -> dict:
     return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
 
-def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict) -> dict:
+def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict, value_list: list = None) -> dict:
     field = mapping.get('field', 'original_language')
     original_language = provider_data.get(field, '')
     if not original_language:
@@ -184,7 +184,15 @@ def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict) -> dict:
                 return {'name': name, 'value': rule_value, 'source_reliability': 1.0}
         return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
-    return {'name': name, 'value': original_language, 'source_reliability': 1.0}
+    if value_list:
+        for vl in value_list:
+            if vl.get('value') == original_language:
+                return {'name': name, 'value': original_language, 'source_reliability': 1.0}
+        for vl in value_list:
+            if vl.get('value') == 'other':
+                return {'name': name, 'value': 'other', 'source_reliability': 1.0}
+
+    return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
 
 def _map_genre_by_rules(name: str, mapping: dict, value_list: list, provider_data: dict) -> dict:
@@ -259,7 +267,7 @@ def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dat
         return _map_region_v2(name, mapping, provider_data)
 
     if match_type == 'direct_match':
-        return _map_origin_lang_v2(name, mapping, provider_data)
+        return _map_origin_lang_v2(name, mapping, provider_data, value_list)
 
     if match_type == 'certification':
         return _map_restricted_level(name, value_list, release_dates or [])

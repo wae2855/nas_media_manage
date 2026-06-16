@@ -77,6 +77,31 @@ def _tier2_correct_impl(
             lines.append(f"{idx}. {' '.join(title_parts)}{year_part}{media_part} · {score} · {pop}{id_part}")
         candidates_text = "\n".join(lines)
 
+    # 渲染 Tier 1 搜索结果说明
+    tier1_info = path_context.get("tier1_search_info", {})
+    tier1_searched = tier1_info.get("searched_title", clean_title)
+    tier1_year = tier1_info.get("searched_year")
+    tier1_result_count = tier1_info.get("provider_results", "未知")
+    tier1_candidate_type = tier1_info.get("candidate_type", "none")
+    tier1_hint = (
+        f"Step 1 已用 \"{tier1_searched}\""
+        + (f" ({tier1_year}年)" if tier1_year else "")
+        + f" 搜索 Provider，结果：{tier1_result_count}。"
+    )
+    if tier1_candidate_type == "none":
+        tier1_hint += (
+            " 这意味着 Provider 数据库里没有这个标题的作品。"
+            " 如果你认为文件名确实包含影视信息，请给出你认为正确的标题（可能是英文原名、别名或更准确的译名），"
+            " 程序会用你给的 corrected_title 重新搜索。"
+            " 如果你也找不到替代标题，应返回 is_valid=false。"
+        )
+    elif tier1_candidate_type == "fuzzy":
+        tier1_hint += (
+            " 这些是标题不完全匹配的模糊结果，可能包含同名但不同年份/类型的作品。"
+            " 请结合文件名和目录上下文判断哪条最可能匹配，填 selected_candidate_id 直接采用；"
+            " 若都不匹配但你能推测正确标题，填 corrected_title 让程序重新搜索。"
+        )
+
     user_parts = [
         "## 待匹配文件信息",
         f"- 原始文件名: {original_filename}",
@@ -91,6 +116,17 @@ def _tier2_correct_impl(
         "",
         "## Provider 候选（Step 1 已找到，供你参考）",
         candidates_text,
+        "",
+        "## Step 1 搜索结果",
+        tier1_hint,
+        "",
+        "## 网络搜索优先",
+        "如果你具备联网搜索能力，请优先通过网络搜索验证标题和年份信息，",
+        "而不是仅凭记忆或训练数据猜测。特别是以下场景：",
+        "- Step 1 Provider 返回 0 条结果时，先搜一下这个标题对应哪部作品",
+        "- 同名多版本时，结合文件名中的线索（年份、季集、画质标注）搜索确认",
+        "- 不确定 corrected_title 的准确译名时，搜索确认标准译名",
+        "网络搜索得出的结论比记忆猜测更可靠，可以提高 certainty 等级。",
         "",
         "## 判定规则",
         "",
