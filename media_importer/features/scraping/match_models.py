@@ -5,6 +5,29 @@ from typing import List, Optional
 
 
 @dataclass
+class SelectedCandidate:
+    """L4: 最终选中的候选信息（结构化）"""
+    provider_type: str = ""
+    provider_id: str = ""
+    title: str = ""
+    year: Optional[int] = None
+    media_type: str = ""
+    why_selected: str = ""  # WhySelected 枚举值
+    score: Optional[float] = None  # 评分（若适用）
+
+    def to_dict(self) -> dict:
+        return {
+            "provider_type": self.provider_type,
+            "provider_id": self.provider_id,
+            "title": self.title,
+            "year": self.year,
+            "media_type": self.media_type,
+            "why_selected": self.why_selected,
+            "score": self.score,
+        }
+
+
+@dataclass
 class MatchConcern:
     """匹配疑虑原因。"""
     code: str       # NO_YEAR_MULTI_MATCH / YEAR_MISMATCH / FUZZY_TITLE / NO_PROVIDER_RESULT / NO_TITLE / CONFLICTING_INFO / AI_UNCERTAIN
@@ -27,14 +50,19 @@ class MatchTraceStep:
 @dataclass
 class MatchResult:
     """三级匹配引擎的最终结果。"""
-    match_level: str            # AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM
+    match_level: str            # AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM / FAILED
     provider_id: Optional[int] = None
     provider_title: str = ""
     match_tier: int = 0         # 命中的级别（1/2/3）
     concerns: List[MatchConcern] = field(default_factory=list)
     trace_steps: List[MatchTraceStep] = field(default_factory=list)
     candidates: List[dict] = field(default_factory=list)  # 第三级的候选列表
-    confirm_reason: str = ""     # 匹配成功或失败的原因说明（NEEDS_CONFIRM 时填充原因）
+    confirm_reason: str = ""     # 废弃，保留字段以便编译，但不再写入新值
+
+    # 新增字段
+    tier_short_reason: str = ""           # L2
+    ai_reason: str = ""                   # L3
+    selected_candidate: Optional[SelectedCandidate] = None  # L4
 
     def to_dict(self) -> dict:
         """转换为可序列化的字典。"""
@@ -60,5 +88,9 @@ class MatchResult:
                 for s in self.trace_steps
             ],
             "candidates": self.candidates,
-            "confirm_reason": self.confirm_reason,
+            # 新字段
+            "tier_short_reason": self.tier_short_reason,
+            "ai_reason": self.ai_reason,
+            "selected_candidate": self.selected_candidate.to_dict() if self.selected_candidate else None,
+            # confirm_reason 废弃，不再输出
         }
