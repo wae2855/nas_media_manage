@@ -51,6 +51,10 @@ class ScrapeStepsMixin:
             result['match_level'] = match_dict['match_level']
             result['match_concerns'] = match_dict['concerns']
             result['match_trace'] = match_dict
+            result['match_tier'] = match_dict.get('match_tier', 0)
+            result['tier_short_reason'] = match_dict.get('tier_short_reason', '')
+            result['ai_reason'] = match_dict.get('ai_reason', '')
+            result['selected_candidate'] = match_dict.get('selected_candidate')
 
             if self.metrics:
                 self.metrics.record_llm_call(success=True)
@@ -225,26 +229,29 @@ class ScrapeStepsMixin:
 
         if decision.action == "confirm":
             task["_needs_confirm"] = True
-            if decision.reason:
-                concerns = scraped.get('match_concerns', [])
-                concerns.append({
-                    "code": "VALIDATE_CONFIRM",
-                    "message": decision.reason,
-                    "detail": "",
-                })
-            self._log("warn", decision.reason, task, "validate")
+            if decision.concerns:
+                existing = scraped.get('match_concerns', [])
+                existing_keys = {(c.get('code', ''), c.get('message', '')) for c in existing if isinstance(c, dict)}
+                for c in decision.concerns:
+                    key = (c.get('code', ''), c.get('message', ''))
+                    if key not in existing_keys:
+                        existing.append(c)
+                scraped['match_concerns'] = existing
+                self._log("warn", f"需要人工确认，共 {len(existing)} 条关注点", task, "validate")
+            else:
+                self._log("warn", "需要人工确认", task, "validate")
             return
 
         if decision.action == "needs_review":
-            task["skip_reason"] = decision.reason
             task["_needs_review"] = True
-            self._log("warn", f"需要人工审核: {decision.reason}", task, "validate")
+            task["skip_reason"] = "需要人工审核"
+            self._log("warn", "需要人工审核", task, "validate")
             return
 
         if decision.action == "failed":
             task["_force_fail"] = True
-            task["_fail_reason"] = decision.reason
-            self._log("warn", task["_fail_reason"], task, "validate")
+            task["_fail_reason"] = "匹配失败，无法识别"
+            self._log("warn", "匹配失败，无法识别", task, "validate")
             return
 
         if decision.warnings:
