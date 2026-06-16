@@ -182,7 +182,8 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 return False
 
             if task.get("_needs_confirm"):
-                tier_short = task.get("_confirm_reason", TierShortReason.UNKNOWN)
+                scrape_result = task.get("scrape_result", {})
+                tier_short = scrape_result.get('tier_short_reason') or TierShortReason.UNKNOWN
                 db_update_task(self.task_manager.conn, tid,
                                **mark_confirming(ctx, tier_short))
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')} - {tier_short}", task)
