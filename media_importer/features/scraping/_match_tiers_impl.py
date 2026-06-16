@@ -7,7 +7,9 @@ from media_importer.features.scraping.match_models import (
     MatchConcern,
     MatchResult,
     MatchTraceStep,
+    SelectedCandidate,
 )
+from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
 
 
 def _call_collect_context(self, video_path):
@@ -83,10 +85,81 @@ def _tier1_exact_match_impl(
                     provider_title=item.title,
                     match_tier=1,
                     trace_steps=trace_steps,
-                    confirm_reason=f"标题精确匹配({match_result.level})，年份{'一致' if year else '无但唯一'}",
+                    candidates=[{
+                        "id": item.item_id,
+                        "title": item.title,
+                        "original_title": getattr(item, 'original_title', '') or '',
+                        "year": item.year,
+                        "media_type": item.media_type,
+                        "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
+                        "provider_type": item.provider_type,
+                        "poster_url": getattr(item, 'poster_url', '') or '',
+                    }],
+                    confirm_reason="",
+                    tier_short_reason=TierShortReason.TIER1_UNIQUE,
+                    selected_candidate=SelectedCandidate(
+                        provider_type=item.provider_type,
+                        provider_id=str(item.item_id),
+                        title=item.title,
+                        year=item.year,
+                        media_type=item.media_type,
+                        why_selected=WhySelected.UNIQUE_MATCH,
+                        score=item.vote_average,
+                    ),
                 )
 
             elif len(exact_matches) > 1:
+                # 尝试用评分差距打破平局：若第一名评分远超第二名，自动选择
+                matches_with_score = []
+                for item, mr in exact_matches:
+                    score = item.vote_average if item.vote_average is not None else 0.0
+                    matches_with_score.append((item, mr, score))
+                matches_with_score.sort(key=lambda x: x[2], reverse=True)
+                top_item, top_mr, top_score = matches_with_score[0]
+                second_score = matches_with_score[1][2] if len(matches_with_score) > 1 else 0.0
+
+                if top_score > 0 and (top_score - second_score) >= 1.5 and top_score >= 6.0:
+                    logger.info(
+                        f"[tier1] 评分差距打破平局: top={top_item.title}({top_score}), "
+                        f"second={second_score}, total_matches={len(exact_matches)}"
+                    )
+                    trace_steps.append(MatchTraceStep(
+                        tier=1,
+                        name="Provider精确匹配",
+                        matched=True,
+                        search_query=f"{search_title} (year={year})",
+                        match_level=top_mr.level,
+                        reason=f"同名{len(exact_matches)}部，自动选择评分最高({top_score})：{top_item.title}",
+                    ))
+                    return MatchResult(
+                        match_level="AUTO_PASS",
+                        provider_id=top_item.item_id,
+                        provider_title=top_item.title,
+                        match_tier=1,
+                        trace_steps=trace_steps,
+                        candidates=[{
+                            "id": top_item.item_id,
+                            "title": top_item.title,
+                            "original_title": getattr(top_item, 'original_title', '') or '',
+                            "year": top_item.year,
+                            "media_type": top_item.media_type,
+                            "overview": getattr(top_item, 'overview', '')[:100] if hasattr(top_item, 'overview') and getattr(top_item, 'overview', None) else '',
+                            "provider_type": top_item.provider_type,
+                            "poster_url": getattr(top_item, 'poster_url', '') or '',
+                        }],
+                        confirm_reason="",
+                        tier_short_reason=TierShortReason.TIER1_TOP_RATED.format(count=len(exact_matches)),
+                        selected_candidate=SelectedCandidate(
+                            provider_type=top_item.provider_type,
+                            provider_id=str(top_item.item_id),
+                            title=top_item.title,
+                            year=top_item.year,
+                            media_type=top_item.media_type,
+                            why_selected=WhySelected.TOP_RATED,
+                            score=top_item.vote_average,
+                        ),
+                    )
+
                 self._pending_concerns.append(MatchConcern(
                     code="NO_YEAR_MULTI_MATCH",
                     message=f"找到 {len(exact_matches)} 部同名作品",
@@ -118,7 +191,7 @@ def _tier1_exact_match_impl(
     if not trace_steps:
         self._pending_concerns.append(MatchConcern(
             code="NO_PROVIDER_RESULT",
-            message="刮削源未找到匹配作品",
+            message="Provider 未找到精准匹配作品",
             detail="",
         ))
         trace_steps.append(MatchTraceStep(
@@ -162,7 +235,18 @@ def _tier2_high_certainty_impl(
             concerns=concerns,
             trace_steps=trace_steps,
             candidates=candidates[:5],
-            confirm_reason=f"AI高确定性纠正: {ai_reason}",
+            confirm_reason="",
+            tier_short_reason=TierShortReason.TIER2_HIGH_PASS,
+            ai_reason=ai_reason,
+            selected_candidate=SelectedCandidate(
+                provider_type=selected.get("provider_type", ""),
+                provider_id=str(selected.get("id", "")),
+                title=selected.get("title", ""),
+                year=selected.get("year"),
+                media_type=selected.get("media_type", ""),
+                why_selected=WhySelected.AI_SUGGESTION,
+                score=selected.get("vote_average"),
+            ),
         )
     logger.warning(f"AI high certainty 但搜索结果为空，降级为 medium: {corrected_title}")
     return _tier2_medium_certainty_impl(
@@ -202,7 +286,18 @@ def _tier2_medium_certainty_impl(
         concerns=concerns,
         trace_steps=trace_steps,
         candidates=candidates[:5],
-        confirm_reason=f"AI中等确定性: {ai_reason}",
+        confirm_reason="",
+        tier_short_reason=TierShortReason.TIER2_MEDIUM,
+        ai_reason=ai_reason,
+        selected_candidate=SelectedCandidate(
+            provider_type=candidates[0].get("provider_type", ""),
+            provider_id=str(candidates[0].get("id", "")),
+            title=candidates[0].get("title", ""),
+            year=candidates[0].get("year"),
+            media_type=candidates[0].get("media_type", ""),
+            why_selected=WhySelected.AI_SUGGESTION,
+            score=candidates[0].get("vote_average"),
+        ) if candidates else None,
     )
 
 
@@ -233,7 +328,10 @@ def _tier2_low_certainty_impl(
         concerns=concerns,
         trace_steps=trace_steps,
         candidates=[],
-        confirm_reason=f"AI低确定性: {ai_reason}",
+        confirm_reason="",
+        tier_short_reason=TierShortReason.TIER2_LOW,
+        ai_reason=ai_reason,
+        selected_candidate=None,
     )
 
 
@@ -252,6 +350,8 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
                         "year": item.year,
                         "media_type": item.media_type,
                         "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
+                        "provider_type": item.provider_type,
+                        "poster_url": getattr(item, 'poster_url', '') or '',
                     })
         except Exception as e:
             logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
@@ -311,20 +411,23 @@ def _tier2_context_match_impl(
     suggestion = ai_result.get("suggestion", corrected_title)
     media_type_hint = ai_result.get("media_type_hint")
 
+    # 优先使用 AI 纠正后的标题，suggestion 只作辅助日志
+    search_title = corrected_title
+
     if certainty == "high":
         return _tier2_high_certainty_impl(
-            self, corrected_title, corrected_year, media_type_hint,
+            self, search_title, corrected_year, media_type_hint,
             providers, ai_reason, concerns, trace_steps,
         )
     elif certainty == "medium":
         return _tier2_medium_certainty_impl(
-            self, corrected_title, corrected_year, media_type_hint,
+            self, search_title, corrected_year, media_type_hint,
             providers, ai_reason, concerns, trace_steps,
         )
     else:
-        return _tier2_low_certainty_impl(
-            self, corrected_title, ai_reason, concerns, trace_steps,
-            clean_title,
+        return _tier2_medium_certainty_impl(
+            self, search_title, corrected_year, media_type_hint,
+            providers, ai_reason, concerns, trace_steps,
         )
 
 
@@ -424,5 +527,16 @@ def _tier3_user_confirm_impl(
         concerns=concerns,
         trace_steps=trace_steps,
         candidates=candidates[:5],
-        confirm_reason="；".join(c.message for c in concerns),
+        confirm_reason="",
+        tier_short_reason=TierShortReason.TIER3_FALLBACK,
+        ai_reason="",
+        selected_candidate=SelectedCandidate(
+            provider_type=candidates[0].get("provider_type", ""),
+            provider_id=str(candidates[0].get("id", "")),
+            title=candidates[0].get("title", ""),
+            year=candidates[0].get("year"),
+            media_type=candidates[0].get("media_type", ""),
+            why_selected=WhySelected.FIRST_CANDIDATE,
+            score=candidates[0].get("vote_average"),
+        ) if candidates else None,
     )
