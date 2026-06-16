@@ -212,6 +212,7 @@ def _tier2_high_certainty_impl(
     media_type_hint: Optional[str],
     providers: list,
     ai_reason: str,
+    ai_short_reason: str,
     concerns: list,
     trace_steps: list,
 ) -> Optional[MatchResult]:
@@ -236,7 +237,7 @@ def _tier2_high_certainty_impl(
             trace_steps=trace_steps,
             candidates=candidates[:5],
             confirm_reason="",
-            tier_short_reason=TierShortReason.TIER2_HIGH_PASS,
+            tier_short_reason=ai_short_reason or TierShortReason.TIER2_HIGH_PASS,
             ai_reason=ai_reason,
             selected_candidate=SelectedCandidate(
                 provider_type=selected.get("provider_type", ""),
@@ -251,7 +252,7 @@ def _tier2_high_certainty_impl(
     logger.warning(f"AI high certainty 但搜索结果为空，降级为 medium: {corrected_title}")
     return _tier2_medium_certainty_impl(
         self, corrected_title, corrected_year, media_type_hint,
-        providers, f"高确定性但未搜到结果: {ai_reason}", concerns, trace_steps,
+        providers, f"高确定性但未搜到结果: {ai_reason}", ai_short_reason, concerns, trace_steps,
     )
 
 
@@ -262,6 +263,7 @@ def _tier2_medium_certainty_impl(
     media_type_hint: Optional[str],
     providers: list,
     ai_reason: str,
+    ai_short_reason: str,
     concerns: list,
     trace_steps: list,
 ) -> Optional[MatchResult]:
@@ -287,7 +289,7 @@ def _tier2_medium_certainty_impl(
         trace_steps=trace_steps,
         candidates=candidates[:5],
         confirm_reason="",
-        tier_short_reason=TierShortReason.TIER2_MEDIUM,
+        tier_short_reason=ai_short_reason or TierShortReason.TIER2_MEDIUM,
         ai_reason=ai_reason,
         selected_candidate=SelectedCandidate(
             provider_type=candidates[0].get("provider_type", ""),
@@ -408,6 +410,7 @@ def _tier2_context_match_impl(
     corrected_title = ai_result.get("corrected_title", clean_title) or clean_title
     corrected_year = ai_result.get("corrected_year", year)
     ai_reason = ai_result.get("reason", "")
+    ai_short_reason = ai_result.get("short_reason", "")
     suggestion = ai_result.get("suggestion", corrected_title)
     media_type_hint = ai_result.get("media_type_hint")
 
@@ -417,17 +420,17 @@ def _tier2_context_match_impl(
     if certainty == "high":
         return _tier2_high_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
-            providers, ai_reason, concerns, trace_steps,
+            providers, ai_reason, ai_short_reason, concerns, trace_steps,
         )
     elif certainty == "medium":
         return _tier2_medium_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
-            providers, ai_reason, concerns, trace_steps,
+            providers, ai_reason, ai_short_reason, concerns, trace_steps,
         )
     else:
         return _tier2_medium_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
-            providers, ai_reason, concerns, trace_steps,
+            providers, ai_reason, ai_short_reason, concerns, trace_steps,
         )
 
 
