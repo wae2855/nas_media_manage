@@ -159,76 +159,37 @@ function getTaskEditPermission(task) {
 
 function buildScrapeTraceSection(task) {
   var scrapeTrace = task.scrape_trace;
-  if (!scrapeTrace || typeof scrapeTrace !== "object") return "";
-
-  var previewJson = encodeURIComponent(
-    JSON.stringify(taskToMatchPathData(task)),
-  );
-  var filename = task.source_filename || "";
+  if (!scrapeTrace || typeof scrapeTrace !== "object") {
+    // 即使没有 scrape_trace，也能用 buildMatchPathData 渲染
+  }
 
   var searchBadge = "";
-  if (scrapeTrace.search_enhanced === true) {
+  if (scrapeTrace && scrapeTrace.search_enhanced === true) {
     searchBadge =
       '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:8px">🔍 AI联网搜索增强</span>';
-  } else if (scrapeTrace.search_enhanced === false) {
+  } else if (scrapeTrace && scrapeTrace.search_enhanced === false) {
     searchBadge =
       '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:8px">📴 纯本地分析</span>';
+  }
+
+  var data = buildMatchPathData(task);
+  var timelineHtml = "";
+  try {
+    timelineHtml = renderMatchPathPreview(data);
+  } catch (e) {
+    console.error("buildMatchPathData render error:", e);
+    timelineHtml = '<div class="cinema-modal-hint">刮削流程数据不完整。</div>';
   }
 
   return `
         <div class="cinema-modal-block">
             <h4>决策路径${searchBadge}</h4>
-            <div class="cinema-modal-hint" style="margin-bottom:8px">查看刮削过程中的完整匹配路径。</div>
-            <button class="btn btn-secondary btn-sm" onclick="showMatchPathModalFromData(this.getAttribute('data-preview'),this.getAttribute('data-filename'))" data-preview="${previewJson}" data-filename="${escapeHtml(filename)}">查看匹配路径</button>
+            <div class="cinema-detail-trace-inline">${timelineHtml}</div>
         </div>`;
 }
 
 function taskToMatchPathData(task) {
-  var scrapeTrace = task.scrape_trace || {};
-  var scrapeResult = task.scrape_result || {};
-  var matchResult = scrapeResult.match_trace || task.match_trace || {};
-  if (typeof matchResult === "string") {
-    try {
-      matchResult = JSON.parse(matchResult || "{}");
-    } catch (e) {
-      matchResult = {};
-    }
-  }
-  var filenameClean =
-    scrapeTrace.filename_clean || scrapeTrace.clean_result || {};
-  return {
-    filename: task.source_filename || "",
-    clean_result: {
-      clean_title:
-        filenameClean.clean_title ||
-        scrapeResult.title_cn ||
-        scrapeResult.title_en ||
-        scrapeResult.title ||
-        task.scrape_title_cn ||
-        task.scrape_title_en ||
-        "",
-      year: filenameClean.year || scrapeResult.year || task.scrape_year || null,
-      season:
-        filenameClean.season ||
-        scrapeResult.season ||
-        task.scrape_season ||
-        null,
-      episode:
-        filenameClean.episode ||
-        scrapeResult.episode ||
-        task.scrape_episode ||
-        null,
-      method: filenameClean.method || filenameClean.clean_method || "regex",
-      removed_items: filenameClean.removed_items || [],
-    },
-    scrape_result: scrapeResult,
-    match_result: matchResult,
-    import_path: {
-      import_path: task.import_video_path || task.import_path || "",
-      used_fallback: false,
-      matched_rule: null,
-    },
-  };
+  return buildMatchPathData(task);
 }
 
 function showMatchPathModalFromData(dataJson, filename) {
@@ -425,4 +386,3 @@ function updateRenamePreview(inputEl) {
     inputEl.classList.toggle("is-empty", !value);
   }
 }
-
