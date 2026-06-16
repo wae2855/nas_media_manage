@@ -25,28 +25,97 @@ function dimSourceMeta(source) {
 }
 
 function renderTaskScrapeProcess(task) {
-  const scrape = task.scrape_result || {};
-  const dimSources = task.dim_sources || scrape.dim_sources || {};
-  const entries = Object.entries(dimSources || {});
-  if (entries.length === 0 && !(task.confirm_reason || scrape.confirm_reason))
-    return `
-        <details class="task-scrape-process" open>
-            <summary>刮削结果</summary>
-            <div class="task-confirm-reason" style="color:var(--text-muted)">暂无刮削记录，建议补充年份/中文名/英文名等信息以便精确匹配。</div>
-        </details>`;
-  const reason = task.confirm_reason || scrape.confirm_reason || "";
-  const rows = entries
-    .map(([name, source]) => {
-      const meta = dimSourceMeta(source);
-      return `<span class="task-dim-source"><i>${meta.icon}</i><b>${escapeHtml(name)}</b><em>${escapeHtml(meta.label)}</em></span>`;
-    })
-    .join("");
-  return `
-        <details class="task-scrape-process" open>
-            <summary>刮削结果</summary>
-            ${reason ? `<div class="task-confirm-reason">${escapeHtml(reason)}</div>` : ""}
-            <div class="task-dim-source-grid">${rows || '<span class="task-dim-source"><i>—</i><b>维度来源</b><em>暂无记录</em></span>'}</div>
-        </details>`;
+  const scrapeResult = task.scrape_result || {};
+  const aiReason = scrapeResult.ai_reason || "";
+  const selected = scrapeResult.selected_candidate || null;
+  const dimSources = task.dim_sources || scrapeResult.dim_sources || {};
+
+  // L3: AI 怎么说
+  let aiBlock = "";
+  if (aiReason) {
+    aiBlock = `
+      <div class="task-ai-reason-block" style="margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🤖 AI 怎么说</div>
+        <div style="font-size:12px;line-height:1.5;color:var(--ink);padding:8px;background:rgba(255,255,255,0.04);border-left:2px solid var(--gold,#eabf63);border-radius:4px;">${escapeHtml(aiReason)}</div>
+      </div>`;
+  }
+
+  // L4: 最终用了
+  let selectedBlock = "";
+  if (selected && selected.title) {
+    const whyMap = {
+      unique_match: "唯一精确匹配",
+      top_rated:
+        "评分最高" + (selected.score ? "(" + selected.score + ")" : ""),
+      ai_suggestion: "AI 建议",
+      first_candidate: "Provider 排序第一",
+      user_pick: "用户选择",
+    };
+    const whyText =
+      whyMap[selected.why_selected] || selected.why_selected || "";
+    selectedBlock = `
+      <div class="task-selected-block" style="margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">✅ 最终用了</div>
+        <div style="font-size:13px;color:var(--ink);">
+          ${escapeHtml(selected.title)}
+          ${selected.year ? '<span style="color:var(--muted)">(' + selected.year + ")</span>" : ""}
+          ${whyText ? '<span style="font-size:11px;color:var(--muted);margin-left:6px;">· ' + escapeHtml(whyText) + "</span>" : ""}
+        </div>
+      </div>`;
+  }
+
+  const dimBlock = renderDimSourcesWithValues(task);
+  return aiBlock + selectedBlock + dimBlock;
+}
+
+function renderDimSourcesWithValues(task) {
+  const dims = task.scrape_dimensions || {};
+  const dimSources = task.dim_sources || {};
+  const dimDefs = (window._dimensionsData || []).concat(
+    window.currentEnabledDimensions || [],
+  );
+
+  if (Object.keys(dims).length === 0) {
+    return '<div style="font-size:11px;color:var(--muted);">暂无维度记录</div>';
+  }
+
+  const sourceLabels = {
+    tmdb: "Provider",
+    ai_assist: "AI辅助",
+    ai_search: "AI搜索",
+    file: "文件",
+  };
+
+  let html =
+    '<div class="task-dim-grid" style="display:flex;flex-wrap:wrap;gap:6px;">';
+  for (const [name, value] of Object.entries(dims)) {
+    const dimDef = dimDefs.find((d) => d.name === name);
+    const label = dimDef ? dimDef.label || name : name;
+    let valLabel = String(value);
+    if (dimDef && Array.isArray(dimDef.value_list)) {
+      const matched = dimDef.value_list.find(
+        (v) => String(v.value) === String(value),
+      );
+      if (matched) valLabel = matched.label || valLabel;
+    }
+    const source = dimSources[name] || "";
+    const sourceTag = source
+      ? '<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(234,191,99,0.1);color:var(--gold,#eabf63);margin-left:4px;">' +
+        (sourceLabels[source] || source) +
+        "</span>"
+      : "";
+    html +=
+      '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.04);border-left:2px solid ' +
+      (dimDef?.color || "rgba(234,191,99,0.3)") +
+      ';">' +
+      escapeHtml(label) +
+      "：" +
+      escapeHtml(valLabel) +
+      sourceTag +
+      "</span>";
+  }
+  html += "</div>";
+  return html;
 }
 
 function renderTaskCard(item, index = 0) {
@@ -308,4 +377,3 @@ function renderErrorState(message) {
   setBatchToolbarVisibility();
   updateBatchToolbar();
 }
-
