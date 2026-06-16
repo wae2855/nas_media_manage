@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 @dataclass
 class ReviewDecision:
     action: str       # continue / confirm / needs_review / failed
-    reason: str = ""
+    concerns: list = field(default_factory=list)  # 结构化关注点列表
     warnings: list = field(default_factory=list)
 
 
@@ -12,18 +12,21 @@ class ReviewDecisionService:
     def evaluate(self, scraped: dict) -> ReviewDecision:
         """根据刮削结果决定任务流向。
 
-        基于 match_level 判断，不再依赖旧数值。
+        基于 match_level 判断，返回结构化 concerns 而非拼接字符串。
         """
         if not scraped:
-            return ReviewDecision(action="failed", reason="刮削结果为空，无法验证")
+            return ReviewDecision(
+                action="failed",
+                concerns=[{"code": "EMPTY_RESULT", "message": "刮削结果为空，无法验证", "detail": ""}],
+            )
 
         match_level = scraped.get("match_level", "NEEDS_CONFIRM")
-        concerns = scraped.get("match_concerns", [])
+        existing_concerns = scraped.get("match_concerns", [])
         missing_fields, warnings = self._validate_required_fields(scraped)
 
         if missing_fields:
-            reason = self._build_confirm_reason(scraped, missing_fields, concerns)
-            return ReviewDecision(action="confirm", reason=reason, warnings=warnings)
+            new_concerns = self._build_concerns(scraped, missing_fields, existing_concerns)
+            return ReviewDecision(action="confirm", concerns=new_concerns, warnings=warnings)
 
         if match_level == "AUTO_PASS":
             return ReviewDecision(action="continue", warnings=warnings)
@@ -32,60 +35,49 @@ class ReviewDecisionService:
             return ReviewDecision(action="continue", warnings=warnings)
 
         if match_level == "NEEDS_CONFIRM":
-            reason = self._build_confirm_reason(scraped, missing_fields, concerns)
-            return ReviewDecision(action="confirm", reason=reason, warnings=warnings)
+            new_concerns = self._build_concerns(scraped, missing_fields, existing_concerns)
+            return ReviewDecision(action="confirm", concerns=new_concerns, warnings=warnings)
 
-        return ReviewDecision(action="failed", reason="匹配失败，无法识别", warnings=warnings)
+        return ReviewDecision(
+            action="failed",
+            concerns=[{"code": "MATCH_FAILED", "message": "匹配失败，无法识别", "detail": ""}],
+            warnings=warnings,
+        )
 
-    def _build_confirm_reason(self, scraped: dict, missing_fields: list, concerns: list) -> str:
-        reason_parts = []
-        for concern in concerns or []:
-            if not isinstance(concern, dict):
-                continue
-            message = concern.get("message") or ""
-            detail = concern.get("detail") or ""
-            if message:
-                reason_parts.append(message)
-            if detail and detail != message:
-                reason_parts.append(detail)
+    def _build_concerns(self, scraped: dict, missing_fields: list, existing_concerns: list) -> list:
+        """构建结构化关注点列表（不再拼接字符串）"""
+        new_concerns = []
 
-        ai_reasons = self._collect_ai_reasons(scraped.get("match_trace") or {})
-        for reason in ai_reasons:
-            if reason not in reason_parts:
-                reason_parts.append(reason)
+        for concern in existing_concerns or []:
+            if isinstance(concern, dict) and concern.get("message"):
+                new_concerns.append(concern)
 
-        if not reason_parts:
-            provider_id = scraped.get("provider_id") or ""
-            if provider_id:
-                reason_parts.append("匹配结果需要人工确认")
-            else:
-                reason_parts.append("未匹配到可直接入库的 Provider 结果")
+        if missing_fields:
+            suggestions = self._build_suggestions(missing_fields, scraped)
+            detail = "建议补充或核对：" + "、".join(suggestions) if suggestions else ""
+            new_concerns.append({
+                "code": "MISSING_FIELDS",
+                "message": "缺失字段需人工确认",
+                "detail": detail,
+            })
 
-        suggestions = self._build_suggestions(missing_fields, scraped)
-        if suggestions:
-            reason_parts.append("缺失字段需人工确认")
-            reason_parts.append("建议补充或核对：" + "、".join(suggestions))
+        provider_id = scraped.get("provider_id") or ""
+        if not provider_id:
+            new_concerns.append({
+                "code": "NO_PROVIDER_MATCH",
+                "message": "未匹配到可直接入库的 Provider 结果",
+                "detail": "",
+            })
 
         candidates = (scraped.get("match_trace") or {}).get("candidates") or []
         if candidates:
-            reason_parts.append("已默认加载候选列表中排序最靠前的结果，请检查后确认")
+            new_concerns.append({
+                "code": "CANDIDATES_AVAILABLE",
+                "message": "已默认加载候选列表中排序最靠前的结果，请检查后确认",
+                "detail": "",
+            })
 
-        return "；".join(str(part) for part in reason_parts if part)
-
-    def _collect_ai_reasons(self, match_trace: dict) -> list:
-        reasons = []
-        steps = []
-        if isinstance(match_trace, dict):
-            steps = match_trace.get("trace_steps") or match_trace.get("trace") or []
-        if not isinstance(steps, list):
-            return reasons
-        for step in steps:
-            if not isinstance(step, dict):
-                continue
-            ai_reason = str(step.get("ai_reason") or "").strip()
-            if ai_reason:
-                reasons.append(ai_reason)
-        return reasons
+        return new_concerns
 
     def _build_suggestions(self, missing_fields: list, scraped: dict) -> list:
         suggestions = []
