@@ -94,6 +94,9 @@ def _tier1_exact_match_impl(
                         "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
                         "provider_type": item.provider_type,
                         "poster_url": getattr(item, 'poster_url', '') or '',
+                        "vote_average": item.vote_average or 0,
+                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
+                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
                     }],
                     confirm_reason="",
                     tier_short_reason=TierShortReason.TIER1_UNIQUE,
@@ -107,6 +110,7 @@ def _tier1_exact_match_impl(
                         score=item.vote_average,
                     ),
                 )
+                # == end of single-match ==
 
             elif len(exact_matches) > 1:
                 # 尝试用评分差距打破平局：若第一名评分远超第二名，自动选择
@@ -146,6 +150,9 @@ def _tier1_exact_match_impl(
                             "overview": getattr(top_item, 'overview', '')[:100] if hasattr(top_item, 'overview') and getattr(top_item, 'overview', None) else '',
                             "provider_type": top_item.provider_type,
                             "poster_url": getattr(top_item, 'poster_url', '') or '',
+                            "vote_average": top_item.vote_average or 0,
+                            "vote_count": top_item.raw_data.get("vote_count", 0) if top_item.raw_data else 0,
+                            "popularity": top_item.raw_data.get("popularity", 0) if top_item.raw_data else 0,
                         }],
                         confirm_reason="",
                         tier_short_reason=TierShortReason.TIER1_TOP_RATED.format(count=len(exact_matches)),
@@ -369,6 +376,20 @@ def _tier2_low_certainty_impl(
     )
 
 
+def _extract_year_from_raw(raw_data: dict):
+    """从 TMDB 原始数据兜底提取年份"""
+    if not raw_data:
+        return None
+    for key in ("release_date", "first_air_date"):
+        val = raw_data.get(key, "")
+        if val and len(val) >= 4:
+            try:
+                return int(val[:4])
+            except ValueError:
+                pass
+    return None
+
+
 def _search_providers_impl(title_matcher, title: str, year: Optional[int], providers: list) -> list:
     """统一搜索 Provider 返回候选列表。"""
     candidates = []
@@ -380,12 +401,16 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
                     candidates.append({
                         "id": item.item_id,
                         "title": item.title,
-                        "original_title": getattr(item, 'original_title', '') or '',
-                        "year": item.year,
+                        "original_title": getattr(item, 'original_title', '') or item.title,
+                        "year": item.year or _extract_year_from_raw(item.raw_data),
                         "media_type": item.media_type,
                         "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
                         "provider_type": item.provider_type,
                         "poster_url": getattr(item, 'poster_url', '') or '',
+                        # 可信度字段
+                        "vote_average": item.vote_average or 0,
+                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
+                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
                     })
         except Exception as e:
             logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
