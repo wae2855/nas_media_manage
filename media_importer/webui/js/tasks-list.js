@@ -351,6 +351,22 @@ function buildScrapeCell(task) {
     parts.push('<span class="match-tag match-confirm">需确认</span>');
   }
 
+  // L2: tier_short_reason
+  var scrapeResult = task.scrape_result || {};
+  var shortReason = scrapeResult.tier_short_reason || "";
+  if (
+    shortReason &&
+    (task.status === "AWAIT_REVIEW" || task.status === "NEEDS_CONFIRM")
+  ) {
+    parts.push(
+      '<div class="task-short-reason" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" title="' +
+        escapeHtml(shortReason) +
+        '">' +
+        escapeHtml(shortReason) +
+        "</div>",
+    );
+  }
+
   if (task.skip_reason) {
     parts.push(
       '<span style="color:var(--text-muted)">' +
@@ -471,4 +487,3 @@ function buildActionButtons(task) {
 
   return btns.join("");
 }
-
