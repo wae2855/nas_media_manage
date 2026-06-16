@@ -144,6 +144,49 @@ function renderMatchPathPreview(data) {
       '<div style="margin-top:8px;color:#94A3B8;font-size:13px">无匹配路径信息</div>';
   }
 
+  // 候选列表（按可信度排序）
+  var candidates = matchResult.candidates || [];
+  if (candidates.length > 0) {
+    html += '<div class="sim-candidates" style="margin-top:8px;">';
+    html +=
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">候选列表（按可信度）</div>';
+
+    var sorted = candidates.slice().sort(function (a, b) {
+      return (b.popularity || 0) - (a.popularity || 0);
+    });
+
+    for (var ci = 0; ci < sorted.length; ci++) {
+      var c = sorted[ci];
+      var stars = c.vote_average ? "⭐ " + c.vote_average.toFixed(1) : "";
+      var votes = c.vote_count ? "(" + c.vote_count + "票" : "";
+      var pop = c.popularity ? " · 热度" + Math.round(c.popularity) : "";
+      var year = c.year ? "(" + c.year + ")" : "";
+      var origTitle =
+        c.original_title && c.original_title !== c.title
+          ? " / " + escapeHtml(c.original_title)
+          : "";
+
+      html +=
+        '<div style="font-size:12px;padding:4px 8px;margin:2px 0;background:rgba(255,255,255,0.04);border-radius:4px;">';
+      html +=
+        (ci === 0 ? "✅" : "○") +
+        " " +
+        escapeHtml(c.title) +
+        " " +
+        year +
+        origTitle;
+      html +=
+        '<span style="color:var(--muted);font-size:11px;">' +
+        stars +
+        " " +
+        votes +
+        pop +
+        "</span>";
+      html += "</div>";
+    }
+    html += "</div>";
+  }
+
   if (concerns.length > 0) {
     html += '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">';
     for (var ci = 0; ci < concerns.length; ci++) {

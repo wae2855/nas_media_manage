@@ -255,8 +255,17 @@ function showMatchTraceDetailModal(traceData, filename) {
 
   var candidates = trace.candidates || [];
   if (candidates.length) {
+    var sortedCands = candidates.slice(0, 5).sort(function (a, b) {
+      return (b.popularity || 0) - (a.popularity || 0);
+    });
     var candHtml = '<div class="conf-detail-card">';
-    candidates.slice(0, 5).forEach(function (c, index) {
+    sortedCands.forEach(function (c, index) {
+      var stars = c.vote_average
+        ? "⭐ " + Number(c.vote_average).toFixed(1)
+        : "";
+      var votes = c.vote_count ? "票" + c.vote_count : "";
+      var pop = c.popularity ? "热度" + Math.round(c.popularity) : "";
+      var metaParts = [stars, votes, pop].filter(Boolean).join(" · ");
       candHtml +=
         '<div class="conf-kv">' +
         '<span class="conf-k">候选 ' +
@@ -265,6 +274,11 @@ function showMatchTraceDetailModal(traceData, filename) {
         '<span class="conf-v">' +
         escapeHtml(c.title || "-") +
         (c.year ? " (" + c.year + ")" : "") +
+        (metaParts
+          ? '<span style="color:var(--muted);font-size:10px;margin-left:6px;">' +
+            escapeHtml(metaParts) +
+            "</span>"
+          : "") +
         "</span>" +
         "</div>";
     });
