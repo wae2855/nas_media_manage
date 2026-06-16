@@ -98,7 +98,6 @@ def mark_confirming(task, reason=_NO_FIELD, *, video_path: str = None) -> dict:
         video_path=video_path if video_path is not None else current_video_path(task),
         file_location=FILE_LOCATION_TEMP,
         error_message=reason,
-        confirm_reason=reason,
     )
 
 

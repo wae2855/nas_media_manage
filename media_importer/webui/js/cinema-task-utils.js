@@ -55,11 +55,8 @@ function taskDescription(task) {
   if (task.error_message) return task.error_message;
   if (task.skip_reason) return task.skip_reason;
   if (status === "PENDING" && stage === "AWAIT_REVIEW") {
-    if (task.confirm_reason || scrape.confirm_reason) {
-      return (
-        (task.confirm_reason || scrape.confirm_reason) +
-        "。等待你确认最终入库方向。"
-      );
+    if (scrape.tier_short_reason) {
+      desc += " · " + scrape.tier_short_reason;
     }
     const concerns = task.match_concerns || scrape.match_concerns || [];
     if (Array.isArray(concerns) && concerns.length > 0) {

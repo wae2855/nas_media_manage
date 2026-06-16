@@ -1,5 +1,5 @@
 // 匹配路径详情：展示三级匹配路径、Provider 搜索、AI 辅助、候选列表、
-// 最终 match_level、confirm_reason 与 dim_sources。
+// 最终 match_level 与 dim_sources。
 
 function _levelColor(level) {
   if (level === "AUTO_PASS") return "#22C55E";
@@ -89,7 +89,6 @@ function showMatchTraceDetailModal(traceData, filename) {
 
   var matchLevel = trace.match_level || trace.level || "NEEDS_CONFIRM";
   var matchConcerns = trace.match_concerns || trace.concerns || [];
-  var confirmReason = trace.confirm_reason || "";
   var dimSources = trace.dim_sources || {};
   var matchTraceSteps = trace.match_trace || trace.trace_steps || [];
 
@@ -336,11 +335,6 @@ function showMatchTraceDetailModal(traceData, filename) {
     escapeHtml(matchLevel) +
     "</span>" +
     "</div>" +
-    (confirmReason
-      ? '<div class="conf-kv"><span class="conf-k">confirm_reason</span><span class="conf-v">' +
-        escapeHtml(confirmReason) +
-        "</span></div>"
-      : "") +
     '<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4">匹配级别由三级匹配策略决定（自动通过/需确认）。</div>' +
     "</div>";
   steps.push({
