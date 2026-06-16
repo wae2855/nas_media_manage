@@ -118,6 +118,24 @@ function renderDimSourcesWithValues(task) {
   return html;
 }
 
+function renderFailedTaskBlock(task) {
+  if (task.status !== "FAILED") return "";
+  const scrapeResult = task.scrape_result || {};
+  const aiReason = scrapeResult.ai_reason || "";
+  const shortReason = scrapeResult.tier_short_reason || "刮削失败";
+
+  return `
+    <div class="task-failed-block" style="padding:10px;background:rgba(217,79,69,0.08);border-left:3px solid var(--red,#d94f45);border-radius:4px;margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--red,#d94f45);font-weight:600;margin-bottom:4px;">
+        ❌ ${escapeHtml(shortReason)}
+      </div>
+      ${aiReason ? '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">' + escapeHtml(aiReason) + "</div>" : ""}
+      <button class="btn btn-secondary btn-sm" onclick="rescrapeTask(${task.id})" style="font-size:11px;">
+        🔄 重新刮削
+      </button>
+    </div>`;
+}
+
 function renderTaskCard(item, index = 0) {
   const status = String(item.status || "").toUpperCase();
   const stage = String(item.stage || "").toUpperCase();
@@ -147,13 +165,15 @@ function renderTaskCard(item, index = 0) {
     coverClass = `cover ${toneClass}`;
     coverContent = "";
   }
+  const failedBlock = renderFailedTaskBlock(item);
   return `
         <article class="task-card" data-task-row="${escapeHtml(taskId)}" style="--card-index: ${index}">
             <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" onclick="event.stopPropagation()" />
             <div class="${coverClass}" aria-hidden="true">${coverContent}</div>
             <div class="task-body">
                 <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="badge${danger}">${escapeHtml(getTaskStatusText(item.status, item.stage))}</span></div>
-                ${renderTaskScrapeProcess(item)}
+                ${failedBlock}
+                ${isFailed ? "" : renderTaskScrapeProcess(item)}
                 <div class="task-meta"><span class="task-meta-file">🎞️ ${escapeHtml(filename)}</span><span class="task-meta-sep">·</span><span class="task-meta-info">${escapeHtml(taskMeta(item))}</span></div>
                 <small class="task-row-hint">点击卡片选中 · 点击"详情"查看编辑</small>
             </div>
@@ -376,4 +396,22 @@ function renderErrorState(message) {
   document.getElementById("task-panel-count").textContent = "--";
   setBatchToolbarVisibility();
   updateBatchToolbar();
+}
+
+async function rescrapeTask(taskId) {
+  if (!confirm("确定重新刮削此任务吗？将从刮削开始重新处理。")) return;
+  try {
+    const resp = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/retry`, { method: "POST" });
+    const result = await resp.json();
+    showToast(result.message || "重试请求已发送");
+    if (result.code === 200) {
+      await Promise.all([loadTaskList(), loadDashboardOverview()]);
+    }
+  } catch (e) {
+    showToast("重试请求失败");
+  }
+}
+  }
+  // fallback: trigger retry via batch handler
+  handleTaskActions("retry-task", [String(taskId)]);
 }

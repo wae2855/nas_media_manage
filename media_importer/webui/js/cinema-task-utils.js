@@ -123,7 +123,7 @@ function taskPrimaryAction(task) {
   if (status === "PENDING" && stage === "AWAIT_REVIEW")
     return { key: "confirm", label: "入库" };
   if (status === "FAILED" || status === "SKIPPED")
-    return { key: "retry-task", label: "去重试" };
+    return { key: "retry-task", label: "重新刮削" };
   if (status === "CANCELLED") return { key: "retry-task", label: "重新投入" };
   if (status === "PENDING" && stage === "QUEUED")
     return { key: "cancel-task", label: "取消" };
