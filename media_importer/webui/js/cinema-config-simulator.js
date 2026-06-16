@@ -41,7 +41,8 @@ function renderMatchPathPreview(data) {
   const currentType = scrapeRes.type || scrapeRes.media_type || "—";
   const importPathInfo = data.import_path || {};
 
-  const matchLevel = matchResult.match_level || "NEEDS_CONFIRM";
+  const matchLevel =
+    matchResult.match_level || scrapeRes.match_level || "NEEDS_CONFIRM";
   const concerns = matchResult.concerns || [];
   const traceSteps = matchResult.trace || [];
   const queueExplanation = explainSimulatedQueue(matchResult);
@@ -108,6 +109,24 @@ function renderMatchPathPreview(data) {
         : step.tier === 3
           ? "#F59E0B"
           : "#94A3B8";
+      var certaintyTag = "";
+      if (step.tier === 2) {
+        var stepReason = step.reason || "";
+        if (stepReason.includes("高确定性")) {
+          certaintyTag =
+            '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(34,197,94,0.12);color:#22C55E;margin-left:4px;">高</span>';
+        } else if (stepReason.includes("中确定性")) {
+          certaintyTag =
+            '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.12);color:#F59E0B;margin-left:4px;">中</span>';
+        } else if (stepReason.includes("低确定性")) {
+          certaintyTag =
+            '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(217,79,69,0.12);color:#D94F45;margin-left:4px;">低</span>';
+        }
+      }
+      var searchInfo = "";
+      if (step.search_query) {
+        searchInfo = `<div style="font-size:11px;color:var(--muted);margin-top:2px;">搜索：${escapeHtml(step.search_query)}</div>`;
+      }
       html +=
         '<div style="border:1px solid ' +
         color +
@@ -122,9 +141,11 @@ function renderMatchPathPreview(data) {
         "级：" +
         tierIcon +
         escapeHtml(step.name || "") +
+        certaintyTag +
         " · " +
         (step.matched ? "✓ 匹配" : "✗ 未匹配") +
         "</div>";
+      if (searchInfo) html += searchInfo;
       if (step.reason)
         html +=
           '<div style="margin-top:6px;font-size:12px;line-height:1.5;color:#CBD5E1">' +
@@ -202,6 +223,27 @@ function renderMatchPathPreview(data) {
   html += "</div></div>";
 
   // --- timeline step 4: 刮削结果 ---
+  if (matchLevel === "FAILED") {
+    const failReason =
+      scrapeRes.tier_short_reason ||
+      matchResult.tier_short_reason ||
+      "AI 判定无可识别影视信息";
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html +=
+      '<div class="sim-step-dot" style="background:#D94F4518;color:#D94F45">4</div>';
+    html += '<div class="sim-step-line" style="background:transparent"></div>';
+    html += "</div>";
+    html += '<div class="sim-step-content">';
+    html +=
+      '<div class="sim-step-header"><span class="sim-step-title" style="color:#D94F45">刮削失败</span><span class="sim-step-tag" style="background:#D94F4518;color:#D94F45">FAILED</span></div>';
+    html += `<div class="sim-alert">${escapeHtml(failReason)}</div>`;
+    html += "</div></div>";
+    html += "</div>";
+    html += "</div>";
+    return html;
+  }
+
   html += '<div class="sim-step">';
   html += '<div class="sim-step-rail">';
   html +=
@@ -242,27 +284,44 @@ function renderMatchPathPreview(data) {
   // --- timeline step 5: 维度推导 ---
   const hasDims =
     scrapeRes.dimensions && Object.keys(scrapeRes.dimensions).length > 0;
+  html += '<div class="sim-step">';
+  html += '<div class="sim-step-rail">';
+  html +=
+    '<div class="sim-step-dot" style="background:#8B5CF618;color:#8B5CF6">5</div>';
+  html += '<div class="sim-step-line" style="background:#8B5CF630"></div>';
+  html += "</div>";
+  html += '<div class="sim-step-content">';
+  html +=
+    '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">维度推导</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">DIMS</span></div>';
   if (hasDims) {
+    html += _renderSimDims(scrapeRes.dimensions);
+  } else {
+    html += '<div class="sim-alert">暂无维度推导结果。</div>';
+  }
+  html += "</div></div>";
+
+  if (matchLevel === "NEEDS_CONFIRM") {
     html += '<div class="sim-step">';
     html += '<div class="sim-step-rail">';
     html +=
-      '<div class="sim-step-dot" style="background:#8B5CF618;color:#8B5CF6">5</div>';
-    html += '<div class="sim-step-line" style="background:#8B5CF630"></div>';
+      '<div class="sim-step-dot" style="background:#F59E0B18;color:#F59E0B">6</div>';
+    html += '<div class="sim-step-line" style="background:transparent"></div>';
     html += "</div>";
     html += '<div class="sim-step-content">';
     html +=
-      '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">维度推导</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">DIMS</span></div>';
-    html += _renderSimDims(scrapeRes.dimensions);
+      '<div class="sim-step-header"><span class="sim-step-title" style="color:#F59E0B">待人工确认</span><span class="sim-step-tag" style="background:#F59E0B18;color:#F59E0B">CONFIRM</span></div>';
+    html += '<div class="sim-alert">确认后才能入库。</div>';
     html += "</div></div>";
+    html += "</div>";
+    html += "</div>";
+    return html;
   }
 
   // --- timeline step 6: 最终入库判断 ---
   html += '<div class="sim-step">';
   html += '<div class="sim-step-rail">';
   html +=
-    '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">' +
-    (hasDims ? "6" : "5") +
-    "</div>";
+    '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">6</div>';
   html += '<div class="sim-step-line" style="background:transparent"></div>';
   html += "</div>";
   html += '<div class="sim-step-content">';

@@ -12,6 +12,15 @@ from media_importer.features.scraping.match_models import (
 from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
 
 
+def _sort_candidates_by_trust(candidates: list) -> list:
+    """按可信度排序：popularity DESC → vote_average DESC → vote_count DESC"""
+    return sorted(candidates, key=lambda c: (
+        c.get("popularity", 0) or 0,
+        c.get("vote_average", 0) or 0,
+        c.get("vote_count", 0) or 0,
+    ), reverse=True)
+
+
 def _call_collect_context(self, video_path):
     """Lazy import to resolve _collect_context from match_engine at call time."""
     from media_importer.features.scraping.match_engine import MatchEngine
@@ -182,6 +191,8 @@ def _tier1_exact_match_impl(
                     }
                     for item, _ in exact_matches
                 ]
+                self._pending_candidates = _sort_candidates_by_trust(self._pending_candidates)
+                self._pending_candidates = self._pending_candidates[:10]
                 self._pending_concerns.append(MatchConcern(
                     code="NO_YEAR_MULTI_MATCH",
                     message=f"找到 {len(exact_matches)} 部同名作品",
@@ -258,7 +269,7 @@ def _tier2_high_certainty_impl(
             tier=2,
             name="上下文辅助匹配(高确定性)",
             matched=True,
-            search_query=f"{corrected_title} (year={corrected_year})",
+            search_query=f"AI 纠正后搜索词: {corrected_title}" + (f" ({corrected_year}年)" if corrected_year else ""),
             reason=f"AI高确定性纠正后搜索结果: {selected['title']}",
             ai_reason=ai_reason,
         ))
@@ -321,7 +332,7 @@ def _tier2_medium_certainty_impl(
         tier=2,
         name="上下文辅助匹配(中确定性)",
         matched=False,
-        search_query=f"{corrected_title} (year={corrected_year})",
+        search_query=f"AI 建议搜索词: {corrected_title}" + (f" ({corrected_year}年)" if corrected_year else ""),
         reason=f"AI中确定性，提供候选列表供确认: {ai_reason}",
         ai_reason=ai_reason,
     ))
@@ -364,6 +375,7 @@ def _tier2_low_certainty_impl(
         tier=2,
         name="上下文辅助匹配(低确定性)",
         matched=False,
+        search_query=f"AI 建议搜索词: {corrected_title}" if corrected_title else "AI 未给出有效搜索词",
         reason=f"AI低确定性，需要人工确认: {ai_reason}",
         ai_reason=ai_reason,
     ))
@@ -421,6 +433,7 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
             continue
         if candidates:
             break
+    candidates = _sort_candidates_by_trust(candidates)
     return candidates
 
 

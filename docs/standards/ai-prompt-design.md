@@ -227,6 +227,27 @@ test       → false
 
 代码层防御：若 AI 返回 `certainty=low`，兜底改为 `medium`。
 
+### 5.4 输出完整性要求
+
+以下要求在提示词中强约束：
+
+- 无论 certainty 是 high 还是 medium，都必须填写 corrected_title 和 corrected_year
+- corrected_title 至少应等于 clean_title（不要空着）
+- 若 reason 中提到具体年份，corrected_year 必须填写该年份，不能留 null
+- certainty 只决定"是否自动入库"，不是"能不能给出建议"
+
+### 5.5 Tier 2 跳过规则
+
+以下场景不调用 Tier 2 AI（标题已精确匹配，AI 无增量信息）：
+
+| Tier 1 结果 | 行为 | match_level | match_tier |
+|------------|------|-------------|:---:|
+| 唯一精确匹配 | 直接通过 | AUTO_PASS | 1 |
+| 多个精确匹配（≥2） | 预选热度最高，人工确认 | NEEDS_CONFIRM | 1 |
+| 无精确匹配 | 进入 Tier 2 AI | — | — |
+
+**Tier 2 仅在 Tier 1 无精确匹配时触发。**
+
 ---
 
 ## 六、完整提示词模板
@@ -278,6 +299,13 @@ test       → false
 - 若 Step 1 候选中已有完美匹配项：填 selected_candidate_id（候选的 provider_id），程序直接采用
 - 若候选都不匹配但你能推测：填 corrected_title + corrected_year，程序重新搜 Provider
 - 若 is_valid=false：所有其他字段留空/null
+
+## 关键要求
+- 无论 certainty 是 high 还是 medium，都必须填写 corrected_title 和 corrected_year
+- corrected_title 至少应等于 clean_title（不要空着）
+- 如果 reason 中提到具体年份（如'2004年王家卫'），corrected_year 必须填写该年份，不能留 null
+- certainty 只决定'是否自动入库'，不是你'能不能给出建议'
+- 即使同时匹配多部同名作品（medium），也要给出你认为最可能的标题和年份
 
 ## 输出要求
 返回 JSON，不要包含任何其他文字：

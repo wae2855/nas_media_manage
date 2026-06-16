@@ -54,19 +54,16 @@
 │  │    → why_selected=unique_match                        │
 │  │                                                       │
 │  ├─ 多个精确匹配（≥2）                                   │
-│  │    ├─ 评分打破平局：top_score≥6.0 且 gap≥1.5          │
-│  │    │    → match_level=AUTO_PASS, tier=1               │
-│  │    │    → why_selected=top_rated                      │
-│  │    │                                                   │
-│  │    └─ 平局无法打破                                     │
-│  │         → 保存候选到 _pending_candidates               │
-│  │         → 返回 None（fallthrough 到 Tier 2）           │
-│  │                                                       │
+│  │    → 按热度+评分排序，预选第一，限制 10 条              │
+│  │    → match_level=NEEDS_CONFIRM, tier=1                  │
+│  │    → why_selected=top_rated                             │
+│  │    → 不进入 Tier 2（标题已精确匹配，AI 无增量信息）     │
+│  │                                                         │
 │  ├─ 模糊匹配（无 L1/L2/L3 精确）                          │
-│  │    → 返回 None（fallthrough）                          │
-│  │                                                       │
+│  │    → 返回 None（fallthrough 到 Tier 2）                 │
+│  │                                                         │
 │  └─ 所有 Provider 无结果                                  │
-│       → 返回 None（fallthrough）                          │
+│       → 返回 None（fallthrough 到 Tier 2）                 │
 └──────────────────────────────────────────────────────────┘
   │ (Tier 1 返回 None)
   ▼
@@ -129,39 +126,75 @@
 | L3 | 标题高度相似（≥0.9） | ✅（仅当 year=None 时） |
 | L4-L7 | 模糊匹配 | ❌ |
 
-### 3.2 评分打破平局规则
+### 3.2 多匹配处理规则
 
-**触发条件**：`len(exact_matches) >= 2`
+**规则**：多个精确匹配（≥2）一律 NEEDS_CONFIRM，不自动通过，不进入 Tier 2 AI。
 
-**判定逻辑**：
+**理由**：
+- 标题已精确匹配，AI 无增量信息（不需要 AI 再猜一遍）
+- 评分差距大 ≠ 用户想要那个版本（7 个同名作品歧义严重）
+- 用户对歧义场景有最终决定权
+
+**处理流程**：
 
 ```python
-top_score = 最高评分（vote_average）
-second_score = 第二高评分
-gap = top_score - second_score
+# 1. 保存所有精确匹配候选
+self._pending_candidates = [{...} for item, _ in exact_matches]
 
-if top_score >= 6.0 and gap >= 1.5:
-    # 评分显著高于其他 → 自动选最高分
-    match_level = AUTO_PASS
-    why_selected = top_rated
-else:
-    # 评分接近或都低 → 保存候选，fallthrough 到 Tier 2
-    self._pending_candidates = exact_matches  # 跨 Tier 传递
-    return None
+# 2. 若无季/集信息，用路径上下文推断 media_type（见 3.4 节）
+if year is None:
+    preferred_type = _infer_media_type_from_path(path_context)
+    if preferred_type:
+        filtered = [c for c in self._pending_candidates if c.get("media_type") == preferred_type]
+        if filtered:
+            self._pending_candidates = filtered
+
+# 3. 按热度+评分排序，限制 10 条
+self._pending_candidates = _sort_candidates_by_trust(self._pending_candidates)
+self._pending_candidates = self._pending_candidates[:10]
+
+# 4. 取第一作为 selected_candidate
+top = self._pending_candidates[0]
+
+# 5. 返回 NEEDS_CONFIRM
+return MatchResult(
+    match_level="NEEDS_CONFIRM",
+    match_tier=1,
+    selected_candidate=SelectedCandidate(
+        title=top["title"], year=top.get("year"),
+        why_selected=WhySelected.TOP_RATED,
+        score=top.get("vote_average"),
+    ),
+    candidates=self._pending_candidates[:5],
+    tier_short_reason=TierShortReason.TIER1_MULTI.format(count=len(exact_matches)),
+)
 ```
 
 **示例**：
-- 美丽人生（1997⭐8.5 vs 2000电视剧⭐6.0）→ gap=2.5 → AUTO_PASS
-- 同名作品（⭐7.0 vs ⭐6.8）→ gap=0.2 → fallthrough 到 AI
+- 美丽人生（7 个同名）→ 按热度排序，1997 版排第一 → NEEDS_CONFIRM（预选 1997 版）
+- 速度与激情（3 个同名）→ 按热度排序，2001 版排第一 → NEEDS_CONFIRM
+
+**旧规则（已废弃）**：评分差距 ≥1.5 且 top ≥6.0 时自动通过。废弃原因：评分差距大 ≠ 用户想要那个版本。
 
 ### 3.3 候选保留与跨 Tier 复用
 
-**规则**：Tier 1 找到但未自动通过的候选，必须保存到 `self._pending_candidates`，供 Tier 2 复用。
+**规则**：Tier 1 的候选按场景使用：
+
+| 场景 | 候选用途 |
+|------|---------|
+| 多个精确匹配 | 直接返回 NEEDS_CONFIRM（tier=1），候选列表供用户选择 |
+| 无精确匹配 | 保存到 `_pending_candidates`，供 Tier 2 AI 参考 |
 
 **目的**：
-- 避免 Tier 2 重新搜索（TMDB API 不稳定）
-- AI 能看到 Tier 1 的候选，决策更准
-- 节省一次 Provider API 调用
+- 多匹配时：用户从候选列表直接确认，不经过 AI
+- 无匹配时：AI 能看到 Tier 1 的搜索结果，决策更准
+
+保存后必须立即排序和限制数量：
+
+```python
+self._pending_candidates = _sort_candidates_by_trust(self._pending_candidates)
+self._pending_candidates = self._pending_candidates[:10]
+```
 
 **Tier 2 使用规则**：
 - 优先从 `_pending_candidates` 中按 `selected_candidate_id` 查找
@@ -368,6 +401,17 @@ API：`POST /api/tasks/{id}/rescrape`，body 可选 `{"new_filename": "新文件
 ```
 
 前端候选列表按 `popularity` 降序展示，显示 ⭐评分 + 票数 + 热度。
+
+### 8.1 排序规则
+
+所有 Provider 搜索返回的候选列表，**必须**经过 `_sort_candidates_by_trust()` 排序：
+
+排序 key（降序）：popularity → vote_average → vote_count
+
+适用范围：
+- `_search_providers_impl` 返回前
+- `_pending_candidates` 保存后
+- 任何从 Provider 搜索获取的候选列表
 
 ---
 
