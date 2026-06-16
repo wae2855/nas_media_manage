@@ -240,7 +240,8 @@ class TestReviewDecisionService(unittest.TestCase):
         )
 
         self.assertEqual(decision.action, "confirm")
-        self.assertIn("媒体类型", decision.reason)
+        codes = [c.get("code", "") for c in decision.concerns]
+        self.assertIn("MISSING_FIELDS", codes)
 
     def test_incomplete_mock_data_fails(self):
         decision = ReviewDecisionService().evaluate(
@@ -255,7 +256,8 @@ class TestReviewDecisionService(unittest.TestCase):
         )
 
         self.assertEqual(decision.action, "confirm")
-        self.assertIn("多部同名作品", decision.reason)
+        messages = [c.get("message", "") for c in decision.concerns]
+        self.assertTrue(any("多部同名作品" in m for m in messages), f"concerns: {decision.concerns}")
 
     def test_gate_blocked_requires_review(self):
         decision = ReviewDecisionService().evaluate(
@@ -270,7 +272,8 @@ class TestReviewDecisionService(unittest.TestCase):
         )
 
         self.assertEqual(decision.action, "confirm")
-        self.assertIn("标题不完全匹配", decision.reason)
+        messages = [c.get("message", "") for c in decision.concerns]
+        self.assertIn("标题不完全匹配", messages)
 
     def test_valid_result_with_optional_warnings_can_continue(self):
         decision = ReviewDecisionService().evaluate(

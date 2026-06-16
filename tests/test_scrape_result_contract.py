@@ -26,8 +26,7 @@ class TestMediaTypeContract:
 
         decision = service.evaluate(scraped)
         assert decision.action == "continue", (
-            f"有 media_type 应通过验证，实际: {decision.action}, "
-            f"原因: {decision.reason}"
+            f"有 media_type 应通过验证，实际: {decision.action}"
         )
 
     def test_neither_type_nor_media_type_is_missing(self):
@@ -48,6 +47,7 @@ class TestMediaTypeContract:
         assert decision.action == "confirm", (
             "缺少媒体类型应触发确认"
         )
-        assert "媒体类型" in decision.reason or "media_type" in decision.reason.lower(), (
-            f"原因应提及媒体类型缺失，实际: {decision.reason}"
+        codes = [c.get("code", "") for c in decision.concerns]
+        assert "MISSING_FIELDS" in codes, (
+            f"concerns 应含 MISSING_FIELDS，实际: {decision.concerns}"
         )

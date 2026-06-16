@@ -29,7 +29,8 @@ class TestReviewDecisionV2(unittest.TestCase):
             "match_concerns": [{"code": "NO_YEAR_MULTI_MATCH", "message": "找到3部同名作品", "detail": "..."}],
         })
         self.assertEqual(decision.action, "confirm")
-        self.assertIn("3部同名", decision.reason)
+        messages = [c.get("message", "") for c in decision.concerns]
+        self.assertTrue(any("3部同名" in m for m in messages), f"concerns: {decision.concerns}")
 
     def test_needs_confirm_no_concerns(self):
         """NEEDS_CONFIRM 无疑虑 → confirm + 默认文案"""
@@ -51,7 +52,8 @@ class TestReviewDecisionV2(unittest.TestCase):
         """标题+类型缺失 → confirm + 缺失提示"""
         decision = self.service.evaluate({"year": 2020})
         self.assertEqual(decision.action, "confirm")
-        self.assertIn("缺失", decision.reason)
+        codes = [c.get("code", "") for c in decision.concerns]
+        self.assertIn("MISSING_FIELDS", codes)
 
     def test_year_warning_only(self):
         """有标题有类型但无年份 → 不缺失，只警告"""

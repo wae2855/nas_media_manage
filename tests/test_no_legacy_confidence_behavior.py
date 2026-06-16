@@ -25,7 +25,8 @@ class TestReviewDecisionByMatchLevel(unittest.TestCase):
         }
         decision = self.service.evaluate(scraped)
         self.assertEqual(decision.action, "confirm")
-        self.assertEqual(decision.reason, "需要确认")
+        messages = [c.get("message", "") for c in decision.concerns]
+        self.assertIn("需要确认", messages)
 
     def test_auto_pass_with_no_confidence_field(self):
         scraped = {
