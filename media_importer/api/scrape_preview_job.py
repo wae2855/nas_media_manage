@@ -184,6 +184,42 @@ def _run_scrape_preview_job(job_id, filename, config):
         match_level = match_dict.get("match_level", "NEEDS_CONFIRM")
         candidates = match_dict.get("candidates", [])
 
+        if match_level == "FAILED":
+            _preview_add_step(job, "scrape", "刮削结果", "done", "AI 判定非影视文件，任务失败")
+            scrape_result = {
+                "title_cn": clean_result.clean_title or "",
+                "year": None,
+                "media_type": "",
+                "match_level": "FAILED",
+                "match_tier": match_result.match_tier,
+                "tier_short_reason": match_dict.get("tier_short_reason", ""),
+                "ai_reason": match_dict.get("ai_reason", ""),
+                "selected_candidate": None,
+                "dimensions": {},
+            }
+            _preview_add_step(job, "scrape", "生成刮削结果", "done",
+                              f"AI 判定非影视文件",
+                              {"title": ""})
+            scrape_elapsed = round(time.time() - job["started_at"], 2)
+            job["status"] = "done"
+            job["result"] = {
+                "filename": filename,
+                "clean_result": {
+                    "clean_title": clean_result.clean_title,
+                    "year": clean_result.year,
+                    "season": clean_result.season,
+                    "episode": clean_result.episode,
+                    "method": clean_result.method,
+                    "removed_items": clean_result.removed_items,
+                },
+                "scrape_result": scrape_result,
+                "scrape_elapsed": scrape_elapsed,
+                "match_result": match_dict,
+                "import_path": {"import_path": "", "used_fallback": False, "matched_rule": None},
+            }
+            job["updated_at"] = time.time()
+            return
+
         if match_level in ("AUTO_PASS", "CONTEXT_PASS"):
             provider_id = match_result.provider_id
             provider_title = match_result.provider_title

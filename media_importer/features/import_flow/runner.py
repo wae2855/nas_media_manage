@@ -147,6 +147,21 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             self._step_scrape(task)
             self._step_validate(task)
 
+            # 检查 FAILED 状态（AI 判定为非影视文件）
+            match_result = (task.get("scrape_result") or {}).get("match_level", "")
+            if match_result == "FAILED":
+                scrape_res = task.get("scrape_result", {})
+                fail_msg = scrape_res.get("tier_short_reason", "AI 判定为非影视文件")
+                db_update_task(self.task_manager.conn, tid,
+                               **mark_failed(
+                                   ctx, fail_msg,
+                                   file_location=FILE_LOCATION_TEMP,
+                                   video_path=ctx.current_video_path,
+                                   completed=False,
+                               ))
+                self._log("error", f"任务失败: {fail_msg}", task)
+                return False
+
             if task.get("_force_fail"):
                 fail_reason = task.get("_fail_reason", "未知失败原因")
                 db_update_task(self.task_manager.conn, tid,

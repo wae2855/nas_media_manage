@@ -238,10 +238,14 @@ def _tier2_high_certainty_impl(
     concerns: list,
     trace_steps: list,
     tier1_candidates=None,
+    selected_candidate_id=None,
 ) -> Optional[MatchResult]:
     """AI 高确定性：用纠正后的标题搜 Provider → CONTEXT_PASS。"""
     candidates = []
-    if tier1_candidates:
+    # 优先用 AI 指定的候选
+    if selected_candidate_id and tier1_candidates:
+        candidates = [c for c in tier1_candidates if str(c.get("id")) == str(selected_candidate_id)]
+    if not candidates and tier1_candidates:
         candidates = [
             c for c in tier1_candidates
             if (not corrected_year or c.get("year") == corrected_year)
@@ -480,11 +484,38 @@ def _tier2_context_match_impl(
 
     tier1_candidates = getattr(self, '_pending_candidates', None) or []
 
+    # is_valid=false → 立即 FAILED
+    if not ai_is_valid:
+        concerns.append(MatchConcern(
+            code="INVALID_FILENAME",
+            message="AI 判定文件名无可识别影视信息",
+            detail=ai_reason,
+        ))
+        trace_steps.append(MatchTraceStep(
+            tier=2,
+            name="AI 辅助匹配",
+            matched=False,
+            reason=f"AI 判定为非影视文件: {ai_short_reason or ''}",
+            ai_reason=ai_reason,
+        ))
+        self._pending_concerns = concerns
+        self._pending_trace = trace_steps
+        return MatchResult(
+            match_level="FAILED",
+            match_tier=2,
+            concerns=concerns,
+            trace_steps=trace_steps,
+            tier_short_reason=ai_short_reason or "文件名无可识别影视信息",
+            ai_reason=ai_reason,
+            selected_candidate=None,
+        )
+
     if certainty == "high":
         return _tier2_high_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
             providers, ai_reason, ai_short_reason, concerns, trace_steps,
             tier1_candidates=tier1_candidates,
+            selected_candidate_id=ai_selected_id,
         )
     elif certainty == "medium":
         return _tier2_medium_certainty_impl(
