@@ -7,7 +7,6 @@ import pytest
 
 from media_importer.api.tmdb_handlers import (
     _SCRAPE_PREVIEW_JOBS,
-    _confirm_reason_from_match,
     _find_provider,
     _preview_add_step,
     _run_scrape_preview_job,
@@ -57,27 +56,6 @@ class TestScrapePreviewJob:
         assert job["steps"][0]["status"] == "running"
         assert job["steps"][1]["status"] == "done"
         del _SCRAPE_PREVIEW_JOBS[job_id]
-
-    def test_confirm_reason_from_concerns(self):
-        match_dict = {
-            "concerns": [
-                {"code": "FUZZY_TITLE", "message": "标题模糊匹配"},
-                {"code": "NO_YEAR", "message": "无年份信息"},
-            ]
-        }
-        reason = _confirm_reason_from_match(match_dict)
-        assert "标题模糊匹配" in reason
-        assert "无年份信息" in reason
-
-    def test_confirm_reason_fallback(self):
-        match_dict = {"confirm_reason": "AI 确定性不足", "concerns": []}
-        reason = _confirm_reason_from_match(match_dict)
-        assert reason == "AI 确定性不足"
-
-    def test_confirm_reason_default(self):
-        match_dict = {}
-        reason = _confirm_reason_from_match(match_dict)
-        assert reason == "需要人工确认候选结果"
 
     def test_find_provider_by_type(self):
         provider_a = MagicMock()
@@ -143,7 +121,6 @@ class TestScrapePreviewJob:
                 "overview": "Giants", "poster_url": "https://example.com/poster.jpg",
                 "vote_average": 8.5,
             }],
-            confirm_reason="标题模糊匹配",
         )
 
         config = {"classification": {"rules": []}, "path_rules": [], "fallback_dir": ""}
@@ -160,9 +137,8 @@ class TestScrapePreviewJob:
         assert result is not None
         sr = result["scrape_result"]
         assert sr["provider_id"] == "1429"
-        assert sr["preview_selected_candidate"] is True
         assert sr["match_level"] == "NEEDS_CONFIRM"
-        assert sr["confirm_reason"] == "标题模糊匹配"
+        assert sr["tier_short_reason"] is not None
         assert sr["media_type"] == "tv"
         del _SCRAPE_PREVIEW_JOBS[job_id]
 
@@ -194,7 +170,7 @@ class TestScrapePreviewJob:
                 MatchTraceStep(tier=1, name="Provider", matched=False, reason="no result"),
                 MatchTraceStep(tier=3, name="Confirm", matched=False, reason="need confirm"),
             ],
-            candidates=[], confirm_reason="未找到匹配作品",
+            candidates=[],
         )
 
         config = {"classification": {"rules": []}, "path_rules": [], "fallback_dir": ""}
@@ -208,10 +184,9 @@ class TestScrapePreviewJob:
 
         assert job["status"] == "done"
         sr = job["result"]["scrape_result"]
-        assert sr["preview_selected_candidate"] is False
         assert sr["match_level"] == "NEEDS_CONFIRM"
-        assert sr["confirm_reason"] is not None
-        assert len(sr["confirm_reason"]) > 0
+        assert sr["tier_short_reason"] is not None
+        assert len(sr["tier_short_reason"]) > 0
         del _SCRAPE_PREVIEW_JOBS[job_id]
 
     def test_preview_job_does_not_call_full_llm_scrape(self):
@@ -262,7 +237,6 @@ class TestScrapePreviewJob:
                 "media_type": "movie", "overview": "",
                 "poster_url": "", "vote_average": 8.8,
             }],
-            confirm_reason="exact match",
         )
 
         config = {"classification": {"rules": []}, "path_rules": [], "fallback_dir": ""}
@@ -332,8 +306,7 @@ class TestScrapePreviewJob:
         assert job["status"] == "done"
         sr = job["result"]["scrape_result"]
         assert sr["match_level"] == "NEEDS_CONFIRM"
-        assert sr["confirm_reason"] == "未配置 Provider，无法自动匹配"
-        assert sr["preview_selected_candidate"] is False
+        assert sr["tier_short_reason"] == "未配置 Provider，无法自动匹配"
         del _SCRAPE_PREVIEW_JOBS[job_id]
 
     def test_preview_job_auto_pass_gets_details(self):
@@ -386,7 +359,6 @@ class TestScrapePreviewJob:
                 "media_type": "movie", "overview": "",
                 "poster_url": "", "vote_average": 8.8,
             }],
-            confirm_reason="exact match",
         )
 
         config = {"classification": {"rules": []}, "path_rules": [], "fallback_dir": ""}
@@ -401,6 +373,5 @@ class TestScrapePreviewJob:
         assert sr["match_level"] == "AUTO_PASS"
         assert sr["title_cn"] == "Inception"
         assert sr["provider_id"] == "27205"
-        assert sr["preview_selected_candidate"] is False
         assert sr["poster_url"] == "https://example.com/poster.jpg"
         del _SCRAPE_PREVIEW_JOBS[job_id]

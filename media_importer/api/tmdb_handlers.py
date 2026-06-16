@@ -4,7 +4,6 @@ from .scrape_preview_job import (
     _PREVIEW_STEP_DELAY,
     _preview_step_delay,
     _preview_add_step,
-    _confirm_reason_from_match,
     _find_provider,
     _run_scrape_preview_job,
 )

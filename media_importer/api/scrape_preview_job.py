@@ -36,26 +36,6 @@ def _preview_add_step(job, key, label, status="running", message="", data=None):
     })
 
 
-def _confirm_reason_from_match(match_dict: dict) -> str:
-    concerns = match_dict.get("concerns") or match_dict.get("match_concerns") or []
-    messages = []
-    for concern in concerns:
-        if isinstance(concern, dict) and concern.get("message"):
-            messages.append(concern["message"])
-        if isinstance(concern, dict) and concern.get("detail"):
-            detail = concern["detail"]
-            if detail not in messages:
-                messages.append(detail)
-    for step in match_dict.get("trace_steps") or match_dict.get("trace") or []:
-        if isinstance(step, dict) and step.get("ai_reason"):
-            reason = step["ai_reason"]
-            if reason not in messages:
-                messages.append(reason)
-    if messages:
-        return "；".join(messages)
-    return match_dict.get("confirm_reason") or "需要人工确认候选结果"
-
-
 def _find_provider(providers, provider_type):
     for p in providers:
         if p.provider_type == provider_type:
@@ -110,8 +90,10 @@ def _run_scrape_preview_job(job_id, filename, config):
                     "provider_id": "",
                     "dimensions": {},
                     "match_level": "NEEDS_CONFIRM",
-                    "confirm_reason": "未配置 Provider，无法自动匹配",
-                    "preview_selected_candidate": False,
+                    "match_tier": 0,
+                    "tier_short_reason": "未配置 Provider，无法自动匹配",
+                    "ai_reason": "",
+                    "selected_candidate": None,
                 },
                 "scrape_elapsed": round(time.time() - job["started_at"], 2),
                 "match_result": {
@@ -197,6 +179,8 @@ def _run_scrape_preview_job(job_id, filename, config):
         _preview_add_step(job, "scrape", "生成刮削结果", "running", "正在获取详情...")
         _preview_step_delay()
         scrape_result = {}
+        cached_details = None
+        cached_provider = None
         match_level = match_dict.get("match_level", "NEEDS_CONFIRM")
         candidates = match_dict.get("candidates", [])
 
@@ -209,13 +193,19 @@ def _run_scrape_preview_job(job_id, filename, config):
                     matched_candidate = c
                     break
 
+            if logger:
+                logger.info(f"[scrape_preview_job] match_level={match_level}, candidates={len(candidates)}, matched={matched_candidate is not None}, provider_id={provider_id}")
             if matched_candidate:
                 provider_type = matched_candidate.get("provider_type", "")
                 media_type = matched_candidate.get("media_type", "movie")
                 provider = _find_provider(providers, provider_type)
+                if logger:
+                    logger.info(f"[scrape_preview_job] provider_type={provider_type}, provider={provider is not None}")
                 if provider:
                     try:
                         details = provider.get_details(str(provider_id), media_type)
+                        cached_details = details
+                        cached_provider = provider
                         scrape_result = {
                             "title_cn": details.title,
                             "title_en": details.original_title,
@@ -229,8 +219,10 @@ def _run_scrape_preview_job(job_id, filename, config):
                             "overview": details.overview,
                             "dimensions": {},
                             "match_level": match_level,
-                            "confirm_reason": match_dict.get("confirm_reason", ""),
-                            "preview_selected_candidate": False,
+                            "match_tier": match_result.match_tier,
+                            "tier_short_reason": match_dict.get("tier_short_reason", ""),
+                            "ai_reason": match_dict.get("ai_reason", ""),
+                            "selected_candidate": match_dict.get("selected_candidate"),
                         }
                     except Exception as e:
                         if logger:
@@ -247,8 +239,10 @@ def _run_scrape_preview_job(job_id, filename, config):
                         "provider_id": str(provider_id),
                         "dimensions": {},
                         "match_level": match_level,
-                        "confirm_reason": match_dict.get("confirm_reason", ""),
-                        "preview_selected_candidate": False,
+                        "match_tier": match_result.match_tier,
+                        "tier_short_reason": match_dict.get("tier_short_reason", ""),
+                        "ai_reason": match_dict.get("ai_reason", ""),
+                        "selected_candidate": match_dict.get("selected_candidate"),
                     }
             else:
                 scrape_result = {
@@ -262,8 +256,10 @@ def _run_scrape_preview_job(job_id, filename, config):
                     "provider_id": str(provider_id) if provider_id else "",
                     "dimensions": {},
                     "match_level": match_level,
-                    "confirm_reason": match_dict.get("confirm_reason", ""),
-                    "preview_selected_candidate": False,
+                    "match_tier": match_result.match_tier,
+                    "tier_short_reason": match_dict.get("tier_short_reason", ""),
+                    "ai_reason": match_dict.get("ai_reason", ""),
+                    "selected_candidate": match_dict.get("selected_candidate"),
                 }
 
         elif match_level == "NEEDS_CONFIRM" and candidates:
@@ -275,6 +271,8 @@ def _run_scrape_preview_job(job_id, filename, config):
             if provider:
                 try:
                     details = provider.get_details(str(candidate.get("id")), media_type)
+                    cached_details = details
+                    cached_provider = provider
                     scrape_result = {
                         "title_cn": details.title,
                         "title_en": details.original_title,
@@ -288,8 +286,10 @@ def _run_scrape_preview_job(job_id, filename, config):
                         "overview": details.overview,
                         "dimensions": {},
                         "match_level": "NEEDS_CONFIRM",
-                        "confirm_reason": _confirm_reason_from_match(match_dict),
-                        "preview_selected_candidate": True,
+                        "match_tier": match_result.match_tier,
+                        "tier_short_reason": match_dict.get("tier_short_reason", ""),
+                        "ai_reason": match_dict.get("ai_reason", ""),
+                        "selected_candidate": match_dict.get("selected_candidate"),
                     }
                 except Exception as e:
                     if logger:
@@ -309,8 +309,10 @@ def _run_scrape_preview_job(job_id, filename, config):
                     "overview": candidate.get("overview", ""),
                     "dimensions": {},
                     "match_level": "NEEDS_CONFIRM",
-                    "confirm_reason": _confirm_reason_from_match(match_dict),
-                    "preview_selected_candidate": True,
+                    "match_tier": match_result.match_tier,
+                    "tier_short_reason": match_dict.get("tier_short_reason", ""),
+                    "ai_reason": match_dict.get("ai_reason", ""),
+                    "selected_candidate": match_dict.get("selected_candidate"),
                 }
 
         else:
@@ -325,13 +327,44 @@ def _run_scrape_preview_job(job_id, filename, config):
                 "provider_id": "",
                 "dimensions": {},
                 "match_level": "NEEDS_CONFIRM",
-                "confirm_reason": _confirm_reason_from_match(match_dict) or "未找到可用候选，需要人工确认",
-                "preview_selected_candidate": False,
+                "match_tier": match_result.match_tier,
+                "tier_short_reason": match_dict.get("tier_short_reason", "") or "未找到可用候选，需要人工确认",
+                "ai_reason": match_dict.get("ai_reason", ""),
+                "selected_candidate": match_dict.get("selected_candidate"),
             }
 
         _preview_add_step(job, "scrape", "生成刮削结果", "done",
                           f"标题={scrape_result.get('title_cn', '')}",
                           {"title": scrape_result.get("title_cn", "")})
+
+        # 维度推导：从 Provider 详情推导 animation/documentary/restricted_level 等维度
+        if logger:
+            logger.info(f"[scrape_preview_job] 维度推导检查: cached_details={cached_details is not None}, cached_provider={cached_provider is not None}")
+        if cached_details and cached_provider:
+            _preview_add_step(job, "scrape", "维度推导", "running", "正在从 Provider 数据推导维度...")
+            _preview_step_delay()
+            try:
+                from media_importer.features.scraping import get_dimensions_for_provider
+                from media_importer.api import globals as _api_globals
+                conn = _api_globals._global_task_manager.conn if _api_globals._global_task_manager else None
+                if conn:
+                    dim_configs = get_dimensions_for_provider(conn, cached_provider.provider_type)
+                    dim_mappings = cached_provider.map_dimensions(dim_configs, cached_details)
+                    derived_dims = {dm.name: {"value": dm.value, "source": dm.source} for dm in dim_mappings}
+                    # 补充无 provider_mappings 的基础维度（如 media_type）
+                    media_type = scrape_result.get("media_type", "")
+                    if media_type and "media_type" not in derived_dims:
+                        derived_dims["media_type"] = {"value": media_type, "source": "file"}
+                    scrape_result["dimensions"] = derived_dims
+                    _preview_add_step(job, "scrape", "维度推导", "done",
+                                      f"推导出 {len(derived_dims)} 个维度",
+                                      {"dimensions": derived_dims})
+                else:
+                    _preview_add_step(job, "scrape", "维度推导", "done", "无 DB 连接，跳过维度推导")
+            except Exception as e:
+                if logger:
+                    logger.warning(f"[scrape_preview_job] 维度推导失败: {e}")
+                _preview_add_step(job, "scrape", "维度推导", "done", f"维度推导失败: {e}")
 
         _preview_add_step(job, "classify", "入库路径预估", "running", "正在计算入库路径...")
         _preview_step_delay()
@@ -340,19 +373,13 @@ def _run_scrape_preview_job(job_id, filename, config):
         matched_rule = None
         try:
             from media_importer.features.import_flow.services.classification_rules import classify
-            dims = scrape_result.get("dimensions", {})
             rules = (config or {}).get("classification", {}).get("rules", [])
             if not rules:
                 rules = (config or {}).get("path_rules", [])
-            for idx, rule in enumerate(rules):
-                if classify(dims, rule.get("match_conditions", rule.get("conditions", {})), set()):
-                    import_path = rule.get("import_path", rule.get("template", ""))
-                    matched_rule = idx + 1
-                    break
+            if rules:
+                import_path = classify(scrape_result, rules, None)
             if not import_path:
-                import_path = (config or {}).get("classification", {}).get("fallback_dir", "")
-                if not import_path:
-                    import_path = (config or {}).get("fallback_dir", "")
+                import_path = (config or {}).get("fallback_dir", "")
                 used_fallback = bool(import_path)
         except Exception as e:
             if logger:
