@@ -435,6 +435,8 @@ def _tier2_context_match_impl(
     trace_steps = self._pending_trace
 
     context = _call_collect_context(self, video_path) if video_path else {}
+    # 把 Tier 1 候选塞入 AI 上下文
+    context["provider_candidates"] = getattr(self, '_pending_candidates', None) or []
     original_filename = video_path or clean_title
 
     try:
@@ -468,6 +470,8 @@ def _tier2_context_match_impl(
     corrected_year = ai_result.get("corrected_year", year)
     ai_reason = ai_result.get("reason", "")
     ai_short_reason = ai_result.get("short_reason", "")
+    ai_is_valid = ai_result.get("is_valid", True)
+    ai_selected_id = ai_result.get("selected_candidate_id")
     suggestion = ai_result.get("suggestion", corrected_title)
     media_type_hint = ai_result.get("media_type_hint")
 
