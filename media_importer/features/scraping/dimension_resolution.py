@@ -19,7 +19,6 @@ class DimensionResolutionResult:
     """维度解析结果。"""
     dimensions: dict = field(default_factory=dict)
     dim_sources: dict = field(default_factory=dict)
-    confirm_reason_parts: list = field(default_factory=list)
 
 
 def resolve_dimension_sources(
@@ -56,7 +55,6 @@ def resolve_dimension_sources(
     ai_search_dim_names = ai_search_dim_names or set()
 
     sources = {}
-    confirm_reason_parts = []
 
     file_dim_names = set(file_dimensions.keys()) if file_dimensions else set()
 
@@ -75,5 +73,4 @@ def resolve_dimension_sources(
     return DimensionResolutionResult(
         dimensions=dimensions,
         dim_sources=sources,
-        confirm_reason_parts=confirm_reason_parts,
     )

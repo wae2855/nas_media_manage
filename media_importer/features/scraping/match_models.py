@@ -51,7 +51,7 @@ class MatchTraceStep:
 class MatchResult:
     """三级匹配引擎的最终结果。"""
     match_level: str            # AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM / FAILED
-    provider_id: Optional[int] = None
+    provider_id: Optional[str] = None
     provider_title: str = ""
     match_tier: int = 0         # 命中的级别（1/2/3）
     concerns: List[MatchConcern] = field(default_factory=list)
