@@ -1,5 +1,7 @@
 # Prompts Feature
 
+> **AI 提示词契约事实源**：本文件描述代码组织。Tier 2 AI 辅助匹配的输入/输出 JSON 契约、is_valid/certainty 语义、边界判定规则以 [../standards/ai-prompt-design.md](../standards/ai-prompt-design.md) 为准。
+
 提示词能力负责 AI 刮削提示词模板、变量、用户配置和与刮削结果解析相关的可维护边界。
 
 ## Current Code Entrypoints

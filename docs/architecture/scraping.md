@@ -125,3 +125,94 @@ Provider 搜索结果 Top 5 + 匹配疑虑原因 → 用户选择 → 确认入�
 - `tests/test_scrape_preview_api.py`
 - `tests/test_feature_entrypoints.py`
 - `tests/test_import_flow_services.py`（审核决策边界）
+- `tests/test_match_result_fields.py`（MatchResult 字段契约）
+- `tests/test_phase_pqr.py`（is_valid / selected_candidate_id / FAILED）
+- `tests/test_formal_flow_field_propagation.py`（正式流程字段传递）
+
+---
+
+## 数据流：字段传递路径
+
+> 完整字段契约见 [../standards/info-architecture.md](../standards/info-architecture.md)
+
+### 关键路径
+
+```
+MatchEngine.match()
+    ↓ 返回 MatchResult（含 L1-L6 全部字段）
+    ↓ MatchResult.to_dict() 序列化
+match_dict
+    ↓
+    ├──→ scrape.py（正式任务）
+    │     result['match_level'] = match_dict['match_level']
+    │     result['match_concerns'] = match_dict['concerns']
+    │     result['match_trace'] = match_dict
+    │     result['match_tier'] = match_dict['match_tier']           ← 必须透传
+    │     result['tier_short_reason'] = match_dict['tier_short_reason']  ← 必须透传
+    │     result['ai_reason'] = match_dict['ai_reason']             ← 必须透传
+    │     result['selected_candidate'] = match_dict['selected_candidate']  ← 必须透传
+    │     ↓
+    │     task['scrape_result'] = result
+    │     ↓
+    │     DB tasks.scrape_result（JSON 列）
+    │
+    └──→ scrape_preview_job.py（模拟器）
+          同样 4 个字段透传到 scrape_result
+          ↓
+          API /api/scrape/preview/status/{job_id}
+          ↓
+          前端模拟器渲染
+
+前端统一入口：
+    task 对象（来自 API）
+        ↓
+    buildMatchPathData(task)        ← 唯一装配器，禁止各视图自己拼
+        ↓
+    renderMatchPathPreview(data)    ← 6 步时间轴渲染
+        ↓
+    列表行 / 卡片 / 详情 / 追踪弹窗 各取所需字段
+```
+
+### 模拟器与正式任务一致性约束
+
+**绝对约束**：`scrape.py` 和 `scrape_preview_job.py` 输出的 `scrape_result` JSON 字段结构必须完全一致。
+
+违反此约束会导致：
+- 模拟器显示正确，正式任务显示空白（或反之）
+- 前端 `buildMatchPathData` 无法统一处理
+- 测试在一边通过但另一边失败
+
+### 失败状态流转
+
+```
+AI 返回 is_valid=false
+    ↓
+MatchResult(match_level="FAILED", match_tier=2)
+    ↓
+runner.py 检测到 FAILED
+    ↓
+task.status = "FAILED"
+task.error_message = tier_short_reason
+    ↓
+不进入入库流程
+    ↓
+前端卡片显示 ❌ + ai_reason + 🔄 重新刮削按钮
+    ↓
+POST /api/tasks/{id}/rescrape （可选 new_filename）
+    ↓
+task.status = "PENDING"，重新入队
+```
+
+---
+
+## 相关标准（事实源）
+
+修改本架构文档前，必须先查阅：
+
+| 标准 | 范围 |
+|------|------|
+| [../standards/scrape-matching.md](../standards/scrape-matching.md) | 三级匹配行为契约 |
+| [../standards/info-architecture.md](../standards/info-architecture.md) | 6 层信息职责模型 |
+| [../standards/ai-prompt-design.md](../standards/ai-prompt-design.md) | AI 提示词输入/输出契约 |
+
+本架构文档描述"为什么这样设计"，标准文档描述"系统如何工作"。冲突时以标准文档为准。

@@ -1,5 +1,11 @@
 # Scraping Feature
 
+> **行为契约事实源**：本文件描述代码组织。系统行为（匹配流程、字段定义、信息职责）以标准文档为准：
+> - [../standards/scrape-matching.md](../standards/scrape-matching.md) — 三级匹配行为契约
+> - [../standards/info-architecture.md](../standards/info-architecture.md) — 6 层信息职责模型
+> - [../standards/ai-prompt-design.md](../standards/ai-prompt-design.md) — AI 提示词输入/输出契约
+> - [../architecture/scraping.md](../architecture/scraping.md) — 字段传递路径与设计理由
+
 刮削负责根据文件名、路径、AI 识别、TMDB/Provider 结果和三级匹配策略生成可入库的媒体元数据。
 
 ## Current Code Entrypoints

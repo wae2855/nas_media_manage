@@ -37,6 +37,7 @@
 | 修改任务状态 | `features/tasks.md`, `architecture/task-lifecycle.md`, `testing/regression-matrix.md` |
 | 修改文件删除/覆盖逻辑 | `features/source-files.md`, `standards/safety.md`, `architecture/storage-filesystem.md`, 回收站测试 |
 | 新增 Provider | `features/providers.md`, `architecture/scraping.md`, Provider 测试 |
+| **修改三级匹配/刮削字段** | **`standards/scrape-matching.md`, `standards/info-architecture.md`, `standards/ai-prompt-design.md`, `decisions/0007-information-responsibility-split.md`** |
 | 修改前端页面 | `product/frontend-redesign-todo.md`, `product/frontend-information-architecture.md`, `architecture/frontend-api-dependency-map.md`, UI 测试 |
 | 新增或迁移 feature | 对应 `docs/features/` 文档、feature smoke 测试、ADR/plan 状态 |
 | 大架构重构 | 新增 ADR，更新 roadmap/plan 和相关架构文档 |
@@ -55,6 +56,19 @@
 - [AI-efficient architecture completion](plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md) — complete, product full-flow acceptance deferred until frontend redesign
 - [Feature-first 代码和文档结构重组](plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md) — complete, pending user acceptance
 - [AI 配置界面三区域改造+Phase 3](plans/2026-06-15-ai-config-restructure-plan.md) — complete, 627 tests pass, pending user acceptance
+- [刮削信息职责拆分](plans/2026-06-16-scrape-info-responsibility-split-plan.md) — complete, 632 tests pass, 6 层信息架构 + 三级匹配行为契约落地, ADR-0007
+- [字段传递断裂修复](plans/2026-06-16-fix-field-propagation-prompt.md) — complete, 正式流程 scrape.py 字段透传修复
+- [优化项计划（遗留清理 + DB 列删除 + E2E）](plans/2026-06-16-optimization-items-plan.md) — pending, 3 个优化项待执行
+
+## Behavior Standards (Fact Source)
+
+修改刮削/匹配/信息展示相关代码前，必读：
+
+| 标准 | 范围 |
+|------|------|
+| [standards/scrape-matching.md](standards/scrape-matching.md) | 三级匹配行为契约（决策树、字段定义、FAILED 状态） |
+| [standards/info-architecture.md](standards/info-architecture.md) | 6 层信息职责模型、各视图密度分层、前后端字段契约 |
+| [standards/ai-prompt-design.md](standards/ai-prompt-design.md) | Tier 2 AI 输入/输出 JSON 契约、is_valid 判定边界、提示词模板 |
 
 ## Archive
 

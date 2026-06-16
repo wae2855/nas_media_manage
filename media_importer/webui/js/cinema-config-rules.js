@@ -220,7 +220,9 @@ function renderRuleList(pathRules) {
         } else {
           conditionsHTML = entries
             .map(([key, value]) => {
-              const dim = dims.find((d) => d.name === key);
+              const dim =
+                dims.find((d) => d.name === key) ||
+                (_dimensionsData || []).find((d) => d.name === key);
               const dimLabel = dim ? dim.label || dim.name : key;
               const dimColor =
                 dim && dim.color ? dim.color : palette[index % palette.length];
@@ -491,4 +493,3 @@ function deleteInlineRule(index) {
     showToast("规则已删除，记得点击保存");
   });
 }
-

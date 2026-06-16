@@ -94,6 +94,7 @@ def _build_minimal_result(clean_result, enabled_dims_set=None,
         "media_type": "tv" if clean_result.season else "movie",
         "provider_type": "ai",
         "provider_id": "",
+        "dimensions": {},
         "scrape_trace": {},
     }
     if provider_fallback_reasons:
@@ -166,9 +167,11 @@ def _build_provider_only_result(scraper, details, search_item, media_type,
         "poster_url": getattr(details, "poster_url", "") or "",
     }
     if provider_dimensions:
+        result["dimensions"] = {}
         for dim_name, dim_data in provider_dimensions.items():
             if dim_name not in result:
                 result[dim_name] = dim_data.get("value")
+            result["dimensions"][dim_name] = dim_data.get("value")
     log.info(f"[metadata_scraper] done (provider_only): total={time.time()-t_start:.1f}s")
     return result
 
@@ -395,7 +398,12 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
                     result = scraper.llm_scraper.scrape(video_filename, subtitle_filenames, conn=conn)
                 except LLMScrapeError as llm_err:
                     log.warning(f"[metadata_scraper] scrape fallback also failed: {llm_err}")
-                    result = {}
+                    result = _build_provider_only_result(
+                        scraper, details, search_item, media_type,
+                        clean_result, provider_dimensions, search_info,
+                        match_result, ai_clean_result, enabled_dims_set,
+                        log, t_start,
+                    )
 
             result["provider_type"] = provider.provider_type
             result["provider_id"] = search_item.item_id

@@ -158,6 +158,10 @@ def _map_region_v2(name: str, mapping: dict, provider_data: dict) -> dict:
     first_country = origin_countries[0] if isinstance(origin_countries, list) else origin_countries
 
     match_rules = mapping.get('match_rules', {})
+    if not match_rules:
+        flat_codes = mapping.get('codes', {})
+        if flat_codes:
+            match_rules = {k: {'codes': v} for k, v in flat_codes.items()}
     for rule_value, rule_config in match_rules.items():
         codes = rule_config.get('codes', [])
         if first_country in codes:
@@ -173,34 +177,39 @@ def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict) -> dict:
         return {'name': name, 'value': None, 'source_reliability': 0}
 
     match_rules = mapping.get('match_rules', {})
-    for rule_value, rule_config in match_rules.items():
-        langs = rule_config.get('languages', [])
-        if original_language in langs:
-            return {'name': name, 'value': rule_value, 'source_reliability': 1.0}
+    if match_rules:
+        for rule_value, rule_config in match_rules.items():
+            langs = rule_config.get('languages', [])
+            if original_language in langs:
+                return {'name': name, 'value': rule_value, 'source_reliability': 1.0}
+        return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
-    return {'name': name, 'value': 'other', 'source_reliability': 1.0}
+    return {'name': name, 'value': original_language, 'source_reliability': 1.0}
 
 
 def _map_genre_by_rules(name: str, mapping: dict, value_list: list, provider_data: dict) -> dict:
-    genre_ids = _extract_genre_ids(provider_data)
-    if not genre_ids:
+    genres = provider_data.get('genres', [])
+    ordered_ids = []
+    for g in genres:
+        if isinstance(g, dict) and 'id' in g:
+            ordered_ids.append(str(g['id']))
+        elif isinstance(g, (int, str)):
+            ordered_ids.append(str(g))
+    if not ordered_ids:
         return {'name': name, 'value': None, 'source_reliability': 0}
 
     match_rules = mapping.get('match_rules', {})
+    id_to_category = {}
+    for category, rule_config in match_rules.items():
+        for gid in rule_config.get('ids', []):
+            id_to_category[str(gid)] = category
 
-    sorted_values = sorted(value_list, key=lambda x: x.get('priority', 99))
-
-    for vl in sorted_values:
-        rule_config = match_rules.get(vl['value'])
-        if rule_config is None:
-            continue
-        rule_ids = set(str(i) for i in rule_config.get('ids', []))
-        if genre_ids & rule_ids:
-            return {'name': name, 'value': vl['value'], 'source_reliability': 0.9}
-
-    for vl in sorted_values:
-        if vl.get('value') == 'other':
-            return {'name': name, 'value': 'other', 'source_reliability': 0.9}
+    for gid in ordered_ids:
+        category = id_to_category.get(gid)
+        if category:
+            for vl in value_list:
+                if vl.get('value') == category:
+                    return {'name': name, 'value': category, 'source_reliability': 0.9}
 
     return {'name': name, 'value': 'other', 'source_reliability': 0.9}
 
