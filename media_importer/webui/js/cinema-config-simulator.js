@@ -1,19 +1,26 @@
 // cinema-config-simulator.js - extracted from cinema-config.js
-function explainSimulatedQueue(matchLevel, concerns) {
-  if (matchLevel === "AUTO_PASS")
-    return "标题精确匹配，自动通过，直接进入入库队列。";
-  if (matchLevel === "CONTEXT_PASS")
-    return "AI 辅助匹配通过，上下文信息支持自动入库。";
-  if (matchLevel === "NEEDS_CONFIRM") {
-    const concernMessages = (concerns || [])
-      .map((c) => c.message || "")
-      .filter(Boolean);
-    if (concernMessages.length > 0) {
-      return "需要人工确认：" + concernMessages.join("；") + "。";
+function explainSimulatedQueue(matchResult) {
+  const tier = matchResult.match_tier || 0;
+  const level = matchResult.match_level;
+  const shortReason = matchResult.tier_short_reason || "";
+
+  if (shortReason) {
+    return shortReason;
+  }
+
+  if (level === "AUTO_PASS") return "标题精确匹配，自动通过。";
+  if (level === "CONTEXT_PASS") return "AI 辅助匹配通过。";
+  if (level === "NEEDS_CONFIRM") {
+    const concerns = matchResult.concerns || [];
+    if (concerns.length > 0) {
+      return (
+        "需要人工确认：" + concerns.map((c) => c.message).join("；") + "。"
+      );
     }
     return "需要人工确认匹配结果。";
   }
-  return "匹配结果未知，请结合标题和 Provider 命中情况手动判断。";
+  if (level === "FAILED") return "AI 判定为非影视文件，任务失败。";
+  return "匹配结果未知。";
 }
 
 function renderMatchPathPreview(data) {
@@ -37,7 +44,7 @@ function renderMatchPathPreview(data) {
   const matchLevel = matchResult.match_level || "NEEDS_CONFIRM";
   const concerns = matchResult.concerns || [];
   const traceSteps = matchResult.trace || [];
-  const queueExplanation = explainSimulatedQueue(matchLevel, concerns);
+  const queueExplanation = explainSimulatedQueue(matchResult);
 
   let html = '<div class="sim-compare">';
 
@@ -175,23 +182,44 @@ function renderMatchPathPreview(data) {
   if (scrapeRes.episode != null)
     html += `<div class="sim-kv"><span class="sim-k">集</span><span class="sim-v">E${scrapeRes.episode}</span></div>`;
   html += "</div>";
-  if (scrapeRes.dimensions) {
-    html += `<div style="margin-top:8px">${_renderSimDims(scrapeRes.dimensions)}</div>`;
-  }
-  if (scrapeRes.preview_selected_candidate) {
-    html +=
-      '<div class="sim-warning">已按 Provider 返回排序默认加载第一候选生成预览结果，请检查后确认。</div>';
-  }
-  if (scrapeRes.confirm_reason) {
-    html += `<div class="sim-warning">${escapeHtml(scrapeRes.confirm_reason)}</div>`;
+  const selected = scrapeRes.selected_candidate;
+  if (selected && selected.why_selected) {
+    const whyMap = {
+      unique_match: "唯一精确匹配",
+      top_rated: "评分最高",
+      ai_suggestion: "AI 建议",
+      first_candidate: "Provider 排序第一",
+      user_pick: "用户选择",
+    };
+    const whyText = whyMap[selected.why_selected] || selected.why_selected;
+    html += `<div class="sim-warning">已加载第一候选（${escapeHtml(whyText)}），请检查后确认。</div>`;
   }
   html += "</div></div>";
 
-  // --- timeline step 5: 最终入库判断 ---
+  // --- timeline step 5: 维度推导 ---
+  const hasDims =
+    scrapeRes.dimensions && Object.keys(scrapeRes.dimensions).length > 0;
+  if (hasDims) {
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html +=
+      '<div class="sim-step-dot" style="background:#8B5CF618;color:#8B5CF6">5</div>';
+    html += '<div class="sim-step-line" style="background:#8B5CF630"></div>';
+    html += "</div>";
+    html += '<div class="sim-step-content">';
+    html +=
+      '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">维度推导</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">DIMS</span></div>';
+    html += _renderSimDims(scrapeRes.dimensions);
+    html += "</div></div>";
+  }
+
+  // --- timeline step 6: 最终入库判断 ---
   html += '<div class="sim-step">';
   html += '<div class="sim-step-rail">';
   html +=
-    '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">5</div>';
+    '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">' +
+    (hasDims ? "6" : "5") +
+    "</div>";
   html += '<div class="sim-step-line" style="background:transparent"></div>';
   html += "</div>";
   html += '<div class="sim-step-content">';
@@ -258,14 +286,49 @@ function _simFormatNumber(value) {
 
 function _renderSimDims(dims) {
   if (!dims || typeof dims !== "object") return "";
+  const dimDefs = window.currentEnabledDimensions || [];
+  const allDimDefs = window._dimensionsData || [];
+  const sourceLabels = {
+    tmdb: "Provider",
+    ai_assist: "AI辅助",
+    ai_search: "AI搜索",
+  };
+  const fallbackColors = [
+    "#f59e0b",
+    "#ec4899",
+    "#8b5cf6",
+    "#06b6d4",
+    "#10b981",
+    "#f97316",
+    "#3b82f6",
+    "#eab308",
+  ];
+  let colorIdx = 0;
   let html = '<div class="sim-dim-list">';
   for (const key in dims) {
     const val = dims[key];
-    const displayVal =
-      typeof val === "object" && val !== null
-        ? val.value || JSON.stringify(val)
-        : val;
-    html += `<span class="sim-dim-tag">${escapeHtml(key)}=${escapeHtml(String(displayVal))}</span>`;
+    const isObj = typeof val === "object" && val !== null;
+    const displayVal = isObj ? val.value || JSON.stringify(val) : val;
+    const source = isObj ? val.source || "" : "";
+    const dimDef =
+      dimDefs.find((d) => d.name === key) ||
+      allDimDefs.find((d) => d.name === key);
+    const dimLabel = dimDef ? dimDef.label || dimDef.name : key;
+    const dimColor =
+      dimDef && dimDef.color
+        ? dimDef.color
+        : fallbackColors[colorIdx++ % fallbackColors.length];
+    let valLabel = String(displayVal);
+    if (dimDef && Array.isArray(dimDef.value_list)) {
+      const matched = dimDef.value_list.find(
+        (v) => String(v.value) === String(displayVal),
+      );
+      if (matched) valLabel = matched.label || String(displayVal);
+    }
+    const sourceBadge = source
+      ? `<span class="sim-dim-source sim-dim-source--${escapeHtml(source)}">${escapeHtml(sourceLabels[source] || source)}</span>`
+      : "";
+    html += `<span class="sim-dim-tag" style="--dim-color:${escapeHtml(dimColor)}"><span class="sim-dim-label">${escapeHtml(dimLabel)}</span><span class="sim-dim-val">${escapeHtml(valLabel)}</span>${sourceBadge}</span>`;
   }
   html += "</div>";
   return html;
@@ -410,4 +473,3 @@ function updateConfigStageStatus(config, paths, pathRules) {
     card.dataset.state = valid ? "valid" : "invalid";
   });
 }
-
