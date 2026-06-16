@@ -160,6 +160,21 @@ def _tier1_exact_match_impl(
                         ),
                     )
 
+                self._pending_candidates = [
+                    {
+                        "id": item.item_id,
+                        "title": item.title,
+                        "original_title": getattr(item, 'original_title', '') or '',
+                        "year": item.year,
+                        "media_type": item.media_type,
+                        "provider_type": item.provider_type,
+                        "vote_average": item.vote_average,
+                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
+                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
+                        "poster_url": getattr(item, 'poster_url', '') or '',
+                    }
+                    for item, _ in exact_matches
+                ]
                 self._pending_concerns.append(MatchConcern(
                     code="NO_YEAR_MULTI_MATCH",
                     message=f"找到 {len(exact_matches)} 部同名作品",
@@ -215,9 +230,17 @@ def _tier2_high_certainty_impl(
     ai_short_reason: str,
     concerns: list,
     trace_steps: list,
+    tier1_candidates=None,
 ) -> Optional[MatchResult]:
     """AI 高确定性：用纠正后的标题搜 Provider → CONTEXT_PASS。"""
-    candidates = _search_providers_impl(self.title_matcher, corrected_title, corrected_year, providers)
+    candidates = []
+    if tier1_candidates:
+        candidates = [
+            c for c in tier1_candidates
+            if (not corrected_year or c.get("year") == corrected_year)
+        ]
+    if not candidates:
+        candidates = _search_providers_impl(self.title_matcher, corrected_title, corrected_year, providers)
     if candidates:
         selected = candidates[0]
         trace_steps.append(MatchTraceStep(
@@ -253,6 +276,7 @@ def _tier2_high_certainty_impl(
     return _tier2_medium_certainty_impl(
         self, corrected_title, corrected_year, media_type_hint,
         providers, f"高确定性但未搜到结果: {ai_reason}", ai_short_reason, concerns, trace_steps,
+        tier1_candidates=tier1_candidates,
     )
 
 
@@ -266,9 +290,17 @@ def _tier2_medium_certainty_impl(
     ai_short_reason: str,
     concerns: list,
     trace_steps: list,
+    tier1_candidates=None,
 ) -> Optional[MatchResult]:
     """AI 中确定性：搜 Provider → NEEDS_CONFIRM（带候选列表）。"""
-    candidates = _search_providers_impl(self.title_matcher, corrected_title, corrected_year, providers)
+    candidates = []
+    if tier1_candidates:
+        candidates = [
+            c for c in tier1_candidates
+            if (not corrected_year or c.get("year") == corrected_year)
+        ]
+    if not candidates:
+        candidates = _search_providers_impl(self.title_matcher, corrected_title, corrected_year, providers)
     concerns.append(MatchConcern(
         code="AI_UNCERTAIN",
         message="AI 中等确定性，需要人工确认",
@@ -417,20 +449,25 @@ def _tier2_context_match_impl(
     # 优先使用 AI 纠正后的标题，suggestion 只作辅助日志
     search_title = corrected_title
 
+    tier1_candidates = getattr(self, '_pending_candidates', None) or []
+
     if certainty == "high":
         return _tier2_high_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
             providers, ai_reason, ai_short_reason, concerns, trace_steps,
+            tier1_candidates=tier1_candidates,
         )
     elif certainty == "medium":
         return _tier2_medium_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
             providers, ai_reason, ai_short_reason, concerns, trace_steps,
+            tier1_candidates=tier1_candidates,
         )
     else:
         return _tier2_medium_certainty_impl(
             self, search_title, corrected_year, media_type_hint,
             providers, ai_reason, ai_short_reason, concerns, trace_steps,
+            tier1_candidates=tier1_candidates,
         )
 
 

@@ -32,6 +32,7 @@ class MatchEngine:
         self.config = config or {}
         self.title_matcher = TitleMatcher()
         self.filename_cleaner = FilenameCleaner()
+        self._pending_candidates = []  # Tier 1 找到但未自动通过的候选
         self._pending_concerns = []
         self._pending_trace = []
         self.source_dir = (self.config.get("source_dir") or "").strip()
