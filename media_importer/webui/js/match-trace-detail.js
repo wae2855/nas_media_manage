@@ -216,7 +216,9 @@ function showMatchTraceDetailModal(traceData, filename) {
         escapeHtml(step.tier || step.name || "-") +
         "</span>" +
         '<span class="conf-v">' +
-        escapeHtml(step.result || step.message || "-") +
+        escapeHtml(
+          step.reason || step.ai_reason || step.result || step.message || "-",
+        ) +
         "</span>" +
         "</div>";
     });
