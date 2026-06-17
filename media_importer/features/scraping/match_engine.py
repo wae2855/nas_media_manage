@@ -28,7 +28,7 @@ class MatchEngine:
     第三级：用户确认（展示候选列表 + 疑虑原因）
     """
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         self.config = config or {}
         self.title_matcher = TitleMatcher()
         self.filename_cleaner = FilenameCleaner()

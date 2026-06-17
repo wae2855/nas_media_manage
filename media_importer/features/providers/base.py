@@ -58,15 +58,9 @@ class DimensionMapping:
 
 class MetadataProvider(ABC):
 
-    @property
-    @abstractmethod
-    def provider_type(self) -> str:
-        pass
-
-    @property
-    @abstractmethod
-    def display_name(self) -> str:
-        pass
+    # 子类通过类变量设置，注册器在类级别访问
+    provider_type: str = ""
+    display_name: str = ""
 
     @abstractmethod
     def search(self, query: str, year: Optional[int] = None,
@@ -78,7 +72,7 @@ class MetadataProvider(ABC):
         pass
 
     @abstractmethod
-    def get_genres(self, media_type: Optional[str] = None) -> list:
+    def get_genres(self, media_type: Optional[str] = None) -> Any:
         pass
 
     @abstractmethod

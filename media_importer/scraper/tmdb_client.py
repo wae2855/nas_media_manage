@@ -65,7 +65,7 @@ class TMDbClient:
 
     def search_movie_list(self, title: str, year: Optional[int] = None,
                           language: Optional[str] = None) -> Dict[str, Any]:
-        params = {"query": title, "language": language or self.language}
+        params: Dict[str, Any] = {"query": title, "language": language or self.language}
         if year is not None:
             params["primary_release_year"] = year
         result = self._request("/search/movie", params)
@@ -76,7 +76,7 @@ class TMDbClient:
 
     def search_tv_list(self, title: str, year: Optional[int] = None,
                        language: Optional[str] = None) -> Dict[str, Any]:
-        params = {"query": title, "language": language or self.language}
+        params: Dict[str, Any] = {"query": title, "language": language or self.language}
         if year is not None:
             params["first_air_date_year"] = year
         result = self._request("/search/tv", params)
@@ -86,7 +86,7 @@ class TMDbClient:
         }
 
     def search_movie(self, title: str, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        params = {"query": title, "language": self.language}
+        params: Dict[str, Any] = {"query": title, "language": self.language}
         if year is not None:
             params["primary_release_year"] = year
         
@@ -109,7 +109,7 @@ class TMDbClient:
         return None
 
     def search_tv(self, title: str, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        params = {"query": title, "language": self.language}
+        params: Dict[str, Any] = {"query": title, "language": self.language}
         if year is not None:
             params["first_air_date_year"] = year
         

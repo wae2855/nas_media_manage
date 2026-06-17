@@ -1,4 +1,5 @@
 from difflib import SequenceMatcher
+from typing import Optional
 from media_importer.features.scraping.confidence_models import MatchResult, DEFAULT_CONFIDENCE_CONFIG
 
 
@@ -13,10 +14,10 @@ def _similarity(a: str, b: str) -> float:
 
 
 class TitleMatcher:
-    def __init__(self, config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         self._config = config or DEFAULT_CONFIDENCE_CONFIG
 
-    def match(self, clean_title: str, tmdb_result: dict, year: int = None, season: int = None) -> MatchResult:
+    def match(self, clean_title: str, tmdb_result: dict, year: Optional[int] = None, season: Optional[int] = None) -> MatchResult:
         original_title = tmdb_result.get("original_title", "") or tmdb_result.get("original_name", "")
         title = tmdb_result.get("title", "") or tmdb_result.get("name", "")
         release_date = tmdb_result.get("release_date", "") or tmdb_result.get("first_air_date", "")

@@ -140,6 +140,7 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.confirm_status, t.video_path, t.file_location, "
                 "t.import_video_path, t.provider_type, t.provider_id, "
                 "t.thumbnail_path, "
+                "t.confirmed_override, t.confirmed_title, t.override_source, "
                 "t.created_at, t.started_at, t.completed_at, "
                 "(SELECT COUNT(*) FROM task_subtitles ts WHERE ts.task_id=t.task_id) AS subtitle_total, "
                 "(SELECT COUNT(*) FROM task_subtitles ts WHERE ts.task_id=t.task_id AND ts.status='SUCCESS') AS subtitle_success "
@@ -188,6 +189,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "provider_type", "provider_id",
         "source_fingerprint", "source_file_size", "source_mtime",
         "thumbnail_path",
+        "confirmed_override", "confirmed_title", "override_source",
     }
     update_fields = {}
     for k, v in fields.items():

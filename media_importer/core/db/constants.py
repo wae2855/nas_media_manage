@@ -54,7 +54,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     source_fingerprint TEXT DEFAULT '',
     source_file_size INTEGER DEFAULT 0,
     source_mtime TEXT DEFAULT '',
-    thumbnail_path TEXT DEFAULT ''
+    thumbnail_path TEXT DEFAULT '',
+    confirmed_override INTEGER DEFAULT 0,
+    confirmed_title TEXT DEFAULT '',
+    override_source TEXT DEFAULT ''
 )
 """
 

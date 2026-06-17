@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ def get_dimensions_for_file(conn) -> list:
     return result
 
 
-def map_tmdb_to_dimension(dim_config: dict, tmdb_data: dict, release_dates: list = None) -> dict:
+def map_tmdb_to_dimension(dim_config: dict, tmdb_data: dict, release_dates: Optional[list] = None) -> dict:
     name = dim_config['name']
     tmdb_field = dim_config.get('tmdb_field', '')
     value_list = dim_config.get('value_list', [])
@@ -170,7 +171,7 @@ def _map_region_v2(name: str, mapping: dict, provider_data: dict) -> dict:
     return {'name': name, 'value': 'other', 'source_reliability': 1.0}
 
 
-def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict, value_list: list = None) -> dict:
+def _map_origin_lang_v2(name: str, mapping: dict, provider_data: dict, value_list: Optional[list] = None) -> dict:
     field = mapping.get('field', 'original_language')
     original_language = provider_data.get(field, '')
     if not original_language:
@@ -243,7 +244,7 @@ def _map_genre_by_names(name: str, mapping: dict, provider_data: dict) -> dict:
     return {'name': name, 'value': None, 'source_reliability': 0}
 
 
-def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dates: list = None, provider_type: str = "tmdb") -> dict:
+def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dates: Optional[list] = None, provider_type: str = "tmdb") -> dict:
     name = dim_config['name']
     value_list = dim_config.get('value_list', [])
 

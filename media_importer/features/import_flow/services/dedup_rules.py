@@ -31,7 +31,7 @@ def is_title_match(title_a: str, title_b: str) -> bool:
 
 def parse_filename_info(filename: str) -> Dict[str, Optional[str]]:
     name_without_ext = os.path.splitext(filename)[0]
-    result = {
+    result: Dict[str, Optional[str]] = {
         'title_cn': None,
         'title_en': None,
         'year': None,
@@ -134,7 +134,7 @@ def find_existing_file(search_dir: str, scraped_info: dict) -> List[str]:
     return matching_files
 
 
-def get_resolution_score(resolution: str) -> int:
+def get_resolution_score(resolution: Optional[str]) -> int:
     """获取分辨率优先级分数"""
     if not resolution:
         return -1
@@ -163,7 +163,7 @@ def compare_quality(new_file_path: str, existing_file_path: str, new_file_info: 
             return 'keep_existing'
 
 
-def check_duplicate(import_path: str, scraped_info: dict, strategy: str, new_file_path: str = None) -> dict:
+def check_duplicate(import_path: str, scraped_info: dict, strategy: str, new_file_path: Optional[str] = None) -> dict:
     existing_files = find_existing_file(import_path, scraped_info)
 
     result = {

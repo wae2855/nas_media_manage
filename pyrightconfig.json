@@ -1,0 +1,18 @@
+{
+  "include": ["media_importer", "tests"],
+  "exclude": [
+    "deploy",
+    "docs/_archive/**",
+    ".venv"
+  ],
+  "typeCheckingMode": "standard",
+  "reportAttributeAccessIssue": "warning",
+  "reportIncompatibleMethodOverride": "error",
+  "reportPossiblyUnboundVariable": "error",
+  "reportReturnType": "error",
+  "reportArgumentType": "error",
+  "reportAssignmentType": "error",
+  "reportOptionalMemberAccess": "error",
+  "reportOptionalSubscript": "error",
+  "reportOptionalCall": "error"
+}

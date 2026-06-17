@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 
 from .base import (
     MetadataProvider, SearchResult, SearchItem,
@@ -121,7 +121,7 @@ class TMDbProvider(MetadataProvider):
             rating_info={"adult": raw.get("adult", False)},
         )
 
-    def get_genres(self, media_type: Optional[str] = None) -> list:
+    def get_genres(self, media_type: Optional[str] = None) -> Dict[str, Any]:
         return self._client.get_genre_list()
 
     def test_connection(self) -> bool:

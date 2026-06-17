@@ -155,7 +155,7 @@ class TestMatchResultSerialization(unittest.TestCase):
         """MatchResult.to_dict() 可序列化"""
         result = MatchResult(
             match_level="AUTO_PASS",
-            provider_id=27205,
+            provider_id="27205",
             provider_title="Inception",
             match_tier=1,
             concerns=[MatchConcern(code="NO_TITLE", message="test", detail="test")],
@@ -418,7 +418,7 @@ class TestMatchEngineEndToEnd(unittest.TestCase):
         """第二级上下文匹配 → 不进入第三级"""
         mock_tier2.return_value = MatchResult(
             match_level="CONTEXT_PASS",
-            provider_id=27205,
+            provider_id="27205",
             provider_title="Inception",
             match_tier=2,
             confirm_reason="AI辅助匹配",

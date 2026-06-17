@@ -439,12 +439,12 @@ class TestConfigKeyAccess(unittest.TestCase):
         self.assertEqual(recycle_dir, "/data/quarantine")
 
     def test_recycle_dir_missing(self):
-        config = {}
+        config: dict = {}
         recycle_dir = config.get("source_dedup", {}).get("recycle_dir", "")
         self.assertEqual(recycle_dir, "")
 
     def test_recycle_dir_old_style_returns_empty(self):
-        config = {"recycle_dir": "/old/path"}
+        config: dict = {"recycle_dir": "/old/path"}
         recycle_dir = config.get("source_dedup", {}).get("recycle_dir", "")
         self.assertEqual(recycle_dir, "")
 

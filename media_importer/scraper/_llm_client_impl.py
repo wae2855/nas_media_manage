@@ -37,6 +37,7 @@ def _send_request_impl(self, url: str, payload: dict, api_key: str,
         ctx.verify_mode = ssl.CERT_NONE
 
     try:
+        choice: Any = None
         for _ in range(max_tool_rounds):
             data = json.dumps(payload).encode('utf-8')
             req = urllib.request.Request(url, data=data, headers=headers, method='POST')
@@ -71,6 +72,8 @@ def _send_request_impl(self, url: str, payload: dict, api_key: str,
                     'content': tool_result,
                 })
 
+        if choice is None:
+            return ''
         return choice['message'].get('content') or ''
 
     except urllib.error.HTTPError as e:

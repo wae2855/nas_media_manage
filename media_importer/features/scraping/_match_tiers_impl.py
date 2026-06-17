@@ -1,7 +1,7 @@
 """Match engine tier implementations — extracted from MatchEngine."""
 import logging
 import os as _os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from media_importer.features.scraping.match_models import (
     MatchConcern,
@@ -82,7 +82,7 @@ def _tier1_exact_match_impl(
 
         for search_title in search_titles:
             search_result = None
-            search_years = [year] if year is not None else [None]
+            search_years: list[Union[int, None]] = [year] if year is not None else [None]
             if year is not None:
                 search_years.append(None)
             for try_year in search_years:
@@ -438,7 +438,7 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
     """统一搜索 Provider 返回候选列表。"""
     candidates = []
     for provider in providers:
-        search_years = [year] if year is not None else [None]
+        search_years: list[Union[int, None]] = [year] if year is not None else [None]
         if year is not None:
             search_years.append(None)
         for try_year in search_years:

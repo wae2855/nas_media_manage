@@ -50,6 +50,16 @@ def _migrate_schema(conn: sqlite3.Connection):
         "CREATE TABLE IF NOT EXISTS schema_version "
         "(version INTEGER PRIMARY KEY, applied_at TEXT DEFAULT CURRENT_TIMESTAMP)"
     )
+    # 2026-06-16: 确认流程重构 — 记录是否换过元数据
+    for col_ddl in [
+        "ALTER TABLE tasks ADD COLUMN confirmed_override INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN confirmed_title TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN override_source TEXT DEFAULT ''",
+    ]:
+        try:
+            conn.execute(col_ddl)
+        except sqlite3.OperationalError:
+            pass  # 列已存在（新库通过 CREATE TABLE 创建，旧库通过 ALTER 补上）
 
 
 def _row_to_dict(row) -> dict:
