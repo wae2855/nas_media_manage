@@ -135,11 +135,11 @@ class TMDbProvider(MetadataProvider):
             mapping = map_provider_to_dimension(
                 dim_config, details.raw_data, release_dates, provider_type="tmdb"
             )
-            if mapping and mapping.get("value") is not None:
+            if mapping:
                 results.append(DimensionMapping(
                     name=mapping["name"],
-                    value=mapping["value"],
-                    source_reliability=mapping.get("source_reliability", 1.0),
+                    value=mapping.get("value"),
+                    source_reliability=mapping.get("source_reliability", 0.5),
                     source="tmdb",
                 ))
         return results

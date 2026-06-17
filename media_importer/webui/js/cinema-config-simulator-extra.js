@@ -22,7 +22,6 @@ function _simFormatNumber(value) {
 }
 
 function _renderSimDims(dims) {
-  if (!dims || typeof dims !== "object") return "";
   const dimDefs = window.currentEnabledDimensions || [];
   const allDimDefs = window._dimensionsData || [];
   const sourceLabels = {
@@ -42,30 +41,40 @@ function _renderSimDims(dims) {
   ];
   let colorIdx = 0;
   let html = '<div class="sim-dim-list">';
-  for (const key in dims) {
-    const val = dims[key];
-    const isObj = typeof val === "object" && val !== null;
-    const displayVal = isObj ? val.value || JSON.stringify(val) : val;
-    const source = isObj ? val.source || "" : "";
-    const dimDef =
-      dimDefs.find((d) => d.name === key) ||
-      allDimDefs.find((d) => d.name === key);
-    const dimLabel = dimDef ? dimDef.label || dimDef.name : key;
+
+  // 遍历全部启用的维度，有值显示值，无值显示占位
+  const dimValues = dims && typeof dims === "object" ? dims : {};
+  const defs = dimDefs.length > 0 ? dimDefs : allDimDefs;
+
+  for (const dimDef of defs) {
+    const key = dimDef.name;
+    const rawVal = dimValues[key];
+    const isObj = typeof rawVal === "object" && rawVal !== null;
+    const hasValue =
+      rawVal != null && rawVal !== "" && (!isObj || rawVal.value != null);
+    const displayVal = hasValue
+      ? isObj
+        ? rawVal.value || JSON.stringify(rawVal)
+        : String(rawVal)
+      : "—";
+    const source = isObj ? rawVal.source || "" : "";
+    const dimLabel = dimDef.label || dimDef.name;
     const dimColor =
-      dimDef && dimDef.color
-        ? dimDef.color
-        : fallbackColors[colorIdx++ % fallbackColors.length];
+      dimDef.color || fallbackColors[colorIdx++ % fallbackColors.length];
+
     let valLabel = String(displayVal);
-    if (dimDef && Array.isArray(dimDef.value_list)) {
+    if (hasValue && dimDef.value_list && Array.isArray(dimDef.value_list)) {
       const matched = dimDef.value_list.find(
         (v) => String(v.value) === String(displayVal),
       );
       if (matched) valLabel = matched.label || String(displayVal);
     }
+
     const sourceBadge = source
       ? `<span class="sim-dim-source sim-dim-source--${escapeHtml(source)}">${escapeHtml(sourceLabels[source] || source)}</span>`
       : "";
-    html += `<span class="sim-dim-tag" style="--dim-color:${escapeHtml(dimColor)}"><span class="sim-dim-label">${escapeHtml(dimLabel)}</span><span class="sim-dim-val">${escapeHtml(valLabel)}</span>${sourceBadge}</span>`;
+    const missingClass = hasValue ? "" : ' style="opacity:0.45"';
+    html += `<span class="sim-dim-tag"${missingClass} style="--dim-color:${escapeHtml(dimColor)}"><span class="sim-dim-label">${escapeHtml(dimLabel)}</span><span class="sim-dim-val">${escapeHtml(valLabel)}</span>${sourceBadge}</span>`;
   }
   html += "</div>";
   return html;
