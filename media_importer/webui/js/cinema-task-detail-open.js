@@ -27,16 +27,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
 
   const perm = getTaskEditPermission(task);
-  const editable = perm.canSave;
   const taskIdForClosure = taskId;
-
-  // 刮削信息只读展示
-  const scrapeInfoHtml = `
-            <div class="cinema-modal-block">
-                <h4>刮削信息</h4>
-                <div class="cinema-modal-readonly-line">源文件：${escapeHtml(originalFilename)}</div>
-                ${buildScrapeResultSection(task)}
-            </div>`;
 
   // 分类维度（可编辑，去除预览按钮）
   const dimSectionHtml = perm.canEditDimensions

@@ -190,8 +190,6 @@ function getTaskEditPermission(task) {
 }
 
 function buildScrapeTraceSection(task) {
-  var scrapeTrace = task.scrape_trace;
-
   var data = buildMatchPathData(task);
   var timelineHtml = "";
   try {
@@ -315,60 +313,6 @@ function classifyErrorMessage(message) {
     };
   }
   return { tone: "danger", hint: "" };
-}
-
-function buildScrapeResultSection(task) {
-  const scrape = task.scrape_result || {};
-  const matchLevel = scrape.match_level || task.match_level || "";
-  const hasAny =
-    scrape.title_cn ||
-    scrape.title_en ||
-    scrape.year ||
-    scrape.type ||
-    scrape.overview ||
-    scrape.poster_url ||
-    matchLevel;
-  if (!hasAny) {
-    return `
-            <div class="cinema-modal-block">
-                <h4>刮削结果</h4>
-                <div class="cinema-modal-hint">本次未产生刮削结果，可能是首次扫描或 Provider 命中失败。</div>
-            </div>`;
-  }
-  const titleCn = scrape.title_cn || task.scrape_title_cn || "";
-  const titleEn = scrape.title_en || task.scrape_title_en || "";
-  const year = scrape.year || task.scrape_year || "";
-  const type = scrape.type || task.scrape_media_type || "";
-  const overview = scrape.overview || "";
-  const poster = scrape.poster_url || "";
-  const typeLabel =
-    type === "movie" ? "电影" : type === "tv" ? "剧集" : type || "—";
-  let matchLabel = "";
-  if (matchLevel === "AUTO_PASS")
-    matchLabel =
-      '<span class="badge" style="background:rgba(34,197,94,0.15);color:#22C55E">自动匹配</span>';
-  else if (matchLevel === "CONTEXT_PASS")
-    matchLabel =
-      '<span class="badge" style="background:rgba(6,182,212,0.15);color:#06B6D4">🤖 AI辅助匹配</span>';
-  else if (matchLevel === "NEEDS_CONFIRM")
-    matchLabel =
-      '<span class="badge" style="background:rgba(245,158,11,0.15);color:#F59E0B">需确认</span>';
-  return `
-        <div class="cinema-modal-block">
-            <h4>刮削结果</h4>
-            <div class="task-detail-scrape">
-                ${poster ? `<div class="task-detail-poster"><img src="${escapeHtml(poster)}" alt="海报" loading="lazy" onerror="this.parentNode.style.display='none'"/></div>` : ""}
-                <div class="task-detail-scrape-meta">
-                    <div class="task-detail-scrape-line"><b>${escapeHtml(titleCn || titleEn || "—")}</b>${titleCn && titleEn ? `<span>${escapeHtml(titleEn)}</span>` : ""}</div>
-                    <div class="task-detail-scrape-tags">
-                        <span class="badge">${escapeHtml(typeLabel)}</span>
-                        ${year ? `<span class="badge">${escapeHtml(String(year))}</span>` : ""}
-                        ${matchLabel ? matchLabel : ""}
-                    </div>
-                    ${overview ? `<p class="task-detail-scrape-overview">${escapeHtml(overview)}</p>` : ""}
-                </div>
-            </div>
-        </div>`;
 }
 
 function buildFailureSection(task) {
