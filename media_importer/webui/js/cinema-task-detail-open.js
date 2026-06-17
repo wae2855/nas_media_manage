@@ -124,6 +124,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
             ${buildFailureSection(task)}
             ${buildScrapeResultSection(task)}
             ${buildScrapeTraceSection(task, isAwaitReview, taskId)}
+            <div id="scrape-candidates-area" style="display:none"></div>
             ${renameSection}
             ${filenameSaveHtml}
             ${dimSectionHtml}
@@ -399,22 +400,90 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
           `/tasks/${encodeURIComponent(taskId)}/scrape-search`,
           { query: query, year: task.scrape_year || "" },
         );
-        if (result.code === 200) {
+        if (result.code === 200 && result.data?.candidates?.length > 0) {
+          renderScrapeCandidates(result.data.candidates, taskId);
+        } else {
           showToast(
-            result.data?.candidates?.length
-              ? `搜索完成，发现 ${result.data.candidates.length} 条候选`
-              : "搜索完成，未找到匹配结果",
+            result.data?.candidates
+              ? "未找到匹配结果"
+              : result.message || "搜索失败",
+            "error",
           );
-          removeAppModal();
-          await openTaskDetailImpl(taskId, true);
-          await Promise.all([loadTaskList(), loadDashboardOverview()]);
-          return;
         }
-        showToast(result.message || "搜索失败", "error");
+      } catch (e) {
+        showToast("搜索失败: " + (e.message || "未知错误"), "error");
       } finally {
         btnEl.disabled = false;
         btnEl.textContent = "AI联网搜索";
       }
     });
   }
+}
+
+function renderScrapeCandidates(candidates, taskId) {
+  const area = document.getElementById("scrape-candidates-area");
+  if (!area) return;
+  area.style.display = "block";
+  area.innerHTML =
+    '<div class="cinema-modal-block"><h4>搜索结果</h4>' +
+    candidates
+      .map(
+        (c, idx) =>
+          '<div class="scrape-candidate-card" data-candidate-idx="' +
+          idx +
+          '" style="display:flex;gap:12px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:background 150ms"' +
+          " onmouseenter=\"this.style.background='var(--bg-hover, rgba(255,255,255,0.04))'\"" +
+          " onmouseleave=\"this.style.background=''\">" +
+          (c.poster_url
+            ? '<img src="' +
+              escapeHtml(c.poster_url) +
+              '" style="width:50px;height:75px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display=\'none\'">'
+            : "") +
+          '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+          escapeHtml(c.title) +
+          " (" +
+          (c.year || "?") +
+          ")</div>" +
+          '<div style="font-size:12px;color:var(--text-secondary)">' +
+          escapeHtml(c.original_title || "") +
+          "</div>" +
+          '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' +
+          escapeHtml((c.overview || "").substring(0, 120)) +
+          "</div>" +
+          '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">' +
+          escapeHtml(c.provider_type || "") +
+          (c.vote_average ? " · ★" + c.vote_average : "") +
+          "</div>" +
+          "</div>" +
+          "</div>",
+      )
+      .join("") +
+    "</div>";
+
+  area.querySelectorAll(".scrape-candidate-card").forEach((card) => {
+    card.addEventListener("click", async () => {
+      const idx = parseInt(card.dataset.candidateIdx);
+      const c = candidates[idx];
+      if (!c) return;
+
+      const result = await requestApi(
+        "POST",
+        `/tasks/${encodeURIComponent(taskId)}/preview`,
+        {
+          title_cn: c.title,
+          title_en: c.original_title || "",
+          year: String(c.year || ""),
+        },
+      );
+      if (result.code === 200) {
+        showToast("已应用候选元数据，请查看预览结果");
+        removeAppModal();
+        await openTaskDetailImpl(taskId, true);
+        await Promise.all([loadTaskList(), loadDashboardOverview()]);
+      } else {
+        showToast("应用失败: " + (result.message || "未知错误"), "error");
+      }
+    });
+  });
 }

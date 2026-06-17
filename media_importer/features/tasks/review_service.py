@@ -106,7 +106,7 @@ def confirm_all_tasks_for_api(
     for task in confirming_tasks:
         task_id = task.get("task_id", "")
         try:
-            ok = pipeline.confirm_task(task_id)
+            ok = pipeline.confirm_task(task_id, confirmed_title="", override_source="")
             results.append({"task_id": task_id, "success": ok})
         except Exception as exc:
             results.append({"task_id": task_id, "success": False, "error": str(exc)})

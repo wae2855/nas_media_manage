@@ -300,6 +300,42 @@ function renderMatchPathPreview(data) {
   }
   html += "</div></div>";
 
+  // 已入库任务：跳过 NEEDS_CONFIRM，直接显示入库结果
+  if (data.status === "SUCCESS") {
+    const confirmedOverride = data.confirmed_override ? 1 : 0;
+    const confirmedTitle = data.confirmed_title || currentTitle || "";
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html +=
+      '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">6</div>';
+    html += '<div class="sim-step-line" style="background:transparent"></div>';
+    html += "</div>";
+    html += '<div class="sim-step-content">';
+    if (confirmedOverride && confirmedTitle) {
+      html +=
+        '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">以《' +
+        escapeHtml(confirmedTitle) +
+        '》入库</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">IMPORTED</span></div>';
+      html +=
+        '<div class="sim-alert" style="background:#22C55E08;border-color:#22C55E30">用户选择了新的元数据后确认入库。</div>';
+    } else {
+      html +=
+        '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">直接确认入库</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">IMPORTED</span></div>';
+      html +=
+        '<div class="sim-alert" style="background:#22C55E08;border-color:#22C55E30">用户确认刮削结果后直接入库。</div>';
+    }
+    if (importPathInfo.import_video_path) {
+      html +=
+        '<div class="sim-kv"><span class="sim-k">入库路径</span><span class="sim-v sim-v-highlight">' +
+        escapeHtml(importPathInfo.import_video_path) +
+        "</span></div>";
+    }
+    html += "</div></div>";
+    html += "</div>";
+    html += "</div>";
+    return html;
+  }
+
   if (matchLevel === "NEEDS_CONFIRM") {
     html += '<div class="sim-step">';
     html += '<div class="sim-step-rail">';
@@ -360,31 +396,6 @@ function renderMatchPathPreview(data) {
         : "#F59E0B";
   html += `<div class="sim-queue-decision" style="border-color:${queueColor}30;background:${queueColor}08;color:${queueColor}">${escapeHtml(queueExplanation)}</div>`;
   html += "</div></div>";
-
-  // --- timeline step 7: 已入库（可选） ---
-  const importVideoPath = importPathInfo.import_video_path || "";
-  const fileLocation = importPathInfo.file_location || "";
-  const isImported = fileLocation === "import" || importVideoPath.length > 0;
-  if (isImported) {
-    const confirmedOverride = importPathInfo.confirmed_override ? 1 : 0;
-    const overrideSource = importPathInfo.override_source || "";
-    html += '<div class="sim-step">';
-    html += '<div class="sim-step-rail">';
-    html +=
-      '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">7</div>';
-    html += '<div class="sim-step-line" style="background:transparent"></div>';
-    html += "</div>";
-    html += '<div class="sim-step-content">';
-    html +=
-      '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">已入库</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">DONE</span></div>';
-    if (importVideoPath) {
-      html += `<div class="sim-kv"><span class="sim-k">入库路径</span><span class="sim-v sim-v-highlight">${escapeHtml(importVideoPath)}</span></div>`;
-    }
-    if (confirmedOverride) {
-      html += `<div class="sim-kv"><span class="sim-k">手动指定</span><span class="sim-v" style="color:#F59E0B">${escapeHtml(overrideSource || "是")}</span></div>`;
-    }
-    html += "</div></div>";
-  }
 
   html += "</div>";
   html += "</div>";

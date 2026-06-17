@@ -193,23 +193,17 @@ function buildScrapeTraceSection(task, isAwaitReview, taskId) {
 
   return `
         <div class="cinema-modal-block">
-            <h4 style="cursor:pointer" onclick="toggleScrapeTrace(this)"><span class="trace-toggle-arrow">▶</span> 决策路径${searchBadge}</h4>
-            ${searchRowHtml}
-            <div class="cinema-detail-trace-inline" style="display:none">${timelineHtml}</div>
+            <div class="config-collapse-card" data-collapse-card>
+                <div class="config-collapse-header" data-collapse-toggle style="cursor:pointer;display:flex;align-items:center;gap:6px">
+                    <span class="config-collapse-chevron" style="display:inline-block;transition:transform 180ms;font-size:12px">▶</span>
+                    <h4 style="margin:0">决策路径${searchBadge}</h4>
+                </div>
+                <div class="config-collapse-body">
+                    ${searchRowHtml}
+                    <div class="cinema-detail-trace-inline">${timelineHtml}</div>
+                </div>
+            </div>
         </div>`;
-}
-
-function toggleScrapeTrace(headingEl) {
-  var container = headingEl.parentNode;
-  if (!container) return;
-  var inline = container.querySelector(".cinema-detail-trace-inline");
-  if (!inline) return;
-  var collapsed = inline.style.display === "none";
-  inline.style.display = collapsed ? "" : "none";
-  var arrow = headingEl.querySelector(".trace-toggle-arrow");
-  if (arrow) {
-    arrow.textContent = collapsed ? "▼" : "▶";
-  }
 }
 
 function taskToMatchPathData(task) {

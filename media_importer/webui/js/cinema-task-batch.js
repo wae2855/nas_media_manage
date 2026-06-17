@@ -19,13 +19,28 @@ async function performTaskAction(action, taskId) {
     return;
   }
   if (action === "confirm") {
+    const scrape = task.scrape_result || {};
+    const confirmedTitle = scrape.title_cn || task.scrape_title_cn || "";
+    const originalFilename = task.source_filename || "";
+    const overrideSource =
+      confirmedTitle &&
+      originalFilename &&
+      !originalFilename
+        .toLowerCase()
+        .includes(confirmedTitle.substring(0, 3).toLowerCase())
+        ? "manual"
+        : null;
     showConfirm(
       "确认入库",
       `确定将「${taskFileName(task)}」按当前结果继续入库吗？`,
       async () => {
+        const body = {};
+        if (confirmedTitle) body.confirmed_title = confirmedTitle;
+        if (overrideSource) body.override_source = overrideSource;
         const result = await requestApi(
           "POST",
           `/tasks/${encodeURIComponent(taskId)}/confirm`,
+          body,
         );
         showToast(result.message || "确认请求已发送");
         if (result.code === 200) {
