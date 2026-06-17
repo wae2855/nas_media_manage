@@ -25,85 +25,52 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const status = String(task.status || "").toUpperCase();
   const stage = String(task.stage || "").toUpperCase();
   const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
-  const isFilenameEditable = isAwaitReview;
 
   const perm = getTaskEditPermission(task);
   const editable = perm.canSave;
+  const taskIdForClosure = taskId;
 
-  const overrideSource = task.override_source || "";
-  const hasOverride = overrideSource.length > 0;
-
-  const renameSection = perm.canEditFilename
-    ? `<div class="cinema-modal-block">
-                <div class="cinema-modal-section-head">
-                    <h4>文件名</h4>
-                </div>
-                <label class="cinema-modal-field">
-                    <span>文件名 <small>（可修改，不含路径）</small></span>
-                    <input type="text" id="task-rename-input" value="${escapeHtml(originalFilename)}" data-rename-original="${escapeHtml(originalFilename)}" />
-                </label>
-                ${buildRenamePreview(originalFilename)}
-            </div>`
-    : `<div class="cinema-modal-block">
-                <h4>文件名</h4>
-                <div class="cinema-modal-readonly-line">${escapeHtml(originalFilename)}</div>
+  // 刮削信息只读展示
+  const scrapeInfoHtml = `
+            <div class="cinema-modal-block">
+                <h4>刮削信息</h4>
+                <div class="cinema-modal-readonly-line">源文件：${escapeHtml(originalFilename)}</div>
+                ${buildScrapeResultSection(task)}
             </div>`;
 
-  const dimActionsHtml = perm.canEditDimensions
-    ? `<div class="cinema-modal-section-actions">
-                ${isAwaitReview ? `<button id="btn-preview-classify" type="button" class="btn btn-sm btn-outline">预览入库规则</button>` : ""}
-           </div>`
-    : "";
-
+  // 分类维度（可编辑，去除预览按钮）
   const dimSectionHtml = perm.canEditDimensions
     ? `<div class="cinema-modal-block">
-                <div class="cinema-modal-section-head">
-                    <h4>分类维度</h4>
-                    ${dimActionsHtml}
-                </div>
-                <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, true, true)}</div>
-                <div id="preview-classify-result" class="cinema-modal-preview" style="display:none"></div>
-           </div>`
-    : `<div class="cinema-modal-block">
                 <h4>分类维度</h4>
-                <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, false)}</div>
-           </div>`;
-
-  const filenameSaveHtml = perm.canEditFilename
-    ? `<div class="cinema-modal-block">
-                <div class="cinema-modal-save-row">
-                    <button id="btn-save-filename" type="button" class="btn btn-primary">应用文件名并预览</button>
-                    <div id="filename-error-area" class="modal-error-area" style="display:none"></div>
-                </div>
+                <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, true, true)}</div>
            </div>`
     : "";
 
-  const dimSaveHtml = perm.canEditDimensions
-    ? `<div class="cinema-modal-block">
-                <div class="cinema-modal-save-row">
-                    <button id="btn-save-dims" type="button" class="btn btn-primary">应用分类并预览</button>
-                    <div id="dims-error-area" class="modal-error-area" style="display:none"></div>
-                </div>
-           </div>`
-    : "";
-
-  const confirmHtml = isAwaitReview
+  // 入库预览区（待确认时显示）
+  const importPath = task.import_path || "";
+  const finalFilename = task.final_filename || taskFileName(task);
+  const importPreviewHtml = isAwaitReview
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-section-head">
-                    <h4>确认入库</h4>
+                    <h4>入库预览</h4>
                 </div>
-                ${hasOverride ? `<div class="cinema-modal-override-badge">已手动指定：${escapeHtml(overrideSource)}</div>` : ""}
-                <label class="cinema-modal-field">
-                    <span>手动指定标题 <small>（可选，留空则使用刮削结果）</small></span>
-                    <input type="text" id="task-confirm-title" value="${escapeHtml(task.confirmed_title || "")}" placeholder="${escapeHtml(taskDisplayTitle(task))}" />
-                </label>
-                <label class="cinema-modal-field">
-                    <span>来源说明 <small>（可选，如"用户手动指定"）</small></span>
-                    <input type="text" id="task-override-source" value="${escapeHtml(overrideSource)}" placeholder="用户手动指定" />
-                </label>
-                <div class="cinema-modal-save-row" style="margin-top:12px">
-                    <button id="btn-confirm-task" type="button" class="btn btn-success">确认入库</button>
-                    <div id="confirm-error-area" class="modal-error-area" style="display:none"></div>
+                <div class="cinema-import-preview" id="import-preview-box">
+                    <div class="sim-kv"><span class="sim-k">文件名</span><span class="sim-v sim-v-highlight">${escapeHtml(finalFilename)}</span></div>
+                    ${importPath ? `<div class="sim-kv"><span class="sim-k">路径</span><span class="sim-v sim-v-highlight">${escapeHtml(importPath)}</span></div>` : ""}
+                </div>
+           </div>`
+    : "";
+
+  // 操作按钮区（待确认时显示）
+  const actionHtml = isAwaitReview
+    ? `<div class="cinema-modal-block">
+                <div class="cinema-modal-save-row" style="flex-wrap:wrap;gap:8px">
+                    <button id="btn-scrape-manual" type="button" class="btn btn-outline">手动刮削</button>
+                    <div style="display:flex;gap:8px;margin-left:auto">
+                        <button id="btn-save-import" type="button" class="btn btn-primary">保存</button>
+                        <button id="btn-confirm-import" type="button" class="btn btn-success">确认入库，开始移动文件</button>
+                    </div>
+                    <div id="import-error-area" class="modal-error-area" style="display:none;width:100%"></div>
                 </div>
            </div>`
     : "";
@@ -123,14 +90,10 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
                 ${task.import_video_path ? `<small>入库路径：${escapeHtml(task.import_video_path)}</small>` : ""}
             </div>
             ${buildFailureSection(task)}
-            ${buildScrapeResultSection(task)}
-            ${buildScrapeTraceSection(task, isAwaitReview, taskId)}
-            <div id="scrape-candidates-area" style="display:none"></div>
-            ${renameSection}
-            ${filenameSaveHtml}
+            ${buildScrapeTraceSection(task)}
             ${dimSectionHtml}
-            ${dimSaveHtml}
-            ${confirmHtml}
+            ${importPreviewHtml}
+            ${actionHtml}
             <div class="cinema-modal-block">
                 <h4>字幕记录</h4>
                 ${buildSubtitleTable(subtitles)}
@@ -146,15 +109,73 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     actions,
   });
 
-  const renameInput = document.getElementById("task-rename-input");
-  if (renameInput) {
-    renameInput.addEventListener("input", () =>
-      updateRenamePreview(renameInput),
-    );
+  // 手动刮削按钮
+  const btnScrapeManual = document.getElementById("btn-scrape-manual");
+  if (btnScrapeManual) {
+    var scrapeRes = task.scrape_result || {};
+    var cleanTitle =
+      (scrapeRes.clean_result && scrapeRes.clean_result.clean_title) || "";
+    btnScrapeManual.addEventListener("click", function () {
+      openScrapeSearchModal(taskIdForClosure, cleanTitle);
+    });
   }
 
-  function setErrorArea(areaId, msg) {
-    const errEl = document.getElementById(areaId);
+  // 保存按钮 — 调 /preview 持久化后刷新详情
+  const btnSaveImport = document.getElementById("btn-save-import");
+  if (btnSaveImport) {
+    btnSaveImport.addEventListener("click", async function () {
+      setImportError("");
+      var dims = getCurrentDimensionValues(task);
+      var body = { dimensions: dims };
+      try {
+        var result = await requestApi(
+          "POST",
+          `/tasks/${encodeURIComponent(taskIdForClosure)}/preview`,
+          body,
+        );
+        if (result.code === 200) {
+          showToast("已保存，入库预览已更新");
+          removeAppModal();
+          await openTaskDetailImpl(taskIdForClosure, true);
+          await Promise.all([loadTaskList(), loadDashboardOverview()]);
+        } else {
+          setImportError(result.message || "保存失败");
+        }
+      } catch (e) {
+        setImportError(e.message || "网络错误");
+      }
+    });
+  }
+
+  // 确认入库按钮 — 真实移动文件
+  const btnConfirmImport = document.getElementById("btn-confirm-import");
+  if (btnConfirmImport) {
+    btnConfirmImport.addEventListener("click", async function () {
+      setImportError("");
+      var dims = getCurrentDimensionValues(task);
+      // 先保存最新维度
+      await requestApi(
+        "POST",
+        `/tasks/${encodeURIComponent(taskIdForClosure)}/preview`,
+        { dimensions: dims },
+      );
+      // 再确认入库
+      var result = await requestApi(
+        "POST",
+        `/tasks/${encodeURIComponent(taskIdForClosure)}/confirm`,
+      );
+      if (result.code === 200) {
+        showToast("入库成功");
+        removeAppModal();
+        await Promise.all([loadTaskList(), loadDashboardOverview()]);
+      } else {
+        setImportError(result.message || "入库失败");
+      }
+    });
+  }
+
+  function setImportError(msg) {
+    const errEl = document.getElementById("import-error-area");
     if (!errEl) return;
     if (!msg) {
       errEl.style.display = "none";
@@ -165,326 +186,260 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     errEl.textContent = msg;
   }
 
-  function setSavingBtn(btnEl, saving) {
-    if (!btnEl) return;
-    if (saving) {
-      btnEl.disabled = true;
-      btnEl.dataset.prevText = btnEl.textContent;
-      btnEl.textContent = "保存中...";
-    } else {
-      btnEl.disabled = false;
-      btnEl.textContent = btnEl.dataset.prevText || btnEl.textContent;
-    }
-  }
-
-  async function handleSaveFilename(btnEl) {
-    const inputEl = document.getElementById("task-rename-input");
-    const newFilename = String(inputEl?.value || "").trim();
-    if (!newFilename) {
-      showToast("文件名不能为空");
-      setErrorArea("filename-error-area", "文件名不能为空");
-      return;
-    }
-    setSavingBtn(btnEl, true);
-    setErrorArea("filename-error-area", "");
-    try {
-      const result = await requestApi(
-        "POST",
-        `/tasks/${encodeURIComponent(taskId)}/preview`,
-        {
-          filename: newFilename,
-        },
-      );
-      if (result.code === 200) {
-        showToast("文件名已应用，请查看预览结果");
-        removeAppModal();
-        await openTaskDetailImpl(taskId, true);
-        await Promise.all([loadTaskList(), loadDashboardOverview()]);
-        return;
-      }
-      const errMsg = result.message || "应用文件名失败，请稍后重试";
-      setErrorArea("filename-error-area", errMsg);
-      showToast(errMsg);
-    } finally {
-      setSavingBtn(btnEl, false);
-    }
-  }
-
-  async function handleSaveDims(btnEl) {
-    const dims = {};
-    const multiDimNames = {};
-    // 收集多选 checkbox 值
+  // 收集当前表单维度值
+  function getCurrentDimensionValues(task) {
+    var dims = {};
+    var multiDimNames = {};
     document
       .querySelectorAll("input[type=checkbox][data-task-dim]")
-      .forEach((cb) => {
-        const dimName = cb.dataset.taskDim;
+      .forEach(function (cb) {
+        var dimName = cb.dataset.taskDim;
         if (!multiDimNames[dimName]) multiDimNames[dimName] = [];
         if (cb.checked) multiDimNames[dimName].push(cb.value);
       });
-    for (const [dimName, vals] of Object.entries(multiDimNames)) {
-      if (vals.length) dims[dimName] = vals.join("|");
+    for (var dimName in multiDimNames) {
+      if (multiDimNames[dimName].length)
+        dims[dimName] = multiDimNames[dimName].join("|");
     }
-    // 收集单选 select/input 值（排除 checkbox）
     document
-      .querySelectorAll(
-        "select[data-task-dim], input[type=text][data-task-dim]",
-      )
-      .forEach((input) => {
-        const nextValue = parseRuleConditionValue(input.value);
-        if (nextValue) dims[input.dataset.taskDim] = nextValue;
+      .querySelectorAll("select[data-task-dim], input[type=text][data-task-dim]")
+      .forEach(function (input) {
+        var val = parseRuleConditionValue(input.value);
+        if (val) dims[input.dataset.taskDim] = val;
       });
-    if (Object.keys(dims).length === 0) {
-      showToast("请至少填写一个维度值");
-      setErrorArea("dims-error-area", "请至少填写一个维度值");
-      return;
-    }
-    // diff 模式：只发送与原始值不同的字段
-    const origDims = task.scrape_dimensions || task.dimensions || {};
-    const changedDims = {};
-    let hasChanged = false;
-    for (const [key, newVal] of Object.entries(dims)) {
-      const origVal = parseRuleConditionValue(String(origDims[key] || ""));
-      if (newVal !== origVal) {
-        changedDims[key] = newVal;
-        hasChanged = true;
-      }
-    }
-    if (!hasChanged) {
-      showToast("维度值未做修改");
-      return;
-    }
-    setSavingBtn(btnEl, true);
-    setErrorArea("dims-error-area", "");
-    try {
-      const result = await requestApi(
-        "POST",
-        `/tasks/${encodeURIComponent(taskId)}/preview`,
-        {
-          dimensions: changedDims,
-        },
+    return dims;
+  }
+}
+
+// 手动刮削弹窗 — 左列表 + 右详情（参考 TMDB 预览弹窗）
+function openScrapeSearchModal(taskId, defaultQuery) {
+  var existing = document.getElementById("scrape-search-overlay");
+  if (existing) existing.remove();
+
+  var overlay = document.createElement("div");
+  overlay.id = "scrape-search-overlay";
+  overlay.className = "cinema-modal-overlay";
+  overlay.innerHTML =
+    '<div class="cinema-modal tmdb-preview-modal-content" style="max-width:900px">' +
+    '<div class="cinema-modal-header">' +
+    "<h3>手动刮削</h3>" +
+    '<button type="button" class="cinema-modal-close" aria-label="关闭">×</button>' +
+    "</div>" +
+    '<div class="tmdb-preview-toolbar">' +
+    '<input type="text" id="scrape-search-query" placeholder="输入影视名称..." class="tmdb-preview-input" value="' +
+    escapeHtml(defaultQuery || "") +
+    '" />' +
+    '<button class="btn btn-primary btn-sm" id="btn-scrape-search-exec" type="button">搜索</button>' +
+    "</div>" +
+    '<div class="tmdb-preview-panels">' +
+    '<div class="tmdb-preview-left">' +
+    '<div id="scrape-search-results" class="tmdb-search-results"></div>' +
+    "</div>" +
+    '<div class="tmdb-preview-right">' +
+    '<div id="scrape-search-detail" class="tmdb-detail-container">' +
+    '<div class="tmdb-preview-placeholder">点击左侧搜索结果查看详情</div>' +
+    "</div>" +
+    "</div>" +
+    "</div>" +
+    "</div>";
+
+  overlay.addEventListener("click", function (event) {
+    if (event.target === overlay) overlay.remove();
+  });
+  overlay.querySelector(".cinema-modal-close").addEventListener("click", function () {
+    overlay.remove();
+  });
+  document.body.appendChild(overlay);
+
+  var queryInput = document.getElementById("scrape-search-query");
+  var searchBtn = document.getElementById("btn-scrape-search-exec");
+  queryInput.focus();
+  queryInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") doScrapeSearch(taskId);
+  });
+  searchBtn.addEventListener("click", function () {
+    doScrapeSearch(taskId);
+  });
+
+  // 如果预填了查询词，自动搜索
+  if (defaultQuery && defaultQuery.trim()) {
+    setTimeout(function () {
+      doScrapeSearch(taskId);
+    }, 200);
+  }
+}
+
+async function doScrapeSearch(taskId) {
+  var query = String(
+    document.getElementById("scrape-search-query")?.value || ""
+  ).trim();
+  var resultsEl = document.getElementById("scrape-search-results");
+  var detailEl = document.getElementById("scrape-search-detail");
+  var btn = document.getElementById("btn-scrape-search-exec");
+
+  if (!query) {
+    resultsEl.innerHTML = '<div class="tmdb-preview-error">请输入影视名称</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  resultsEl.innerHTML = '<div class="tmdb-preview-loading">搜索中...</div>';
+  detailEl.innerHTML = '<div class="tmdb-preview-placeholder">点击左侧搜索结果查看详情</div>';
+
+  var result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/scrape-search`, {
+    query: query,
+  });
+  btn.disabled = false;
+
+  if (result.code !== 200 || !result.data?.candidates?.length) {
+    resultsEl.innerHTML =
+      '<div class="tmdb-preview-error">' +
+      escapeHtml(result.message || "未找到匹配结果") +
+      "</div>";
+    return;
+  }
+
+  var candidates = result.data.candidates;
+  resultsEl.innerHTML = candidates
+    .map(function (c, idx) {
+      return (
+        '<div class="tmdb-scrape-card" data-cidx="' +
+        idx +
+        '" style="padding:10px;cursor:pointer;border-radius:6px;margin-bottom:4px;transition:background 120ms;border:1px solid transparent" onmouseenter="this.style.background=\'rgba(255,255,255,0.06)\'" onmouseleave="var s=this.parentNode.querySelector(\'.tmdb-scrape-card--active\'); if(s!==this){this.style.background=\'\';this.style.borderColor=\'transparent\'}">' +
+        "<div>" +
+        '<span style="font-weight:600">' +
+        escapeHtml(c.title) +
+        " (" +
+        (c.year || "?") +
+        ")</span>" +
+        '<span style="font-size:11px;color:var(--muted);margin-left:8px">' +
+        escapeHtml(c.provider_type || "") +
+        (c.vote_average ? " ★" + c.vote_average : "") +
+        "</span>" +
+        "</div>" +
+        '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">' +
+        escapeHtml(c.original_title && c.original_title !== c.title ? c.original_title : "") +
+        "</div>" +
+        "</div>"
       );
-      if (result.code === 200) {
-        showToast("分类已应用，请查看预览结果");
-        removeAppModal();
-        await openTaskDetailImpl(taskId, true);
-        await Promise.all([loadTaskList(), loadDashboardOverview()]);
-        return;
-      }
-      const errMsg = result.message || "应用分类失败，请稍后重试";
-      setErrorArea("dims-error-area", errMsg);
-      showToast(errMsg);
-    } finally {
-      setSavingBtn(btnEl, false);
-    }
-  }
+    })
+    .join("");
 
-  async function handleConfirmTask(btnEl) {
-    const confirmedTitle = String(
-      document.getElementById("task-confirm-title")?.value || "",
-    ).trim();
-    const overrideSource = String(
-      document.getElementById("task-override-source")?.value || "",
-    ).trim();
-    setSavingBtn(btnEl, true);
-    setErrorArea("confirm-error-area", "");
-    try {
-      const body = {};
-      if (confirmedTitle) body.confirmed_title = confirmedTitle;
-      if (overrideSource) body.override_source = overrideSource;
-      const result = await requestApi(
-        "POST",
-        `/tasks/${encodeURIComponent(taskId)}/confirm`,
-        body,
-      );
-      if (result.code === 200) {
-        showToast("确认入库成功");
-        removeAppModal();
-        await Promise.all([loadTaskList(), loadDashboardOverview()]);
-        return;
-      }
-      const errMsg = result.message || "确认入库失败，请稍后重试";
-      setErrorArea("confirm-error-area", errMsg);
-      showToast(errMsg);
-    } finally {
-      setSavingBtn(btnEl, false);
-    }
-  }
+  var selectedIdx = -1;
+  resultsEl.querySelectorAll(".tmdb-scrape-card").forEach(function (card) {
+    card.addEventListener("click", function () {
+      var idx = parseInt(card.dataset.cidx);
+      var c = candidates[idx];
+      if (!c) return;
 
-  const btnSaveFilename = document.getElementById("btn-save-filename");
-  if (btnSaveFilename) {
-    btnSaveFilename.addEventListener("click", () =>
-      handleSaveFilename(btnSaveFilename),
-    );
-  }
-  const btnSaveDims = document.getElementById("btn-save-dims");
-  if (btnSaveDims) {
-    btnSaveDims.addEventListener("click", () => handleSaveDims(btnSaveDims));
-  }
+      // 高亮选中
+      resultsEl
+        .querySelectorAll(".tmdb-scrape-card")
+        .forEach(function (el) {
+          el.classList.remove("tmdb-scrape-card--active");
+          el.style.background = "";
+          el.style.borderColor = "transparent";
+        });
+      card.classList.add("tmdb-scrape-card--active");
+      card.style.background = "rgba(6,182,212,0.12)";
+      card.style.borderColor = "rgba(6,182,212,0.4)";
+      selectedIdx = idx;
 
-  const btnConfirm = document.getElementById("btn-confirm-task");
-  if (btnConfirm) {
-    btnConfirm.addEventListener("click", () => handleConfirmTask(btnConfirm));
-  }
+      // 渲染右侧详情
+      renderScrapeCandidateDetail(c, taskId);
+    });
+  });
+}
 
-  const previewBtn = document.getElementById("btn-preview-classify");
-  if (previewBtn) {
-    previewBtn.addEventListener("click", async () => {
-      const dims = {};
-      document.querySelectorAll("[data-task-dim]").forEach((input) => {
-        const v = input.value?.trim();
-        if (v) {
-          dims[input.dataset.taskDim] = v;
-        }
-      });
+function renderScrapeCandidateDetail(candidate, taskId) {
+  var detailEl = document.getElementById("scrape-search-detail");
+  if (!detailEl) return;
+
+  detailEl.innerHTML =
+    "<div>" +
+    '<div class="tmdb-detail-group" style="margin-top:0">' +
+    '<div class="tmdb-detail-group-header"><span class="tmdb-detail-group-arrow">▼</span> 基本信息</div>' +
+    '<div class="tmdb-detail-group-body">' +
+    '<div class="tmdb-detail-row"><span class="tmdb-detail-key">标题</span><span class="tmdb-detail-val">' +
+    escapeHtml(candidate.title) +
+    "</span></div>" +
+    '<div class="tmdb-detail-row"><span class="tmdb-detail-key">原名</span><span class="tmdb-detail-val">' +
+    escapeHtml(candidate.original_title || "—") +
+    "</span></div>" +
+    '<div class="tmdb-detail-row"><span class="tmdb-detail-key">年份</span><span class="tmdb-detail-val">' +
+    escapeHtml(String(candidate.year || "—")) +
+    "</span></div>" +
+    '<div class="tmdb-detail-row"><span class="tmdb-detail-key">类型</span><span class="tmdb-detail-val">' +
+    escapeHtml(candidate.media_type || "—") +
+    "</span></div>" +
+    '<div class="tmdb-detail-row"><span class="tmdb-detail-key">来源</span><span class="tmdb-detail-val">' +
+    escapeHtml(candidate.provider_type || "—") +
+    ' <span class="tmdb-preview-tag">★' +
+    escapeHtml(String(candidate.vote_average || "—")) +
+    "</span></span></div>" +
+    "</div>" +
+    "</div>" +
+    '<div class="tmdb-detail-group">' +
+    '<div class="tmdb-detail-group-header"><span class="tmdb-detail-group-arrow">▼</span> 简介</div>' +
+    '<div class="tmdb-detail-group-body">' +
+    '<div class="tmdb-detail-row"><span class="tmdb-detail-val">' +
+    escapeHtml(candidate.overview || "暂无简介") +
+    "</span></div>" +
+    "</div>" +
+    "</div>" +
+    (candidate.poster_url
+      ? '<div style="margin-top:12px"><img src="' +
+        escapeHtml(candidate.poster_url) +
+        '" style="max-width:200px;border-radius:6px" onerror="this.style.display=\'none\'"></div>'
+      : "") +
+    '<div style="margin-top:16px">' +
+    '<button class="btn btn-primary" id="btn-confirm-candidate" style="width:100%">确定选择此条目</button>' +
+    "</div>" +
+    "</div>";
+
+  // 折叠组切换
+  detailEl.querySelectorAll(".tmdb-detail-group-header").forEach(function (header) {
+    header.addEventListener("click", function () {
+      this.parentElement.classList.toggle("collapsed");
+    });
+  });
+
+  // 确定按钮
+  var confirmBtn = document.getElementById("btn-confirm-candidate");
+  if (confirmBtn) {
+    confirmBtn.addEventListener("click", async function () {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "应用中...";
       try {
-        const result = await requestApi(
+        var result = await requestApi(
           "POST",
-          `/tasks/${encodeURIComponent(taskId)}/classify-preview`,
+          `/tasks/${encodeURIComponent(taskId)}/preview`,
           {
-            dimensions: dims,
-            filename:
-              document.getElementById("task-rename-input")?.value?.trim() ||
-              originalFilename,
+            title_cn: candidate.title,
+            title_en: candidate.original_title || "",
+            year: String(candidate.year || ""),
           },
         );
-        const previewDiv = document.getElementById("preview-classify-result");
-        if (result.code === 200 && result.data) {
-          const d = result.data;
-          previewDiv.style.display = "block";
-          const hasPath = d.import_path && d.full_path;
-          let html = "";
-          if (hasPath) {
-            html = `<div class="preview-path"><span class="preview-label">入库目录：</span><code>${escapeHtml(d.import_path || "")}</code></div>
-                            <div class="preview-path"><span class="preview-label">最终文件：</span><code>${escapeHtml(d.full_path || "")}</code></div>`;
-          }
-          if (d.warnings?.length) {
-            html += `<div class="preview-warning">${escapeHtml(d.warnings.join("; "))}</div>`;
-          }
-          if (!hasPath && d.rules_description) {
-            html += `<div class="preview-info"><span class="preview-label">已配置规则：</span>${escapeHtml(d.rules_description)}</div>`;
-          }
-          if (!hasPath && d.dimensions_text) {
-            html += `<div class="preview-info"><span class="preview-label">当前维度：</span>${escapeHtml(d.dimensions_text)}</div>`;
-          }
-          previewDiv.innerHTML =
-            html || `<div class="preview-warning">无法生成入库路径</div>`;
+        if (result.code === 200) {
+          showToast("已应用刮削结果，请查看入库预览");
+          var overlay = document.getElementById("scrape-search-overlay");
+          if (overlay) overlay.remove();
+          removeAppModal();
+          await openTaskDetailImpl(taskId, true);
+          await Promise.all([loadTaskList(), loadDashboardOverview()]);
         } else {
-          previewDiv.style.display = "block";
-          previewDiv.innerHTML = `<div class="preview-warning">预览失败: ${result.message || "未知错误"}</div>`;
+          showToast("应用失败: " + (result.message || "未知错误"), "error");
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "确定选择此条目";
         }
       } catch (e) {
-        const previewDiv = document.getElementById("preview-classify-result");
-        if (previewDiv) {
-          previewDiv.style.display = "block";
-          previewDiv.innerHTML = `<div class="preview-warning">请求异常: ${e.message || e}</div>`;
-        }
-      }
-    });
-  }
-
-  // scrape-search button listener
-  const scrapeSearchBtn = document.getElementById("btn-scrape-search");
-  if (scrapeSearchBtn) {
-    scrapeSearchBtn.addEventListener("click", async () => {
-      const btnEl = scrapeSearchBtn;
-      const inputEl = document.getElementById("scrape-search-input");
-      const query = (inputEl?.value || "").trim();
-      if (!query) {
-        showToast("请输入搜索关键词");
-        return;
-      }
-      btnEl.disabled = true;
-      btnEl.textContent = "搜索中...";
-      try {
-        const result = await requestApi(
-          "POST",
-          `/tasks/${encodeURIComponent(taskId)}/scrape-search`,
-          { query: query, year: task.scrape_year || "" },
-        );
-        if (result.code === 200 && result.data?.candidates?.length > 0) {
-          renderScrapeCandidates(result.data.candidates, taskId);
-        } else {
-          showToast(
-            result.data?.candidates
-              ? "未找到匹配结果"
-              : result.message || "搜索失败",
-            "error",
-          );
-        }
-      } catch (e) {
-        showToast("搜索失败: " + (e.message || "未知错误"), "error");
-      } finally {
-        btnEl.disabled = false;
-        btnEl.textContent = "AI联网搜索";
+        showToast("网络错误", "error");
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "确定选择此条目";
       }
     });
   }
 }
-
-function renderScrapeCandidates(candidates, taskId) {
-  const area = document.getElementById("scrape-candidates-area");
-  if (!area) return;
-  area.style.display = "block";
-  area.innerHTML =
-    '<div class="cinema-modal-block"><h4>搜索结果</h4>' +
-    candidates
-      .map(
-        (c, idx) =>
-          '<div class="scrape-candidate-card" data-candidate-idx="' +
-          idx +
-          '" style="display:flex;gap:12px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:background 150ms"' +
-          " onmouseenter=\"this.style.background='var(--bg-hover, rgba(255,255,255,0.04))'\"" +
-          " onmouseleave=\"this.style.background=''\">" +
-          (c.poster_url
-            ? '<img src="' +
-              escapeHtml(c.poster_url) +
-              '" style="width:50px;height:75px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display=\'none\'">'
-            : "") +
-          '<div style="flex:1;min-width:0">' +
-          '<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
-          escapeHtml(c.title) +
-          " (" +
-          (c.year || "?") +
-          ")</div>" +
-          '<div style="font-size:12px;color:var(--text-secondary)">' +
-          escapeHtml(c.original_title || "") +
-          "</div>" +
-          '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' +
-          escapeHtml((c.overview || "").substring(0, 120)) +
-          "</div>" +
-          '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">' +
-          escapeHtml(c.provider_type || "") +
-          (c.vote_average ? " · ★" + c.vote_average : "") +
-          "</div>" +
-          "</div>" +
-          "</div>",
-      )
-      .join("") +
-    "</div>";
-
-  area.querySelectorAll(".scrape-candidate-card").forEach((card) => {
-    card.addEventListener("click", async () => {
-      const idx = parseInt(card.dataset.candidateIdx);
-      const c = candidates[idx];
-      if (!c) return;
-
-      const result = await requestApi(
-        "POST",
-        `/tasks/${encodeURIComponent(taskId)}/preview`,
-        {
-          title_cn: c.title,
-          title_en: c.original_title || "",
-          year: String(c.year || ""),
-        },
-      );
-      if (result.code === 200) {
-        showToast("已应用候选元数据，请查看预览结果");
-        removeAppModal();
-        await openTaskDetailImpl(taskId, true);
-        await Promise.all([loadTaskList(), loadDashboardOverview()]);
-      } else {
-        showToast("应用失败: " + (result.message || "未知错误"), "error");
-      }
     });
-  });
+  }
 }
