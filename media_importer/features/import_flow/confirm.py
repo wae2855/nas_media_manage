@@ -11,7 +11,10 @@ from media_importer.features.tasks import (
     mark_skipped,
 )
 from media_importer.features.import_flow.context import TaskContext
-from media_importer.features.import_flow.services import ClassificationService
+from media_importer.features.import_flow.services import (
+    ClassificationService,
+    apply_filename_template,
+)
 from media_importer.features.import_flow.utils import PipelineError, PipelineSkipError
 
 
@@ -54,6 +57,71 @@ class ConfirmMixin:
                            ))
             self._log("error", f"确认入库失败: {task.get('source_filename', '')} - {e}", task)
             return False
+
+    def preview_task(self, task_id: str, updates: dict) -> dict:
+        """预览元数据/维度/文件名变更，只更新 DB + 重跑分类，不触发文件操作。"""
+        task = self.task_manager.get_task(task_id)
+        if not task:
+            raise PipelineError(f"任务不存在: {task_id}")
+        tid = task_id
+
+        scrape_result = task.get("scrape_result", {})
+        if isinstance(scrape_result, str):
+            scrape_result = {}
+
+        if "title_cn" in updates:
+            scrape_result["title_cn"] = updates["title_cn"]
+        if "title_en" in updates:
+            scrape_result["title_en"] = updates["title_en"]
+        if "year" in updates:
+            scrape_result["year"] = updates["year"]
+
+        current_dims = task.get("scrape_dimensions", {})
+        if isinstance(current_dims, str):
+            current_dims = {}
+        if "dimensions" in updates:
+            dims = updates["dimensions"]
+            current_dims.update(dims)
+            enabled_dim_names = {d["name"] for d in get_enabled_dimensions(self.task_manager.conn)}
+            current_dims = {k: v for k, v in current_dims.items() if k in enabled_dim_names}
+            scrape_result["dimensions"] = current_dims
+
+        task["scrape_result"] = scrape_result
+        task["scrape_dimensions"] = current_dims
+
+        db_update_task(
+            self.task_manager.conn, tid,
+            scrape_result=scrape_result,
+            scrape_dimensions=current_dims,
+            scrape_title_cn=scrape_result.get("title_cn", ""),
+            scrape_title_en=scrape_result.get("title_en", ""),
+            scrape_year=str(scrape_result.get("year", "")) if scrape_result.get("year") else "",
+            classify_result="",
+        )
+
+        enabled_dim_names = {d["name"] for d in get_enabled_dimensions(self.task_manager.conn)}
+        result = ClassificationService(self.config).classify_task(task, enabled_dim_names)
+        task["import_path"] = result.import_path
+        task["classify_result"] = result.classify_result
+
+        if "filename" in updates:
+            task["final_filename"] = updates["filename"]
+        elif not task.get("final_filename"):
+            filename_template = self.config.get("naming", {}).get("filename_template", "{title_cn} ({year})")
+            video_ext = os.path.splitext(task.get("source_filename", ""))[1]
+            task["final_filename"] = apply_filename_template(scrape_result, filename_template, video_ext)
+
+        db_update_task(
+            self.task_manager.conn, tid,
+            scrape_result=scrape_result,
+            scrape_dimensions=current_dims,
+            classify_result=result.classify_result,
+            import_path=result.import_path,
+            final_filename=task["final_filename"],
+        )
+
+        self._log("info", f"预览更新完成: {task.get('source_filename', '')}", task)
+        return self.task_manager.get_task(tid)
 
     def reclassify_task(self, task_id: str, new_dimensions: dict) -> dict:
         task = self.task_manager.get_task(task_id)

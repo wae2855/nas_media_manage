@@ -79,6 +79,7 @@ API_ROUTES = [
     _route("POST", "/api/tasks/{task_id}/cancel", "_task_cancel"),
     _route("POST", "/api/tasks/{task_id}/retry", "_retry_task"),
     _route("POST", "/api/tasks/{task_id}/confirm", "_task_confirm"),
+    _route("POST", "/api/tasks/{task_id}/preview", "_task_preview"),
     _route("POST", "/api/tasks/{task_id}/reclassify", "_task_reclassify"),
     _route("POST", "/api/tasks/{task_id}/classify-preview", "_task_classify_preview"),
     _route("POST", "/api/tasks/{task_id}/ignore", "_task_ignore"),

@@ -13,6 +13,7 @@ from media_importer.features.tasks import (
     get_queue_status_for_api,
     ignore_task_for_api,
     pause_queue_for_api,
+    preview_task_for_api,
     reclassify_task_for_api,
     rename_task_file_for_api,
     resume_queue_for_api,
@@ -99,6 +100,16 @@ class TaskHandlersMixin:
             globals._global_pipeline,
             task_id,
             body.get("dimensions", {}),
+            task_manager=globals._global_task_manager,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
+
+    def _task_preview(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
+        result = preview_task_for_api(
+            globals._global_pipeline,
+            task_id,
+            body,
             task_manager=globals._global_task_manager,
         )
         json_response(self, result.code, data=result.data, message=result.message)

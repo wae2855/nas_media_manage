@@ -58,6 +58,34 @@ def reclassify_task_for_api(pipeline, task_id: str, dimensions: dict,
         return TaskReviewActionResult(code=400, message=str(exc))
 
 
+def preview_task_for_api(pipeline, task_id: str, updates: dict, task_manager=None) -> TaskReviewActionResult:
+    if pipeline is None:
+        return TaskReviewActionResult(code=500, message="Pipeline not initialized")
+    if not updates:
+        return TaskReviewActionResult(code=400, message="缺少更新参数")
+
+    if task_manager is not None and hasattr(task_manager, 'conn'):
+        if "dimensions" in updates:
+            from media_importer.core.db.dimension_repo import get_enabled_dimensions
+            enabled = {d["name"] for d in get_enabled_dimensions(task_manager.conn)}
+            invalid = set(updates["dimensions"].keys()) - enabled
+            if invalid:
+                return TaskReviewActionResult(
+                    code=400,
+                    message=f"维度已禁用，无法修改: {', '.join(sorted(invalid))}",
+                )
+
+    try:
+        task = pipeline.preview_task(task_id, updates)
+        return TaskReviewActionResult(
+            code=200,
+            data={"task": task},
+            message="预览更新完成",
+        )
+    except Exception as exc:
+        return TaskReviewActionResult(code=400, message=str(exc))
+
+
 def confirm_all_tasks_for_api(
     pipeline,
     task_manager,

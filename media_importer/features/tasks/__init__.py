@@ -57,6 +57,7 @@ from .review_service import (
     TaskReviewActionResult,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
+    preview_task_for_api,
     reclassify_task_for_api,
 )
 
@@ -92,6 +93,7 @@ __all__ = [
     "clear_tasks_for_api",
     "confirm_all_tasks_for_api",
     "confirm_task_for_api",
+    "preview_task_for_api",
     "get_queue_status_for_api",
     "get_task_for_api",
     "get_task_stats_for_api",
