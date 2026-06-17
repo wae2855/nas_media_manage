@@ -31,6 +31,7 @@ function buildMatchPathData(task) {
   return {
     filename: task.source_filename || "",
     status: task.status || "",
+    stage: task.stage || "",
     confirmed_override: task.confirmed_override ? 1 : 0,
     confirmed_title: task.confirmed_title || "",
     clean_result: scrapeResult.clean_result || {},

@@ -183,4 +183,7 @@ def reset_for_retry(task) -> dict:
         final_filename="",
         classify_result="",
         file_location=FILE_LOCATION_SOURCE,
+        confirmed_override=0,
+        confirmed_title="",
+        override_source="",
     )

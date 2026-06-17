@@ -336,6 +336,25 @@ function renderMatchPathPreview(data) {
     return html;
   }
 
+  // 待确认但 match_level 不是 NEEDS_CONFIRM（如 manual_review 全局开启）
+  if (data.stage === "AWAIT_REVIEW" && matchLevel !== "NEEDS_CONFIRM") {
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html +=
+      '<div class="sim-step-dot" style="background:#F59E0B18;color:#F59E0B">6</div>';
+    html += '<div class="sim-step-line" style="background:transparent"></div>';
+    html += "</div>";
+    html += '<div class="sim-step-content">';
+    html +=
+      '<div class="sim-step-header"><span class="sim-step-title" style="color:#F59E0B">待人工确认</span><span class="sim-step-tag" style="background:#F59E0B18;color:#F59E0B">CONFIRM</span></div>';
+    html +=
+      '<div class="sim-alert">系统开启了全局人工审核，确认后才能入库。</div>';
+    html += "</div></div>";
+    html += "</div>";
+    html += "</div>";
+    return html;
+  }
+
   if (matchLevel === "NEEDS_CONFIRM") {
     html += '<div class="sim-step">';
     html += '<div class="sim-step-rail">';

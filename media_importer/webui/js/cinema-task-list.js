@@ -69,7 +69,10 @@ function renderTaskScrapeProcess(task) {
 }
 
 function renderDimSourcesWithValues(task) {
-  const dims = task.scrape_dimensions || {};
+  const dims =
+    task.scrape_dimensions ||
+    (task.scrape_result && task.scrape_result.dimensions) ||
+    {};
   const dimSources = task.dim_sources || {};
   const dimDefs = (window._dimensionsData || []).concat(
     window.currentEnabledDimensions || [],

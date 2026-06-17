@@ -174,9 +174,17 @@ function buildScrapeTraceSection(task, isAwaitReview, taskId) {
 
   var searchRowHtml = "";
   if (isAwaitReview) {
+    var cleanTitle = "";
+    var scrapeRes = task.scrape_result || {};
+    if (scrapeRes.clean_result && scrapeRes.clean_result.clean_title) {
+      cleanTitle = scrapeRes.clean_result.clean_title;
+    }
     searchRowHtml =
       '<div style="margin-top:8px;display:flex;gap:6px;align-items:center">' +
       '<input id="scrape-search-input" type="text" placeholder="输入电影名重新搜索..." ' +
+      'value="' +
+      escapeHtml(cleanTitle) +
+      '" ' +
       'style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">' +
       '<button id="btn-scrape-search" type="button" class="btn btn-sm btn-outline">AI联网搜索</button>' +
       "</div>";

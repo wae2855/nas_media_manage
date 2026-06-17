@@ -22,14 +22,21 @@ async function performTaskAction(action, taskId) {
     const scrape = task.scrape_result || {};
     const confirmedTitle = scrape.title_cn || task.scrape_title_cn || "";
     const originalFilename = task.source_filename || "";
-    const overrideSource =
-      confirmedTitle &&
-      originalFilename &&
-      !originalFilename
+    const matchLevel = scrape.match_level || "";
+
+    // 判定是否换过元数据：
+    // 1. 如果已有 override_source（详情面板填过），直接使用
+    // 2. 如果 NEEDS_CONFIRM（刮削不自信）且文件名不含标题 → 标记为手动确认
+    // 3. 否则（刮削自信或标题匹配文件名）→ 不标记
+    let overrideSource = task.override_source || null;
+    if (!overrideSource && confirmedTitle && originalFilename) {
+      const titleInFilename = originalFilename
         .toLowerCase()
-        .includes(confirmedTitle.substring(0, 3).toLowerCase())
-        ? "manual"
-        : null;
+        .includes(confirmedTitle.substring(0, 3).toLowerCase());
+      if (matchLevel === "NEEDS_CONFIRM" && !titleInFilename) {
+        overrideSource = "manual";
+      }
+    }
     showConfirm(
       "确认入库",
       `确定将「${taskFileName(task)}」按当前结果继续入库吗？`,
