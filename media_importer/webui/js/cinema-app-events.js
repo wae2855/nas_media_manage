@@ -156,8 +156,10 @@ function bindEvents() {
       if (event.target.closest("input, .toggle-pill, label.toggle-pill"))
         return;
       const bodyId = collapseToggle.dataset.collapseToggle;
-      const body = document.getElementById(bodyId);
       const card = collapseToggle.closest(".config-collapse-card");
+      const body = bodyId
+        ? document.getElementById(bodyId)
+        : card?.querySelector(".config-collapse-body");
       if (body && card) {
         card.classList.toggle("open");
       }

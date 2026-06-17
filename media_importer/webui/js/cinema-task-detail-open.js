@@ -109,6 +109,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     : "";
 
   const stateHintHtml = `<div class="cinema-modal-save-bar">
+            <span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${escapeHtml(perm.statusColor)}18;color:${escapeHtml(perm.statusColor)}">${escapeHtml(perm.statusLabel)}</span>
             <small class="task-permission-hint">${escapeHtml(perm.stateLabel)}</small>
        </div>`;
 

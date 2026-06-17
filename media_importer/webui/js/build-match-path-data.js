@@ -34,6 +34,7 @@ function buildMatchPathData(task) {
     stage: task.stage || "",
     confirmed_override: task.confirmed_override ? 1 : 0,
     confirmed_title: task.confirmed_title || "",
+    scrape_trace: scrapeTrace || {},
     clean_result: scrapeResult.clean_result || {},
     match_result: {
       match_level:

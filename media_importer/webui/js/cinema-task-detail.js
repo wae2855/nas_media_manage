@@ -132,13 +132,45 @@ function getTaskEditPermission(task) {
   const stage = String(task.stage || "").toUpperCase();
   const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
   const isQueued = status === "PENDING" && stage === "QUEUED";
+  const isRunning = status === "PENDING" && stage === "RUNNING";
   const isFailed = status === "FAILED";
   const isCancelled = status === "CANCELLED";
+  const isSuccess = status === "SUCCESS";
+  const isSkipped = status === "SKIPPED";
+
+  var labelText, labelColor;
+  if (isAwaitReview) {
+    labelText = "待确认";
+    labelColor = "#F59E0B";
+  } else if (isQueued) {
+    labelText = "排队中";
+    labelColor = "#94A3B8";
+  } else if (isRunning) {
+    labelText = "处理中";
+    labelColor = "#06B6D4";
+  } else if (isSuccess) {
+    labelText = "已完成";
+    labelColor = "#22C55E";
+  } else if (isFailed) {
+    labelText = "失败";
+    labelColor = "#D94F45";
+  } else if (isCancelled) {
+    labelText = "已取消";
+    labelColor = "#6C757D";
+  } else if (isSkipped) {
+    labelText = "已跳过";
+    labelColor = "#8B5CF6";
+  } else {
+    labelText = "未知";
+    labelColor = "#6C757D";
+  }
 
   return {
     canEditFilename: isAwaitReview,
     canEditDimensions: isAwaitReview,
     canSave: isAwaitReview,
+    statusLabel: labelText,
+    statusColor: labelColor,
     stateLabel: isAwaitReview
       ? "待确认 — 可修改文件名和维度后确认入库"
       : isQueued
@@ -147,11 +179,11 @@ function getTaskEditPermission(task) {
           ? "失败 — 只读，可重试"
           : isCancelled
             ? "已取消 — 只读，可重新投入"
-            : status === "SUCCESS"
+            : isSuccess
               ? "已完成 — 只读"
-              : status === "SKIPPED"
+              : isSkipped
                 ? "已跳过 — 只读"
-                : stage === "RUNNING"
+                : isRunning
                   ? "处理中 — 不可编辑"
                   : "只读",
   };
@@ -164,13 +196,6 @@ function buildScrapeTraceSection(task, isAwaitReview, taskId) {
   }
 
   var searchBadge = "";
-  if (scrapeTrace && scrapeTrace.search_enhanced === true) {
-    searchBadge =
-      '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(6,182,212,0.15);color:#06B6D4;font-weight:600;margin-left:8px">🔍 AI联网搜索增强</span>';
-  } else if (scrapeTrace && scrapeTrace.search_enhanced === false) {
-    searchBadge =
-      '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:8px">📴 纯本地分析</span>';
-  }
 
   var searchRowHtml = "";
   if (isAwaitReview) {

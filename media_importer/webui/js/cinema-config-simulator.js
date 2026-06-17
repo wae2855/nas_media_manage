@@ -295,6 +295,38 @@ function renderMatchPathPreview(data) {
     '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">维度推导</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">DIMS</span></div>';
   if (hasDims) {
     html += _renderSimDims(scrapeRes.dimensions);
+    var traceInfo = data.scrape_trace || {};
+    var srcParts = [];
+    if (
+      traceInfo.provider_dimensions &&
+      Object.keys(traceInfo.provider_dimensions).length > 0
+    ) {
+      srcParts.push(
+        '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(34,197,94,0.12);color:#22C55E">📡 Provider</span>',
+      );
+    }
+    if (
+      traceInfo.ai_assist_dimensions &&
+      Object.keys(traceInfo.ai_assist_dimensions).length > 0
+    ) {
+      srcParts.push(
+        '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(139,92,246,0.12);color:#8B5CF6">🤖 AI辅助</span>',
+      );
+    }
+    if (
+      traceInfo.ai_search_dimensions &&
+      Object.keys(traceInfo.ai_search_dimensions).length > 0
+    ) {
+      srcParts.push(
+        '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(6,182,212,0.12);color:#06B6D4">🌐 AI搜索</span>',
+      );
+    }
+    if (srcParts.length > 0) {
+      html +=
+        '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">' +
+        srcParts.join("") +
+        "</div>";
+    }
   } else {
     html += '<div class="sim-alert">暂无维度推导结果。</div>';
   }
