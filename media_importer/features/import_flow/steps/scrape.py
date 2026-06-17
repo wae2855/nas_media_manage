@@ -56,6 +56,19 @@ class ScrapeStepsMixin:
             result['ai_reason'] = match_dict.get('ai_reason', '')
             result['selected_candidate'] = match_dict.get('selected_candidate')
 
+            # 当 LLM 刮削未返回 Provider 详情时，从 selected_candidate 回填
+            selected = match_dict.get('selected_candidate')
+            if selected and selected.get('provider_type') and selected.get('provider_id'):
+                if not result.get('provider_type') or result.get('provider_type') == 'ai':
+                    result['provider_type'] = selected['provider_type']
+                    result['provider_id'] = selected['provider_id']
+                if not result.get('title_cn'):
+                    result['title_cn'] = selected.get('title', '')
+                if not result.get('title_en'):
+                    result['title_en'] = selected.get('title', '')
+                if not result.get('year'):
+                    result['year'] = selected.get('year')
+
             if self.metrics:
                 self.metrics.record_llm_call(success=True)
 

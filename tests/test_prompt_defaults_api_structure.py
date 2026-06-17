@@ -12,14 +12,22 @@ def test_prompt_defaults_returns_prompts_and_descriptions():
     """T1.12 验收：/api/config/prompt-defaults 返回结构升级。"""
     all_data = PromptDefaults.get_all()
     assert "prompts" in all_data, f"返回结构应含 prompts 层，实际 keys: {list(all_data.keys())}"
-    assert "descriptions" in all_data, f"返回结构应含 descriptions 层"
-    expected_keys = {
+    assert "instructions" in all_data, f"返回结构应含 instructions 层"
+    expected_prompt_keys = {
         "prompt_title_clean", "prompt_match_assist",
         "prompt_dimension_mapping", "prompt_dimension_supplement",
         "prompt_source_clean",
     }
-    assert set(all_data["prompts"].keys()) == expected_keys
-    assert set(all_data["descriptions"].keys()) == expected_keys
+    expected_instruction_keys = {
+        "prompt_match_assist_instruction",
+        "prompt_dimension_mapping_instruction",
+        "prompt_dimension_supplement_instruction",
+        "prompt_source_clean_instruction",
+    }
+    assert set(all_data["prompts"].keys()) == expected_prompt_keys
+    assert set(all_data["instructions"].keys()) == expected_instruction_keys
+    expected_desc_keys = expected_prompt_keys | expected_instruction_keys
+    assert set(all_data["descriptions"].keys()) == expected_desc_keys
     # 每条 description 都是非空字符串
     for key, desc in all_data["descriptions"].items():
         assert isinstance(desc, str) and desc.strip(), f"{key} description 应为非空字符串"

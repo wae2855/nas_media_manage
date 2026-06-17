@@ -127,6 +127,18 @@ async function loadDirectoryConfig() {
     aiAssist.prompt_source_clean || "",
   );
   setFieldValue(
+    "cfg-ai_assist-prompt_match_assist_instruction",
+    aiAssist.prompt_match_assist_instruction || "",
+  );
+  setFieldValue(
+    "cfg-ai_assist-prompt_dimension_mapping_instruction",
+    aiAssist.prompt_dimension_mapping_instruction || "",
+  );
+  setFieldValue(
+    "cfg-ai_assist-prompt_source_clean_instruction",
+    aiAssist.prompt_source_clean_instruction || "",
+  );
+  setFieldValue(
     "cfg-ai_search-provider",
     aiSearch.provider || (llm.web_search || {}).provider || "",
   );
@@ -155,6 +167,10 @@ async function loadDirectoryConfig() {
   setFieldValue(
     "cfg-ai_search-prompt_dimension_supplement",
     aiSearch.prompt_dimension_supplement || "",
+  );
+  setFieldValue(
+    "cfg-ai_search-prompt_dimension_supplement_instruction",
+    aiSearch.prompt_dimension_supplement_instruction || "",
   );
   // T2.6 plan: 新增 ai_scene_strategy 字段回填（5 场景 × 2 下拉）
   const aiStrategy = rawConfig.ai_scene_strategy || {};

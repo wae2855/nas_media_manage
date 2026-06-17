@@ -1,7 +1,18 @@
 import os
+import hashlib
 from .utils import json_response
 
 WEBUI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "webui")
+
+# 文件修改时间缓存，避免每次请求都 stat
+_file_mtimes = {}
+
+
+def _get_etag(file_path: str) -> str:
+    """基于文件修改时间生成 ETag，文件内容变化自动失效。"""
+    mtime = os.path.getmtime(file_path)
+    key = f"{file_path}:{mtime}"
+    return hashlib.md5(key.encode()).hexdigest()[:16]
 
 
 class StaticServerMixin:
@@ -13,6 +24,17 @@ class StaticServerMixin:
             return
         if not os.path.isfile(file_path):
             json_response(self, 404, message=f"File not found: {filename}")
+            return
+
+        etag = _get_etag(file_path)
+
+        # 检查客户端缓存
+        if_none_match = self.headers.get("If-None-Match", "")
+        if if_none_match and if_none_match.strip('"') == etag:
+            self.send_response(304)
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("ETag", f'"{etag}"')
+            self.end_headers()
             return
 
         try:
@@ -36,6 +58,7 @@ class StaticServerMixin:
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("ETag", f'"{etag}"')
         self.send_header("X-Frame-Options", "ALLOWALL")
         self.send_header("Content-Security-Policy", "frame-ancestors *")
         self.end_headers()

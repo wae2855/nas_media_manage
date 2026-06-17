@@ -6,6 +6,7 @@ from datetime import datetime
 from media_importer.features.configuration import ConfigView
 from media_importer.features.prompts.defaults import PromptDefaults
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
+from media_importer.scraper._llm_match_assist import _assemble_prompt
 
 logger = logging.getLogger(__name__)
 ai_logger = logging.getLogger("media_importer.ai")
@@ -14,6 +15,14 @@ __all__ = ["AI_SYSTEM_PROMPT", "SourceCleaner"]
 
 
 AI_SYSTEM_PROMPT = PromptDefaults.SOURCE_CLEAN
+
+
+def _build_source_clean_output_format() -> str:
+    return (
+        "## 输出要求\n"
+        '请严格按以下JSON格式返回，不要添加任何解释文字：\n'
+        '{"analysis": "...", "decisions": {"文件名": {"action": "keep或delete", "reason": "判断理由"}}}'
+    )
 
 
 class SourceCleaner:
@@ -37,7 +46,6 @@ class SourceCleaner:
         from media_importer.features.scraping.prompt_resolver import PromptResolver
         self.llm = LLMScraper(config)
         self.prompt_resolver = PromptResolver.from_config(config)
-        self.ai_prompt = self.prompt_resolver.get_source_clean_prompt()
 
         self.video_extensions = set(self.view.paths.video_extensions)
         self.subtitle_extensions = set(self.view.paths.subtitle_extensions)
@@ -310,13 +318,17 @@ class SourceCleaner:
             return {}
 
     def _build_cleaner_prompt(self, dir_path: str, files: list) -> str:
+        instruction = self.prompt_resolver.get_source_clean_instruction()
+        is_legacy = (instruction == "")
         files_desc = json.dumps(files, ensure_ascii=False, indent=2)
-        return f"{self.ai_prompt}\n\n【待分析目录】\n目录: {dir_path}\n文件列表:\n{files_desc}"
+        data_context = f"【待分析目录】\n目录: {dir_path}\n文件列表:\n{files_desc}"
+        output_format = "" if is_legacy else _build_source_clean_output_format()
+        return _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
     def _call_llm(self, prompt: str) -> str:
         """调用 LLM 分析目录。统一通过 LLMScraper.call_with_prompt，按 source_clean 场景策略选模型。"""
         return self.llm.call_with_prompt(
-            system_prompt=self.ai_prompt,
+            system_prompt=self.prompt_resolver.get_source_clean_prompt(),
             user_prompt=prompt,
             scene="source_clean",
         )

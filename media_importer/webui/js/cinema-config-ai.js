@@ -7,7 +7,6 @@ function syncAiSearchOptions(clearModel) {
   const searchTypeSelect = document.getElementById("cfg-ai_search-search_type");
   const baseUrlInput = document.getElementById("cfg-ai_search-base_url");
 
-  // Update model options based on provider
   if (
     modelSelect &&
     typeof PROVIDER_MODEL_MAP !== "undefined" &&
@@ -25,7 +24,6 @@ function syncAiSearchOptions(clearModel) {
     }
   }
 
-  // Update search type options based on provider
   if (
     searchTypeSelect &&
     typeof SEARCH_TYPE_MAP !== "undefined" &&
@@ -43,7 +41,6 @@ function syncAiSearchOptions(clearModel) {
     searchTypeSelect.innerHTML = '<option value="">选择搜索类型</option>';
   }
 
-  // Auto-fill base URL based on provider
   if (
     baseUrlInput &&
     typeof PROVIDER_BASE_URL_MAP !== "undefined" &&
@@ -55,18 +52,18 @@ function syncAiSearchOptions(clearModel) {
   }
 }
 
-async function loadPromptDefaults() {
-  if (window._promptDefaultsCache) return window._promptDefaultsCache;
+async function loadPromptDefaults(forceRefresh = false) {
+  if (!forceRefresh && window._promptDefaultsCache)
+    return window._promptDefaultsCache;
   const result = await requestApi("GET", "/config/prompt-defaults");
   window._promptDefaultsCache = result.code === 200 ? result.data || {} : {};
   return window._promptDefaultsCache;
 }
 
 async function resetActivePrompt(group) {
-  const defaults = await loadPromptDefaults();
+  const defaults = await loadPromptDefaults(true);
   const wrapper = document.querySelector(`[data-prompt-tabs="${group}"]`);
   if (!wrapper) return;
-  // 5-tab 区域（ai-prompts）：找当前激活的 .prompt-tab-content → 内部 textarea
   if (group === "ai-prompts") {
     const activePanel = wrapper.parentElement.querySelector(
       ".prompt-tab-content.active",
@@ -79,7 +76,6 @@ async function resetActivePrompt(group) {
     }
     return;
   }
-  // 旧版 ai-assist / ai-search 区域（高级选项 details 内嵌）
   const active = wrapper.querySelector(".prompt-tab.active")?.dataset.promptTab;
   if (!active) return;
   const textarea = wrapper.querySelector(
@@ -89,11 +85,25 @@ async function resetActivePrompt(group) {
     textarea.value = (defaults.prompts && defaults.prompts[active]) || "";
 }
 
+async function resetActiveInstruction(instructionKey) {
+  const defaults = await loadPromptDefaults(true);
+  const textarea =
+    document.getElementById(`cfg-ai_assist-${instructionKey}`) ||
+    document.getElementById(`cfg-ai_search-${instructionKey}`);
+  if (textarea) {
+    const defaultVal =
+      (defaults.instructions && defaults.instructions[instructionKey]) || "";
+    console.log(
+      `[resetActiveInstruction] key=${instructionKey} found=${!!textarea} defaultLen=${defaultVal.length} instructionsExists=${!!defaults.instructions}`,
+    );
+    textarea.value = defaultVal;
+  }
+}
+
 function bindAiConfigInteractions() {
   document
     .getElementById("cfg-ai_search-provider")
     ?.addEventListener("change", () => syncAiSearchOptions(true));
-  // 旧版 ai-assist / ai-search 提示词区（高级选项 details 内嵌的 textarea 切换）
   document
     .querySelectorAll(
       "[data-prompt-tabs='ai-assist'], [data-prompt-tabs='ai-search']",
@@ -113,7 +123,6 @@ function bindAiConfigInteractions() {
           );
       });
     });
-  // T2.3 plan: API Key 区页签切换（data-apikey-tab）
   document.querySelectorAll("[data-apikey-tabs]").forEach((wrapper) => {
     wrapper.addEventListener("click", (event) => {
       const tab = event.target.closest("[data-apikey-tab]");
@@ -131,7 +140,6 @@ function bindAiConfigInteractions() {
         );
     });
   });
-  // T2.4 plan: 提示词区 5 tab 切换（独立于旧 prompt-tab-panel；按 data-prompt-content 激活 .prompt-tab-content）
   document
     .querySelectorAll("[data-prompt-tabs='ai-prompts']")
     .forEach((wrapper) => {
@@ -159,13 +167,16 @@ function bindAiConfigInteractions() {
       resetActivePrompt(btn.dataset.promptReset),
     );
   });
-  // T2.6 plan: 场景策略下拉事件（更新 ai-scene-strategy-status 徽章）
+  document.querySelectorAll("[data-instruction-reset]").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      resetActiveInstruction(btn.dataset.instructionReset),
+    );
+  });
   document
     .querySelectorAll("[data-scene-primary], [data-scene-fallback]")
     .forEach((sel) => {
       sel.addEventListener("change", updateAiConfigStatus);
     });
-  // T2.4 plan: 首次加载时把 descriptions 注入到 .prompt-help-body
   loadPromptDefaults()
     .then((defaults) => {
       const descs = defaults.descriptions || {};
@@ -178,7 +189,6 @@ function bindAiConfigInteractions() {
 }
 
 async function testLlmConnection(triggerEl) {
-  // 根据 data-llm-scenario 区分测试 ai_assist 还是 ai_search，默认 ai_search（兼容旧调用）
   const scenario = triggerEl?.dataset?.llmScenario || "ai_search";
   const payload =
     scenario === "ai_assist"

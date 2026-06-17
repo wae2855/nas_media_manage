@@ -10,6 +10,96 @@ from media_importer.scraper.exceptions import LLMScrapeError
 logger = logging.getLogger("media_importer.ai")
 
 
+def _assemble_prompt(
+    instruction: str, data_context: str,
+    output_format: str = "", is_legacy: bool = False,
+) -> str:
+    if is_legacy:
+        return data_context
+    parts = [p for p in [instruction, output_format, data_context] if p]
+    return "\n\n".join(parts)
+
+
+def _build_match_assist_context(
+    original_filename: str, clean_title: str, year: Optional[int],
+    path_context: Optional[dict],
+) -> str:
+    if path_context is None:
+        path_context = {}
+
+    candidates_text = "无"
+    if path_context.get("provider_candidates"):
+        lines = []
+        for idx, c in enumerate(path_context["provider_candidates"][:5], 1):
+            score = f"⭐{c.get('vote_average', 0)}"
+            pop = f"热度{int(c.get('popularity', 0))}"
+            title_parts = [c.get("title", "")]
+            if c.get("original_title") and c["original_title"] != c.get("title"):
+                title_parts.append(f"/ {c['original_title']}")
+            year_part = f" ({c['year']})" if c.get("year") else ""
+            media_part = f" · {c.get('media_type', '')}"
+            id_part = f" · id:{c.get('id', '')}"
+            lines.append(f"{idx}. {' '.join(title_parts)}{year_part}{media_part} · {score} · {pop}{id_part}")
+        candidates_text = "\n".join(lines)
+
+    tier1_info = path_context.get("tier1_search_info", {})
+    tier1_searched = tier1_info.get("searched_title", clean_title)
+    tier1_year = tier1_info.get("searched_year")
+    tier1_result_count = tier1_info.get("provider_results", "未知")
+    tier1_candidate_type = tier1_info.get("candidate_type", "none")
+    tier1_hint = (
+        f"Step 1 已用 \"{tier1_searched}\""
+        + (f" ({tier1_year}年)" if tier1_year else "")
+        + f" 搜索 Provider，结果：{tier1_result_count}。"
+    )
+    if tier1_candidate_type == "none":
+        tier1_hint += (
+            " 这意味着 Provider 数据库里没有这个标题的作品。"
+            " 如果你认为文件名确实包含影视信息，请给出你认为正确的标题（可能是英文原名、别名或更准确的译名），"
+            " 程序会用你给的 corrected_title 重新搜索。"
+            " 如果你也找不到替代标题，应返回 is_valid=false。"
+        )
+    elif tier1_candidate_type == "fuzzy":
+        tier1_hint += (
+            " 这些是标题不完全匹配的模糊结果，可能包含同名但不同年份/类型的作品。"
+            " 请结合文件名和目录上下文判断哪条最可能匹配，填 selected_candidate_id 直接采用；"
+            " 若都不匹配但你能推测正确标题，填 corrected_title 让程序重新搜索。"
+        )
+
+    parts = [
+        "## 待匹配文件信息",
+        f"- 原始文件名: {original_filename}",
+        f"- 正则参考标题: {clean_title or '无'}",
+        f"- 正则参考年份: {year or '未知'}",
+        "",
+        "## 目录上下文",
+        f"- 上级文件夹: {path_context.get('parent_folder', '无')}",
+        f"- 上两级文件夹: {path_context.get('grandparent_folder', '无')}",
+        f"- 路径段: {', '.join(path_context.get('path_segments', [])) if path_context.get('path_segments') else '无'}",
+        f"- 同级文件: {', '.join(path_context.get('sibling_files', [])) if path_context.get('sibling_files') else '无'}",
+        "",
+        "## Provider 候选（Step 1 已找到，供你参考）",
+        candidates_text,
+        "",
+        "## Step 1 搜索结果",
+        tier1_hint,
+        "",
+    ]
+    return "\n".join(parts)
+
+
+def _build_match_assist_output_format() -> str:
+    parts = [
+        "## 输出要求",
+        "返回 JSON，不要包含任何其他文字：",
+        '{"is_valid": true, "certainty": "high", "corrected_title": "...", "corrected_year": 2024, "media_type_hint": "movie", "selected_candidate_id": "637", "reason": "详细理由(200字内)", "short_reason": "≤30字总结"}',
+        "",
+        "若 is_valid=false：",
+        '{"is_valid": false, "certainty": "", "corrected_title": "", "corrected_year": null, "media_type_hint": null, "selected_candidate_id": null, "reason": "判定理由", "short_reason": "≤30字"}',
+    ]
+    return "\n".join(parts)
+
+
 def _extract_title_impl(self, prompt: str) -> str:
     logger.info(f"ai.scene.business scene=title_clean trigger=year_suspect_or_low_match prompt_len={len(prompt)}")
     if not self.api_key and not self.fast_api_key:
@@ -40,7 +130,6 @@ def _tier2_correct_impl(
     if path_context is None:
         path_context = {}
 
-    # AI 未配置时快速返回，避免无效 HTTP 调用
     if not self.api_key and not self.fast_api_key:
         logger.info(
             f"ai.scene.business scene=match_assist skipped=no_ai_config "
@@ -61,119 +150,11 @@ def _tier2_correct_impl(
     )
     system_prompt = self.prompt_resolver.get_match_assist_prompt()
 
-    # 渲染 Provider 候选列表
-    candidates_text = "无"
-    if path_context.get("provider_candidates"):
-        lines = []
-        for idx, c in enumerate(path_context["provider_candidates"][:5], 1):
-            score = f"⭐{c.get('vote_average', 0)}"
-            pop = f"热度{int(c.get('popularity', 0))}"
-            title_parts = [c.get("title", "")]
-            if c.get("original_title") and c["original_title"] != c.get("title"):
-                title_parts.append(f"/ {c['original_title']}")
-            year_part = f" ({c['year']})" if c.get("year") else ""
-            media_part = f" · {c.get('media_type', '')}"
-            id_part = f" · id:{c.get('id', '')}"
-            lines.append(f"{idx}. {' '.join(title_parts)}{year_part}{media_part} · {score} · {pop}{id_part}")
-        candidates_text = "\n".join(lines)
-
-    # 渲染 Tier 1 搜索结果说明
-    tier1_info = path_context.get("tier1_search_info", {})
-    tier1_searched = tier1_info.get("searched_title", clean_title)
-    tier1_year = tier1_info.get("searched_year")
-    tier1_result_count = tier1_info.get("provider_results", "未知")
-    tier1_candidate_type = tier1_info.get("candidate_type", "none")
-    tier1_hint = (
-        f"Step 1 已用 \"{tier1_searched}\""
-        + (f" ({tier1_year}年)" if tier1_year else "")
-        + f" 搜索 Provider，结果：{tier1_result_count}。"
-    )
-    if tier1_candidate_type == "none":
-        tier1_hint += (
-            " 这意味着 Provider 数据库里没有这个标题的作品。"
-            " 如果你认为文件名确实包含影视信息，请给出你认为正确的标题（可能是英文原名、别名或更准确的译名），"
-            " 程序会用你给的 corrected_title 重新搜索。"
-            " 如果你也找不到替代标题，应返回 is_valid=false。"
-        )
-    elif tier1_candidate_type == "fuzzy":
-        tier1_hint += (
-            " 这些是标题不完全匹配的模糊结果，可能包含同名但不同年份/类型的作品。"
-            " 请结合文件名和目录上下文判断哪条最可能匹配，填 selected_candidate_id 直接采用；"
-            " 若都不匹配但你能推测正确标题，填 corrected_title 让程序重新搜索。"
-        )
-
-    user_parts = [
-        "## 待匹配文件信息",
-        f"- 原始文件名: {original_filename}",
-        f"- 正则参考标题: {clean_title or '无'}",
-        f"- 正则参考年份: {year or '未知'}",
-        "",
-        "## 目录上下文",
-        f"- 上级文件夹: {path_context.get('parent_folder', '无')}",
-        f"- 上两级文件夹: {path_context.get('grandparent_folder', '无')}",
-        f"- 路径段: {', '.join(path_context.get('path_segments', [])) if path_context.get('path_segments') else '无'}",
-        f"- 同级文件: {', '.join(path_context.get('sibling_files', [])) if path_context.get('sibling_files') else '无'}",
-        "",
-        "## Provider 候选（Step 1 已找到，供你参考）",
-        candidates_text,
-        "",
-        "## Step 1 搜索结果",
-        tier1_hint,
-        "",
-        "## 网络搜索优先",
-        "如果你具备联网搜索能力，请优先通过网络搜索验证标题和年份信息，",
-        "而不是仅凭记忆或训练数据猜测。特别是以下场景：",
-        "- Step 1 Provider 返回 0 条结果时，先搜一下这个标题对应哪部作品",
-        "- 同名多版本时，结合文件名中的线索（年份、季集、画质标注）搜索确认",
-        "- 不确定 corrected_title 的准确译名时，搜索确认标准译名",
-        "网络搜索得出的结论比记忆猜测更可靠，可以提高 certainty 等级。",
-        "",
-        "## 判定规则",
-        "",
-        "### 第一步：判断 is_valid（文件名是否包含可识别影视信息）",
-        "",
-        "返回 false 的情况（宁可保守）：",
-        "1. 文件名为随机字符或乱码：如 123uyyt、asdfgh、855、yyu",
-        "2. 文件名为纯通用名词，对应影视过多无法具体指向：",
-        '   - 单字词："消防"、"大楼"、"飞机"、"爱情"',
-        '   - 通用短语："我的女神"、"那些日子"（对应几十部作品）',
-        '3. 文件名明显非影视内容：如 "新建文件夹"、"未命名"、"sample"',
-        "",
-        "返回 true 的情况：",
-        "- 包含具体片名（中文译名或原文）",
-        "- 含影视特征任一：年份(2024)、季集(S01E01)、画质(1080p)、人名",
-        "",
-        "候选数量影响：",
-        "- 同名候选 ≥ 3 部 → 倾向 is_valid=false（歧义太大）",
-        "- 同名候选唯一且高分 → 倾向 is_valid=true + certainty=high",
-        "",
-        "### 第二步：若 is_valid=true，判断 certainty",
-        "",
-        "- high: 高度确信是某部具体作品（明确译名、含年份+片名、候选首位完美匹配）",
-        "- medium: 有合理猜测但无法 100% 确定（同名多版本缺年份、翻译有歧义）",
-        "- low: 不应出现。若 is_valid=true 但完全无法推测，应该返回 is_valid=false",
-        "",
-        "### 第三步：候选利用规则",
-        "",
-        "- 若 Step 1 候选中已有完美匹配项：填 selected_candidate_id（候选的 provider_id），程序直接采用",
-        "- 若候选都不匹配但你能推测：填 corrected_title + corrected_year，程序重新搜 Provider",
-        "- 若 is_valid=false：所有其他字段留空/null",
-        "",
-        "## 关键要求",
-        "- 无论 certainty 是 high 还是 medium，都必须填写 corrected_title 和 corrected_year",
-        "- corrected_title 至少应等于 clean_title（不要空着）",
-        "- 如果 reason 中提到具体年份（如'2004年王家卫'），corrected_year 必须填写该年份，不能留 null",
-        "- certainty 只决定'是否自动入库'，不是你'能不能给出建议'",
-        "- 即使同时匹配多部同名作品（medium），也要给出你认为最可能的标题和年份",
-        "",
-        "## 输出要求",
-        "返回 JSON，不要包含任何其他文字：",
-        '{"is_valid": true, "certainty": "high", "corrected_title": "...", "corrected_year": 2024, "media_type_hint": "movie", "selected_candidate_id": "637", "reason": "详细理由(200字内)", "short_reason": "≤30字总结"}',
-        "",
-        "若 is_valid=false：",
-        '{"is_valid": false, "certainty": "", "corrected_title": "", "corrected_year": null, "media_type_hint": null, "selected_candidate_id": null, "reason": "判定理由", "short_reason": "≤30字"}',
-    ]
-    user_content = "\n".join(user_parts)
+    instruction = self.prompt_resolver.get_match_assist_instruction()
+    is_legacy = (instruction == "")
+    data_context = _build_match_assist_context(original_filename, clean_title, year, path_context)
+    output_format = "" if is_legacy else _build_match_assist_output_format()
+    user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
     try:
         raw_response = _call_with_retry_impl(
@@ -203,11 +184,9 @@ def _tier2_correct_impl(
         result.setdefault("suggestion", result.get("corrected_title", clean_title))
         result.setdefault("short_reason", "")
 
-        # Phase P 新增字段
         result.setdefault("is_valid", True)
         result.setdefault("selected_candidate_id", None)
 
-        # 防御：is_valid=false 时强制清空其他字段
         if not result.get("is_valid"):
             result["certainty"] = ""
             result["corrected_title"] = ""
@@ -215,12 +194,10 @@ def _tier2_correct_impl(
             result["media_type_hint"] = None
             result["selected_candidate_id"] = None
 
-        # 防御：is_valid=true 但 certainty 异常
         if result.get("is_valid"):
             if result.get("certainty") not in ("high", "medium"):
                 result["certainty"] = "medium"
 
-        # short_reason 长度兜底
         if result.get("short_reason") and len(result["short_reason"]) > 33:
             result["short_reason"] = result["short_reason"][:30] + "..."
         elif not result.get("short_reason") and result.get("reason"):

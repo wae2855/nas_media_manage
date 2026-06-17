@@ -26,6 +26,10 @@ _PROMPT_FIELDS = (
     "prompt_match_assist",
     "prompt_dimension_mapping",
     "prompt_source_clean",
+    "prompt_match_assist_instruction",
+    "prompt_dimension_mapping_instruction",
+    "prompt_source_clean_instruction",
+    "prompt_dimension_supplement_instruction",
 )
 
 

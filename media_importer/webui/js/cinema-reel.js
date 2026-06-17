@@ -287,13 +287,17 @@ function updateAiConfigStatus() {
     }
   }
 
-  // 2) 提示词区：5 个 prompt 任一非默认（用户填过）即视为已配置
+  // 2) 提示词区：5 个 prompt + 4 个 instruction 任一非默认即视为已自定义
   const promptFields = [
     "cfg-ai_assist-prompt_title_clean",
     "cfg-ai_assist-prompt_match_assist",
     "cfg-ai_assist-prompt_dimension_mapping",
     "cfg-ai_assist-prompt_source_clean",
     "cfg-ai_search-prompt_dimension_supplement",
+    "cfg-ai_assist-prompt_match_assist_instruction",
+    "cfg-ai_assist-prompt_dimension_mapping_instruction",
+    "cfg-ai_assist-prompt_source_clean_instruction",
+    "cfg-ai_search-prompt_dimension_supplement_instruction",
   ];
   const promptsConfigured = promptFields.some((id) => {
     const el = document.getElementById(id);

@@ -4,24 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>影音库AI智能整理</title>
-    <link rel="stylesheet" href="css/cinema-tokens.css?v=1">
-    <link rel="stylesheet" href="css/cinema-layout.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-1.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-2.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-3.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-4.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-5.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-6.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-7.css?v=1">
-    <link rel="stylesheet" href="css/cinema-pages-8.css?v=1">
-    <link rel="stylesheet" href="css/cinema-config-flow.css?v=2">
-    <link rel="stylesheet" href="css/cinema-rules.css?v=4">
-    <link rel="stylesheet" href="css/components-1.css?v=1">
-    <link rel="stylesheet" href="css/components-2.css?v=1">
-    <link rel="stylesheet" href="css/dimensions-1.css?v=1">
-    <link rel="stylesheet" href="css/dimensions-2.css?v=1">
-    <link rel="stylesheet" href="css/cinema-advanced-1.css?v=1">
-    <link rel="stylesheet" href="css/cinema-advanced-2.css?v=1">
+    <link rel="stylesheet" href="css/cinema-tokens.css">
+    <link rel="stylesheet" href="css/cinema-layout.css">
+    <link rel="stylesheet" href="css/cinema-pages-1.css">
+    <link rel="stylesheet" href="css/cinema-pages-2.css">
+    <link rel="stylesheet" href="css/cinema-pages-3.css">
+    <link rel="stylesheet" href="css/cinema-pages-4.css">
+    <link rel="stylesheet" href="css/cinema-pages-5.css">
+    <link rel="stylesheet" href="css/cinema-pages-6.css">
+    <link rel="stylesheet" href="css/cinema-pages-7.css">
+    <link rel="stylesheet" href="css/cinema-pages-8.css">
+    <link rel="stylesheet" href="css/cinema-config-flow.css">
+    <link rel="stylesheet" href="css/cinema-rules.css">
+    <link rel="stylesheet" href="css/components-1.css">
+    <link rel="stylesheet" href="css/components-2.css">
+    <link rel="stylesheet" href="css/dimensions-1.css">
+    <link rel="stylesheet" href="css/dimensions-2.css">
+    <link rel="stylesheet" href="css/cinema-advanced-1.css">
+    <link rel="stylesheet" href="css/cinema-advanced-2.css">
 
 </head>
 <body>
@@ -677,6 +677,9 @@
                                             </details>
                                         </div>
                                     </div>
+                                    <div class="prompt-edit-instruction">
+                                        <span class="instruction-na">此场景无指令模板（标题清洗仅使用 system_prompt）</span>
+                                    </div>
                                     <div class="inline-action-row">
                                         <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认</button>
                                     </div>
@@ -686,7 +689,7 @@
                                 <div class="prompt-tab-content" data-prompt-content="prompt_match_assist">
                                     <div class="prompt-edit-grid">
                                         <div class="prompt-edit-main">
-                                            <textarea id="cfg-ai_assist-prompt_match_assist" rows="15" placeholder="留空使用系统默认提示词"></textarea>
+                                            <textarea id="cfg-ai_assist-prompt_match_assist" rows="10" placeholder="留空使用系统默认提示词"></textarea>
                                         </div>
                                         <div class="prompt-edit-side">
                                             <details class="prompt-help-disclosure" open>
@@ -695,8 +698,28 @@
                                             </details>
                                         </div>
                                     </div>
+                                    <div class="prompt-edit-instruction">
+                                        <label class="instruction-label">判定规则模板（不含输出 JSON 格式，由系统固定追加）：</label>
+                                        <div class="prompt-edit-grid">
+                                            <div class="prompt-edit-main">
+                                                <textarea id="cfg-ai_assist-prompt_match_assist_instruction" rows="5" placeholder="留空使用系统默认指令（含判定规则与关键要求）"></textarea>
+                                            </div>
+                                            <div class="prompt-edit-side">
+                                                <details class="prompt-help-disclosure">
+                                                    <summary>说明：发给 AI 的消息结构</summary>
+                                                    <div class="prompt-help-body">
+                                                        <b>① system_prompt</b>：角色描述（上方可编辑）<br>
+                                                        <b>② 判定规则模板</b>：你在这编辑的判定逻辑<br>
+                                                        <b>③ 输出 JSON 格式</b>：系统固定追加（字段名不可改）<br>
+                                                        <b>④ 数据上下文</b>：系统自动注入 · 文件名 · 候选列表 · 搜索记录
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="inline-action-row">
-                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认 system_prompt</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-instruction-reset="prompt_match_assist_instruction">重置指令模板</button>
                                     </div>
                                 </div>
 
@@ -704,7 +727,7 @@
                                 <div class="prompt-tab-content" data-prompt-content="prompt_dimension_mapping">
                                     <div class="prompt-edit-grid">
                                         <div class="prompt-edit-main">
-                                            <textarea id="cfg-ai_assist-prompt_dimension_mapping" rows="15" placeholder="留空使用系统默认提示词"></textarea>
+                                            <textarea id="cfg-ai_assist-prompt_dimension_mapping" rows="10" placeholder="留空使用系统默认提示词"></textarea>
                                         </div>
                                         <div class="prompt-edit-side">
                                             <details class="prompt-help-disclosure" open>
@@ -713,8 +736,28 @@
                                             </details>
                                         </div>
                                     </div>
+                                    <div class="prompt-edit-instruction">
+                                        <label class="instruction-label">归类规则模板（不含输出 JSON 格式，由系统固定追加）：</label>
+                                        <div class="prompt-edit-grid">
+                                            <div class="prompt-edit-main">
+                                                <textarea id="cfg-ai_assist-prompt_dimension_mapping_instruction" rows="5" placeholder="留空使用系统默认指令（含归类规则）"></textarea>
+                                            </div>
+                                            <div class="prompt-edit-side">
+                                                <details class="prompt-help-disclosure">
+                                                    <summary>说明：发给 AI 的消息结构</summary>
+                                                    <div class="prompt-help-body">
+                                                        <b>① system_prompt</b>：角色描述（上方可编辑）<br>
+                                                        <b>② 归类规则模板</b>：你在这编辑的归类逻辑<br>
+                                                        <b>③ 输出 JSON 格式</b>：系统固定追加（字段名不可改）<br>
+                                                        <b>④ 数据上下文</b>：系统自动注入 · 视频文件名 · 维度列表 · Provider 上下文
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="inline-action-row">
-                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认 system_prompt</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-instruction-reset="prompt_dimension_mapping_instruction">重置指令模板</button>
                                     </div>
                                 </div>
 
@@ -722,7 +765,7 @@
                                 <div class="prompt-tab-content" data-prompt-content="prompt_dimension_supplement">
                                     <div class="prompt-edit-grid">
                                         <div class="prompt-edit-main">
-                                            <textarea id="cfg-ai_search-prompt_dimension_supplement" rows="15" placeholder="留空使用系统默认提示词"></textarea>
+                                            <textarea id="cfg-ai_search-prompt_dimension_supplement" rows="10" placeholder="留空使用系统默认提示词"></textarea>
                                         </div>
                                         <div class="prompt-edit-side">
                                             <details class="prompt-help-disclosure" open>
@@ -731,8 +774,28 @@
                                             </details>
                                         </div>
                                     </div>
+                                    <div class="prompt-edit-instruction">
+                                        <label class="instruction-label">补全规则模板（不含输出 JSON 格式，由系统固定追加）：</label>
+                                        <div class="prompt-edit-grid">
+                                            <div class="prompt-edit-main">
+                                                <textarea id="cfg-ai_search-prompt_dimension_supplement_instruction" rows="5" placeholder="留空使用系统默认指令（含补全规则）"></textarea>
+                                            </div>
+                                            <div class="prompt-edit-side">
+                                                <details class="prompt-help-disclosure">
+                                                    <summary>说明：发给 AI 的消息结构</summary>
+                                                    <div class="prompt-help-body">
+                                                        <b>① system_prompt</b>：角色描述（上方可编辑）<br>
+                                                        <b>② 补全规则模板</b>：你在这编辑的推断策略<br>
+                                                        <b>③ 输出 JSON 格式</b>：系统固定追加（字段名不可改）<br>
+                                                        <b>④ 数据上下文</b>：系统自动注入 · 视频文件名 · 字幕文件名 · 维度列表
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="inline-action-row">
-                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认 system_prompt</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-instruction-reset="prompt_dimension_supplement_instruction">重置指令模板</button>
                                     </div>
                                 </div>
 
@@ -740,7 +803,7 @@
                                 <div class="prompt-tab-content" data-prompt-content="prompt_source_clean">
                                     <div class="prompt-edit-grid">
                                         <div class="prompt-edit-main">
-                                            <textarea id="cfg-ai_assist-prompt_source_clean" rows="15" placeholder="留空使用系统默认提示词"></textarea>
+                                            <textarea id="cfg-ai_assist-prompt_source_clean" rows="10" placeholder="留空使用系统默认提示词"></textarea>
                                         </div>
                                         <div class="prompt-edit-side">
                                             <details class="prompt-help-disclosure" open>
@@ -749,8 +812,28 @@
                                             </details>
                                         </div>
                                     </div>
+                                    <div class="prompt-edit-instruction">
+                                        <label class="instruction-label">分析规则模板（不含输出 JSON 格式，由系统固定追加）：</label>
+                                        <div class="prompt-edit-grid">
+                                            <div class="prompt-edit-main">
+                                                <textarea id="cfg-ai_assist-prompt_source_clean_instruction" rows="5" placeholder="留空使用系统默认指令（含分析原则与判断标准）"></textarea>
+                                            </div>
+                                            <div class="prompt-edit-side">
+                                                <details class="prompt-help-disclosure">
+                                                    <summary>说明：发给 AI 的消息结构</summary>
+                                                    <div class="prompt-help-body">
+                                                        <b>① system_prompt</b>：角色描述（上方可编辑）<br>
+                                                        <b>② 分析规则模板</b>：你在这编辑的判断标准<br>
+                                                        <b>③ 输出 JSON 格式</b>：系统固定追加（字段名不可改）<br>
+                                                        <b>④ 数据上下文</b>：系统自动注入 · 目录路径 · 文件列表
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="inline-action-row">
-                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-prompt-reset="ai-prompts">恢复默认 system_prompt</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-instruction-reset="prompt_source_clean_instruction">重置指令模板</button>
                                     </div>
                                 </div>
                             </div>
@@ -938,51 +1021,51 @@
     </nav>
     <div class="toast" id="toast" role="status"></div>
     <!-- 1. Base utilities & API -->
-    <script src="js/api.js?v=1"></script>
-    <script src="js/tmdb-dict.js?v=1"></script>
-    <script src="js/cinema-modals.js?v=1"></script>
+    <script src="js/api.js"></script>
+    <script src="js/tmdb-dict.js"></script>
+    <script src="js/cinema-modals.js"></script>
 
     <!-- 2. Global state (must load first, other files read/write these vars) -->
-    <script src="js/cinema-app-state.js?v=1"></script>
+    <script src="js/cinema-app-state.js"></script>
 
     <!-- 3. Task: utils → list → detail → detail-open → batch → entry -->
-    <script src="js/cinema-task-utils.js?v=1"></script>
-    <script src="js/cinema-task-list.js?v=1"></script>
-    <script src="js/cinema-task-detail.js?v=1"></script>
-    <script src="js/cinema-task-detail-open.js?v=1"></script>
-    <script src="js/cinema-task-batch.js?v=1"></script>
-    <script src="js/cinema-tasks.js?v=4"></script>
+    <script src="js/cinema-task-utils.js"></script>
+    <script src="js/cinema-task-list.js"></script>
+    <script src="js/cinema-task-detail.js"></script>
+    <script src="js/cinema-task-detail-open.js"></script>
+    <script src="js/cinema-task-batch.js"></script>
+    <script src="js/cinema-tasks.js"></script>
 
     <!-- 4. Dimensions: core → genre → genre-picker → edit → ops → entry -->
-    <script src="js/dimension-core.js?v=1"></script>
-    <script src="js/dimension-genre.js?v=1"></script>
-    <script src="js/dimension-genre-picker.js?v=1"></script>
-    <script src="js/dimension-edit.js?v=1"></script>
-    <script src="js/dimension-ops.js?v=1"></script>
-    <script src="js/dimensions.js?v=39"></script>
+    <script src="js/dimension-core.js"></script>
+    <script src="js/dimension-genre.js"></script>
+    <script src="js/dimension-genre-picker.js"></script>
+    <script src="js/dimension-edit.js"></script>
+    <script src="js/dimension-ops.js"></script>
+    <script src="js/dimensions.js"></script>
 
     <!-- 5. Small standalone modules -->
-    <script src="js/cinema-recycle.js?v=1"></script>
-    <script src="js/cinema-field.js?v=1"></script>
-    <script src="js/cinema-section.js?v=1"></script>
+    <script src="js/cinema-recycle.js"></script>
+    <script src="js/cinema-field.js"></script>
+    <script src="js/cinema-section.js"></script>
 
     <!-- 6. Config: payloads → save → provider → ai → rules → simulator → dim-ops → entry -->
-    <script src="js/cinema-config-payloads.js?v=2"></script>
-    <script src="js/cinema-config-save.js?v=2"></script>
-    <script src="js/cinema-config-provider.js?v=1"></script>
-    <script src="js/cinema-config-ai.js?v=2"></script>
-    <script src="js/cinema-config-rules.js?v=1"></script>
-    <script src="js/build-match-path-data.js?v=1"></script>
-    <script src="js/cinema-config-simulator.js?v=2"></script>
-    <script src="js/cinema-config-dim-ops.js?v=1"></script>
-    <script src="js/cinema-config.js?v=12"></script>
+    <script src="js/cinema-config-payloads.js"></script>
+    <script src="js/cinema-config-save.js"></script>
+    <script src="js/cinema-config-provider.js"></script>
+    <script src="js/cinema-config-ai.js"></script>
+    <script src="js/cinema-config-rules.js"></script>
+    <script src="js/build-match-path-data.js"></script>
+    <script src="js/cinema-config-simulator.js"></script>
+    <script src="js/cinema-config-dim-ops.js"></script>
+    <script src="js/cinema-config.js"></script>
 
     <!-- 7. Dashboard / directory-loader / events / reel (depend on all above) -->
-    <script src="js/cinema-dashboard.js?v=1"></script>
-    <script src="js/cinema-directory-loader.js?v=2"></script>
-    <script src="js/cinema-app-events.js?v=2"></script>
-    <script src="js/cinema-reel.js?v=3"></script>
-    <script src="js/cinema-app.js?v=8"></script>
+    <script src="js/cinema-dashboard.js"></script>
+    <script src="js/cinema-directory-loader.js"></script>
+    <script src="js/cinema-app-events.js"></script>
+    <script src="js/cinema-reel.js"></script>
+    <script src="js/cinema-app.js"></script>
     <div id="ai-demo-modals-container">
       <!-- AI 辅助测试模态 -->
       <div id="ai-assist-demo-modal" class="demo-modal" style="display:none;">

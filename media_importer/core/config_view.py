@@ -90,6 +90,9 @@ class AiAssistConfig:
     prompt_match_assist: str = ""
     prompt_dimension_mapping: str = ""
     prompt_source_clean: str = ""
+    prompt_match_assist_instruction: str = ""
+    prompt_dimension_mapping_instruction: str = ""
+    prompt_source_clean_instruction: str = ""
     log_prompt: bool = True
 
     @property
@@ -141,6 +144,7 @@ class AiSearchConfig:
     retry_delay: int = 3
     verify_ssl: bool = True
     prompt_dimension_supplement: str = ""
+    prompt_dimension_supplement_instruction: str = ""
 
     @property
     def is_configured(self) -> bool:
@@ -251,6 +255,9 @@ class ConfigView:
                 prompt_match_assist=ai_assist.get("prompt_match_assist", ""),
                 prompt_dimension_mapping=ai_assist.get("prompt_dimension_mapping", ""),
                 prompt_source_clean=ai_assist.get("prompt_source_clean", ""),
+                prompt_match_assist_instruction=ai_assist.get("prompt_match_assist_instruction", ""),
+                prompt_dimension_mapping_instruction=ai_assist.get("prompt_dimension_mapping_instruction", ""),
+                prompt_source_clean_instruction=ai_assist.get("prompt_source_clean_instruction", ""),
                 log_prompt=ai_assist.get("log_prompt", True),
             ),
             ai_scene_strategy=AiSceneStrategyConfig.from_dict(
@@ -268,6 +275,7 @@ class ConfigView:
                 retry_delay=ai_search.get("retry_delay", 3),
                 verify_ssl=ai_search.get("verify_ssl", True),
                 prompt_dimension_supplement=ai_search.get("prompt_dimension_supplement", ""),
+                prompt_dimension_supplement_instruction=ai_search.get("prompt_dimension_supplement_instruction", ""),
             ),
             scanner=ScannerConfig(
                 scan_source=config.get("scan_source", True),

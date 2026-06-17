@@ -27,6 +27,11 @@ class PromptResolver:
     prompt_source_clean: str = ""
     prompt_dimension_supplement: str = ""
 
+    prompt_match_assist_instruction: str = ""
+    prompt_dimension_supplement_instruction: str = ""
+    prompt_dimension_mapping_instruction: str = ""
+    prompt_source_clean_instruction: str = ""
+
     @classmethod
     def from_config(cls, config: dict) -> "PromptResolver":
         """从配置字典构建 PromptResolver。
@@ -45,6 +50,10 @@ class PromptResolver:
             prompt_dimension_mapping=ai_assist.prompt_dimension_mapping or "",
             prompt_source_clean=ai_assist.prompt_source_clean or "",
             prompt_dimension_supplement=ai_search.prompt_dimension_supplement or "",
+            prompt_match_assist_instruction=ai_assist.prompt_match_assist_instruction or "",
+            prompt_dimension_mapping_instruction=ai_assist.prompt_dimension_mapping_instruction or "",
+            prompt_source_clean_instruction=ai_assist.prompt_source_clean_instruction or "",
+            prompt_dimension_supplement_instruction=ai_search.prompt_dimension_supplement_instruction or "",
         )
 
     def get_title_clean_prompt(self) -> str:
@@ -66,3 +75,36 @@ class PromptResolver:
     def get_dimension_supplement_prompt(self) -> str:
         """获取维度补全提示词；留空时返回 PromptDefaults 内置真默认。"""
         return self.prompt_dimension_supplement or PromptDefaults.DIMENSION_SUPPLEMENT
+
+    # ── Instruction getters（值对比三态） ────────────────
+
+    def get_match_assist_instruction(self) -> str:
+        """返回 match_assist 指令（短 system_prompt 场景，直接回退）。"""
+        return self.prompt_match_assist_instruction or PromptDefaults.MATCH_ASSIST_INSTRUCTION
+
+    def get_dimension_supplement_instruction(self) -> str:
+        """返回 dimension_supplement 指令（值对比三态）。"""
+        if self.prompt_dimension_supplement_instruction:
+            return self.prompt_dimension_supplement_instruction
+        val = self.prompt_dimension_supplement
+        if val and val != PromptDefaults._LEGACY_DIMENSION_SUPPLEMENT:
+            return ""
+        return PromptDefaults.DIMENSION_SUPPLEMENT_INSTRUCTION
+
+    def get_dimension_mapping_instruction(self) -> str:
+        """返回 dimension_mapping 指令（值对比三态）。"""
+        if self.prompt_dimension_mapping_instruction:
+            return self.prompt_dimension_mapping_instruction
+        val = self.prompt_dimension_mapping
+        if val and val != PromptDefaults._LEGACY_DIMENSION_MAPPING:
+            return ""
+        return PromptDefaults.DIMENSION_MAPPING_INSTRUCTION
+
+    def get_source_clean_instruction(self) -> str:
+        """返回 source_clean 指令（值对比三态）。"""
+        if self.prompt_source_clean_instruction:
+            return self.prompt_source_clean_instruction
+        val = self.prompt_source_clean
+        if val and val != PromptDefaults._LEGACY_SOURCE_CLEAN:
+            return ""
+        return PromptDefaults.SOURCE_CLEAN_INSTRUCTION

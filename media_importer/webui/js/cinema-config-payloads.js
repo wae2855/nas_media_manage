@@ -249,6 +249,19 @@ function buildAiAssistPayload() {
         document.getElementById("cfg-ai_assist-prompt_source_clean")?.value ||
           "",
       ),
+      prompt_match_assist_instruction: String(
+        document.getElementById("cfg-ai_assist-prompt_match_assist_instruction")
+          ?.value || "",
+      ),
+      prompt_dimension_mapping_instruction: String(
+        document.getElementById(
+          "cfg-ai_assist-prompt_dimension_mapping_instruction",
+        )?.value || "",
+      ),
+      prompt_source_clean_instruction: String(
+        document.getElementById("cfg-ai_assist-prompt_source_clean_instruction")
+          ?.value || "",
+      ),
     },
   };
 }
@@ -286,6 +299,11 @@ function buildAiSearchPayload() {
         document.getElementById("cfg-ai_search-prompt_dimension_supplement")
           ?.value || "",
       ),
+      prompt_dimension_supplement_instruction: String(
+        document.getElementById(
+          "cfg-ai_search-prompt_dimension_supplement_instruction",
+        )?.value || "",
+      ),
     },
   };
 }
@@ -319,11 +337,29 @@ function buildAiPromptsPayload() {
         document.getElementById("cfg-ai_assist-prompt_source_clean")?.value ||
           "",
       ),
+      prompt_match_assist_instruction: String(
+        document.getElementById("cfg-ai_assist-prompt_match_assist_instruction")
+          ?.value || "",
+      ),
+      prompt_dimension_mapping_instruction: String(
+        document.getElementById(
+          "cfg-ai_assist-prompt_dimension_mapping_instruction",
+        )?.value || "",
+      ),
+      prompt_source_clean_instruction: String(
+        document.getElementById("cfg-ai_assist-prompt_source_clean_instruction")
+          ?.value || "",
+      ),
     },
     ai_search: {
       prompt_dimension_supplement: String(
         document.getElementById("cfg-ai_search-prompt_dimension_supplement")
           ?.value || "",
+      ),
+      prompt_dimension_supplement_instruction: String(
+        document.getElementById(
+          "cfg-ai_search-prompt_dimension_supplement_instruction",
+        )?.value || "",
       ),
     },
   };

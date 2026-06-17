@@ -20,7 +20,46 @@ from media_importer.scraper._llm_client_impl import (
 from media_importer.scraper._llm_match_assist import (
     _extract_title_impl,
     _tier2_correct_impl,
+    _assemble_prompt,
 )
+
+
+def _build_dimension_data_context(
+    video_filename: str, subtitle_filenames: List[str],
+    dimensions: list, provider_context: str = "",
+) -> str:
+    parts = [
+        "视频文件名:",
+        video_filename,
+        "",
+    ]
+    if subtitle_filenames:
+        parts.append("字幕文件名:")
+        for sub_file in subtitle_filenames:
+            parts.append(f"- {sub_file}")
+    else:
+        parts.append("字幕文件: 无")
+
+    if provider_context:
+        parts.append("")
+        parts.append(provider_context)
+
+    if dimensions:
+        parts.append("")
+        parts.append("当前需要判断的维度：")
+        for i, dim in enumerate(dimensions, 1):
+            name = dim.get("name", "")
+            label = dim.get("label", name)
+            values = dim.get("values", [])
+            hint = dim.get("ai_prompt", "")
+            vals_str = ", ".join(values) if values else "无固定值"
+            parts.append(f"{i}. {label}（{name}）: [{vals_str}] — {hint}")
+
+    return "\n".join(parts)
+
+
+def _build_dimension_output_format() -> str:
+    return '请只返回 JSON：\n{"维度名": "标准值或空字符串"}'
 
 
 class LLMScraper:
@@ -114,11 +153,7 @@ class LLMScraper:
 
     def call_with_prompt(self, system_prompt: str, user_prompt: str,
                          scene: str, scenario: str = None) -> str:
-        """通用 LLM 调用入口（供 SourceCleaner 等非刮削场景使用）。
-
-        复用 SceneStrategyResolver 的多模型 fallback 与重试逻辑；
-        返回原始响应字符串（不调用 _parse_response_impl），由调用方自行解析。
-        """
+        """通用 LLM 调用入口（供 SourceCleaner 等非刮削场景使用）。"""
         return _call_with_retry_impl(self, system_prompt, user_prompt,
                                      scene=scene, scenario=scenario)
 
@@ -133,21 +168,15 @@ class LLMScraper:
         if conn:
             self.load_dimensions_from_db(conn)
 
-        user_content_parts = [
-            "视频文件名:",
-            video_filename,
-            ""
-        ]
-
-        if subtitle_filenames:
-            user_content_parts.append("字幕文件名:")
-            for sub_file in subtitle_filenames:
-                user_content_parts.append(f"- {sub_file}")
-        else:
-            user_content_parts.append("字幕文件: 无")
-
-        user_content = '\n'.join(user_content_parts)
         system_prompt = self.prompt_resolver.get_dimension_supplement_prompt()
+        instruction = self.prompt_resolver.get_dimension_supplement_instruction()
+        is_legacy = (instruction == "")
+        data_context = _build_dimension_data_context(
+            video_filename, subtitle_filenames,
+            self.prompt_builder.dimensions,
+        )
+        output_format = "" if is_legacy else _build_dimension_output_format()
+        user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,
                                           scene="dimension_supplement", scenario="scrape")
@@ -164,24 +193,16 @@ class LLMScraper:
         if exclude_dims is None:
             exclude_dims = set(provider_dimensions.keys()) if provider_dimensions else set()
 
-        user_content_parts = [
-            "视频文件名:",
-            video_filename,
-            ""
-        ]
-
-        if subtitle_filenames:
-            user_content_parts.append("字幕文件名:")
-            for sub_file in subtitle_filenames:
-                user_content_parts.append(f"- {sub_file}")
-        else:
-            user_content_parts.append("字幕文件: 无")
-
-        user_content_parts.append("")
-        user_content_parts.append(provider_context)
-
-        user_content = '\n'.join(user_content_parts)
         system_prompt = self.prompt_resolver.get_dimension_mapping_prompt()
+        instruction = self.prompt_resolver.get_dimension_mapping_instruction()
+        is_legacy = (instruction == "")
+        data_context = _build_dimension_data_context(
+            video_filename, subtitle_filenames,
+            self.prompt_builder.dimensions,
+            provider_context=provider_context,
+        )
+        output_format = "" if is_legacy else _build_dimension_output_format()
+        user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,
                                           scene="dimension_mapping", scenario="scrape")
@@ -196,8 +217,15 @@ class LLMScraper:
         return result
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
-        user_content = f"剧名:\n{series_name}"
         system_prompt = self.prompt_resolver.get_dimension_supplement_prompt()
+        instruction = self.prompt_resolver.get_dimension_supplement_instruction()
+        is_legacy = (instruction == "")
+        data_context = _build_dimension_data_context(
+            series_name, [],
+            self.prompt_builder.dimensions,
+        )
+        output_format = "" if is_legacy else _build_dimension_output_format()
+        user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,
                                           scene="dimension_supplement", scenario="series_scrape")
@@ -206,13 +234,16 @@ class LLMScraper:
 
     def scrape_series_with_context(self, series_name: str, provider_context: str,
                                    provider_name: str = None) -> Dict[str, Any]:
-        user_content_parts = [
-            f"剧名:\n{series_name}",
-            "",
-            provider_context
-        ]
-        user_content = '\n'.join(user_content_parts)
         system_prompt = self.prompt_resolver.get_dimension_mapping_prompt()
+        instruction = self.prompt_resolver.get_dimension_mapping_instruction()
+        is_legacy = (instruction == "")
+        data_context = _build_dimension_data_context(
+            series_name, [],
+            self.prompt_builder.dimensions,
+            provider_context=provider_context,
+        )
+        output_format = "" if is_legacy else _build_dimension_output_format()
+        user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,
                                           scene="dimension_mapping", scenario="series_scrape")
