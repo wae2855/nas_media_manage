@@ -189,9 +189,22 @@ function buildScrapeTraceSection(task, isAwaitReview, taskId) {
 
   return `
         <div class="cinema-modal-block">
-            <h4>决策路径${searchBadge}${searchBtnHtml}</h4>
-            <div class="cinema-detail-trace-inline">${timelineHtml}</div>
+            <h4 style="cursor:pointer" onclick="toggleScrapeTrace(this)">▶ 决策路径${searchBadge}${searchBtnHtml}</h4>
+            <div class="cinema-detail-trace-inline" style="display:none">${timelineHtml}</div>
         </div>`;
+}
+
+function toggleScrapeTrace(headingEl) {
+  var container = headingEl.parentNode;
+  if (!container) return;
+  var inline = container.querySelector(".cinema-detail-trace-inline");
+  if (!inline) return;
+  var collapsed = inline.style.display === "none";
+  inline.style.display = collapsed ? "" : "none";
+  headingEl.textContent = headingEl.textContent.replace(
+    collapsed ? "▶" : "▼",
+    collapsed ? "▼" : "▶",
+  );
 }
 
 function taskToMatchPathData(task) {
