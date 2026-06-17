@@ -202,7 +202,7 @@ function buildScrapeTraceSection(task) {
   return `
         <div class="cinema-modal-block">
             <div class="config-collapse-card" data-collapse-card>
-                <div class="config-collapse-header" data-collapse-toggle style="cursor:pointer;display:flex;align-items:center;gap:6px">
+                <div class="config-collapse-header" data-collapse-toggle style="cursor:pointer;display:flex;align-items:center;gap:6px;justify-content:flex-start">
                     <span class="config-collapse-chevron" style="display:inline-block;transition:transform 180ms;font-size:12px">▶</span>
                     <h4 style="margin:0">决策路径</h4>
                 </div>

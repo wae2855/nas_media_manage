@@ -56,11 +56,10 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const actionHtml = isAwaitReview
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-save-row" style="flex-wrap:wrap;gap:8px">
-                    <button id="btn-scrape-manual" type="button" class="btn btn-outline">手动刮削</button>
-                    <div style="display:flex;gap:8px;margin-left:auto">
-                        <button id="btn-save-import" type="button" class="btn btn-primary">保存</button>
-                        <button id="btn-confirm-import" type="button" class="btn btn-success">确认入库，开始移动文件</button>
-                    </div>
+                    <button id="btn-scrape-manual" type="button" class="btn btn-primary" style="background:var(--gold);border-color:var(--gold);color:#fff">手动刮削</button>
+                    <div style="flex:1"></div>
+                    <button id="btn-save-import" type="button" class="btn btn-primary">保存</button>
+                    <button id="btn-confirm-import" type="button" class="btn btn-success">确认入库，开始移动文件</button>
                     <div id="import-error-area" class="modal-error-area" style="display:none;width:100%"></div>
                 </div>
            </div>`
@@ -193,7 +192,9 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
         dims[dimName] = multiDimNames[dimName].join("|");
     }
     document
-      .querySelectorAll("select[data-task-dim], input[type=text][data-task-dim]")
+      .querySelectorAll(
+        "select[data-task-dim], input[type=text][data-task-dim]",
+      )
       .forEach(function (input) {
         var val = parseRuleConditionValue(input.value);
         if (val) dims[input.dataset.taskDim] = val;
@@ -237,9 +238,11 @@ function openScrapeSearchModal(taskId, defaultQuery) {
   overlay.addEventListener("click", function (event) {
     if (event.target === overlay) overlay.remove();
   });
-  overlay.querySelector(".cinema-modal-close").addEventListener("click", function () {
-    overlay.remove();
-  });
+  overlay
+    .querySelector(".cinema-modal-close")
+    .addEventListener("click", function () {
+      overlay.remove();
+    });
   document.body.appendChild(overlay);
 
   var queryInput = document.getElementById("scrape-search-query");
@@ -262,24 +265,30 @@ function openScrapeSearchModal(taskId, defaultQuery) {
 
 async function doScrapeSearch(taskId) {
   var query = String(
-    document.getElementById("scrape-search-query")?.value || ""
+    document.getElementById("scrape-search-query")?.value || "",
   ).trim();
   var resultsEl = document.getElementById("scrape-search-results");
   var detailEl = document.getElementById("scrape-search-detail");
   var btn = document.getElementById("btn-scrape-search-exec");
 
   if (!query) {
-    resultsEl.innerHTML = '<div class="tmdb-preview-error">请输入影视名称</div>';
+    resultsEl.innerHTML =
+      '<div class="tmdb-preview-error">请输入影视名称</div>';
     return;
   }
 
   btn.disabled = true;
   resultsEl.innerHTML = '<div class="tmdb-preview-loading">搜索中...</div>';
-  detailEl.innerHTML = '<div class="tmdb-preview-placeholder">点击左侧搜索结果查看详情</div>';
+  detailEl.innerHTML =
+    '<div class="tmdb-preview-placeholder">点击左侧搜索结果查看详情</div>';
 
-  var result = await requestApi("POST", `/tasks/${encodeURIComponent(taskId)}/scrape-search`, {
-    query: query,
-  });
+  var result = await requestApi(
+    "POST",
+    `/tasks/${encodeURIComponent(taskId)}/scrape-search`,
+    {
+      query: query,
+    },
+  );
   btn.disabled = false;
 
   if (result.code !== 200 || !result.data?.candidates?.length) {
@@ -296,7 +305,7 @@ async function doScrapeSearch(taskId) {
       return (
         '<div class="tmdb-scrape-card" data-cidx="' +
         idx +
-        '" style="padding:10px;cursor:pointer;border-radius:6px;margin-bottom:4px;transition:background 120ms;border:1px solid transparent" onmouseenter="this.style.background=\'rgba(255,255,255,0.06)\'" onmouseleave="var s=this.parentNode.querySelector(\'.tmdb-scrape-card--active\'); if(s!==this){this.style.background=\'\';this.style.borderColor=\'transparent\'}">' +
+        "\" style=\"padding:10px;cursor:pointer;border-radius:6px;margin-bottom:4px;transition:background 120ms;border:1px solid transparent\" onmouseenter=\"this.style.background='rgba(255,255,255,0.06)'\" onmouseleave=\"var s=this.parentNode.querySelector('.tmdb-scrape-card--active'); if(s!==this){this.style.background='';this.style.borderColor='transparent'}\">" +
         "<div>" +
         '<span style="font-weight:600">' +
         escapeHtml(c.title) +
@@ -309,7 +318,11 @@ async function doScrapeSearch(taskId) {
         "</span>" +
         "</div>" +
         '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">' +
-        escapeHtml(c.original_title && c.original_title !== c.title ? c.original_title : "") +
+        escapeHtml(
+          c.original_title && c.original_title !== c.title
+            ? c.original_title
+            : "",
+        ) +
         "</div>" +
         "</div>"
       );
@@ -324,13 +337,11 @@ async function doScrapeSearch(taskId) {
       if (!c) return;
 
       // 高亮选中
-      resultsEl
-        .querySelectorAll(".tmdb-scrape-card")
-        .forEach(function (el) {
-          el.classList.remove("tmdb-scrape-card--active");
-          el.style.background = "";
-          el.style.borderColor = "transparent";
-        });
+      resultsEl.querySelectorAll(".tmdb-scrape-card").forEach(function (el) {
+        el.classList.remove("tmdb-scrape-card--active");
+        el.style.background = "";
+        el.style.borderColor = "transparent";
+      });
       card.classList.add("tmdb-scrape-card--active");
       card.style.background = "rgba(6,182,212,0.12)";
       card.style.borderColor = "rgba(6,182,212,0.4)";
@@ -389,11 +400,13 @@ function renderScrapeCandidateDetail(candidate, taskId) {
     "</div>";
 
   // 折叠组切换
-  detailEl.querySelectorAll(".tmdb-detail-group-header").forEach(function (header) {
-    header.addEventListener("click", function () {
-      this.parentElement.classList.toggle("collapsed");
+  detailEl
+    .querySelectorAll(".tmdb-detail-group-header")
+    .forEach(function (header) {
+      header.addEventListener("click", function () {
+        this.parentElement.classList.toggle("collapsed");
+      });
     });
-  });
 
   // 确定按钮
   var confirmBtn = document.getElementById("btn-confirm-candidate");
@@ -428,9 +441,6 @@ function renderScrapeCandidateDetail(candidate, taskId) {
         confirmBtn.disabled = false;
         confirmBtn.textContent = "确定选择此条目";
       }
-    });
-  }
-}
     });
   }
 }

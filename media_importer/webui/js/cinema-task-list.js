@@ -144,7 +144,6 @@ function renderTaskCard(item, index = 0) {
   const stage = String(item.stage || "").toUpperCase();
   const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
   const isFailed = status === "FAILED";
-  const danger = isFailed || isAwaitReview ? " danger" : "";
   const primaryAction = taskPrimaryAction(item);
   const secondaryAction = taskSecondaryAction(item);
   const title = taskDisplayTitle(item);
@@ -155,6 +154,32 @@ function renderTaskCard(item, index = 0) {
   const thumbnailPath = item.thumbnail_path || "";
   const posterUrl = scrape.poster_url || "";
   const toneClass = `cover-${getTaskTone(item)}`;
+  var statusLabel, statusColor;
+  if (isAwaitReview) {
+    statusLabel = "待确认";
+    statusColor = "#F59E0B";
+  } else if (isFailed) {
+    statusLabel = "失败";
+    statusColor = "#D94F45";
+  } else if (status === "SUCCESS") {
+    statusLabel = "已完成";
+    statusColor = "#22C55E";
+  } else if (status === "SKIPPED") {
+    statusLabel = "已跳过";
+    statusColor = "#8B5CF6";
+  } else if (status === "CANCELLED") {
+    statusLabel = "已取消";
+    statusColor = "#6C757D";
+  } else if (status === "PENDING" && stage === "QUEUED") {
+    statusLabel = "排队中";
+    statusColor = "#94A3B8";
+  } else if (status === "PENDING" && stage === "RUNNING") {
+    statusLabel = "处理中";
+    statusColor = "#06B6D4";
+  } else {
+    statusLabel = "未知";
+    statusColor = "#6C757D";
+  }
   let coverClass, coverContent;
   if (thumbnailPath) {
     const thumbFilename = thumbnailPath.split("/").pop().split("\\").pop();
@@ -174,7 +199,7 @@ function renderTaskCard(item, index = 0) {
             <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" onclick="event.stopPropagation()" />
             <div class="${coverClass}" aria-hidden="true">${coverContent}</div>
             <div class="task-body">
-                <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="badge${danger}">${escapeHtml(getTaskStatusText(item.status, item.stage))}</span></div>
+                <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${statusColor}18;color:${statusColor};white-space:nowrap">${escapeHtml(statusLabel)}</span></div>
                 ${failedBlock}
                 ${isFailed ? "" : renderTaskScrapeProcess(item)}
                 <div class="task-meta"><span class="task-meta-file">🎞️ ${escapeHtml(filename)}</span><span class="task-meta-sep">·</span><span class="task-meta-info">${escapeHtml(taskMeta(item))}</span></div>

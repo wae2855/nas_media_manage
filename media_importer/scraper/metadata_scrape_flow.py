@@ -84,6 +84,7 @@ def _build_minimal_result(clean_result, enabled_dims_set=None,
     match_level 由 MatchEngine 决定。
     """
     title = clean_result.clean_title or ""
+    media_type = "tv" if clean_result.season else "movie"
     result = {
         "title": title,
         "title_cn": title,
@@ -91,10 +92,18 @@ def _build_minimal_result(clean_result, enabled_dims_set=None,
         "year": clean_result.year,
         "season": clean_result.season,
         "episode": clean_result.episode,
-        "media_type": "tv" if clean_result.season else "movie",
+        "media_type": media_type,
         "provider_type": "ai",
         "provider_id": "",
-        "dimensions": {},
+        "dimensions": {"media_type": media_type},
+        "clean_result": {
+            "clean_title": clean_result.clean_title,
+            "year": clean_result.year,
+            "season": getattr(clean_result, "season", None),
+            "episode": getattr(clean_result, "episode", None),
+            "removed_items": getattr(clean_result, "removed_items", []) or [],
+            "method": "regex",
+        },
         "scrape_trace": {},
     }
     if provider_fallback_reasons:
@@ -164,6 +173,14 @@ def _build_provider_only_result(scraper, details, search_item, media_type,
         "title_en": details.original_title or search_item.original_title,
         "original_title": details.original_title or search_item.original_title,
         "year": details.year or clean_result.year,
+        "clean_result": {
+            "clean_title": clean_result.clean_title,
+            "year": clean_result.year,
+            "season": getattr(clean_result, "season", None),
+            "episode": getattr(clean_result, "episode", None),
+            "removed_items": getattr(clean_result, "removed_items", []) or [],
+            "method": "regex",
+        },
         "season": clean_result.season,
         "episode": clean_result.episode,
         "media_type": media_type,
