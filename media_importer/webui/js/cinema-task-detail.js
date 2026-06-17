@@ -157,7 +157,7 @@ function getTaskEditPermission(task) {
   };
 }
 
-function buildScrapeTraceSection(task) {
+function buildScrapeTraceSection(task, isAwaitReview, taskId) {
   var scrapeTrace = task.scrape_trace;
   if (!scrapeTrace || typeof scrapeTrace !== "object") {
     // 即使没有 scrape_trace，也能用 buildMatchPathData 渲染
@@ -172,6 +172,12 @@ function buildScrapeTraceSection(task) {
       '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:8px">📴 纯本地分析</span>';
   }
 
+  var searchBtnHtml = "";
+  if (isAwaitReview) {
+    searchBtnHtml =
+      '<button id="btn-scrape-search" type="button" class="btn btn-sm btn-outline" style="margin-left:8px">AI联网搜索</button>';
+  }
+
   var data = buildMatchPathData(task);
   var timelineHtml = "";
   try {
@@ -183,7 +189,7 @@ function buildScrapeTraceSection(task) {
 
   return `
         <div class="cinema-modal-block">
-            <h4>决策路径${searchBadge}</h4>
+            <h4>决策路径${searchBadge}${searchBtnHtml}</h4>
             <div class="cinema-detail-trace-inline">${timelineHtml}</div>
         </div>`;
 }

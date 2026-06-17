@@ -30,6 +30,9 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const perm = getTaskEditPermission(task);
   const editable = perm.canSave;
 
+  const overrideSource = task.override_source || "";
+  const hasOverride = overrideSource.length > 0;
+
   const renameSection = perm.canEditFilename
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-section-head">
@@ -84,6 +87,27 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
            </div>`
     : "";
 
+  const confirmHtml = isAwaitReview
+    ? `<div class="cinema-modal-block">
+                <div class="cinema-modal-section-head">
+                    <h4>确认入库</h4>
+                </div>
+                ${hasOverride ? `<div class="cinema-modal-override-badge">已手动指定：${escapeHtml(overrideSource)}</div>` : ""}
+                <label class="cinema-modal-field">
+                    <span>手动指定标题 <small>（可选，留空则使用刮削结果）</small></span>
+                    <input type="text" id="task-confirm-title" value="${escapeHtml(task.confirmed_title || "")}" placeholder="${escapeHtml(taskDisplayTitle(task))}" />
+                </label>
+                <label class="cinema-modal-field">
+                    <span>来源说明 <small>（可选，如"用户手动指定"）</small></span>
+                    <input type="text" id="task-override-source" value="${escapeHtml(overrideSource)}" placeholder="用户手动指定" />
+                </label>
+                <div class="cinema-modal-save-row" style="margin-top:12px">
+                    <button id="btn-confirm-task" type="button" class="btn btn-success">确认入库</button>
+                    <div id="confirm-error-area" class="modal-error-area" style="display:none"></div>
+                </div>
+           </div>`
+    : "";
+
   const stateHintHtml = `<div class="cinema-modal-save-bar">
             <small class="task-permission-hint">${escapeHtml(perm.stateLabel)}</small>
        </div>`;
@@ -99,11 +123,12 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
             </div>
             ${buildFailureSection(task)}
             ${buildScrapeResultSection(task)}
-            ${buildScrapeTraceSection(task)}
+            ${buildScrapeTraceSection(task, isAwaitReview, taskId)}
             ${renameSection}
             ${filenameSaveHtml}
             ${dimSectionHtml}
             ${dimSaveHtml}
+            ${confirmHtml}
             <div class="cinema-modal-block">
                 <h4>字幕记录</h4>
                 ${buildSubtitleTable(subtitles)}
@@ -251,6 +276,38 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     }
   }
 
+  async function handleConfirmTask(btnEl) {
+    const confirmedTitle = String(
+      document.getElementById("task-confirm-title")?.value || "",
+    ).trim();
+    const overrideSource = String(
+      document.getElementById("task-override-source")?.value || "",
+    ).trim();
+    setSavingBtn(btnEl, true);
+    setErrorArea("confirm-error-area", "");
+    try {
+      const body = {};
+      if (confirmedTitle) body.confirmed_title = confirmedTitle;
+      if (overrideSource) body.override_source = overrideSource;
+      const result = await requestApi(
+        "POST",
+        `/tasks/${encodeURIComponent(taskId)}/confirm`,
+        body,
+      );
+      if (result.code === 200) {
+        showToast("确认入库成功");
+        removeAppModal();
+        await Promise.all([loadTaskList(), loadDashboardOverview()]);
+        return;
+      }
+      const errMsg = result.message || "确认入库失败，请稍后重试";
+      setErrorArea("confirm-error-area", errMsg);
+      showToast(errMsg);
+    } finally {
+      setSavingBtn(btnEl, false);
+    }
+  }
+
   const btnSaveFilename = document.getElementById("btn-save-filename");
   if (btnSaveFilename) {
     btnSaveFilename.addEventListener("click", () =>
@@ -260,6 +317,11 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const btnSaveDims = document.getElementById("btn-save-dims");
   if (btnSaveDims) {
     btnSaveDims.addEventListener("click", () => handleSaveDims(btnSaveDims));
+  }
+
+  const btnConfirm = document.getElementById("btn-confirm-task");
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", () => handleConfirmTask(btnConfirm));
   }
 
   const previewBtn = document.getElementById("btn-preview-classify");
@@ -317,5 +379,35 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
       }
     });
   }
-}
 
+  // scrape-search button listener
+  const scrapeSearchBtn = document.getElementById("btn-scrape-search");
+  if (scrapeSearchBtn) {
+    scrapeSearchBtn.addEventListener("click", async () => {
+      const btnEl = scrapeSearchBtn;
+      btnEl.disabled = true;
+      btnEl.textContent = "搜索中...";
+      try {
+        const result = await requestApi(
+          "POST",
+          `/tasks/${encodeURIComponent(taskId)}/scrape-search`,
+        );
+        if (result.code === 200) {
+          showToast(
+            result.data?.count
+              ? `AI联网搜索完成，发现 ${result.data.count} 条候选`
+              : "AI联网搜索完成",
+          );
+          removeAppModal();
+          await openTaskDetailImpl(taskId, true);
+          await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          return;
+        }
+        showToast(result.message || "搜索失败", "error");
+      } finally {
+        btnEl.disabled = false;
+        btnEl.textContent = "AI联网搜索";
+      }
+    });
+  }
+}
