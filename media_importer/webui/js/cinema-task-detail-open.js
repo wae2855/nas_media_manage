@@ -56,10 +56,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const actionHtml = isAwaitReview
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-save-row" style="flex-wrap:wrap;gap:8px">
-                    <button id="btn-scrape-manual" type="button" class="btn btn-primary" style="background:var(--gold);border-color:var(--gold);color:#fff">手动刮削</button>
-                    <div style="flex:1"></div>
-                    <button id="btn-save-import" type="button" class="btn btn-primary">保存</button>
-                    <button id="btn-confirm-import" type="button" class="btn btn-success">确认入库，开始移动文件</button>
+                    <button id="btn-scrape-manual" type="button" class="btn" style="background:linear-gradient(135deg,#eabf63,#c4903a);color:#16100a;border-color:transparent;box-shadow:0 4px 16px rgba(234,191,99,0.2)">手动刮削</button>
                     <div id="import-error-area" class="modal-error-area" style="display:none;width:100%"></div>
                 </div>
            </div>`
@@ -73,7 +70,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const body = `
         <div class="cinema-modal-stack">
             <div class="cinema-modal-summary">
-                <div><strong>${escapeHtml(taskDisplayTitle(task))}</strong><span>${escapeHtml(getTaskStatusText(task.status, task.stage))}</span></div>
+                <div><strong>${escapeHtml(taskDisplayTitle(task))}</strong><span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${escapeHtml(perm.statusColor)}18;color:${escapeHtml(perm.statusColor)};white-space:nowrap">${escapeHtml(perm.statusLabel)}</span></div>
                 <p>${escapeHtml(taskDescription(task))}</p>
                 <small>源文件：${escapeHtml(originalFilename)}</small>
                 ${task.source_path ? `<small>源路径：${escapeHtml(task.source_path)}</small>` : ""}
@@ -92,12 +89,79 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
         </div>`;
 
   const actions = [{ label: "关闭", className: "btn btn-secondary" }];
+  if (isAwaitReview) {
+    actions.push({
+      label: "保存",
+      className: "btn btn-primary",
+      onClick: null,
+      closeOnClick: false,
+      key: "save",
+    });
+    actions.push({
+      label: "确认入库，开始移动文件",
+      className: "btn btn-success",
+      onClick: null,
+      closeOnClick: false,
+      key: "confirm",
+    });
+  }
 
-  showAppModal({
+  const modal = showAppModal({
     title: "任务详情",
     body,
     actions,
   });
+
+  // 保存按钮 — 调 /preview 持久化后刷新详情
+  if (isAwaitReview) {
+    const saveBtn = modal.querySelector(".cinema-modal-footer .btn-primary");
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async function () {
+        setImportError("");
+        var dims = getCurrentDimensionValues(task);
+        try {
+          var result = await requestApi(
+            "POST",
+            `/tasks/${encodeURIComponent(taskIdForClosure)}/preview`,
+            { dimensions: dims },
+          );
+          if (result.code === 200) {
+            showToast("已保存，入库预览已更新");
+            removeAppModal();
+            await openTaskDetailImpl(taskIdForClosure, true);
+            await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          } else {
+            setImportError(result.message || "保存失败");
+          }
+        } catch (e) {
+          setImportError(e.message || "网络错误");
+        }
+      });
+    }
+    const confirmBtn = modal.querySelector(".cinema-modal-footer .btn-success");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", async function () {
+        setImportError("");
+        var dims = getCurrentDimensionValues(task);
+        await requestApi(
+          "POST",
+          `/tasks/${encodeURIComponent(taskIdForClosure)}/preview`,
+          { dimensions: dims },
+        );
+        var result = await requestApi(
+          "POST",
+          `/tasks/${encodeURIComponent(taskIdForClosure)}/confirm`,
+        );
+        if (result.code === 200) {
+          showToast("入库成功");
+          removeAppModal();
+          await Promise.all([loadTaskList(), loadDashboardOverview()]);
+        } else {
+          setImportError(result.message || "入库失败");
+        }
+      });
+    }
+  }
 
   // 手动刮削按钮
   const btnScrapeManual = document.getElementById("btn-scrape-manual");
@@ -107,60 +171,6 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
       (scrapeRes.clean_result && scrapeRes.clean_result.clean_title) || "";
     btnScrapeManual.addEventListener("click", function () {
       openScrapeSearchModal(taskIdForClosure, cleanTitle);
-    });
-  }
-
-  // 保存按钮 — 调 /preview 持久化后刷新详情
-  const btnSaveImport = document.getElementById("btn-save-import");
-  if (btnSaveImport) {
-    btnSaveImport.addEventListener("click", async function () {
-      setImportError("");
-      var dims = getCurrentDimensionValues(task);
-      var body = { dimensions: dims };
-      try {
-        var result = await requestApi(
-          "POST",
-          `/tasks/${encodeURIComponent(taskIdForClosure)}/preview`,
-          body,
-        );
-        if (result.code === 200) {
-          showToast("已保存，入库预览已更新");
-          removeAppModal();
-          await openTaskDetailImpl(taskIdForClosure, true);
-          await Promise.all([loadTaskList(), loadDashboardOverview()]);
-        } else {
-          setImportError(result.message || "保存失败");
-        }
-      } catch (e) {
-        setImportError(e.message || "网络错误");
-      }
-    });
-  }
-
-  // 确认入库按钮 — 真实移动文件
-  const btnConfirmImport = document.getElementById("btn-confirm-import");
-  if (btnConfirmImport) {
-    btnConfirmImport.addEventListener("click", async function () {
-      setImportError("");
-      var dims = getCurrentDimensionValues(task);
-      // 先保存最新维度
-      await requestApi(
-        "POST",
-        `/tasks/${encodeURIComponent(taskIdForClosure)}/preview`,
-        { dimensions: dims },
-      );
-      // 再确认入库
-      var result = await requestApi(
-        "POST",
-        `/tasks/${encodeURIComponent(taskIdForClosure)}/confirm`,
-      );
-      if (result.code === 200) {
-        showToast("入库成功");
-        removeAppModal();
-        await Promise.all([loadTaskList(), loadDashboardOverview()]);
-      } else {
-        setImportError(result.message || "入库失败");
-      }
     });
   }
 
