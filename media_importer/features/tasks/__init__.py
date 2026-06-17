@@ -60,6 +60,7 @@ from .review_service import (
     preview_task_for_api,
     reclassify_task_for_api,
 )
+from .search_service import search_provider_candidates
 
 __all__ = [
     "TaskManager",
@@ -116,5 +117,6 @@ __all__ = [
     "rename_task_file_for_api",
     "retry_all_failed_for_api",
     "retry_task_for_api",
+    "search_provider_candidates",
     "start_processing",
 ]

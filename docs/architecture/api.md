@@ -23,7 +23,7 @@
 
 | API area | Handler | Feature owner |
 |----------|---------|---------------|
-| Tasks, retry, queue, confirm, reclassify | `task_handlers.py` | `features/tasks`, `features/import_flow` |
+| Tasks, retry, queue, confirm, reclassify, preview, scrape-search | `task_handlers.py` | `features/tasks`, `features/import_flow` |
 | Config load/save/validate/check | `config_handlers.py`, `connectivity_handlers.py` | `features/configuration` |
 | Provider list/test/search/details/prompts | `provider_handlers.py`, `tmdb_handlers.py` | `features/providers`, `features/scraping`, `features/prompts` |
 | Prompt defaults and reset | `prompt_handlers.py` | `features/prompts` |
@@ -150,6 +150,106 @@ PENDING/QUEUED
   "warnings": []
 }
 ```
+
+### POST /api/tasks/{task_id}/preview
+
+预览元数据/维度/文件名变更，更新 DB + 重跑分类规则，返回更新后的完整 task，**不执行文件操作**。任务保持 `stage=AWAIT_REVIEW`。
+
+请求体（任一子集）：
+
+```json
+{
+  "dimensions": {"media_type": "movie", "genre": "科幻"},
+  "title_cn": "阿凡达",
+  "title_en": "Avatar",
+  "year": "2009",
+  "filename": "阿凡达.2009.mkv"
+}
+```
+
+响应体：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "task": {
+      "task_id": "abc123",
+      "import_path": "/movies/科幻/",
+      "final_filename": "阿凡达.2009.mkv",
+      "stage": "AWAIT_REVIEW",
+      "...": "..."
+    }
+  }
+}
+```
+
+### POST /api/tasks/{task_id}/scrape-search
+
+在确认界面内嵌重刮能力。接收查询词，返回 Provider 多候选列表。
+
+请求体：
+
+```json
+{
+  "query": "阿凡达",
+  "year": "2009"
+}
+```
+
+响应体：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "candidates": [
+      {
+        "id": "19995",
+        "title": "阿凡达",
+        "original_title": "Avatar",
+        "year": "2009",
+        "media_type": "movie",
+        "overview": "战斗中负伤而下身瘫痪的前海军战士杰克·萨利...",
+        "provider_type": "tmdb",
+        "poster_url": "https://...",
+        "vote_average": 7.5
+      }
+    ],
+    "query": "阿凡达"
+  }
+}
+```
+
+### POST /api/tasks/{task_id}/confirm
+
+确认入库。新增可选参数 `confirmed_title` 和 `override_source`，入库时记录是否换过元数据。
+
+请求体：
+
+```json
+{
+  "confirmed_title": "阿凡达",
+  "override_source": "manual"
+}
+```
+
+响应体：
+
+```json
+{
+  "code": 200,
+  "message": "确认入库成功"
+}
+```
+
+入库后 task 新增字段：
+
+| 字段 | 说明 |
+|------|------|
+| `confirmed_override` | 1=换过元数据，0=未换 |
+| `confirmed_title` | 最终入库标题 |
+| `override_source` | 来源：manual / candidate:tmdb:xxx / 空 |
 
 ## Standards
 
