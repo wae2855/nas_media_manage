@@ -361,6 +361,31 @@ function renderMatchPathPreview(data) {
   html += `<div class="sim-queue-decision" style="border-color:${queueColor}30;background:${queueColor}08;color:${queueColor}">${escapeHtml(queueExplanation)}</div>`;
   html += "</div></div>";
 
+  // --- timeline step 7: 已入库（可选） ---
+  const importVideoPath = importPathInfo.import_video_path || "";
+  const fileLocation = importPathInfo.file_location || "";
+  const isImported = fileLocation === "import" || importVideoPath.length > 0;
+  if (isImported) {
+    const confirmedOverride = importPathInfo.confirmed_override ? 1 : 0;
+    const overrideSource = importPathInfo.override_source || "";
+    html += '<div class="sim-step">';
+    html += '<div class="sim-step-rail">';
+    html +=
+      '<div class="sim-step-dot" style="background:#22C55E18;color:#22C55E">7</div>';
+    html += '<div class="sim-step-line" style="background:transparent"></div>';
+    html += "</div>";
+    html += '<div class="sim-step-content">';
+    html +=
+      '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">已入库</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">DONE</span></div>';
+    if (importVideoPath) {
+      html += `<div class="sim-kv"><span class="sim-k">入库路径</span><span class="sim-v sim-v-highlight">${escapeHtml(importVideoPath)}</span></div>`;
+    }
+    if (confirmedOverride) {
+      html += `<div class="sim-kv"><span class="sim-k">手动指定</span><span class="sim-v" style="color:#F59E0B">${escapeHtml(overrideSource || "是")}</span></div>`;
+    }
+    html += "</div></div>";
+  }
+
   html += "</div>";
   html += "</div>";
   return html;
