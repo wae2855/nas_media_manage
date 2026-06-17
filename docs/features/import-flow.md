@@ -16,7 +16,7 @@
 | `media_importer/features/import_flow/services/dedup_rules.py` | Duplicate detection, quality comparison, and rename suggestion rules. |
 | `media_importer/features/import_flow/services/naming.py` | Filename and subtitle naming rules. |
 | `media_importer/features/source_files/` | Source file cleanup and companion-file strategy used by import-flow. |
-| `media_importer/features/import_flow/confirm.py` | Manual confirmation and reclassification behavior. |
+| `media_importer/features/import_flow/confirm.py` | Manual confirmation, preview, and reclassification behavior. `preview_task` updates metadata/dimensions/filename and re-runs classification without importing. `confirm_task` accepts `confirmed_title`/`override_source` and records `confirmed_override`/`confirmed_title`/`override_source` in DB. `reclassify_task` is now preview-only (compatibility). |
 | `media_importer/infrastructure/filesystem/file_copier.py` | Temp copy infrastructure used by the copy step. |
 
 ## Related Areas
@@ -25,7 +25,7 @@
 - Manual batch and single-file processing use `media_importer.features.import_flow.run_file_service`.
 - Database: task rows, status constants, scrape result fields.
 - Config: path rules, duplicate handling, match level review, source cleanup policy.
-- Frontend: task list, task detail, confirm/reclassify actions.
+- Frontend: task list, task detail, confirm/preview/reclassify/scrape-search actions.
 
 ## Tests
 

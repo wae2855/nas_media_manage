@@ -15,7 +15,7 @@
 | `media_importer/features/tasks/` | 任务管理、任务状态和生命周期业务入口 | [features/tasks.md](features/tasks.md) | [architecture/task-lifecycle.md](architecture/task-lifecycle.md) | `tests/test_task_context_lifecycle.py`、`tests/test_stage_lifecycle.py`、`tests/test_stage_db_migration.py`、`tests/test_task_operations.py`、`tests/test_feature_entrypoints.py` |
 | `media_importer/features/recycle/` | 回收站移动、浏览、恢复、清理业务域 | [features/recycle.md](features/recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_feature_recycle.py`、`tests/test_recycle_safety.py` |
 | `media_importer/core/recycle/` | 回收站 legacy import 入口，薄转发到 `features/recycle/` | [features/recycle.md](features/recycle.md) | [architecture/recycle.md](architecture/recycle.md) | `tests/test_feature_recycle.py` |
-| `media_importer/features/import_flow/` | 入库流程业务域，持有 PipelineRunner、steps、确认和 services 实现 | [features/import-flow.md](features/import-flow.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_feature_import_flow.py`、`tests/test_import_flow_services.py`、`tests/test_classify_preview.py` |
+| `media_importer/features/import_flow/` | 入库流程业务域，持有 PipelineRunner、steps、确认（confirm/preview/reclassify）和 services 实现 | [features/import-flow.md](features/import-flow.md) | [architecture/import-pipeline.md](architecture/import-pipeline.md) | `tests/test_feature_import_flow.py`、`tests/test_import_flow_services.py`、`tests/test_classify_preview.py`、`tests/test_p0_confirm_workflow_fixes.py` |
 | `media_importer/features/source_files/` | 源文件处理策略，持有成功入库、跳过、临时文件和伴生文件清理规则 | [features/source-files.md](features/source-files.md) | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_import_flow_services.py`、`tests/test_recycle_safety.py`、`tests/test_architecture_guards.py` |
 | `media_importer/features/source_cleaning/` | 源目录清理业务域，持有清理器实现和记录入口 | [features/source-cleaning.md](features/source-cleaning.md) | [architecture/source-cleaner.md](architecture/source-cleaner.md) | `tests/test_feature_source_cleaning.py` |
 | `media_importer/features/scraping/` | 刮削、LLM、三级匹配引擎、维度解析、提示词解析、场景策略、TMDB 和维度匹配业务入口 | [features/scraping.md](features/scraping.md), [features/ai-config.md](features/ai-config.md) | [architecture/scraping.md](architecture/scraping.md) | `tests/test_match_engine.py`、`tests/test_feature_entrypoints.py`、`tests/test_ai_config_runtime.py`、`tests/test_dimension_resolution.py`、`tests/test_match_engine_keyword_loop.py`、`tests/test_prompt_runtime.py`、`tests/test_ai_scene_strategy.py` |
@@ -58,7 +58,7 @@
 - [AI 配置界面三区域改造+Phase 3](plans/2026-06-15-ai-config-restructure-plan.md) — complete, 627 tests pass, pending user acceptance
 - [刮削信息职责拆分](plans/2026-06-16-scrape-info-responsibility-split-plan.md) — complete, 632 tests pass, 6 层信息架构 + 三级匹配行为契约落地, ADR-0007
 - [字段传递断裂修复](plans/2026-06-16-fix-field-propagation-prompt.md) — complete, 正式流程 scrape.py 字段透传修复
-- [优化项计划（遗留清理 + DB 列删除 + E2E）](plans/2026-06-16-optimization-items-plan.md) — pending, 3 个优化项待执行
+- [待确认流程端到端整治](plans/2026-06-16-confirm-workflow-overhaul-plan.md) — P0 数据正确性 + P1 确认交互重构 + P2 决策路径优化，ADR-0007
 
 ## Behavior Standards (Fact Source)
 

@@ -1,5 +1,9 @@
 # 待确认流程端到端整治计划
 
+- **Requirement**: [REQ-20260616-000001](../tracking/requirements-board.md)
+- **ADR**: [0007-confirm-workflow-preview-vs-import-split](../decisions/0007-confirm-workflow-preview-vs-import-split.md)
+- **Status**: ✅ 已实施
+
 **日期**：2026-06-16
 **类型**：数据契约修复 + 交互流程重构 + 决策路径展示优化
 **触发**：以一个真实电影跑通流程，发现 4 个相互关联的问题
