@@ -328,6 +328,7 @@ async function listTasksByStatuses(params, page = 1, pageSize = 20) {
 async function loadTaskList(append = false) {
   if (currentTaskLoading) return;
   currentTaskLoading = true;
+  setRefreshButtonState(true);
   try {
     const meta = TASK_FILTER_META[currentTaskFilter] || TASK_FILTER_META.all;
     document.getElementById("task-panel-title").textContent = meta.title;
@@ -378,6 +379,19 @@ async function loadTaskList(append = false) {
     renderTaskList();
   } finally {
     currentTaskLoading = false;
+    setRefreshButtonState(false);
+  }
+}
+
+function setRefreshButtonState(loading) {
+  const btn = document.getElementById("task-panel-refresh");
+  if (!btn) return;
+  if (loading) {
+    btn.classList.add("is-loading");
+    btn.disabled = true;
+  } else {
+    btn.classList.remove("is-loading");
+    btn.disabled = false;
   }
 }
 
