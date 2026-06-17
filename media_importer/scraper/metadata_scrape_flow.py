@@ -153,9 +153,15 @@ def _build_provider_only_result(scraper, details, search_item, media_type,
                                 clean_result, provider_dimensions, search_info,
                                 match_result, ai_clean_result, enabled_dims_set,
                                 log, t_start):
-    """Build result from Provider data only (no AI call)."""
+    """Build result from Provider data only (no AI call).
+
+    title_cn / title_en 必须写入，与 api/scrape_preview_job 保持一致，
+    否则下游列存字段为空、命名模板退化为只剩年份。
+    """
     result = {
         "title": details.title or search_item.title,
+        "title_cn": details.title or search_item.title,
+        "title_en": details.original_title or search_item.original_title,
         "original_title": details.original_title or search_item.original_title,
         "year": details.year or clean_result.year,
         "season": clean_result.season,

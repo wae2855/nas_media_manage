@@ -55,19 +55,19 @@ function taskDescription(task) {
   if (task.error_message) return task.error_message;
   if (task.skip_reason) return task.skip_reason;
   if (status === "PENDING" && stage === "AWAIT_REVIEW") {
-    if (scrape.tier_short_reason) {
-      desc += " · " + scrape.tier_short_reason;
-    }
+    const prefix = scrape.tier_short_reason || "";
     const concerns = task.match_concerns || scrape.match_concerns || [];
-    if (Array.isArray(concerns) && concerns.length > 0) {
-      const concernMessages = concerns
-        .map((c) => c.message || (typeof c === "string" ? c : ""))
-        .filter(Boolean);
-      if (concernMessages.length > 0) {
-        return concernMessages.join("；") + "。等待你确认最终入库方向。";
-      }
+    const concernMessages = Array.isArray(concerns)
+      ? concerns
+          .map((c) => c.message || (typeof c === "string" ? c : ""))
+          .filter(Boolean)
+      : [];
+    if (concernMessages.length > 0) {
+      return [prefix, concernMessages.join("；") + "。等待你确认最终入库方向。"]
+        .filter(Boolean)
+        .join(" · ");
     }
-    return "需要你确认最终匹配结果。";
+    return prefix || "需要你确认最终匹配结果。";
   }
   if (status === "FAILED") {
     return "本次处理未完成，可以先查看原因，再决定是否重试。";

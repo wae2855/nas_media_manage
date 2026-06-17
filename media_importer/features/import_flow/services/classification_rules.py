@@ -50,9 +50,15 @@ def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Opt
 
     title_cn = scraped_info.get('title_cn')
     title_en = scraped_info.get('title_en', '')
+    title = scraped_info.get('title', '')
+    # 多层兜底：cn 空 → en → title，避免标题全空时命名模板退化为只剩年份
     if not title_cn and title_en:
+        title_cn = title_en
+    if not title_cn and title:
+        title_cn = title
+    if title_cn and title_cn != scraped_info.get('title_cn'):
         scraped_info = dict(scraped_info)
-        scraped_info['title_cn'] = title_en
+        scraped_info['title_cn'] = title_cn
 
     lookup = dict(scraped_info)
     if extra_vars:
