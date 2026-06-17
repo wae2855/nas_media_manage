@@ -92,6 +92,8 @@ class TaskHandlersMixin:
             globals._global_pipeline,
             globals._global_task_manager,
             task_id,
+            confirmed_title=body.get("confirmed_title"),
+            override_source=body.get("override_source"),
         )
         json_response(self, result.code, data=result.data, message=result.message)
 

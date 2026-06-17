@@ -19,7 +19,8 @@ from media_importer.features.import_flow.utils import PipelineError, PipelineSki
 
 
 class ConfirmMixin:
-    def confirm_task(self, task_id: str) -> bool:
+    def confirm_task(self, task_id: str, confirmed_title: str = None,
+                     override_source: str = None) -> bool:
         task = self.task_manager.get_task(task_id)
         if not task or task.get("stage") != "AWAIT_REVIEW":
             raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN')}/{task.get('stage', '')}")
@@ -31,6 +32,12 @@ class ConfirmMixin:
         temp_video_path_for_cleanup = task.get("video_path", "")
 
         db_update_task(self.task_manager.conn, tid, **mark_confirmed(ctx))
+
+        confirmed_override = 1 if override_source else 0
+        db_update_task(self.task_manager.conn, tid,
+                       confirmed_override=confirmed_override,
+                       confirmed_title=confirmed_title or "",
+                       override_source=override_source or "")
 
         db_update_subs(self.task_manager.conn, tid,
                        confirm_status="CONFIRMED")
@@ -170,60 +177,16 @@ class ConfirmMixin:
                        **fields)
         self._log("info", f"任务重新分类完成: {result.import_path}，继续后续流程", task, "classify")
 
-        try:
-            self._step_dedup(task)
-            self._step_rename(task)
-            original_source_video = task.get("source_path", "")
-            subtitle_source_files = task.get("subtitle_source_files", [])
-            original_source_subs = subtitle_source_files or task.get("subtitle_files", [])
-            self._step_import(task, original_source_video, original_source_subs)
-            self._step_notify(task)
-            self._step_record(task)
+        # 重分类不再触发入库（改为预览逻辑，兼容旧调用方）
+        filename_template = self.config.get("naming", {}).get("filename_template", "{title_cn} ({year})")
+        video_ext = os.path.splitext(task.get("source_filename", ""))[1]
+        task["final_filename"] = apply_filename_template(
+            scrape_result, filename_template, video_ext)
 
-            db_update_task(self.task_manager.conn, tid, **mark_imported(ctx))
-            self.hooks.run_after_success(task)
-            if self.metrics:
-                self.metrics.record_task_complete("success")
-            self._log("info", f"重新分类入库成功: {task.get('source_filename', '')}", task)
-        except PipelineSkipError as e:
-            source_policy = self.config.get("source_policy", {})
-            recycle_dir = source_policy.get("recycle_dir", "")
-            source_dir = self.config.get('source_dir', '')
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
-            source_path = task.get("source_path", "")
-            if source_path and os.path.exists(source_path) and source_path.startswith(source_dir):
-                self.task_manager.move_to_recycle_bin(
-                    task_id=tid,
-                    source_path=source_path,
-                    subtitle_paths=task.get("subtitle_files", []),
-                    recycle_dir=recycle_dir,
-                )
-                db_update_task(self.task_manager.conn, tid,
-                               **mark_skipped(
-                                   ctx, str(e),
-                                   file_location=FILE_LOCATION_RECYCLE,
-                               ))
-            elif source_path and source_path.startswith(recycle_dir):
-                db_update_task(self.task_manager.conn, tid,
-                               **mark_skipped(
-                                   ctx, str(e),
-                                   file_location=FILE_LOCATION_RECYCLE,
-                               ))
-            else:
-                db_update_task(self.task_manager.conn, tid,
-                               **mark_skipped(
-                                   ctx, str(e),
-                                   file_location=FILE_LOCATION_SOURCE,
-                               ))
-            self._log("info", f"重新分类后跳过: {task.get('source_filename', '')} - {e}", task)
-        except Exception as e:
-            error_msg = str(e)
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
-            db_update_task(self.task_manager.conn, tid,
-                           **mark_failed(
-                               ctx, error_msg,
-                               file_location=FILE_LOCATION_SOURCE,
-                           ))
-            self._log("error", f"重新分类入库失败: {task.get('source_filename', '')} - {e}", task)
+        db_update_task(self.task_manager.conn, tid,
+                       import_path=result.import_path,
+                       classify_result=result.classify_result,
+                       final_filename=task["final_filename"])
 
+        self._log("info", f"重新分类（预览）完成: {result.import_path}", task, "classify")
         return self.task_manager.get_task(tid)

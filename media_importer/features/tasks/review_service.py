@@ -11,12 +11,15 @@ class TaskReviewActionResult:
     message: str = ""
 
 
-def confirm_task_for_api(pipeline, task_manager, task_id: str) -> TaskReviewActionResult:
+def confirm_task_for_api(pipeline, task_manager, task_id: str,
+                         confirmed_title: str = None,
+                         override_source: str = None) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
 
     try:
-        ok = pipeline.confirm_task(task_id)
+        ok = pipeline.confirm_task(task_id, confirmed_title=confirmed_title,
+                                   override_source=override_source)
         if ok:
             return TaskReviewActionResult(code=200, message="任务确认入库成功")
 
