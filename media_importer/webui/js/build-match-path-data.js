@@ -51,6 +51,10 @@ function buildMatchPathData(task) {
       import_path: task.import_path || task.import_dir || "",
       used_fallback: task.used_fallback || false,
       matched_rule: task.matched_rule || null,
+      import_video_path: task.import_video_path || "",
+      file_location: task.file_location || "",
+      confirmed_override: task.confirmed_override ? 1 : 0,
+      override_source: task.override_source || "",
     },
   };
 }
