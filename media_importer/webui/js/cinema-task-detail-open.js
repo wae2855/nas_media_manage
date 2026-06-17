@@ -72,7 +72,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const filenameSaveHtml = perm.canEditFilename
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-save-row">
-                    <button id="btn-save-filename" type="button" class="btn btn-primary">保存文件名</button>
+                    <button id="btn-save-filename" type="button" class="btn btn-primary">应用文件名并预览</button>
                     <div id="filename-error-area" class="modal-error-area" style="display:none"></div>
                 </div>
            </div>`
@@ -81,7 +81,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const dimSaveHtml = perm.canEditDimensions
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-save-row">
-                    <button id="btn-save-dims" type="button" class="btn btn-primary">保存分类</button>
+                    <button id="btn-save-dims" type="button" class="btn btn-primary">应用分类并预览</button>
                     <div id="dims-error-area" class="modal-error-area" style="display:none"></div>
                 </div>
            </div>`
@@ -188,19 +188,19 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     try {
       const result = await requestApi(
         "POST",
-        `/tasks/${encodeURIComponent(taskId)}/rename`,
+        `/tasks/${encodeURIComponent(taskId)}/preview`,
         {
-          new_filename: newFilename,
+          filename: newFilename,
         },
       );
       if (result.code === 200) {
-        showToast("文件名已保存");
+        showToast("文件名已应用，请查看预览结果");
         removeAppModal();
         await openTaskDetailImpl(taskId, true);
         await Promise.all([loadTaskList(), loadDashboardOverview()]);
         return;
       }
-      const errMsg = result.message || "保存文件名失败，请稍后重试";
+      const errMsg = result.message || "应用文件名失败，请稍后重试";
       setErrorArea("filename-error-area", errMsg);
       showToast(errMsg);
     } finally {
@@ -256,19 +256,19 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     try {
       const result = await requestApi(
         "POST",
-        `/tasks/${encodeURIComponent(taskId)}/reclassify`,
+        `/tasks/${encodeURIComponent(taskId)}/preview`,
         {
           dimensions: changedDims,
         },
       );
       if (result.code === 200) {
-        showToast("分类已保存");
+        showToast("分类已应用，请查看预览结果");
         removeAppModal();
         await openTaskDetailImpl(taskId, true);
         await Promise.all([loadTaskList(), loadDashboardOverview()]);
         return;
       }
-      const errMsg = result.message || "保存分类失败，请稍后重试";
+      const errMsg = result.message || "应用分类失败，请稍后重试";
       setErrorArea("dims-error-area", errMsg);
       showToast(errMsg);
     } finally {
@@ -385,18 +385,25 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   if (scrapeSearchBtn) {
     scrapeSearchBtn.addEventListener("click", async () => {
       const btnEl = scrapeSearchBtn;
+      const inputEl = document.getElementById("scrape-search-input");
+      const query = (inputEl?.value || "").trim();
+      if (!query) {
+        showToast("请输入搜索关键词");
+        return;
+      }
       btnEl.disabled = true;
       btnEl.textContent = "搜索中...";
       try {
         const result = await requestApi(
           "POST",
           `/tasks/${encodeURIComponent(taskId)}/scrape-search`,
+          { query: query, year: task.scrape_year || "" },
         );
         if (result.code === 200) {
           showToast(
-            result.data?.count
-              ? `AI联网搜索完成，发现 ${result.data.count} 条候选`
-              : "AI联网搜索完成",
+            result.data?.candidates?.length
+              ? `搜索完成，发现 ${result.data.candidates.length} 条候选`
+              : "搜索完成，未找到匹配结果",
           );
           removeAppModal();
           await openTaskDetailImpl(taskId, true);

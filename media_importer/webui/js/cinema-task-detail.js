@@ -172,10 +172,14 @@ function buildScrapeTraceSection(task, isAwaitReview, taskId) {
       '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,0.12);color:#94A3B8;font-weight:600;margin-left:8px">📴 纯本地分析</span>';
   }
 
-  var searchBtnHtml = "";
+  var searchRowHtml = "";
   if (isAwaitReview) {
-    searchBtnHtml =
-      '<button id="btn-scrape-search" type="button" class="btn btn-sm btn-outline" style="margin-left:8px">AI联网搜索</button>';
+    searchRowHtml =
+      '<div style="margin-top:8px;display:flex;gap:6px;align-items:center">' +
+      '<input id="scrape-search-input" type="text" placeholder="输入电影名重新搜索..." ' +
+      'style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">' +
+      '<button id="btn-scrape-search" type="button" class="btn btn-sm btn-outline">AI联网搜索</button>' +
+      "</div>";
   }
 
   var data = buildMatchPathData(task);
@@ -189,7 +193,8 @@ function buildScrapeTraceSection(task, isAwaitReview, taskId) {
 
   return `
         <div class="cinema-modal-block">
-            <h4 style="cursor:pointer" onclick="toggleScrapeTrace(this)">▶ 决策路径${searchBadge}${searchBtnHtml}</h4>
+            <h4 style="cursor:pointer" onclick="toggleScrapeTrace(this)"><span class="trace-toggle-arrow">▶</span> 决策路径${searchBadge}</h4>
+            ${searchRowHtml}
             <div class="cinema-detail-trace-inline" style="display:none">${timelineHtml}</div>
         </div>`;
 }
@@ -201,10 +206,10 @@ function toggleScrapeTrace(headingEl) {
   if (!inline) return;
   var collapsed = inline.style.display === "none";
   inline.style.display = collapsed ? "" : "none";
-  headingEl.textContent = headingEl.textContent.replace(
-    collapsed ? "▶" : "▼",
-    collapsed ? "▼" : "▶",
-  );
+  var arrow = headingEl.querySelector(".trace-toggle-arrow");
+  if (arrow) {
+    arrow.textContent = collapsed ? "▼" : "▶";
+  }
 }
 
 function taskToMatchPathData(task) {

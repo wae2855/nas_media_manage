@@ -130,8 +130,18 @@ function taskPrimaryAction(task) {
 function taskSecondaryAction(task) {
   const status = String(task.status || "").toUpperCase();
   const stage = String(task.stage || "").toUpperCase();
-  if (status === "PENDING" && stage === "AWAIT_REVIEW")
-    return { key: "retry-task", label: "重试" };
+  if (status === "PENDING" && stage === "AWAIT_REVIEW") {
+    const scrape = task.scrape_result || {};
+    const hasTitle =
+      task.scrape_title_cn ||
+      scrape.title_cn ||
+      task.scrape_title_en ||
+      scrape.title_en;
+    if (!hasTitle) {
+      return { key: "retry-task", label: "重试" };
+    }
+    return null;
+  }
   if (status === "FAILED") return { key: "delete-task", label: "移入回收" };
   return null;
 }

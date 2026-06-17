@@ -2,20 +2,18 @@ import os
 from media_importer.core.db import update_task as db_update_task, update_subtitles_by_task as db_update_subs
 from media_importer.core.db.dimension_repo import get_enabled_dimensions
 from media_importer.features.tasks import (
-    FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
     mark_confirmed,
     mark_failed,
     mark_imported,
     mark_processing_step,
-    mark_skipped,
 )
 from media_importer.features.import_flow.context import TaskContext
 from media_importer.features.import_flow.services import (
     ClassificationService,
     apply_filename_template,
 )
-from media_importer.features.import_flow.utils import PipelineError, PipelineSkipError
+from media_importer.features.import_flow.utils import PipelineError
 
 
 class ConfirmMixin:
@@ -114,9 +112,13 @@ class ConfirmMixin:
         if "filename" in updates:
             task["final_filename"] = updates["filename"]
         elif not task.get("final_filename"):
-            filename_template = self.config.get("naming", {}).get("filename_template", "{title_cn} ({year})")
-            video_ext = os.path.splitext(task.get("source_filename", ""))[1]
-            task["final_filename"] = apply_filename_template(scrape_result, filename_template, video_ext)
+            templates = self.config.get("filename_templates", {})
+            video_ext = os.path.splitext(task.get("video_path", "") or task.get("source_filename", ""))[1]
+            if scrape_result.get("media_type") == "tv":
+                template = templates.get("tv", "{title_cn}.{title_en}.{year}.S{season}E{episode}.{ext}")
+            else:
+                template = templates.get("movie", "{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}")
+            task["final_filename"] = apply_filename_template(scrape_result, template, video_ext)
 
         db_update_task(
             self.task_manager.conn, tid,
@@ -136,7 +138,6 @@ class ConfirmMixin:
             raise PipelineError(f"任务不存在: {task_id}")
         ctx = TaskContext(task)
         tid = task_id
-        temp_video_path_for_cleanup = task.get("video_path", "")
 
         current_dims = task.get("scrape_dimensions", {})
         if isinstance(current_dims, str):
@@ -178,10 +179,14 @@ class ConfirmMixin:
         self._log("info", f"任务重新分类完成: {result.import_path}，继续后续流程", task, "classify")
 
         # 重分类不再触发入库（改为预览逻辑，兼容旧调用方）
-        filename_template = self.config.get("naming", {}).get("filename_template", "{title_cn} ({year})")
-        video_ext = os.path.splitext(task.get("source_filename", ""))[1]
+        templates = self.config.get("filename_templates", {})
+        video_ext = os.path.splitext(task.get("video_path", "") or task.get("source_filename", ""))[1]
+        if scrape_result.get("media_type") == "tv":
+            template = templates.get("tv", "{title_cn}.{title_en}.{year}.S{season}E{episode}.{ext}")
+        else:
+            template = templates.get("movie", "{title_cn}.{title_en}.{year}.{resolution}.{quality}.{ext}")
         task["final_filename"] = apply_filename_template(
-            scrape_result, filename_template, video_ext)
+            scrape_result, template, video_ext)
 
         db_update_task(self.task_manager.conn, tid,
                        import_path=result.import_path,
