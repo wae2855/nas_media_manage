@@ -57,14 +57,6 @@ function bindEvents() {
       toggleTaskSelect(taskSelect.dataset.taskSelect);
       return;
     }
-    const taskRowOpen = event.target.closest("[data-task-row-open]");
-    if (
-      taskRowOpen &&
-      !event.target.closest("button, input, a, select, textarea")
-    ) {
-      openTaskDetail(taskRowOpen.dataset.taskRowOpen || "");
-      return;
-    }
     const taskRow = event.target.closest("[data-task-row]");
     if (
       taskRow &&
