@@ -270,6 +270,10 @@ function renderStaticLists() {
 }
 
 function setTaskFilter(filter) {
+  if (!TASK_FILTER_META[filter]) {
+    console.warn("[setTaskFilter] 未知筛选值: " + filter + ", 回退到 all");
+    filter = "all";
+  }
   currentTaskFilter = filter;
   currentTaskPage = 1;
   selectedTaskIds.clear();
