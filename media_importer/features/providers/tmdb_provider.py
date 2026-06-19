@@ -5,7 +5,7 @@ from .base import (
     MediaDetails, Genre, DimensionMapping
 )
 from . import register_provider
-from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+from .tmdb_client import TMDbClient, TMDbError
 
 
 @register_provider

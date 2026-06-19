@@ -18,7 +18,7 @@ from .dimensions_service import (
     update_dimension_detail,
 )
 from media_importer.scraper.llm_scraper import LLMScrapeError, LLMScraper
-from media_importer.scraper.tmdb_client import TMDbClient, TMDbError
+from media_importer.features.providers.tmdb_client import TMDbClient, TMDbError
 from .confidence_models import (
     CleanResult,
     DEFAULT_CONFIDENCE_CONFIG,
