@@ -128,8 +128,7 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.scraping.metadata_scraper import MetadataScraper",
         ],
         root / "media_importer" / "scraper" / "llm_scraper.py": [
-            "from media_importer.features.configuration import ConfigView",
-            "from media_importer.features.prompts.prompt_builder import LLMPromptBuilder",
+            "from media_importer.features.scraping.llm_scraper import",
         ],
     }
 

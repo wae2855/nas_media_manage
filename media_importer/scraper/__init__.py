@@ -1,4 +1,4 @@
-from .llm_scraper import LLMScraper, LLMScrapeError
+from media_importer.features.scraping.llm_scraper import LLMScraper, LLMScrapeError  # noqa: F401
 from .metadata_scraper import MetadataScraper
 from .tmdb_client import TMDbClient, TMDbError
 from .dimension_manager import (
