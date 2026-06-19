@@ -10,4 +10,4 @@ from media_importer.features.scraping.llm_scraper import LLMScraper  # noqa: F40
 from media_importer.features.scraping.errors import LLMScrapeError  # noqa: F401
 from media_importer.features.scraping.errors import LLMApiError  # noqa: F401
 from media_importer.features.scraping.errors import LLMWebSearchError  # noqa: F401
-from media_importer.scraper._llm_match_assist import _assemble_prompt  # noqa: F401
+from media_importer.features.scraping.llm_match_assist import _assemble_prompt  # noqa: F401

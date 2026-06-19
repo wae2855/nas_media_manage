@@ -17,9 +17,11 @@ from media_importer.features.scraping.llm_client import (
     _call_with_retry_impl,
     _resolve_connection,
 )
-# _llm_match_assist 的符号(_extract_title_impl、_tier2_correct_impl、_assemble_prompt)
-# 在下方各方法内 lazy import,以避免与 scraper 包初始化形成循环。
-# S-Phase 3b-2 迁移 _llm_match_assist 后,这些 import 改为同包相对/绝对路径。
+from media_importer.features.scraping.llm_match_assist import (
+    _assemble_prompt,
+    _extract_title_impl,
+    _tier2_correct_impl,
+)
 
 
 def _build_dimension_data_context(
@@ -156,7 +158,6 @@ class LLMScraper:
                                      scene=scene, scenario=scenario)
 
     def extract_title(self, prompt: str) -> str:
-        from media_importer.scraper._llm_match_assist import _extract_title_impl
         return _extract_title_impl(self, prompt)
 
     def scrape(self, video_filename: str, subtitle_filenames: List[str] = None,
@@ -175,7 +176,6 @@ class LLMScraper:
             self.prompt_builder.dimensions,
         )
         output_format = "" if is_legacy else _build_dimension_output_format()
-        from media_importer.scraper._llm_match_assist import _assemble_prompt
         user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,                                          scene="dimension_supplement", scenario="scrape")
@@ -201,7 +201,6 @@ class LLMScraper:
             provider_context=provider_context,
         )
         output_format = "" if is_legacy else _build_dimension_output_format()
-        from media_importer.scraper._llm_match_assist import _assemble_prompt
         user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,                                          scene="dimension_mapping", scenario="scrape")
@@ -224,7 +223,6 @@ class LLMScraper:
             self.prompt_builder.dimensions,
         )
         output_format = "" if is_legacy else _build_dimension_output_format()
-        from media_importer.scraper._llm_match_assist import _assemble_prompt
         user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,                                          scene="dimension_supplement", scenario="series_scrape")
@@ -242,7 +240,6 @@ class LLMScraper:
             provider_context=provider_context,
         )
         output_format = "" if is_legacy else _build_dimension_output_format()
-        from media_importer.scraper._llm_match_assist import _assemble_prompt
         user_content = _assemble_prompt(instruction, data_context, output_format, is_legacy)
 
         result = _retry_with_fallback_impl(self, system_prompt, user_content,                                          scene="dimension_mapping", scenario="series_scrape")
@@ -256,5 +253,4 @@ class LLMScraper:
         clean_title: str = "",
         year: Optional[int] = None,
     ) -> dict:
-        from media_importer.scraper._llm_match_assist import _tier2_correct_impl
         return _tier2_correct_impl(self, original_filename, path_context, clean_title, year)

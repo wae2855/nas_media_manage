@@ -6,7 +6,7 @@ from datetime import datetime
 from media_importer.features.configuration import ConfigView
 from media_importer.features.prompts.defaults import PromptDefaults
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
-from media_importer.scraper._llm_match_assist import _assemble_prompt
+from media_importer.features.scraping.llm_match_assist import _assemble_prompt
 
 logger = logging.getLogger(__name__)
 ai_logger = logging.getLogger("media_importer.ai")
