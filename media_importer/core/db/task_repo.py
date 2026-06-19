@@ -134,7 +134,7 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.percentage, t.file_size_mb, t.retry_count, "
                 "t.scrape_title_cn, t.scrape_title_en, t.scrape_year, "
                 "t.scrape_media_type, t.scrape_season, t.scrape_episode, "
-                "t.scrape_trace, t.scrape_result, t.confirm_reason, t.dim_sources, "
+                "t.scrape_trace, t.scrape_result, t.dim_sources, "
                 "t.import_path, t.final_filename, "
                 "t.skip_reason, t.error_message, t.import_success, "
                 "t.confirm_status, t.video_path, t.file_location, "
@@ -181,7 +181,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "scrape_year", "scrape_media_type", "scrape_season",
         "scrape_episode", "scrape_dimensions",
         "scrape_trace", "match_level", "match_concerns", "match_trace",
-        "confirm_reason", "dim_sources",
+        "dim_sources",
         "classify_result", "import_path", "final_filename",
         "dedup_result", "dedup_existing_file", "import_video_path",
         "video_path", "file_location", "import_success", "confirm_status", "confirmed_at",

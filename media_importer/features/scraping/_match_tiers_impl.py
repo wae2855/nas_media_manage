@@ -138,7 +138,6 @@ def _tier1_exact_match_impl(
                         "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
                         "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
                     }],
-                    confirm_reason="",
                     tier_short_reason=TierShortReason.TIER1_UNIQUE,
                     selected_candidate=SelectedCandidate(
                         provider_type=item.provider_type,
@@ -309,7 +308,6 @@ def _tier2_high_certainty_impl(
             concerns=concerns,
             trace_steps=trace_steps,
             candidates=candidates[:5],
-            confirm_reason="",
             tier_short_reason=ai_short_reason or TierShortReason.TIER2_HIGH_PASS,
             ai_reason=ai_reason,
             selected_candidate=SelectedCandidate(
@@ -370,7 +368,6 @@ def _tier2_medium_certainty_impl(
         concerns=concerns,
         trace_steps=trace_steps,
         candidates=candidates[:5],
-        confirm_reason="",
         tier_short_reason=ai_short_reason or TierShortReason.TIER2_MEDIUM,
         ai_reason=ai_reason,
         selected_candidate=SelectedCandidate(
@@ -413,7 +410,6 @@ def _tier2_low_certainty_impl(
         concerns=concerns,
         trace_steps=trace_steps,
         candidates=[],
-        confirm_reason="",
         tier_short_reason=TierShortReason.TIER2_LOW,
         ai_reason=ai_reason,
         selected_candidate=None,
@@ -687,7 +683,6 @@ def _tier3_user_confirm_impl(
         concerns=concerns,
         trace_steps=trace_steps,
         candidates=candidates[:5],
-        confirm_reason="",
         tier_short_reason=TierShortReason.TIER3_FALLBACK,
         ai_reason="",
         selected_candidate=SelectedCandidate(
