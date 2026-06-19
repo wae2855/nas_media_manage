@@ -60,6 +60,56 @@ def _migrate_schema(conn: sqlite3.Connection):
             conn.execute(col_ddl)
         except sqlite3.OperationalError:
             pass  # 列已存在（新库通过 CREATE TABLE 创建，旧库通过 ALTER 补上）
+    # 2026-06-19: confirm_reason 万能胶字段退役 — DROP COLUMN
+    _drop_confirm_reason_column(conn)
+
+
+def _parse_sqlite_version(version_str: str) -> tuple:
+    """解析 SQLite 版本字符串为 (major, minor, patch) 元组。
+
+    例：
+    - "3.51.0" -> (3, 51, 0)
+    - "3.34.1" -> (3, 34, 1)
+    - "3.35.0" -> (3, 35, 0)
+    """
+    parts = version_str.split(".")
+    major = int(parts[0]) if len(parts) >= 1 and parts[0].isdigit() else 0
+    minor = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
+    patch = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 0
+    return (major, minor, patch)
+
+
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    """用 PRAGMA table_info 检查表中列是否存在。"""
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    for row in rows:
+        # PRAGMA table_info 返回 (cid, name, type, notnull, dflt_value, pk)
+        if row[1] == column:
+            return True
+    return False
+
+
+def _drop_confirm_reason_column(conn: sqlite3.Connection) -> None:
+    """退役 confirm_reason 列：SQLite >= 3.35.0 DROP COLUMN，否则保留并 warning。
+
+    幂等：列已不存在则跳过。
+    """
+    if not _column_exists(conn, "tasks", "confirm_reason"):
+        return  # 已是最终 schema，跳过
+
+    version_str = sqlite3.sqlite_version
+    version_tuple = _parse_sqlite_version(version_str)
+
+    if version_tuple >= (3, 35, 0):
+        conn.execute("ALTER TABLE tasks DROP COLUMN confirm_reason")
+        logger.info(
+            "confirm_reason 列已删除（SQLite %s）", version_str
+        )
+    else:
+        logger.warning(
+            "SQLite %s 不支持 DROP COLUMN，confirm_reason 列保留为死数据，不影响功能",
+            version_str,
+        )
 
 
 def _row_to_dict(row) -> dict:

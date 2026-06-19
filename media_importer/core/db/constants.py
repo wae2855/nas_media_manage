@@ -47,7 +47,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     error_code INTEGER DEFAULT 0,
     error_message TEXT DEFAULT '',
     scrape_trace TEXT DEFAULT '',
-    confirm_reason TEXT DEFAULT '',
     dim_sources TEXT DEFAULT NULL,
     provider_type TEXT DEFAULT '',
     provider_id TEXT DEFAULT '',
