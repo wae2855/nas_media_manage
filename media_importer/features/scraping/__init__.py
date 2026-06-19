@@ -24,8 +24,8 @@ from .confidence_models import (
     DEFAULT_CONFIDENCE_CONFIG,
     MatchResult,
 )
-from media_importer.scraper.filename_cleaner import FilenameCleaner
-from media_importer.scraper.title_matcher import TitleMatcher, _similarity
+from .filename_cleaner import FilenameCleaner
+from .title_matcher import TitleMatcher, _similarity
 from .metadata_scraper import MetadataScraper
 
 __all__ = [

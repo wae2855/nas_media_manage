@@ -8,8 +8,8 @@ from media_importer.features.scraping.match_models import (
     MatchTraceStep,
 )
 from media_importer.features.scraping.confidence_models import CleanResult
-from media_importer.scraper.title_matcher import TitleMatcher
-from media_importer.scraper.filename_cleaner import FilenameCleaner
+from .title_matcher import TitleMatcher
+from .filename_cleaner import FilenameCleaner
 
 from media_importer.features.scraping._match_tiers_impl import (
     _tier1_exact_match_impl,

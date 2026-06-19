@@ -10,8 +10,9 @@ from media_importer.features.providers import (
     DimensionMapping,
 )
 from media_importer.scraper.llm_scraper import LLMScraper
-from media_importer.scraper.filename_cleaner import FilenameCleaner
-from media_importer.scraper.title_matcher import TitleMatcher, MatchResult
+from .filename_cleaner import FilenameCleaner
+from .title_matcher import TitleMatcher
+from .confidence_models import MatchResult
 from media_importer.features.scraping.confidence_models import (
     DEFAULT_CONFIDENCE_CONFIG,
     CleanResult,
