@@ -74,7 +74,7 @@ AI 配置界面划分为三个手风琴区域，每个区域独立折叠/展开�
 | PromptDefaults | `media_importer/features/prompts/defaults.py` |
 | PromptResolver | `media_importer/features/scraping/prompt_resolver.py` |
 | SceneStrategyResolver | `media_importer/features/scraping/scene_strategy.py` |
-| 共享 fallback 实现 | `media_importer/scraper/_llm_client_impl.py` |
+| 共享 fallback 实现 | `media_importer/scraper/_llm_client_impl.py`（Compat re-export,事实源已迁入 `media_importer/features/scraping/llm_client.py`） |
 | 配置加载 | `media_importer/core/config_loader.py` |
 | ConfigView | `media_importer/core/config_view.py` |
 | 前端 HTML | `media_importer/webui/index.html`（3 手风琴区域） |

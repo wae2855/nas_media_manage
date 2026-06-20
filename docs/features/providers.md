@@ -9,7 +9,7 @@ Provider 能力负责接入 TMDB 或后续外部元数据源，并为刮削流�
 | `media_importer/features/providers/__init__.py` | Feature public API for provider registry and factory functions. |
 | `media_importer/features/providers/base.py` | Provider interface and shared result/detail dataclasses. |
 | `media_importer/features/providers/tmdb_provider.py` | TMDB provider implementation. |
-| `media_importer/scraper/providers/` | Thin legacy import wrappers for provider modules. |
+| `media_importer/scraper/providers/` | Compat re-export wrappers for provider modules (迁移期,保留一个版本周期,事实源已迁入 `media_importer/features/providers/`)。 |
 | `media_importer/features/scraping/metadata_scraper.py` | Calls providers during scrape orchestration. |
 | `media_importer/core/config_view.py` | Reads provider-related configuration values. |
 

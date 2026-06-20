@@ -124,7 +124,7 @@
 
 新增状态或文件位置时必须同步：
 
-- `media_importer/core/db/constants.py`
+- `media_importer/core/db/constants.py`（真实实现，通过 `media_importer.infrastructure.db` facade 访问）
 - `media_importer/core/task_lifecycle.py`
 - `media_importer/features/tasks/`
 - `media_importer/core/task_manager.py`

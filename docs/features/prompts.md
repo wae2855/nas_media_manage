@@ -11,8 +11,8 @@
 | `media_importer/features/prompts/__init__.py` | Feature public API for prompt builder and LLM prompt defaults. |
 | `media_importer/features/prompts/application_service.py` | Prompt file load/save/reset service for global and provider-specific prompts. |
 | `media_importer/features/prompts/prompt_builder.py` | Prompt template loading and JSON schema rendering. |
-| `media_importer/scraper/llm_prompts.py` | Thin legacy import wrapper for `LLMPromptBuilder`. |
-| `media_importer/scraper/llm_scraper.py` | Builds prompts and parses LLM responses. |
+| `media_importer/scraper/llm_prompts.py` | 历史引用,文件不存在 (`LLMPromptBuilder` 真实实现已位于 `media_importer/features/prompts/prompt_builder.py`)。 |
+| `media_importer/scraper/llm_scraper.py` | Compat re-export (迁移期,事实源已迁入 `media_importer/features/scraping/llm_scraper.py`)。 |
 | `media_importer/api/prompt_handlers.py` | Prompt-related HTTP handlers if enabled in current routes. |
 | `media_importer/webui/js/` | Prompt configuration UI dependencies. |
 

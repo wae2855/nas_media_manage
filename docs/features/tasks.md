@@ -27,8 +27,8 @@
 | `media_importer/features/tasks/repository.py` | Task feature repo facade over task DB operations. |
 | `media_importer/core/task_manager.py` | Task creation, querying, and updates. |
 | `media_importer/core/task_lifecycle.py` | Centralized lifecycle transitions. |
-| `media_importer/core/db/constants.py` | Task status constants. |
-| `media_importer/core/db/task_repo.py` | Task repository operations. |
+| `media_importer/core/db/constants.py` | Task status constants (真实实现,通过 `media_importer.infrastructure.db` facade 访问)。 |
+| `media_importer/core/db/task_repo.py` | Task repository operations (真实实现,通过 `media_importer.infrastructure.db` facade 访问)。 |
 | `media_importer/api/task_handlers.py` | Task HTTP handlers. |
 | `media_importer/features/import_flow/context.py` | Task-scoped import flow state. |
 

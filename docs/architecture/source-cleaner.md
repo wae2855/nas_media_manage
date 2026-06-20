@@ -10,7 +10,7 @@
 | ApplicationService | `media_importer/features/source_cleaning/application_service.py` | Feature 应用入口 |
 | Records | `media_importer/features/source_cleaning/records.py` | 清理记录仓库 |
 | API Handlers | `media_importer/api/source_cleaner_handlers.py` | HTTP 接口 |
-| DB Repository | `media_importer/core/db/cleaner_repo.py` | 数据库访问 |
+| DB Repository | `media_importer/core/db/cleaner_repo.py`（真实实现，通过 `media_importer.infrastructure.db` facade 访问） | 数据库访问 |
 
 ## Boundaries
 

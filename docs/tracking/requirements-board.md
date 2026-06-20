@@ -6,12 +6,12 @@
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
-| REQ-20260616-000001 | 待确认流程端到端整治 | bugfix+refactor | P0 | - | features/import_flow, api/task_handlers, webui/js/cinema-*, core/db | main | Plan: [plan](../plans/2026-06-16-confirm-workflow-overhaul-plan.md) \| ADR: [0007](../decisions/0007-confirm-workflow-preview-vs-import-split.md) \| Tests: [test_p0_confirm_workflow_fixes](../../tests/test_p0_confirm_workflow_fixes.py) | 2026-06-16 | 2026-06-17 |
 
 ## Pending Acceptance
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
+| REQ-20260616-000001 | 待确认流程端到端整治 | bugfix+refactor | P0 | - | features/import_flow, api/task_handlers, webui/js/cinema-*, infrastructure/db | main | Plan: [plan](../plans/2026-06-16-confirm-workflow-overhaul-plan.md) \| ADR: [0007](../decisions/0007-confirm-workflow-preview-vs-import-split.md) \| Tests: [test_p0_confirm_workflow_fixes](../../tests/test_p0_confirm_workflow_fixes.py) | 2026-06-16 | 2026-06-20 |
 
 ## Planned
 

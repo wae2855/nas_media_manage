@@ -6,7 +6,7 @@
 - 超过 500 行应优先拆分；暂不拆分时必须在计划或评审说明中解释原因。
 - 函数职责单一，避免在 handler 或 step 中混合过多业务策略。
 - 同子包内相对导入，例如 `from .utils import ...`。
-- 跨子包使用绝对导入，例如 `from media_importer.core.db import ...`。
+- 跨子包使用绝对导入，例如 `from media_importer.infrastructure.db import ...`、`from media_importer.features.scraping import ...` 等;不直接 import 旧路径 `media_importer.core.db` 或 `media_importer.scraper` (architecture guard 拦截)。
 - 不添加无意义注释；复杂业务规则可写短注释或放文档。
 
 ## Frontend

@@ -1,7 +1,7 @@
 # ADR-0008: Scraper Feature-First Migration
 
 Date: 2026-06-18
-Status: Proposed
+Status: Accepted
 Plan: [2026-06-18-refactor-scraper-feature-first-migration-plan.md](../plans/2026-06-18-refactor-scraper-feature-first-migration-plan.md)
 Related:
 - [0004-feature-first-architecture-restructure.md](0004-feature-first-architecture-restructure.md)
