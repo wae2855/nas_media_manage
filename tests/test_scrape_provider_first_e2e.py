@@ -118,7 +118,7 @@ class TestScrapeProviderFirstE2E:
         mock_conn = MagicMock()
 
         with patch(
-            "media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
             return_value={"media_type", "documentary", "restricted_level", "animation"},
         ):
             result = _scrape_provider_first(
@@ -160,7 +160,7 @@ class TestScrapeProviderFirstE2E:
         mock_conn = MagicMock()
 
         with patch(
-            "media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
             return_value={"media_type", "documentary", "restricted_level", "animation"},
         ):
             result = _scrape_provider_first(
@@ -194,7 +194,7 @@ class TestScrapeProviderFirstE2E:
         mock_conn = MagicMock()
 
         with patch(
-            "media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
             return_value={"media_type", "documentary", "restricted_level"},
         ):
             result = _scrape_provider_first(
@@ -226,7 +226,7 @@ class TestScrapeProviderFirstE2E:
         mock_conn = MagicMock()
 
         with patch(
-            "media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
             return_value={"media_type", "documentary", "restricted_level"},
         ):
             result = _scrape_provider_first(
@@ -254,7 +254,7 @@ class TestScrapeProviderFirstE2E:
         mock_conn = MagicMock()
 
         with patch(
-            "media_importer.scraper.metadata_scrape_flow._get_enabled_dims",
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
             return_value={"media_type", "documentary", "restricted_level", "animation"},
         ):
             result = _scrape_provider_first(

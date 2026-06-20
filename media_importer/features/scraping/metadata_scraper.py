@@ -18,8 +18,7 @@ from media_importer.features.scraping.confidence_models import (
     CleanResult,
 )
 from media_importer.features.configuration import ConfigView
-# scrape_metadata / scrape_series_metadata 在下方 scrape/scrape_series 方法内 lazy import,
-# 以避免与 scraper 包初始化形成循环。S-Phase 4 迁移 metadata_scrape_flow 后改为同包相对。
+from media_importer.features.scraping.metadata_scrape_flow import scrape_metadata, scrape_series_metadata
 
 
 class MetadataScraper:
@@ -311,9 +310,7 @@ class MetadataScraper:
 
     def scrape(self, video_filename: str, subtitle_filenames: List[str] = None,
                conn=None, force_mode: str = None) -> Dict[str, Any]:
-        from media_importer.scraper.metadata_scrape_flow import scrape_metadata
         return scrape_metadata(self, video_filename, subtitle_filenames, conn, force_mode=force_mode)
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
-        from media_importer.scraper.metadata_scrape_flow import scrape_series_metadata
         return scrape_series_metadata(self, series_name)
