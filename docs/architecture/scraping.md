@@ -18,8 +18,8 @@
 | ConfidenceEngine | `media_importer/features/scraping/confidence_engine.py` | Legacy 兼容层（deprecated） |
 | ConfidenceModels | `media_importer/features/scraping/confidence_models.py` | Legacy 兼容层（deprecated） |
 | DimensionManager | `media_importer/features/scraping/dimension_manager.py` | 维度映射和分类归一化 |
-| TitleMatcher | `media_importer/scraper/title_matcher.py` | 标题匹配 L1-L7 级别（第一级精确匹配依赖） |
-| FilenameCleaner | `media_importer/scraper/filename_cleaner.py` | 文件名清洗和 CJK 分离 |
+| TitleMatcher | `media_importer/features/scraping/title_matcher.py` | 标题匹配 L1-L7 级别（第一级精确匹配依赖；S-Phase 1 已从 `scraper/` 迁入） |
+| FilenameCleaner | `media_importer/features/scraping/filename_cleaner.py` | 文件名清洗和 CJK 分离（S-Phase 1 已从 `scraper/` 迁入） |
 | Providers | `media_importer/features/providers/` | 元数据 Provider 注册和工厂 |
 | PromptBuilder | `media_importer/features/prompts/prompt_builder.py` | 提示词模板构建 |
 

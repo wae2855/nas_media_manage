@@ -216,3 +216,32 @@ def test_task_handler_delegates_detail_queries_to_tasks_feature():
     assert "_global_task_manager.get_task" not in source
     assert "get_subtitles_by_task" not in source
     assert "count_by_status()" not in source
+
+
+def test_no_production_code_imports_scraper_package():
+    """生产代码不得 import media_importer.scraper.*(scraper/ 自身除外)。
+
+    scraper/ 下的文件是迁移期 compat,保留一个版本周期。
+    新增生产代码必须直接 import features.scraping.* 或 features.providers.*。
+    """
+    import re
+    media_importer_root = ROOT / "media_importer"
+    scraper_root = media_importer_root / "scraper"
+    violations = []
+    forbidden_pattern = re.compile(
+        r"^\s*(?:from\s+media_importer\.scraper|import\s+media_importer\.scraper)",
+        re.MULTILINE,
+    )
+    for py_file in media_importer_root.rglob("*.py"):
+        if scraper_root in py_file.parents:
+            continue
+        if "__pycache__" in py_file.parts:
+            continue
+        source = py_file.read_text(encoding="utf-8")
+        for match in forbidden_pattern.finditer(source):
+            line_no = source[:match.start()].count("\n") + 1
+            violations.append(f"{py_file.relative_to(ROOT)}:{line_no}: {match.group().strip()}")
+    assert not violations, (
+        "生产代码不得 import media_importer.scraper.*。以下违规需改为 features.* 新路径:\n"
+        + "\n".join(violations)
+    )

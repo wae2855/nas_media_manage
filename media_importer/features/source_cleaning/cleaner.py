@@ -42,7 +42,7 @@ class SourceCleaner:
         self.blacklist_patterns = cleaner.blacklist_patterns
         self.cleanup_empty_dirs = cleaner.cleanup_empty_dirs
 
-        from media_importer.scraper.llm_scraper import LLMScraper
+        from media_importer.features.scraping.llm_scraper import LLMScraper
         from media_importer.features.scraping.prompt_resolver import PromptResolver
         self.llm = LLMScraper(config)
         self.prompt_resolver = PromptResolver.from_config(config)

@@ -199,7 +199,7 @@ class TestTier2ContextMatch(unittest.TestCase):
         ])
         with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
             mock_match.return_value = MagicMock(level="L5", T=0.6)
-            with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+            with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
                 mock_correct.return_value = {
                     "corrected_title": "Inception",
                     "corrected_year": 2010,
@@ -220,7 +220,7 @@ class TestTier2ContextMatch(unittest.TestCase):
     def test_ai_low_certainty_falls_to_tier3(self, mock_context, mock_tier1):
         """AI 低确定性 → NEEDS_CONFIRM（停在第二级，不搜Provider）"""
         mock_context.return_value = {"parent_folder": "Movies"}
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "corrected_title": "SomeMovie",
                 "corrected_year": None,
@@ -243,7 +243,7 @@ class TestTier2ContextMatch(unittest.TestCase):
     def test_ai_no_match_selected_index_minus1(self, mock_context, mock_tier1):
         """AI 低确定性 → NEEDS_CONFIRM（停在第二级，空候选列表）"""
         mock_context.return_value = {}
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "corrected_title": "UnknownFile",
                 "corrected_year": None,
@@ -272,7 +272,7 @@ class TestTier2ContextMatch(unittest.TestCase):
         ])
         with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
             mock_match.return_value = MagicMock(level="L5", T=0.6)
-            with patch('media_importer.scraper.llm_scraper.LLMScraper') as MockLLM:
+            with patch('media_importer.features.scraping.llm_scraper.LLMScraper') as MockLLM:
                 MockLLM.return_value.tier2_correct.side_effect = Exception("API timeout")
                 result = self.engine.match(
                     "Test.2020.mkv", [self.provider],

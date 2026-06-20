@@ -37,7 +37,7 @@ class TestPhaseP_IsValid:
         provider.search.return_value = SearchResult(items=[
             self._make_search_item(item_id="123", title="Random", year=2020),
         ])
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "is_valid": False,
                 "corrected_title": "",
@@ -67,7 +67,7 @@ class TestPhaseP_IsValid:
         provider.search.return_value = SearchResult(items=[
             self._make_search_item(item_id="27205", title="Inception", year=2010),
         ])
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "is_valid": True,
                 "corrected_title": "Inception",
@@ -118,7 +118,7 @@ class TestPhaseP_SelectedCandidateId:
         # 如果 selected_candidate_id 生效，不会调 provider.search
         with patch('media_importer.features.scraping._match_tiers_impl._collect_context_impl') as mock_context:
             mock_context.return_value = {"parent_folder": "Movies"}
-            with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+            with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
                 mock_correct.return_value = {
                     "is_valid": True,
                     "corrected_title": "La vita è bella",
@@ -152,7 +152,7 @@ class TestPhaseP_SelectedCandidateId:
         ])
         with patch('media_importer.features.scraping._match_tiers_impl._collect_context_impl') as mock_context:
             mock_context.return_value = {"parent_folder": "Movies"}
-            with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+            with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
                 mock_correct.return_value = {
                     "is_valid": True,
                     "corrected_title": "La vita è bella",
@@ -186,7 +186,7 @@ class TestPhaseQ_FailedState:
         mock_context.return_value = {"parent_folder": "Movies"}
         provider = MagicMock()
         provider.__class__.__name__ = "MockProvider"
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "is_valid": False,
                 "certainty": "",

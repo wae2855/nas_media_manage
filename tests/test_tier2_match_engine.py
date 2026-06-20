@@ -37,7 +37,7 @@ class TestTier2MatchEngine:
         provider.search.return_value = SearchResult(items=[
             self._make_search_item(item_id="27205", title="Inception", year=2010),
         ])
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "corrected_title": "Inception",
                 "corrected_year": 2010,
@@ -65,7 +65,7 @@ class TestTier2MatchEngine:
         provider.search.return_value = SearchResult(items=[
             self._make_search_item(item_id="1", title="Some Movie", year=2020),
         ])
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "corrected_title": "Some Movie",
                 "corrected_year": 2020,
@@ -91,7 +91,7 @@ class TestTier2MatchEngine:
         provider = MagicMock()
         provider.__class__.__name__ = "MockProvider"
         mock_context.return_value = {}
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "corrected_title": "Unknown",
                 "corrected_year": None,
@@ -118,7 +118,7 @@ class TestTier2MatchEngine:
         provider = MagicMock()
         provider.__class__.__name__ = "MockProvider"
         mock_context.return_value = {"parent_folder": "Movies"}
-        with patch('media_importer.scraper.llm_scraper.LLMScraper') as MockLLM:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper') as MockLLM:
             MockLLM.return_value.tier2_correct.side_effect = Exception("API timeout")
             result = engine.match(
                 "Test.2020.mkv", [provider],
@@ -136,7 +136,7 @@ class TestTier2MatchEngine:
         provider.__class__.__name__ = "MockProvider"
         mock_context.return_value = {}
         provider.search.return_value = SearchResult(items=[])
-        with patch('media_importer.scraper.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
+        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
             mock_correct.return_value = {
                 "corrected_title": "RareFilm",
                 "corrected_year": 2020,

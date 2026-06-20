@@ -109,7 +109,7 @@ class ConnectivityHandlersMixin:
             start = _time.time()
             if scenario in AI_ASSIST_SCENARIOS:
                 if scenario == "extract_title":
-                    from media_importer.scraper.llm_scraper import LLMScraper
+                    from media_importer.features.scraping.llm_scraper import LLMScraper
                     test_config = dict(globals._config or {})
                     test_config["ai_assist"] = {
                         "api_key": api_key,
@@ -153,7 +153,7 @@ class ConnectivityHandlersMixin:
                 return
 
             # AI search 场景：scrape / series_scrape
-            from media_importer.scraper.llm_scraper import LLMScraper
+            from media_importer.features.scraping.llm_scraper import LLMScraper
             saved_config = dict(globals._config) if globals._config else {}
             demo_config = dict(saved_config)
             demo_config["ai_search"] = {

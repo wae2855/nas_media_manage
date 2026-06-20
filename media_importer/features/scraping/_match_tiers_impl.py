@@ -500,7 +500,7 @@ def _tier2_context_match_impl(
     original_filename = video_path or clean_title
 
     try:
-        from media_importer.scraper.llm_scraper import LLMScraper
+        from media_importer.features.scraping.llm_scraper import LLMScraper
         llm = LLMScraper(self.config)
         ai_result = llm.tier2_correct(
             original_filename=original_filename,
