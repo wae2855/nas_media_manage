@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from media_importer.core.db.dimension_repo import get_enabled_dimensions
+from media_importer.infrastructure.db import get_enabled_dimensions
 
 
 @dataclass
@@ -69,7 +69,7 @@ def preview_task_for_api(pipeline, task_id: str, updates: dict, task_manager=Non
 
     if task_manager is not None and hasattr(task_manager, 'conn'):
         if "dimensions" in updates:
-            from media_importer.core.db.dimension_repo import get_enabled_dimensions
+            from media_importer.infrastructure.db import get_enabled_dimensions
             enabled = {d["name"] for d in get_enabled_dimensions(task_manager.conn)}
             invalid = set(updates["dimensions"].keys()) - enabled
             if invalid:

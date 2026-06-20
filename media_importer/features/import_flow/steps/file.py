@@ -1,5 +1,5 @@
 import os
-from media_importer.core.db import (
+from media_importer.infrastructure.db import (
     update_task as db_update_task,
     get_subtitles_by_task as db_get_subtitles,
     update_subtitle as db_update_subtitle,

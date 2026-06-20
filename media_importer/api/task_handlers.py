@@ -21,7 +21,7 @@ from media_importer.features.tasks import (
     retry_task_for_api,
 )
 from media_importer.features.import_flow.services.classification import ClassificationService
-from media_importer.core.db.dimension_repo import get_enabled_dimensions
+from media_importer.infrastructure.db import get_enabled_dimensions
 from media_importer.api import globals
 from media_importer.features.tasks.search_service import search_provider_candidates
 from .task_delete import delete_task

@@ -1,7 +1,7 @@
 import os
 import time
 import threading
-from media_importer.core.db import (
+from media_importer.infrastructure.db import (
     update_task as db_update_task,
     get_subtitles_by_task as db_get_subtitles,
     count_subtitles_by_task as db_count_subs,

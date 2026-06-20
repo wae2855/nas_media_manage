@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from media_importer.core.db.task_repo import list_all_tasks
+from media_importer.infrastructure.db import list_all_tasks
 
 from .cleaner import SourceCleaner
 from .records import get_cleaner_records, get_cleaner_status, save_cleaner_record

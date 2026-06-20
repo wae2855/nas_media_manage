@@ -1,4 +1,4 @@
-from media_importer.core.db.cleaner_repo import (
+from media_importer.infrastructure.db import (
     get_cleaner_records,
     get_cleaner_status,
     init_cleaner_tables,

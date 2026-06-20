@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from media_importer.core.db import (
+from media_importer.infrastructure.db import (
     get_subtitles_by_task as db_get_subtitles,
     update_subtitle as db_update_subtitle,
 )

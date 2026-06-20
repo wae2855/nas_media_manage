@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Set
 
-from media_importer.core.db import get_enabled_dimensions
+from media_importer.infrastructure.db import get_enabled_dimensions
 from media_importer.features.scraping.confidence_models import CleanResult
 
 from .llm_scraper import LLMScrapeError

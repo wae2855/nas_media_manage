@@ -1,4 +1,4 @@
-from media_importer.core.db.task_repo import (
+from media_importer.infrastructure.db import (
     clear_tasks,
     count_all_tasks,
     count_by_specific_status,
@@ -17,8 +17,8 @@ from media_importer.core.db.task_repo import (
     list_tasks,
     update_task,
 )
-from media_importer.core.db.subtitle_repo import update_subtitles_by_task
-from media_importer.core.db.subtitle_repo import get_subtitles_by_task
+from media_importer.infrastructure.db import update_subtitles_by_task
+from media_importer.infrastructure.db import get_subtitles_by_task
 
 __all__ = [
     "clear_tasks",

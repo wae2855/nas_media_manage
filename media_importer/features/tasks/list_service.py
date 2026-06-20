@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from media_importer.core.db import VALID_STATUSES
+from media_importer.infrastructure.db import VALID_STATUSES
 
 from .repository import list_tasks as db_list_tasks
 

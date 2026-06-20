@@ -1,6 +1,6 @@
 import os
-from media_importer.core.db import update_task as db_update_task, update_subtitles_by_task as db_update_subs
-from media_importer.core.db.dimension_repo import get_enabled_dimensions
+from media_importer.infrastructure.db import update_task as db_update_task, update_subtitles_by_task as db_update_subs
+from media_importer.infrastructure.db import get_enabled_dimensions
 from media_importer.features.tasks import (
     FILE_LOCATION_SOURCE,
     mark_confirmed,

@@ -1,5 +1,5 @@
 import os
-from media_importer.core.db import (
+from media_importer.infrastructure.db import (
     update_task as db_update_task,
     list_all_tasks as db_list_all_tasks,
 )
@@ -306,7 +306,7 @@ class ScrapeStepsMixin:
 
         # 读取 dimensions 表获取每个维度的 trust 配置
         try:
-            from media_importer.core.db.dimension_repo import get_all_dimensions
+            from media_importer.infrastructure.db import get_all_dimensions
             all_dims = get_all_dimensions(conn)
             dim_trust = {
                 d.get("name"): {

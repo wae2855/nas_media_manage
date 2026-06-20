@@ -30,7 +30,7 @@ def check_tier_access(required_tier: str) -> bool:
 
 
 def get_dimensions_for_scrape(conn) -> list:
-    from media_importer.core.db import get_all_dimensions
+    from media_importer.infrastructure.db import get_all_dimensions
     dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
@@ -49,7 +49,7 @@ def get_dimensions_for_scrape(conn) -> list:
 
 
 def get_dimensions_for_tmdb(conn) -> list:
-    from media_importer.core.db import get_all_dimensions
+    from media_importer.infrastructure.db import get_all_dimensions
     dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
@@ -66,7 +66,7 @@ def get_dimensions_for_tmdb(conn) -> list:
 
 
 def get_dimensions_for_provider(conn, provider_type: str) -> list:
-    from media_importer.core.db import get_all_dimensions
+    from media_importer.infrastructure.db import get_all_dimensions
     dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
@@ -98,7 +98,7 @@ def get_dimensions_for_provider(conn, provider_type: str) -> list:
 
 
 def get_dimensions_for_file(conn) -> list:
-    from media_importer.core.db import get_all_dimensions
+    from media_importer.infrastructure.db import get_all_dimensions
     dims = get_all_dimensions(conn)
     result = []
     for dim in dims:

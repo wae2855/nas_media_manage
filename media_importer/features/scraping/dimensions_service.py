@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from media_importer.core.db import (
+from media_importer.infrastructure.db import (
     disable_dimension as db_disable_dimension,
     enable_dimension as db_enable_dimension,
     get_all_dimensions as db_get_all_dimensions,

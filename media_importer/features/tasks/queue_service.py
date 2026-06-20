@@ -2,7 +2,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from media_importer.core.db import VALID_STATUSES
+from media_importer.infrastructure.db import VALID_STATUSES
 
 
 @dataclass

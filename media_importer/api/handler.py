@@ -11,7 +11,7 @@ from media_importer.core.metrics import Metrics, get_metrics
 from media_importer.core.logger import get_logger
 from media_importer.notify.hermes_hook import HermesNotifier
 from media_importer.monitor.file_watcher import FileWatcher
-from media_importer.core.db import (
+from media_importer.infrastructure.db import (
     update_task as db_update_task,
 )
 from media_importer.core.task_lifecycle import FILE_LOCATION_SOURCE, mark_failed

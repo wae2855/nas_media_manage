@@ -218,6 +218,40 @@ def test_task_handler_delegates_detail_queries_to_tasks_feature():
     assert "count_by_status()" not in source
 
 
+def test_no_production_code_imports_core_db_directly():
+    """生产代码不得直接 import media_importer.core.db(core/db/ 和 infrastructure/db/ 自身除外)。
+
+    DB 层的推荐入口是 media_importer.infrastructure.db facade。
+    core/db/ 保留为真实实现,infrastructure/db/ 是 facade。
+    """
+    import re
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    media_importer_root = root / "media_importer"
+    core_db_root = media_importer_root / "core" / "db"
+    infra_db_root = media_importer_root / "infrastructure" / "db"
+    violations = []
+    forbidden_pattern = re.compile(
+        r"^\s*(?:from\s+media_importer\.core\.db|import\s+media_importer\.core\.db)",
+        re.MULTILINE,
+    )
+    for py_file in media_importer_root.rglob("*.py"):
+        if "__pycache__" in py_file.parts:
+            continue
+        if core_db_root in py_file.parents:
+            continue
+        if infra_db_root in py_file.parents:
+            continue
+        source = py_file.read_text(encoding="utf-8")
+        for match in forbidden_pattern.finditer(source):
+            line_no = source[:match.start()].count("\n") + 1
+            violations.append(f"{py_file.relative_to(root)}:{line_no}: {match.group().strip()}")
+    assert not violations, (
+        "生产代码不得直接 import media_importer.core.db。以下违规需改为 infrastructure.db facade:\n"
+        + "\n".join(violations)
+    )
+
+
 def test_no_production_code_imports_scraper_package():
     """生产代码不得 import media_importer.scraper.*(scraper/ 自身除外)。
 
