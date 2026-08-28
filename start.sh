@@ -34,7 +34,7 @@ port_check_with_message() {
     pids="$(get_port_pids "$port" || true)"
     pids="$(echo "$pids" | tr '\n' ' ' | sed 's/^ *//;s/ *$//')"
     if [ -n "$pids" ]; then
-        log_warn "端口 $port 已被占用（PID: $pids），自动清理..."
+        log_warn "端口 ${port} 已被占用（PID: ${pids}），自动清理..."
         kill -9 $pids 2>/dev/null || true
         sleep 1
         log_info "端口已释放"
