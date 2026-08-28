@@ -9,7 +9,6 @@ function explainSimulatedQueue(matchResult) {
   }
 
   if (level === "AUTO_PASS") return "标题精确匹配，自动通过。";
-  if (level === "CONTEXT_PASS") return "AI 辅助匹配通过。";
   if (level === "NEEDS_CONFIRM") {
     const concerns = matchResult.concerns || [];
     if (concerns.length > 0) {
@@ -19,8 +18,14 @@ function explainSimulatedQueue(matchResult) {
     }
     return "需要人工确认匹配结果。";
   }
-  if (level === "FAILED") return "AI 判定为非影视文件，任务失败。";
+  if (level === "FAILED") return "未找到可用的影视信息，任务失败。";
   return "匹配结果未知。";
+}
+
+function mediaTypeLabel(value) {
+  if (value === "movie") return "电影";
+  if (value === "tv" || value === "series") return "剧集";
+  return value || "—";
 }
 
 function renderMatchPathPreview(data) {
@@ -38,7 +43,7 @@ function renderMatchPathPreview(data) {
     scrapeRes.title ||
     clean.clean_title ||
     data.filename;
-  const currentType = scrapeRes.type || scrapeRes.media_type || "—";
+  const currentType = mediaTypeLabel(scrapeRes.type || scrapeRes.media_type);
   const importPathInfo = data.import_path || {};
 
   const matchLevel =
@@ -59,7 +64,7 @@ function renderMatchPathPreview(data) {
   html += "</div>";
   html += '<div class="sim-step-content">';
   html +=
-    '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">文件名输入</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">INPUT</span></div>';
+    '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">文件名输入</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">文件识别</span></div>';
   html += `<div class="sim-kv"><span class="sim-k">原始文件名</span><span class="sim-v">${escapeHtml(data.filename || "—")}</span></div>`;
   html += "</div></div>";
 
@@ -72,15 +77,15 @@ function renderMatchPathPreview(data) {
   html += "</div>";
   html += '<div class="sim-step-content">';
   html +=
-    '<div class="sim-step-header"><span class="sim-step-title" style="color:#F59E0B">规则清洗</span><span class="sim-step-tag" style="background:#F59E0B18;color:#F59E0B">REGEX</span></div>';
-  html += `<div class="sim-kv"><span class="sim-k">清洗方法</span><span class="sim-v">${escapeHtml(clean.method || "regex")}</span></div>`;
+    '<div class="sim-step-header"><span class="sim-step-title" style="color:#F59E0B">规则清洗</span><span class="sim-step-tag" style="background:#F59E0B18;color:#F59E0B">规则清洗</span></div>';
+  html += `<div class="sim-kv"><span class="sim-k">清洗方法</span><span class="sim-v">${escapeHtml(clean.method === "regex" ? "规则识别" : clean.method || "规则识别")}</span></div>`;
   html += `<div class="sim-kv"><span class="sim-k">去除项</span><span class="sim-v">${escapeHtml(removedStr)}</span></div>`;
-  html += `<div class="sim-kv"><span class="sim-k">clean_title</span><span class="sim-v sim-v-highlight">${escapeHtml(clean.clean_title || "—")}</span></div>`;
-  html += `<div class="sim-kv"><span class="sim-k">year</span><span class="sim-v sim-v-highlight">${clean.year || "—"}</span></div>`;
-  html += `<div class="sim-kv"><span class="sim-k">season / episode</span><span class="sim-v">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`;
+  html += `<div class="sim-kv"><span class="sim-k">清洗后标题</span><span class="sim-v sim-v-highlight">${escapeHtml(clean.clean_title || "—")}</span></div>`;
+  html += `<div class="sim-kv"><span class="sim-k">年份</span><span class="sim-v sim-v-highlight">${clean.year || "—"}</span></div>`;
+  html += `<div class="sim-kv"><span class="sim-k">季 / 集</span><span class="sim-v">${clean.season ? "S" + clean.season : "—"} / ${clean.episode ? "E" + clean.episode : "—"}</span></div>`;
   html += "</div></div>";
 
-  // --- timeline step 3: 三级匹配路径 ---
+  // --- timeline step 3: 两级匹配路径 ---
   html += '<div class="sim-step">';
   html += '<div class="sim-step-rail">';
   html +=
@@ -89,40 +94,19 @@ function renderMatchPathPreview(data) {
   html += "</div>";
   html += '<div class="sim-step-content">';
   html +=
-    '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">三级匹配路径</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">MATCH</span></div>';
+    '<div class="sim-step-header"><span class="sim-step-title" style="color:#8B5CF6">两级匹配路径</span><span class="sim-step-tag" style="background:#8B5CF618;color:#8B5CF6">智能匹配</span></div>';
 
   if (Array.isArray(traceSteps) && traceSteps.length > 0) {
     html +=
       '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">';
     for (var si = 0; si < traceSteps.length; si++) {
       var step = traceSteps[si];
-      var tierIcon =
-        step.tier === 1
-          ? "🗄️ "
-          : step.tier === 2
-            ? "🤖 "
-            : step.tier === 3
-              ? "👤 "
-              : "";
+      var tierIcon = step.tier === 1 ? "🗄️ " : step.tier === 2 ? "👤 " : "";
       var color = step.matched
         ? "#22C55E"
-        : step.tier === 3
+        : step.tier === 2
           ? "#F59E0B"
           : "#94A3B8";
-      var certaintyTag = "";
-      if (step.tier === 2) {
-        var stepReason = step.reason || "";
-        if (stepReason.includes("高确定性")) {
-          certaintyTag =
-            '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(34,197,94,0.12);color:#22C55E;margin-left:4px;">高</span>';
-        } else if (stepReason.includes("中确定性")) {
-          certaintyTag =
-            '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.12);color:#F59E0B;margin-left:4px;">中</span>';
-        } else if (stepReason.includes("低确定性")) {
-          certaintyTag =
-            '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(217,79,69,0.12);color:#D94F45;margin-left:4px;">低</span>';
-        }
-      }
       var searchInfo = "";
       if (step.search_query) {
         searchInfo = `<div style="font-size:11px;color:var(--muted);margin-top:2px;">搜索：${escapeHtml(step.search_query)}</div>`;
@@ -141,7 +125,6 @@ function renderMatchPathPreview(data) {
         "级：" +
         tierIcon +
         escapeHtml(step.name || "") +
-        certaintyTag +
         " · " +
         (step.matched ? "✓ 匹配" : "✗ 未匹配") +
         "</div>";
@@ -149,13 +132,7 @@ function renderMatchPathPreview(data) {
       if (step.reason)
         html +=
           '<div style="margin-top:6px;font-size:12px;line-height:1.5;color:#CBD5E1">' +
-          escapeHtml(step.reason) +
-          "</div>";
-      if (step.ai_reason)
-        html +=
-          '<div style="margin-top:6px;font-size:12px;line-height:1.5;color:#06B6D4;border-left:2px solid #06B6D420;padding-left:10px">' +
-          (step.tier === 2 ? "🤖 AI辅助: " : "AI: ") +
-          escapeHtml(step.ai_reason) +
+          escapeHtml(String(step.reason).replace(/^L\d+:\s*/, "")) +
           "</div>";
       html += "</div>";
     }
@@ -227,7 +204,7 @@ function renderMatchPathPreview(data) {
     const failReason =
       scrapeRes.tier_short_reason ||
       matchResult.tier_short_reason ||
-      "AI 判定无可识别影视信息";
+      "未找到可用的影视信息";
     html += '<div class="sim-step">';
     html += '<div class="sim-step-rail">';
     html +=
@@ -252,7 +229,7 @@ function renderMatchPathPreview(data) {
   html += "</div>";
   html += '<div class="sim-step-content">';
   html +=
-    '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">刮削结果</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">SCRAPE</span></div>';
+    '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">刮削结果</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">刮削</span></div>';
   html +=
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
   html += `<div class="sim-kv"><span class="sim-k">中文标题</span><span class="sim-v sim-v-highlight">${escapeHtml(scrapeRes.title_cn || "—")}</span></div>`;
@@ -260,7 +237,7 @@ function renderMatchPathPreview(data) {
   html += `<div class="sim-kv"><span class="sim-k">年份</span><span class="sim-v">${scrapeRes.year || "—"}</span></div>`;
   html += `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${escapeHtml(currentType)}</span></div>`;
   if (scrapeRes.provider_type) {
-    html += `<div class="sim-kv"><span class="sim-k">Provider</span><span class="sim-v">${escapeHtml(scrapeRes.provider_type + (scrapeRes.provider_id ? " · " + scrapeRes.provider_id : ""))}</span></div>`;
+    html += `<div class="sim-kv"><span class="sim-k">数据来源</span><span class="sim-v">${escapeHtml(scrapeRes.provider_type === "tmdb" ? "TMDB" : scrapeRes.provider_type)}</span></div>`;
   }
   if (scrapeRes.season != null)
     html += `<div class="sim-kv"><span class="sim-k">季</span><span class="sim-v">S${scrapeRes.season}</span></div>`;
@@ -272,7 +249,7 @@ function renderMatchPathPreview(data) {
     const whyMap = {
       unique_match: "唯一精确匹配",
       top_rated: "评分最高",
-      ai_suggestion: "AI 建议",
+      ai_suggestion: "历史 AI 建议",
       first_candidate: "Provider 排序第一",
       user_pick: "用户选择",
     };
@@ -303,22 +280,6 @@ function renderMatchPathPreview(data) {
     ) {
       srcParts.push(
         '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(34,197,94,0.12);color:#22C55E">📡 Provider</span>',
-      );
-    }
-    if (
-      traceInfo.ai_assist_dimensions &&
-      Object.keys(traceInfo.ai_assist_dimensions).length > 0
-    ) {
-      srcParts.push(
-        '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(139,92,246,0.12);color:#8B5CF6">🤖 AI辅助</span>',
-      );
-    }
-    if (
-      traceInfo.ai_search_dimensions &&
-      Object.keys(traceInfo.ai_search_dimensions).length > 0
-    ) {
-      srcParts.push(
-        '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(6,182,212,0.12);color:#06B6D4">🌐 AI搜索</span>',
       );
     }
     if (srcParts.length > 0) {
@@ -413,21 +374,12 @@ function renderMatchPathPreview(data) {
   html += "</div>";
   html += '<div class="sim-step-content">';
   html +=
-    '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">最终入库判断</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">RESULT</span></div>';
+    '<div class="sim-step-header"><span class="sim-step-title" style="color:#22C55E">最终入库判断</span><span class="sim-step-tag" style="background:#22C55E18;color:#22C55E">结果</span></div>';
   html += `<div class="sim-kv"><span class="sim-k">最终标题</span><span class="sim-v sim-v-highlight">${escapeHtml(currentTitle || "未识别标题")}</span></div>`;
   html += `<div class="sim-kv"><span class="sim-k">类型</span><span class="sim-v">${escapeHtml(currentType)}</span></div>`;
   const finalMatchLabel =
-    matchLevel === "AUTO_PASS"
-      ? "自动匹配"
-      : matchLevel === "CONTEXT_PASS"
-        ? "🤖 AI辅助匹配"
-        : "待人工确认";
-  const finalMatchColor =
-    matchLevel === "AUTO_PASS"
-      ? "#22C55E"
-      : matchLevel === "CONTEXT_PASS"
-        ? "#06B6D4"
-        : "#F59E0B";
+    matchLevel === "AUTO_PASS" ? "自动匹配" : "待人工确认";
+  const finalMatchColor = matchLevel === "AUTO_PASS" ? "#22C55E" : "#F59E0B";
   html += `<div class="sim-kv"><span class="sim-k">匹配级别</span><span class="sim-v sim-v-score" style="color:${finalMatchColor}">${finalMatchLabel}</span></div>`;
   if (importPathInfo.import_path) {
     const pathLabel = importPathInfo.used_fallback
@@ -439,12 +391,7 @@ function renderMatchPathPreview(data) {
   } else {
     html += `<div class="sim-kv"><span class="sim-k">入库目录</span><span class="sim-v" style="color:var(--warning-fg,#856404)">未匹配规则且无兜底目录</span></div>`;
   }
-  const queueColor =
-    matchLevel === "AUTO_PASS"
-      ? "#22C55E"
-      : matchLevel === "CONTEXT_PASS"
-        ? "#06B6D4"
-        : "#F59E0B";
+  const queueColor = matchLevel === "AUTO_PASS" ? "#22C55E" : "#F59E0B";
   html += `<div class="sim-queue-decision" style="border-color:${queueColor}30;background:${queueColor}08;color:${queueColor}">${escapeHtml(queueExplanation)}</div>`;
   html += "</div></div>";
 

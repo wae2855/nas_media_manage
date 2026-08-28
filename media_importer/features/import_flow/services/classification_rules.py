@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import re
-from typing import Dict, Any, Optional
-
+from typing import Any, Dict, Optional
 
 BOOL_TRUE_STRINGS = {'true', 'yes', 'on'}
 BOOL_FALSE_STRINGS = {'false', 'no', 'off'}

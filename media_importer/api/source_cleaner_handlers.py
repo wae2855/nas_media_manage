@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from urllib.parse import parse_qs
 
-from media_importer.api.utils import get_db, json_response, read_json_body
 from media_importer.api import globals
-from media_importer.features.source_cleaning import SourceCleaner
+from media_importer.api.utils import json_response
+from media_importer.features.source_cleaning import SourceCleaner  # noqa: F401
 from media_importer.features.source_cleaning.application_service import (
     ai_preview_source_cleaning,
     execute_source_cleaning,

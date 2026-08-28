@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from media_importer.features.tasks.repository import get_subtitles_by_task
 
@@ -6,7 +6,7 @@ from media_importer.features.tasks.repository import get_subtitles_by_task
 @dataclass
 class TaskDetailResult:
     code: int
-    data: dict = None
+    data: dict = field(default_factory=dict)
     message: str = ""
 
 

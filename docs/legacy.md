@@ -16,7 +16,7 @@ AI and maintainers should prefer the new documentation tree:
 
 Read legacy docs only when the task explicitly asks to migrate old content, compare historical decisions, or verify whether an old note still has value.
 
-Older plans may still reference legacy paths as historical evidence. A plan is current only if it is listed under `docs/INDEX.md` Active Plans or explicitly selected by the user.
+Older plans may still reference legacy paths as historical evidence. A plan is current only if it is listed under `docs/ai-map.md` §5 Active Plans or explicitly selected by the user.
 
 ## Legacy Areas
 

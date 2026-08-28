@@ -22,7 +22,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -83,9 +82,9 @@ LEGACY_TERMS = {
     "_calc_R": "旧 R 公式函数",
     "_aggregate": "旧置信度聚合函数",
 
-    # Phase 4: 旧 LLMConfig dataclass 及字段
+    # Phase 4: 旧 LLMConfig dataclass 及字段（注：ADR-0010 后 llm.fallback_model
+    # 作为清理器降级模型保留，source_cleaner_model/confidence_threshold 仍禁）
     "LLMConfig": "旧 LLM 配置 dataclass",
-    "fallback_model": "旧 llm.fallback_model 字段",
     "source_cleaner_model": "旧 llm.source_cleaner_model 字段",
     "confidence_threshold": "旧 llm.confidence_threshold 字段",
 
@@ -110,17 +109,6 @@ LEGACY_PREVIEW_TERMS = {
     "_decorate_scrape_preview_mode": "旧 preview 装饰 helper",
     "_build_scrape_preview_recommendation": "旧 preview 推荐 helper",
     "_resolve_import_paths": "旧 preview 入库路径 helper",
-}
-
-
-# CRIT-1: 旧 llm 配置运行入口 - 任何运行时读 llm 配置的方式都禁止
-LEGACY_LLM_CONFIG_ACCESS_TERMS = {
-    'get("llm"': '运行时读 llm 配置（CRIT-1）',
-    "get('llm'": '运行时读 llm 配置（CRIT-1）',
-    '_get_real_config_value("llm"': '_get_real_config_value 读 llm 配置（CRIT-1）',
-    "_get_real_config_value('llm'": '_get_real_config_value 读 llm 配置（CRIT-1）',
-    '["llm"]': '运行时通过键 llm 索引（CRIT-1）',
-    "['llm']": '运行时通过键 llm 索引（CRIT-1）',
 }
 
 
@@ -220,10 +208,6 @@ class LegacyCompatSurfaceGuardTests(unittest.TestCase):
 
     def test_runtime_code_has_no_legacy_provider_config_terms(self):
         self._scan(REPO_ROOT / "media_importer", dict(), "发现旧 Provider 配置兼容：")
-
-    def test_runtime_code_has_no_legacy_llm_config_access(self):
-        """CRIT-1: 任何运行时读 llm 配置的方式都禁止。"""
-        self._scan(REPO_ROOT / "media_importer", LEGACY_LLM_CONFIG_ACCESS_TERMS, "发现旧 llm 配置运行入口（CRIT-1）：")
 
     def test_runtime_code_has_no_legacy_storage_imports(self):
         """CRIT-2: media_importer.storage wrapper 已删除。"""

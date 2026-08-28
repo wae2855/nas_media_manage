@@ -1,4 +1,6 @@
+import logging
 import os
+import tempfile
 import traceback
 
 from media_importer.api import globals
@@ -15,6 +17,18 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         return
 
     try:
+        from media_importer.features.configuration import (
+            config_revision,
+            inspect_storage_readiness,
+            validate_config,
+        )
+
+        requested_revision = body.get("_revision")
+        if requested_revision and requested_revision != config_revision(state._config or {}):
+            write_response(handler, 409, message="配置已被其他页面更新，请刷新后重试")
+            return
+        body = {key: value for key, value in body.items() if key != "_revision"}
+
         config_path = state._config.get("_config_path") if state._config else None
         if not config_path:
             write_response(handler, 500, message="Config path not found")
@@ -148,8 +162,56 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
 
         _normalize_quotes(config_doc)
 
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(config_doc, f)
+        validation = validate_config(dict(config_doc), test_llm=False)
+        if validation.get("overall") != "ok":
+            errors = [
+                detail.get("message", "配置无效")
+                for detail in validation.get("details", [])
+                if detail.get("status") == "error"
+            ]
+            write_response(handler, 400, message="配置未保存：" + "；".join(errors[:4]))
+            return
+        if (config_doc.get("file_watcher") or {}).get("enabled") is True:
+            readiness = inspect_storage_readiness(dict(config_doc))
+            if not readiness["automatic_allowed"]:
+                write_response(
+                    handler,
+                    400,
+                    message="自动运行未启用：请先让所有存储检查项达到绿色",
+                )
+                return
+
+        config_dir = os.path.dirname(config_path) or "."
+        temp_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=config_dir,
+                prefix=".config-",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = temp_file.name
+                yaml.dump(config_doc, temp_file)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, config_path)
+            temp_path = ""
+            try:
+                dir_fd = os.open(config_dir, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except OSError:
+                pass
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
 
         has_running_tasks = state._global_task_manager and state._global_task_manager.has_running_tasks()
 
@@ -167,21 +229,13 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         else:
             if isinstance(state._config, dict):
                 handler._update_config_safely(state._config, body)
-            quarantine_dir = state._config.get("source_policy", {}).get("quarantine_dir", "")
-            recycle_dir = state._config.get("source_policy", {}).get("recycle_dir", "") or quarantine_dir
-            if recycle_dir and not os.path.exists(recycle_dir):
-                try:
-                    os.makedirs(recycle_dir, exist_ok=True)
-                except OSError:
-                    pass
-
             if "file_watcher" in body:
                 try:
                     handler._reload_watcher()
                     write_response(handler, 200, message="轮询监控配置已保存并立即生效")
                     return
                 except Exception as e:
-                    state._global_logger.error(f"文件监控配置更新后重启失败: {e}")
+                    (state._global_logger or logging.getLogger(__name__)).error(f"文件监控配置更新后重启失败: {e}")
 
             write_response(handler, 200, message="配置已保存并生效")
     except Exception as e:

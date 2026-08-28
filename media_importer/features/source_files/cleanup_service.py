@@ -3,13 +3,13 @@ from dataclasses import dataclass
 
 from media_importer.features.configuration import ConfigView
 from media_importer.features.recycle import move_to_recycle, move_to_recycle_with_companions
-from media_importer.features.source_files.operations import (
-    delete_source_files,
-    remove_empty_parent_dir,
-)
 from media_importer.features.source_files.config_paths import (
     allowed_dirs_from_config,
     import_roots_from_config,
+)
+from media_importer.features.source_files.operations import (
+    delete_source_files,
+    remove_empty_parent_dir,
 )
 
 
@@ -25,10 +25,10 @@ class SourceCleanupService:
         self.config = ConfigView.from_dict(config)
 
     def allowed_dirs(self) -> list:
-        return allowed_dirs_from_config(self.config)
+        return allowed_dirs_from_config(self.config)  # type: ignore[arg-type]
 
     def import_roots(self) -> list:
-        return import_roots_from_config(self.config)
+        return import_roots_from_config(self.config)  # type: ignore[arg-type]
 
     def recycle_existing_import(self, path: str, *, reason: str, task_id: str):
         recycle_dir = self.config.source_policy.recycle_dir
@@ -48,7 +48,7 @@ class SourceCleanupService:
         if not source_dir or not original_video:
             return SourceCleanupResult()
 
-        if not self.config.source_policy.cleanup_source_after_done:
+        if self.config.source_policy.cleanup_source_after_done is not True:
             filename = os.path.basename(original_video)
             return SourceCleanupResult(message=f"源文件保留（配置: cleanup_source_after_done=false）: {filename}")
 
@@ -91,6 +91,15 @@ class SourceCleanupService:
     def recycle_source_after_skip(self, task: dict, original_video: str,
                                   original_subtitles: list) -> SourceCleanupResult:
         source_dir = self.config.paths.source_dir
+        if self.config.source_policy.cleanup_source_after_done is not True:
+            filename = os.path.basename(original_video)
+            return SourceCleanupResult(
+                message=(
+                    "源文件保留（配置: cleanup_source_after_done=false）: "
+                    f"{filename}"
+                )
+            )
+
         recycle_dir = self.config.source_policy.recycle_dir
         if not source_dir or not recycle_dir or not original_video:
             return SourceCleanupResult()

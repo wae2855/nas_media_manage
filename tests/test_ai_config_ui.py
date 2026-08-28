@@ -3,10 +3,10 @@
 需要本地服务运行和 Playwright 安装。如果不满足条件，测试自动跳过。
 """
 import os
-import sys
-import tempfile
 import shutil
 import socket
+import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.api.handler import start_server
 from media_importer.features.configuration import load_config
-from media_importer.features.prompts.defaults import PromptDefaults
 
 try:
     from playwright.sync_api import sync_playwright
@@ -65,36 +64,14 @@ class TestAiConfigApiStructure(unittest.TestCase):
 
     def test_config_apikey_masked_in_config_view(self):
         """ConfigView 保留原始 api_key（脱敏在 API 层处理）。"""
-        from media_importer.features.configuration import ConfigView, mask_sensitive
+        from media_importer.features.configuration import mask_sensitive
         cfg = {
             "ai_assist": {"api_key": "my-secret-key"},
             "ai_search": {"api_key": "my-search-key"},
         }
-        view = ConfigView.from_dict(cfg)
         masked = mask_sensitive(cfg)
         self.assertIn("***", masked["ai_assist"]["api_key"])
         self.assertIn("***", masked["ai_search"]["api_key"])
-
-    def test_prompt_defaults_endpoint_structure(self):
-        """PromptDefaults.get_all() 返回结构正确。"""
-        data = PromptDefaults.get_all()
-        self.assertIn("prompts", data)
-        self.assertIn("descriptions", data)
-        self.assertEqual(len(data["prompts"]), 5)
-
-    def test_ai_scene_strategy_saved_correctly(self):
-        """ai_scene_strategy 校验与回读正确。"""
-        from media_importer.core.config_view import ConfigView
-        cfg = {
-            "ai_scene_strategy": {
-                "dimension_supplement": {"primary": "ai_search", "fallback": ""},
-                "dimension_mapping": {"primary": "ai_assist", "fallback": "ai_search"},
-            },
-        }
-        view = ConfigView.from_dict(cfg)
-        self.assertEqual(view.ai_scene_strategy.dimension_supplement.primary, "ai_search")
-        self.assertEqual(view.ai_scene_strategy.dimension_mapping.fallback, "ai_search")
-
 
 # ========================================================================
 # Playwright 浏览器交互测试（仅当 Playwright 可用时运行）

@@ -1,9 +1,10 @@
 import os
+from typing import Optional
 
 from media_importer.infrastructure.filesystem import safe_delete
 
 
-def delete_source_files(source_paths: list[str], allowed_base_dirs: list = None):
+def delete_source_files(source_paths: list[str], allowed_base_dirs: Optional[list] = None):
     for path in source_paths:
         ok, _ = safe_delete(path, allowed_base_dirs)
         if not ok:
@@ -36,7 +37,7 @@ def find_companion_files(video_path: str, subtitle_paths: list,
 
 def delete_source_with_companions(video_path: str, subtitle_paths: list,
                                   video_extensions: list, subtitle_extensions: list,
-                                  allowed_base_dirs: list = None):
+                                  allowed_base_dirs: Optional[list] = None):
     files_to_delete = [video_path]
     files_to_delete.extend(subtitle_paths)
     companions = find_companion_files(
@@ -51,7 +52,7 @@ def delete_source_with_companions(video_path: str, subtitle_paths: list,
 
 
 def cleanup_source_non_media(source_dir: str, video_extensions: list, subtitle_extensions: list,
-                             allowed_base_dirs: list = None):
+                             allowed_base_dirs: Optional[list] = None):
     if not source_dir or not os.path.isdir(source_dir):
         return 0, 0
     media_exts = set(ext.lower() for ext in video_extensions) | set(
@@ -60,7 +61,7 @@ def cleanup_source_non_media(source_dir: str, video_extensions: list, subtitle_e
     deleted_files = 0
     deleted_dirs = 0
 
-    for root, dirs, files in os.walk(source_dir, topdown=False):
+    for root, _dirs, files in os.walk(source_dir, topdown=False):
         for filename in files:
             ext = os.path.splitext(filename)[1].lower()
             if ext not in media_exts:
@@ -80,8 +81,8 @@ def cleanup_source_non_media(source_dir: str, video_extensions: list, subtitle_e
     return deleted_files, deleted_dirs
 
 
-def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: list = None,
-                            video_extensions: list = None, subtitle_extensions: list = None):
+def remove_empty_parent_dir(file_path: str, source_root: str, allowed_base_dirs: Optional[list] = None,
+                            video_extensions: Optional[list] = None, subtitle_extensions: Optional[list] = None):
     if not source_root:
         return
     source_root_norm = os.path.normpath(source_root).rstrip('/')

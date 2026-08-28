@@ -114,16 +114,11 @@ async function saveDimensionEdit(name) {
   if (!dim) return;
 
   var colorEl = document.getElementById("dim-edit-color");
-  var promptEl = document.getElementById("dim-edit-ai-prompt");
   var data = {};
   if (colorEl) data.color = colorEl.value;
-  var trustAssistEl = document.getElementById("dim-edit-trust-ai-assist");
-  var trustSearchEl = document.getElementById("dim-edit-trust-ai-search");
-  if (trustAssistEl) data.trust_ai_assist = trustAssistEl.checked ? 1 : 0;
-  if (trustSearchEl) data.trust_ai_search = trustSearchEl.checked ? 1 : 0;
 
   var _hasGenreMapping = false;
-  if (dim.source_type === "ai+provider") {
+  if (dim.source_type === "provider") {
     var _pm = dim.provider_mappings;
     if (typeof _pm === "string") {
       try {
@@ -144,12 +139,8 @@ async function saveDimensionEdit(name) {
   }
 
   if (_hasGenreMapping) {
-    var autoPrompt = _generateGenrePrompt();
-    if (autoPrompt && promptEl) promptEl.value = autoPrompt;
-    if (promptEl) data.ai_prompt = promptEl.value;
     data.value_list = _collectGenreMappingData(name);
   } else {
-    if (promptEl) data.ai_prompt = promptEl.value;
     var mappingData = _collectMappingData();
     var mappingKeys = Object.keys(mappingData);
     if (mappingKeys.length > 0) {

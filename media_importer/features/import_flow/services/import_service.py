@@ -1,15 +1,19 @@
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Optional
 
+from media_importer.features.configuration import ConfigView
+from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService
 from media_importer.infrastructure.db import (
     get_subtitles_by_task as db_get_subtitles,
+)
+from media_importer.infrastructure.db import (
     update_subtitle as db_update_subtitle,
 )
-from media_importer.features.configuration import ConfigView
+
 from .file_operations import move_to_import
 from .paths import allowed_dirs_from_config
-from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService
 
 
 @dataclass
@@ -22,7 +26,7 @@ class ImportResult:
 
 class ImportService:
     def __init__(self, config: dict, conn=None,
-                 cleanup_service: SourceCleanupService = None):
+                 cleanup_service: Optional[SourceCleanupService] = None):
         self.config = ConfigView.from_dict(config)
         self.conn = conn
         self.cleanup_service = cleanup_service or SourceCleanupService(config)
@@ -41,7 +45,7 @@ class ImportService:
             task.get("import_path", ""),
             task.get("scrape_result", {}),
             self.config.filename_template_dict(),
-            allowed_base_dirs=allowed_dirs_from_config(self.config),
+            allowed_base_dirs=allowed_dirs_from_config(self.config),  # type: ignore[arg-type]
             overwrite=overwrite,
         )
 

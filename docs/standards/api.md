@@ -10,7 +10,7 @@
 
 ## Rules
 
-- 新端点必须注册到 `media_importer/api/routes.py`，并同步接口文档和 `docs/INDEX.md`。
+- 新端点必须注册到 `media_importer/api/routes.py`，并同步接口文档和 `docs/ai-map.md`。
 - 需要鉴权的 `/api/` 端点必须遵守现有 API key 机制。
 - handler 只处理请求/响应和调用业务服务。
 - 不在 handler 中堆叠复杂业务策略。

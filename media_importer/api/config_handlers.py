@@ -1,25 +1,26 @@
 import os
 
+from media_importer.api import globals
 from media_importer.features.configuration import (
+    apply_runtime_config,
     build_config_permission_payload,
     build_config_ui_payload,
     build_path_test_payload,
     build_section_config_update,
     build_watcher_status_payload,
-    apply_runtime_config,
     load_config,
     restart_watcher,
+    validate_config,
 )
-from media_importer.api import globals
-from media_importer.features.configuration import validate_config
 from media_importer.features.tasks import list_tasks_for_api
+
 from .config_save import save_config
 from .utils import json_response
 
 
 class ConfigHandlersMixin:
     def _config(self, *, body: dict, params: dict, query: dict):
-        payload = build_config_ui_payload(globals._config)
+        payload = build_config_ui_payload(globals._config or {})  # type: ignore[arg-type]
         json_response(self, 200, data=payload)
 
     def _config_save(self, *, body: dict, params: dict, query: dict):
@@ -30,7 +31,9 @@ class ConfigHandlersMixin:
         data = body.get("data", {})
 
         try:
-            section_body = build_section_config_update(section, data, globals._config)
+            section_body = build_section_config_update(section, data, globals._config or {})  # type: ignore[arg-type]
+            if body.get("revision"):
+                section_body["_revision"] = body["revision"]
             self._config_save(body=section_body, params={}, query={})
         except (KeyError, ValueError) as e:
             json_response(self, 400, message=str(e))
@@ -39,7 +42,7 @@ class ConfigHandlersMixin:
 
     def _config_validate(self, *, body: dict, params: dict, query: dict):
         try:
-            results = validate_config(globals._config, test_llm=False, test_hermes=False)
+            results = validate_config(globals._config or {}, test_llm=False)  # type: ignore[arg-type]
             json_response(self, 200, data=results, message="配置验证完成: " + results['overall'])
         except Exception as e:
             json_response(self, 500, message="配置验证失败: " + str(e))
@@ -58,7 +61,7 @@ class ConfigHandlersMixin:
             globals._config.update(new_config)
 
             components = apply_runtime_config(
-                globals._config,
+                globals._config,  # type: ignore[arg-type]
                 globals._global_pipeline,
                 current_watcher=globals._global_watcher,
                 logger=globals._global_logger,
@@ -72,7 +75,7 @@ class ConfigHandlersMixin:
 
     def _reload_watcher(self, *, body: dict, params: dict, query: dict):
         globals._global_watcher = restart_watcher(
-            globals._config,
+            globals._config,  # type: ignore[arg-type]
             current_watcher=globals._global_watcher,
             pipeline=globals._global_pipeline,
             logger=globals._global_logger,
@@ -83,7 +86,7 @@ class ConfigHandlersMixin:
             from media_importer.monitor.permission_checker import check_config_permissions
             result = build_config_permission_payload(
                 body,
-                globals._config,
+                globals._config or {},  # type: ignore[arg-type]
                 check_config_permissions,
             )
             json_response(self, 200, data=result, message="权限检测完成")
@@ -201,12 +204,11 @@ class ConfigHandlersMixin:
             ("server", "api_key"),
             ("ai_assist", "api_key"),
             ("ai_search", "api_key"),
-            ("hermes", "webhook", "secret"),
         ]
 
         for field_path in sensitive_fields:
             current_value = self._get_nested_value(filtered, field_path)
-            if current_value and self._is_masked_value(current_value):
+            if current_value and self._is_masked_value(str(current_value)):
                 self._delete_nested_path(filtered, field_path)
 
         if "hooks" in filtered:
@@ -214,7 +216,7 @@ class ConfigHandlersMixin:
 
         return filtered
 
-    def _get_nested_value(self, obj: dict, path: tuple) -> any:
+    def _get_nested_value(self, obj: dict, path: tuple):
         current = obj
         for key in path:
             if isinstance(current, dict) and key in current:

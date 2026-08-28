@@ -16,29 +16,19 @@ function renderTaskSummary(task) {
 
 function dimSourceMeta(source) {
   const src = String(source || "unknown");
-  if (src === "provider:tmdb") return { icon: "🗄️", label: "TMDB直接映射" };
-  if (src === "provider:douban") return { icon: "📚", label: "豆瓣直接映射" };
-  if (src === "ai_assist") return { icon: "🤖", label: "AI辅助映射" };
-  if (src === "ai_search") return { icon: "🔍", label: "AI联网搜索" };
+  if (src === "provider:tmdb") return { icon: "🗄️", label: "TMDB 映射" };
+  if (src === "provider:douban") return { icon: "📚", label: "历史豆瓣映射" };
+  if (src === "ai_assist") return { icon: "🕘", label: "历史 AI 辅助映射" };
+  if (src === "ai_search") return { icon: "🕘", label: "历史 AI 搜索映射" };
+  if (src === "default") return { icon: "⚙️", label: "默认值" };
   if (src === "file") return { icon: "📄", label: "文件分析" };
   return { icon: "—", label: "未记录来源" };
 }
 
 function renderTaskScrapeProcess(task) {
   const scrapeResult = task.scrape_result || {};
-  const aiReason = scrapeResult.ai_reason || "";
   const selected = scrapeResult.selected_candidate || null;
   const dimSources = task.dim_sources || scrapeResult.dim_sources || {};
-
-  // L3: AI 怎么说
-  let aiBlock = "";
-  if (aiReason) {
-    aiBlock = `
-      <div class="task-ai-reason-block" style="margin-bottom:10px;">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🤖 AI 怎么说</div>
-        <div style="font-size:12px;line-height:1.5;color:var(--ink);padding:8px;background:rgba(255,255,255,0.04);border-left:2px solid var(--gold,#eabf63);border-radius:4px;">${escapeHtml(aiReason)}</div>
-      </div>`;
-  }
 
   // L4: 最终用了
   let selectedBlock = "";
@@ -47,15 +37,15 @@ function renderTaskScrapeProcess(task) {
       unique_match: "唯一精确匹配",
       top_rated:
         "评分最高" + (selected.score ? "(" + selected.score + ")" : ""),
-      ai_suggestion: "AI 建议",
-      first_candidate: "Provider 排序第一",
+      ai_suggestion: "历史 AI 建议",
+      first_candidate: "候选排名第一",
       user_pick: "用户选择",
     };
     const whyText =
       whyMap[selected.why_selected] || selected.why_selected || "";
     selectedBlock = `
       <div class="task-selected-block" style="margin-bottom:10px;">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">✅ 最终用了</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">✅ 刮削选中</div>
         <div style="font-size:13px;color:var(--ink);">
           ${escapeHtml(selected.title)}
           ${selected.year ? '<span style="color:var(--muted)">(' + selected.year + ")</span>" : ""}
@@ -64,8 +54,55 @@ function renderTaskScrapeProcess(task) {
       </div>`;
   }
 
+  const tagBlock = `<div class="task-card-tags-above-dims">${taskMetaTags(task)
+    .filter((tag) => tag.tone !== "time")
+    .map(
+      (tag) =>
+        `<span class="task-tag task-tag--${escapeHtml(tag.tone)}">${escapeHtml(tag.text)}</span>`,
+    )
+    .join("")}</div>`;
   const dimBlock = renderDimSourcesWithValues(task);
-  return aiBlock + selectedBlock + dimBlock;
+  return selectedBlock + tagBlock + dimBlock;
+}
+
+// 待确认原因的业务化文案映射（concern code → 用户能看懂的标题）
+const CONCERN_LABELS = {
+  NO_YEAR_MULTI_MATCH: "存在多部同名作品",
+  REQUIRED_DIM_MISSING: "必填维度缺失",
+  MISSING_FIELDS: "关键字段不完整",
+  NO_PROVIDER_MATCH: "未匹配到影视信息",
+  CANDIDATES_AVAILABLE: "已预选候选结果待核对",
+  FUZZY_TITLE: "标题无法自动确认",
+  NO_TITLE: "无法从文件名提取标题",
+  NO_PROVIDER_RESULT: "影视库中无相关结果",
+};
+
+function concernLabel(code) {
+  return CONCERN_LABELS[code] || code || "需要人工确认";
+}
+
+// 待确认原因摘要（列表卡片用，最多展示 2 条）
+function renderReviewReasonRow(task) {
+  const status = String(task.status || "").toUpperCase();
+  const stage = String(task.stage || "").toUpperCase();
+  if (!(status === "PENDING" && stage === "AWAIT_REVIEW")) return "";
+  const concerns =
+    task.match_concerns || (task.scrape_result || {}).match_concerns || [];
+  const items = (Array.isArray(concerns) ? concerns : [])
+    .filter((c) => c && (c.message || c.code))
+    .slice(0, 2)
+    .map((c) => concernLabel(c.code));
+  if (!items.length) return "";
+  const more =
+    Array.isArray(concerns) && concerns.length > 2
+      ? ` 等 ${concerns.length} 项`
+      : "";
+  return `
+      <div class="task-review-reason">
+        <span class="task-review-reason-icon" aria-hidden="true">⚠</span>
+        <span class="task-review-reason-text">${escapeHtml(items.join("、"))}${escapeHtml(more)}</span>
+        <span class="task-review-reason-hint">详情可查看具体原因并手动处理</span>
+      </div>`;
 }
 
 function renderDimSourcesWithValues(task) {
@@ -73,48 +110,36 @@ function renderDimSourcesWithValues(task) {
     task.scrape_dimensions ||
     (task.scrape_result && task.scrape_result.dimensions) ||
     {};
-  const dimSources = task.dim_sources || {};
-  const dimDefs = (window._dimensionsData || []).concat(
-    window.currentEnabledDimensions || [],
-  );
+  ensureDimDefsLoaded();
 
   if (Object.keys(dims).length === 0) {
     return '<div style="font-size:11px;color:var(--muted);">暂无维度记录</div>';
   }
 
-  const sourceLabels = {
-    tmdb: "Provider",
-    ai_assist: "AI辅助",
-    ai_search: "AI搜索",
-    file: "文件",
-  };
-
   let html =
     '<div class="task-dim-grid" style="display:flex;flex-wrap:wrap;gap:6px;">';
   for (const [name, value] of Object.entries(dims)) {
-    const dimDef = dimDefs.find((d) => d.name === name);
-    const label = dimDef ? dimDef.label || name : name;
-    let valLabel = String(value);
+    const label = dimLabelOf(name);
+    // null/undefined 显示为空（代表未取到值），不再显示 "null" 字样
+    let valLabel = value == null ? "" : String(value);
+    const dimDef = (_dimensionsData || [])
+      .concat(window.currentEnabledDimensions || [])
+      .find((d) => d && d.name === name);
     if (dimDef && Array.isArray(dimDef.value_list)) {
       const matched = dimDef.value_list.find(
         (v) => String(v.value) === String(value),
       );
       if (matched) valLabel = matched.label || valLabel;
     }
-    const source = dimSources[name] || "";
-    const sourceTag = source
-      ? '<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(234,191,99,0.1);color:var(--gold,#eabf63);margin-left:4px;">' +
-        (sourceLabels[source] || source) +
-        "</span>"
-      : "";
+    const missing = valLabel === "";
     html +=
-      '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.04);border-left:2px solid ' +
-      (dimDef?.color || "rgba(234,191,99,0.3)") +
+      '<span class="task-dim-chip' +
+      (missing ? " task-dim-chip--missing" : "") +
+      '" style="border-left-color:' +
+      dimColorOf(name) +
       ';">' +
       escapeHtml(label) +
-      "：" +
-      escapeHtml(valLabel) +
-      sourceTag +
+      (missing ? "" : "：" + escapeHtml(valLabel)) +
       "</span>";
   }
   html += "</div>";
@@ -201,8 +226,20 @@ function renderTaskCard(item, index = 0) {
             <div class="task-body">
                 <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${statusColor}18;color:${statusColor};white-space:nowrap">${escapeHtml(statusLabel)}</span></div>
                 ${failedBlock}
+                ${renderReviewReasonRow(item)}
                 ${isFailed ? "" : renderTaskScrapeProcess(item)}
-                <div class="task-meta"><span class="task-meta-file">🎞️ ${escapeHtml(filename)}</span><span class="task-meta-sep">·</span><span class="task-meta-info">${escapeHtml(taskMeta(item))}</span></div>
+                <div class="task-meta">
+                    <span class="task-meta-file">🎞️ ${escapeHtml(filename)}</span>
+                    <span class="task-meta-tags task-meta-tags--time">${taskMetaTags(
+                      item,
+                    )
+                      .filter((tag) => tag.tone === "time")
+                      .map(
+                        (tag) =>
+                          `<span class="task-tag task-tag--${escapeHtml(tag.tone)}">${escapeHtml(tag.text)}</span>`,
+                      )
+                      .join("")}</span>
+                </div>
                 <small class="task-row-hint">点击卡片选中 · 点击"详情"查看编辑</small>
             </div>
             <div class="task-actions">
@@ -268,6 +305,11 @@ function renderStaticLists() {
   currentRecycleRecords = [];
   renderRecycleList();
 }
+
+// 维度定义补载完成后重渲列表（首次直出时用的是内置中文名兜底）
+window.addEventListener("dim-defs-loaded", function () {
+  if (document.getElementById("task-list")) renderTaskList();
+});
 
 function setTaskFilter(filter) {
   if (!TASK_FILTER_META[filter]) {

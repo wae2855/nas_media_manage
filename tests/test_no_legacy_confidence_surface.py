@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 FORBIDDEN_RUNTIME_PATTERNS = [
     "T × R",
     "T x R",
@@ -53,7 +52,6 @@ SEARCH_ROOTS = [
     Path("media_importer/api"),
     Path("media_importer/webui"),
     Path("media_importer/features"),
-    Path("media_importer/scraper"),
     Path("media_importer/notify"),
     Path("media_importer/monitor"),
     Path("tests"),
@@ -74,7 +72,8 @@ def _is_exempt(path: Path) -> bool:
         return True
     if text.endswith("/docs/decisions/0005-three-tier-matching.md"):
         return True
-    if text.endswith("media_importer/scraper/title_matcher.py"):
+    # title_matcher 用 `T=` 作 threshold kwarg（非旧置信度公式），合法
+    if text.endswith("media_importer/features/scraping/title_matcher.py"):
         return True
     return False
 

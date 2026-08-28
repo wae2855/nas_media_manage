@@ -24,7 +24,6 @@ from media_importer.core.db.connection import (
     _parse_sqlite_version,
     init_db,
 )
-from media_importer.core.db.task_repo import create_task, get_task
 
 
 def _current_sqlite_version() -> tuple:

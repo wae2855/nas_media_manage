@@ -9,7 +9,6 @@
 | `media_importer/features/source_cleaning/cleaner.py` | Preview and execute source cleanup decisions. |
 | `media_importer/features/source_cleaning/application_service.py` | Feature application entry for preview, execute, status, records, and task-path aggregation. |
 | `media_importer/features/source_cleaning/records.py` | Cleaner record repository facade. |
-| `media_importer/storage/source_cleaner.py` | Compatibility wrapper for old imports. |
 | `media_importer/api/source_cleaner_handlers.py` | HTTP actions for preview, execute, records, and status. |
 
 ## Related Areas
@@ -18,6 +17,7 @@
 - Database: source cleaner execution records.
 - Frontend: config/source cleanup controls.
 - Safety: every delete-like action must go through recycle.
+- `source_policy.cleanup_source_after_done` controls the source video after successful import and defaults to `false`; it is separate from `source_cleaner.enabled`, which only controls junk/advertisement/empty-directory cleanup.
 
 ## Tests
 
@@ -151,6 +151,7 @@ AI 分析在规则分类基础上提供额外的智能判断：
 2. **路径限制**：清理范围仅限于 `source_dir` 内
 3. **预览机制**：执行前必须先预览，确认后再执行
 4. **恢复能力**：误删文件可从回收站恢复
+5. **显式开启**：缺失值、`false` 和非布尔真值都视为保留；成功、跳过和人工忽略路径不得绕过该策略
 
 ### 执行记录
 

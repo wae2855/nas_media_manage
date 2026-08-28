@@ -1,73 +1,35 @@
 # Test Inventory
 
-本文件用于区分当前测试、环境 gated 测试、待重写测试和归档候选测试。
+本文件只定义测试分类规则和例外清单，不维护全量测试列表（全量用 `ls tests/` 获取）。新增/重命名测试时只更新本文件的例外部分。
 
-## Classification
+## Classification Rules
 
-| Status | Meaning |
+| Status | 判定规则 |
 |--------|---------|
-| `current` | 默认回归或 feature smoke 测试。 |
-| `gated` | 需要显式 pytest flag 或外部服务。 |
-| `rewrite_later` | 场景有价值，但应按新架构/新前端重写。 |
-| `archive_candidate` | 历史脚本或旧结构测试，归档后不再参与当前测试。 |
+| `current` | 默认状态：`python -m pytest tests/` 可直接跑的单元/集成测试，不依赖外部服务 |
+| `gated` | 需要 conftest gate、本地运行服务、Playwright 浏览器或外部 API 的测试（UI/E2E 类） |
+| `rewrite_later` | 场景有价值，但应按新架构/新前端重写（前端重做后处理） |
+| `archived` | 已在 `docs/_archive/*/tests/`，不再参与当前测试 |
 
-## Current Stable Tests
+规则：文件命名 `test_<域>_<主题>.py`；feature smoke 测试以 `test_feature_` 开头；新测试默认 current，只有需要环境时才 gated 并在本文件登记。
 
-| File | Status | Notes |
-|------|--------|-------|
-| `tests/test_api_routes.py` | current | API route table. |
-| `tests/test_config_view.py` | current | Config facade defaults and consumers. |
-| `tests/test_configuration_validate.py` | current | `validate_config()` 全部分支（目录/冲突/弃用字段/源清理器/刮削模式/AI 辅助）。 |
-| `tests/test_path_rules.py` | current | `build_path_test_payload()` 入参、异常、user 注入。 |
-| `tests/test_dimensions_aggregation.py` | current | `dimension_manager` 纯函数：分级映射/genre 归一化/region/lang/genre_by_rules/bool_genre/provider 分发。 |
-| `tests/test_recycle_list_payload.py` | current | `list_recycle_dir()` 字段契约/分页/zone 过滤/restorable 判定。 |
-| `tests/test_task_context_lifecycle.py` | current | Task context and lifecycle. |
-| `tests/test_task_operations.py` | current | Task manager operations. |
-| `tests/test_import_flow_services.py` | current | Import flow services. |
-| `tests/test_match_engine.py` | current | Three-tier matching engine. |
-| `tests/test_review_decision_v2.py` | current | Review decisions based on match_level. |
-| `tests/test_config_migration_v3.py` | current | Config migration v2→v3 (remove confidence). |
-| `tests/test_match_pipeline_integration.py` | current | Match + scrape pipeline integration. |
-| `tests/test_scrape_preview_api.py` | current | Scrape preview API integration. |
-| `tests/test_feature_entrypoints.py` | current | Verifies app/API/feature consumers import feature public APIs directly. |
-| `tests/test_feature_*` | current | Feature entry smoke tests for import flow, recycle, and source cleaning. |
-| `tests/test_recycle_safety.py` | current | Focused recycle safety smoke. |
+## Gated Tests（例外登记）
 
-## Gated Tests
-
-| File | Status | Notes |
-|------|--------|-------|
-| `tests/test_confidence_config_ui.py` | gated | Legacy confidence UI; to be removed. |
-| `tests/test_confidence_ui.py` | gated | Legacy confidence UI; to be removed. |
-| `tests/test_confidence_v2_ui.py` | gated | Legacy confidence UI; to be removed. |
-| `tests/test_scrape_ui.py` | gated | External service UI. |
-| `tests/test_frontend_recycle.py` | gated | Self-started UI; keep until frontend rewrite. |
-| `tests/test_integration_recycle.py` | gated | Self-started service integration. |
-| `tests/test_source_cleaner_e2e.py` | gated | Source Cleaner 完整 E2E 套件（脚本式，外部服务）；从 `scripts/test_source_cleaner.py` 迁移而来，模块级守卫让 pytest 默认跳过。手动跑：`python tests/test_source_cleaner_e2e.py`。 |
-
-## Archive Candidates
-
-| File | Reason |
-|------|--------|
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_scrape_results.py` | Uses obsolete top-level imports and script-style execution. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_tmdb_config.py` | Executes Playwright at import time and requires external service. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_deep_e2e.py` | Large old source cleaner E2E suite; rewrite after frontend/feature stabilization. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_full_flow.py` | Large old pipeline suite tied to legacy patch paths. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_e2e_file_processing.py` | Live provider E2E requiring real config/network. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_config_page_full.py` | Old frontend config page suite; rewrite after frontend redesign. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_sqlite_refactor.py` | Mixed DB/scanner/pipeline legacy regression file. |
-| `docs/_archive/2026-06-02-feature-first-reorg/tests/test_recycle_and_safety.py` | Oversized legacy recycle/safety suite replaced by focused feature tests. |
+| File | Notes |
+|------|-------|
+| `tests/test_*_ui.py`, `tests/test_frontend_*.py`, `tests/test_scrape_ui.py` | 需要 Playwright + 本地服务；非 UI 回归命令统一 ignore 这三类 |
+| `tests/test_source_cleaner_e2e.py` | 脚本式 E2E，需外部服务；手动跑：`python tests/test_source_cleaner_e2e.py` |
 
 ## Rewrite Later
 
-| File | Reason |
-|------|--------|
-| Frontend UI/E2E suites | Rewrite after frontend redesign and new API dependency map. |
+- 前端 UI/E2E 套件：前端重做后按 [product/frontend-information-architecture.md](../product/frontend-information-architecture.md) 重写（当前冻结待重估）。
 
-## Default Command
+## Default Commands
 
 ```bash
-python -m pytest tests/
+python -m pytest tests/          # 全量（含 gated，自动跳过缺环境的）
+python -m pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py   # 非 UI
+python -m pytest tests/test_architecture_guards.py   # 架构护栏
 ```
 
-Default regression should remain usable during architecture work. Tests marked `rewrite_later` may still run if gated/skipped through `tests/conftest.py`, but they are not the final product contract.
+选择测试集合看 [regression-matrix.md](regression-matrix.md)（按修改范围）；覆盖缺口看 [feature-coverage.md](feature-coverage.md)（按产品功能）。

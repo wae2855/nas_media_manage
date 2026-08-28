@@ -1,12 +1,16 @@
 import os
+from typing import Optional
+
+from media_importer.features.import_flow.services import ReviewDecisionService
+from media_importer.features.import_flow.utils import PipelineError
+from media_importer.features.scraping.match_engine import MatchEngine
+from media_importer.infrastructure.db import get_enabled_dimensions
 from media_importer.infrastructure.db import (
-    update_task as db_update_task,
     list_all_tasks as db_list_all_tasks,
 )
-from media_importer.features.import_flow.services import ReviewDecisionService
-from media_importer.features.scraping import LLMScrapeError
-from media_importer.features.scraping.match_engine import MatchEngine
-from media_importer.features.import_flow.utils import PipelineError, _extract_series_name
+from media_importer.infrastructure.db import (
+    update_task as db_update_task,
+)
 
 
 class ScrapeStepsMixin:
@@ -69,9 +73,6 @@ class ScrapeStepsMixin:
                 if not result.get('year'):
                     result['year'] = selected.get('year')
 
-            if self.metrics:
-                self.metrics.record_llm_call(success=True)
-
             media_type = result.get('media_type', '')
             if media_type and media_type.lower() in ('tv', 'series'):
                 series_dims = self._get_series_dimensions(task, result)
@@ -132,9 +133,6 @@ class ScrapeStepsMixin:
 
             # 从 scrape_trace 中提取显式来源记录
             provider_dim_names = set(scrape_trace.get("provider_dimensions", {}).keys()) if isinstance(scrape_trace.get("provider_dimensions"), dict) else set()
-            ai_assist_dim_names = set(scrape_trace.get("ai_assist_dimensions", {}).keys()) if isinstance(scrape_trace.get("ai_assist_dimensions"), dict) else set()
-            ai_search_dim_names = set(scrape_trace.get("ai_search_dimensions", {}).keys()) if isinstance(scrape_trace.get("ai_search_dimensions"), dict) else set()
-
             # 如果 scrape_trace 未提供显式来源，从 provider_dimensions 推断
             if not provider_dim_names:
                 provider_dims = result.get("provider_dimensions", {})
@@ -146,28 +144,9 @@ class ScrapeStepsMixin:
                 file_dimensions=file_dimensions,
                 provider_type=result.get("provider_type", "tmdb"),
                 provider_dim_names=provider_dim_names,
-                ai_assist_dim_names=ai_assist_dim_names,
-                ai_search_dim_names=ai_search_dim_names,
             )
             dim_sources = resolution.dim_sources
             task["dim_sources"] = dim_sources
-
-            # trust 检查：AI 辅助/联网搜索结果若被禁用，降级为 NEEDS_CONFIRM
-            trust_issues = self._check_dimension_trust(
-                conn=self.task_manager.conn,
-                dim_sources=dim_sources,
-                result=result,
-            )
-            if trust_issues:
-                concerns = result.get('match_concerns', [])
-                for issue in trust_issues:
-                    concerns.append({
-                        "code": "DIM_TRUST_DOWNGRADE",
-                        "message": issue,
-                        "detail": "",
-                    })
-                result['match_level'] = 'NEEDS_CONFIRM'
-                task["_needs_confirm"] = True
 
             # 序列化 match_concerns 为 JSON
             import json as _json
@@ -212,8 +191,6 @@ class ScrapeStepsMixin:
             match_level = result.get('match_level', '')
             if match_level == 'AUTO_PASS':
                 detail_parts.append("匹配=自动通过")
-            elif match_level == 'CONTEXT_PASS':
-                detail_parts.append("匹配=AI辅助通过")
             elif match_level == 'NEEDS_CONFIRM':
                 detail_parts.append("匹配=需确认")
             else:
@@ -223,10 +200,10 @@ class ScrapeStepsMixin:
                 detail_parts.append(f"维度=[{dims_str}]")
             self._log("info", f"刮削结果: {', '.join(detail_parts)}", task, "scrape")
 
-        except LLMScrapeError as e:
-            if self.metrics:
-                self.metrics.record_llm_call(success=False)
-            raise PipelineError(f"刮削失败: {e}")
+        except PipelineError:
+            raise
+        except Exception as e:
+            raise PipelineError(f"刮削失败: {e}") from e
 
         self._update_progress(task, 3, "scrape", 50)
 
@@ -238,7 +215,12 @@ class ScrapeStepsMixin:
         if not scraped:
             raise PipelineError("刮削结果为空，无法验证")
 
-        decision = ReviewDecisionService().evaluate(scraped)
+        enabled_dims = get_enabled_dimensions(self.task_manager.conn) if hasattr(self.task_manager, "conn") else []
+        decision = ReviewDecisionService().evaluate(
+            scraped,
+            required_dimensions=self.config.get("required_dimensions") or [],
+            dim_labels={d["name"]: (d.get("label") or d["name"]) for d in enabled_dims},
+        )
 
         if decision.action == "confirm":
             task["_needs_confirm"] = True
@@ -275,70 +257,9 @@ class ScrapeStepsMixin:
         cached_dims = self._find_cached_series_dims(task, scrape_result)
         if cached_dims is not None:
             return cached_dims
-        series_name = _extract_series_name(task.get("source_filename", ""))
-        if not series_name:
-            return {}
-        title_from_scrape = scrape_result.get('title_cn', '') or scrape_result.get('title_en', '')
-        query_name = title_from_scrape if title_from_scrape else series_name
-        self._log("info", f"按剧名整体刮削维度: {query_name}", task, "scrape")
-        try:
-            series_result = self.scraper.scrape_series(query_name)
-            if self.metrics:
-                self.metrics.record_llm_call(success=True)
-            series_dims = series_result.get('dimensions', {})
-            if series_dims:
-                self._log("info",
-                          f"整剧维度结果: [{', '.join(f'{k}={v}' for k, v in series_dims.items())}]",
-                          task, "scrape")
-                return series_dims
-        except LLMScrapeError as e:
-            self._log("warn", f"整剧维度刮削失败，使用逐集结果: {e}", task, "scrape")
-            if self.metrics:
-                self.metrics.record_llm_call(success=False)
         return {}
 
-    def _check_dimension_trust(self, conn, dim_sources: dict, result: dict) -> list:
-        """检查 AI 来源维度是否被用户信任（依据 dimensions 表 trust_ai_assist/trust_ai_search）。
-
-        返回 issue 列表（人类可读字符串）。若返回非空列表，整个结果将被降级为 NEEDS_CONFIRM。
-        """
-        issues = []
-
-        # 读取 dimensions 表获取每个维度的 trust 配置
-        try:
-            from media_importer.infrastructure.db import get_all_dimensions
-            all_dims = get_all_dimensions(conn)
-            dim_trust = {
-                d.get("name"): {
-                    "trust_ai_assist": bool(d.get("trust_ai_assist", 1)),
-                    "trust_ai_search": bool(d.get("trust_ai_search", 0)),
-                }
-                for d in all_dims
-            }
-        except Exception as e:
-            # 配置不可用时，保守处理：不触发 trust 降级
-            self._log("debug", f"读取 dimension trust 失败: {e}", task=None, tag="scrape")
-            return issues
-
-        ai_source_map = {
-            "ai_assist": ("trust_ai_assist", "AI辅助（模型直接识别）"),
-            "ai_search": ("trust_ai_search", "AI联网搜索增强"),
-        }
-
-        for dim_name, source in (dim_sources or {}).items():
-            if source not in ai_source_map:
-                continue
-            trust_key, source_label = ai_source_map[source]
-            dim_cfg = dim_trust.get(dim_name)
-            if dim_cfg is None:
-                continue
-            if not dim_cfg.get(trust_key, True):
-                val = result.get("dimensions", {}).get(dim_name, "") if isinstance(result, dict) else ""
-                issues.append(f"{source_label}识别的「{dim_name}={val}」已配置为不信任，需人工确认")
-
-        return issues
-
-    def _find_cached_series_dims(self, task: dict, scrape_result: dict) -> dict:
+    def _find_cached_series_dims(self, task: dict, scrape_result: dict) -> Optional[dict]:
         title = scrape_result.get('title_cn', '') or scrape_result.get('title_en', '')
         if not title:
             return None

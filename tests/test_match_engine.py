@@ -2,10 +2,11 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
-from media_importer.features.scraping.match_engine import MatchEngine
-from media_importer.features.scraping.match_models import MatchResult, MatchConcern
-from media_importer.features.scraping.confidence_models import CleanResult
+
 from media_importer.features.providers.base import SearchResult
+from media_importer.features.scraping.confidence_models import CleanResult
+from media_importer.features.scraping.match_engine import MatchEngine
+from media_importer.features.scraping.match_models import MatchConcern, MatchResult
 
 
 class TestTier1ExactMatch(unittest.TestCase):
@@ -47,12 +48,25 @@ class TestTier1ExactMatch(unittest.TestCase):
             mock_match.return_value = MagicMock(level="L3", T=0.7)
             result = self.engine.match("Spider-Man.mkv", [self.provider])
         self.assertEqual(result.match_level, "NEEDS_CONFIRM")
-        self.assertEqual(result.match_tier, 1)
+        self.assertEqual(result.match_tier, 3)
         selected = result.selected_candidate
         assert selected is not None
         self.assertEqual(selected.provider_id, "1")
         concern_codes = [c.code for c in result.concerns]
-        self.assertIn("NO_YEAR_MULTI_MATCH", concern_codes)
+        self.assertNotIn("NO_YEAR_MULTI_MATCH", concern_codes)
+
+    def test_no_year_single_exact_match_requires_confirmation(self):
+        """无年份的唯一同名结果也不能自动入库"""
+        from media_importer.features.providers.base import SearchItem
+        self.provider.search.return_value = SearchResult(items=[
+            SearchItem(item_id="1", title="Interview", year=2014, media_type="movie",
+                       provider_type="tmdb", original_title="Interview", poster_url=None,
+                       vote_average=None, raw_data={}),
+        ])
+        with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
+            mock_match.return_value = MagicMock(level="L3", T=0.7)
+            result = self.engine.match("Interview.mkv", [self.provider])
+        self.assertEqual(result.match_level, "NEEDS_CONFIRM")
 
     def test_no_year_multiple_exact_matches_prefers_path_media_type(self):
         """无年份多同名 + 电视剧路径 → 优先 TV 候选"""
@@ -73,11 +87,11 @@ class TestTier1ExactMatch(unittest.TestCase):
                 video_path="/media/电视剧/大汉王朝/大汉王朝.mkv",
             )
         self.assertEqual(result.match_level, "NEEDS_CONFIRM")
-        self.assertEqual(result.match_tier, 1)
+        self.assertEqual(result.match_tier, 3)
         selected = result.selected_candidate
         assert selected is not None
-        self.assertEqual(selected.provider_id, "2")
-        self.assertEqual(selected.media_type, "tv")
+        self.assertEqual(selected.provider_id, "1")
+        self.assertEqual(selected.media_type, "movie")
 
     def test_no_title_extracted(self):
         """无法提取标题 → NEEDS_CONFIRM + NO_TITLE"""
@@ -178,8 +192,8 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestTier2ContextMatch(unittest.TestCase):
-    """第二级上下文辅助匹配测试。"""
+class TestTier2UserConfirm(unittest.TestCase):
+    """第二级用户确认测试（原第三级，ADR-0010 两级化）。"""
 
     def setUp(self):
         self.engine = MatchEngine()
@@ -187,141 +201,7 @@ class TestTier2ContextMatch(unittest.TestCase):
         self.provider.__class__.__name__ = "MockProvider"
 
     @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine.MatchEngine._collect_context')
-    def test_ai_high_certainty_selects_context_pass(self, mock_context, mock_tier1):
-        """AI 高确定性选中 → CONTEXT_PASS"""
-        from media_importer.features.providers.base import SearchItem
-        mock_context.return_value = {"parent_folder": "Inception"}
-        self.provider.search.return_value = SearchResult(items=[
-            SearchItem(item_id="27205", title="Inception", year=2010, media_type="movie",
-                       provider_type="tmdb", original_title="Inception", poster_url=None,
-                       vote_average=None, raw_data={}),
-        ])
-        with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
-            mock_match.return_value = MagicMock(level="L5", T=0.6)
-            with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
-                mock_correct.return_value = {
-                    "corrected_title": "Inception",
-                    "corrected_year": 2010,
-                    "media_type_hint": "movie",
-                    "certainty": "high",
-                    "reason": "标题匹配且上级文件夹名一致",
-                    "suggestion": "Inception",
-                }
-                result = self.engine.match(
-                    "Inception.2010.1080p.BluRay.mkv", [self.provider],
-                    video_path="/movies/Inception/Inception.2010.1080p.BluRay.mkv"
-                )
-        self.assertEqual(result.match_level, "CONTEXT_PASS")
-        self.assertEqual(result.match_tier, 2)
-
-    @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine.MatchEngine._collect_context')
-    def test_ai_low_certainty_falls_to_tier3(self, mock_context, mock_tier1):
-        """AI 低确定性 → NEEDS_CONFIRM（停在第二级，不搜Provider）"""
-        mock_context.return_value = {"parent_folder": "Movies"}
-        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
-            mock_correct.return_value = {
-                "corrected_title": "SomeMovie",
-                "corrected_year": None,
-                "media_type_hint": None,
-                "certainty": "low",
-                "reason": "无法确定标题",
-                "suggestion": "SomeMovie",
-            }
-            result = self.engine.match(
-                "SomeMovie.2020.mkv", [self.provider],
-                video_path="/movies/Movies/SomeMovie.2020.mkv"
-            )
-        self.assertEqual(result.match_level, "NEEDS_CONFIRM")
-        self.assertEqual(result.match_tier, 2)
-        concern_codes = [c.code for c in result.concerns]
-        self.assertIn("AI_UNCERTAIN", concern_codes)
-
-    @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine.MatchEngine._collect_context')
-    def test_ai_no_match_selected_index_minus1(self, mock_context, mock_tier1):
-        """AI 低确定性 → NEEDS_CONFIRM（停在第二级，空候选列表）"""
-        mock_context.return_value = {}
-        with patch('media_importer.features.scraping.llm_scraper.LLMScraper.tier2_correct') as mock_correct:
-            mock_correct.return_value = {
-                "corrected_title": "UnknownFile",
-                "corrected_year": None,
-                "media_type_hint": None,
-                "certainty": "low",
-                "reason": "候选与文件名不匹配",
-                "suggestion": "UnknownFile",
-            }
-            result = self.engine.match(
-                "UnknownFile.mkv", [self.provider],
-                video_path="/downloads/UnknownFile.mkv"
-            )
-        self.assertEqual(result.match_level, "NEEDS_CONFIRM")
-        self.assertEqual(result.match_tier, 2)
-
-    @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine.MatchEngine._collect_context')
-    def test_ai_call_failure_falls_to_tier3(self, mock_context, mock_tier1):
-        """AI 调用失败 → 不崩溃，进入第三级"""
-        from media_importer.features.providers.base import SearchItem
-        mock_context.return_value = {}
-        self.provider.search.return_value = SearchResult(items=[
-            SearchItem(item_id="1", title="Test", year=2020, media_type="movie",
-                       provider_type="tmdb", original_title="Test", poster_url=None,
-                       vote_average=None, raw_data={}),
-        ])
-        with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
-            mock_match.return_value = MagicMock(level="L5", T=0.6)
-            with patch('media_importer.features.scraping.llm_scraper.LLMScraper') as MockLLM:
-                MockLLM.return_value.tier2_correct.side_effect = Exception("API timeout")
-                result = self.engine.match(
-                    "Test.2020.mkv", [self.provider],
-                    video_path="/downloads/Test.2020.mkv"
-                )
-        self.assertEqual(result.match_level, "NEEDS_CONFIRM")
-        concern_codes = [c.code for c in result.concerns]
-        self.assertIn("AI_UNCERTAIN", concern_codes)
-
-    @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine.MatchEngine._collect_context')
-    def test_no_candidates_skips_tier2(self, mock_context, mock_tier1):
-        """无候选列表 → 跳过第二级，直接进入第三级"""
-        mock_context.return_value = {}
-        self.provider.search.return_value = SearchResult(items=[])
-        with patch.object(self.engine.title_matcher, 'match_standard') as mock_match:
-            result = self.engine.match(
-                "RandomFile.2023.mkv", [self.provider],
-                video_path="/downloads/RandomFile.2023.mkv"
-            )
-        self.assertEqual(result.match_level, "NEEDS_CONFIRM")
-
-    def test_collect_context_with_valid_path(self):
-        """_collect_context 从合法路径收集上下文"""
-        import tempfile
-        import os
-        with tempfile.TemporaryDirectory() as tmpdir:
-            parent = os.path.join(tmpdir, "Inception.2010")
-            os.makedirs(parent, exist_ok=True)
-            video_path = os.path.join(parent, "Inception.2010.1080p.BluRay.mkv")
-            # 创建同级视频文件
-            open(os.path.join(parent, "Inception.2010.1080p.BluRay.mp4"), "w").close()
-            context = self.engine._collect_context(video_path)
-        self.assertEqual(context.get("parent_folder"), "Inception.2010")
-        self.assertIn("sibling_files", context)
-        self.assertTrue(any("mp4" in f for f in context["sibling_files"]))
-
-
-class TestTier3UserConfirm(unittest.TestCase):
-    """第三级用户确认测试。"""
-
-    def setUp(self):
-        self.engine = MatchEngine()
-        self.provider = MagicMock()
-        self.provider.__class__.__name__ = "MockProvider"
-
-    @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine._tier2_context_match_impl', return_value=None)
-    def test_tier3_returns_needs_confirm(self, mock_tier2, mock_tier1):
+    def test_tier2_returns_needs_confirm(self, mock_tier2):
         """第一级和第二级都未匹配 → NEEDS_CONFIRM"""
         from media_importer.features.providers.base import SearchItem
         self.provider.search.return_value = SearchResult(items=[
@@ -336,8 +216,7 @@ class TestTier3UserConfirm(unittest.TestCase):
         self.assertEqual(result.match_tier, 3)
 
     @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine._tier2_context_match_impl', return_value=None)
-    def test_tier3_includes_candidates(self, mock_tier2, mock_tier1):
+    def test_tier2_includes_candidates(self, mock_tier2):
         """第三级结果包含候选列表"""
         from media_importer.features.providers.base import SearchItem
         self.provider.search.return_value = SearchResult(items=[
@@ -355,8 +234,7 @@ class TestTier3UserConfirm(unittest.TestCase):
         self.assertTrue(len(result.candidates) > 0)
 
     @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine._tier2_context_match_impl', return_value=None)
-    def test_tier3_has_concerns(self, mock_tier2, mock_tier1):
+    def test_tier2_has_concerns(self, mock_tier2):
         """第三级结果包含疑虑原因"""
         from media_importer.features.providers.base import SearchItem
         self.provider.search.return_value = SearchResult(items=[
@@ -370,8 +248,7 @@ class TestTier3UserConfirm(unittest.TestCase):
         self.assertTrue(len(result.concerns) > 0)
 
     @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine._tier2_context_match_impl', return_value=None)
-    def test_tier3_trace_includes_step3(self, mock_tier2, mock_tier1):
+    def test_tier2_trace_includes_step3(self, mock_tier2):
         """第三级追踪包含 tier=3 步骤"""
         from media_importer.features.providers.base import SearchItem
         self.provider.search.return_value = SearchResult(items=[
@@ -413,24 +290,8 @@ class TestMatchEngineEndToEnd(unittest.TestCase):
         self.assertEqual(len(tier3_steps), 0)
 
     @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine._tier2_context_match_impl')
-    def test_tier2_context_pass_skips_tier3(self, mock_tier2, mock_tier1):
-        """第二级上下文匹配 → 不进入第三级"""
-        mock_tier2.return_value = MatchResult(
-            match_level="CONTEXT_PASS",
-            provider_id="27205",
-            provider_title="Inception",
-            match_tier=2,
-            confirm_reason="AI辅助匹配",
-        )
-        result = self.engine.match("Inception.2010.mkv", [self.provider])
-        self.assertEqual(result.match_level, "CONTEXT_PASS")
-        self.assertEqual(result.match_tier, 2)
-
-    @patch('media_importer.features.scraping.match_engine._tier1_exact_match_impl', return_value=None)
-    @patch('media_importer.features.scraping.match_engine._tier2_context_match_impl', return_value=None)
-    def test_all_tiers_fail_returns_needs_confirm(self, mock_tier2, mock_tier1):
-        """三级全部未匹配 → NEEDS_CONFIRM"""
+    def test_all_tiers_fail_returns_needs_confirm(self, mock_tier1):
+        """两级全部未匹配 → NEEDS_CONFIRM"""
         from media_importer.features.providers.base import SearchItem
         self.provider.search.return_value = SearchResult(items=[
             SearchItem(item_id="1", title="Random", year=2020, media_type="movie",

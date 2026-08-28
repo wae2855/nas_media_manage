@@ -28,7 +28,7 @@
 | 配置管理 | [../features/configuration.md](../features/configuration.md) | `media_importer/features/configuration/` |
 | 刮削与匹配 | [../features/scraping.md](../features/scraping.md) | `media_importer/features/scraping/` |
 | Provider | [../features/providers.md](../features/providers.md) | `media_importer/features/providers/` |
-| 提示词 | [../features/prompts.md](../features/prompts.md) | `media_importer/features/prompts/` |
+| 提示词 | [../_archive/2026-08-22-plans-cleanup/features-prompts.md](../_archive/2026-08-22-plans-cleanup/features-prompts.md) | `media_importer/features/prompts/` |
 | 源目录清理 | [../features/source-cleaning.md](../features/source-cleaning.md) | `media_importer/features/source_cleaning/` |
 | 回收站 | [../features/recycle.md](../features/recycle.md) | `media_importer/features/recycle/` |
 

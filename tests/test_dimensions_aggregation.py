@@ -11,7 +11,7 @@
 - map_provider_to_dimension: match_type 分发入口
 """
 
-import os
+# ruff: noqa: E402
 import sys
 import unittest
 from pathlib import Path
@@ -22,10 +22,10 @@ sys.path.insert(0, str(ROOT))
 from media_importer.features.scraping.dimension_manager import (
     CERTIFICATION_TO_LEVEL,
     _extract_genre_ids,
-    _map_region_v2,
-    _map_origin_lang_v2,
-    _map_genre_by_rules,
     _map_bool_genre,
+    _map_genre_by_rules,
+    _map_origin_lang_v2,
+    _map_region_v2,
     map_provider_to_dimension,
 )
 

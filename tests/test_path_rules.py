@@ -9,9 +9,10 @@
 测试 mock 掉 check_path_permission 与 get_current_user，验证入参、异常、user 注入。
 """
 
-import os
 import sys
 import unittest
+
+# ruff: noqa: E402
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

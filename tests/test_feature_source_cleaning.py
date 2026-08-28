@@ -14,8 +14,7 @@ from media_importer.core.db.cleaner_repo import (
 from media_importer.core.db.cleaner_repo import (
     save_cleaner_record as core_save_cleaner_record,
 )
-from media_importer.features.source_cleaning import SourceCleaner
-from media_importer.features.source_cleaning import collect_task_paths, execute_source_cleaning
+from media_importer.features.source_cleaning import SourceCleaner, collect_task_paths, execute_source_cleaning
 from media_importer.features.source_cleaning.records import (
     get_cleaner_records,
     save_cleaner_record,

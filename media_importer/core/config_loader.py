@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import os
-import yaml
-import sys
 import shutil
+import sys
 from copy import deepcopy
+from typing import Optional
+
+import yaml
 
 BOOL_TRUE_STRINGS = {'true', 'yes', 'on'}
 BOOL_FALSE_STRINGS = {'false', 'no', 'off'}
@@ -22,26 +24,20 @@ def copy_config_template(target_path: str):
     shutil.copy2(template_path, target_path)
 
 
+# ADR-0010 退役的配置块：视图层剥离（mask_sensitive），不参与校验与前端展示
+RETIRED_CONFIG_SECTIONS = ("ai_assist", "ai_search", "ai_scene_strategy", "confidence")
+
+
 def validate_config(config: dict) -> list:
     errors = []
 
-    ai_assist = config.get("ai_assist", {})
-    ai_search = config.get("ai_search", {})
-
-    # 检查 ai_assist 配置完整性（仅当用户填写了 API Key 时）
-    if ai_assist.get("api_key") and ai_assist["api_key"] != "your-api-key-here":
-        if not ai_assist.get("base_url"):
-            errors.append("AI辅助已配置 API Key，但缺少模型地址（base_url）")
-        if not ai_assist.get("model"):
-            errors.append("AI辅助已配置 API Key，但缺少模型ID（model）")
-
-    # 检查 ai_search 配置完整性（仅当用户填写了 API Key 时）
-    if ai_search.get("api_key") and ai_search["api_key"] != "your-api-key-here":
-        if ai_search.get("enabled", True):
-            if not ai_search.get("provider"):
-                errors.append("AI联网搜索增强已启用，但缺少模型厂商（provider）")
-            if not ai_search.get("model"):
-                errors.append("AI联网搜索增强已配置 API Key，但缺少模型ID（model）")
+    # LLM 配置完整性（ADR-0010：LLM 仅服务源目录清理器）
+    llm_cfg = config.get("llm", {})
+    if llm_cfg.get("api_key") and llm_cfg["api_key"] != "your-api-key-here":
+        if not llm_cfg.get("base_url"):
+            errors.append("llm 已配置 API Key，但缺少模型地址（base_url）")
+        if not llm_cfg.get("model"):
+            errors.append("llm 已配置 API Key，但缺少模型ID（model）")
 
     for dir_key in ["source_dir", "temp_dir", "log_dir"]:
         dir_path = config.get(dir_key, "")
@@ -65,25 +61,29 @@ def mask_sensitive(config: dict) -> dict:
     if masked.get("server", {}).get("api_key"):
         masked["server"]["api_key"] = "***"
 
-    for section in ("ai_assist", "ai_search"):
-        if masked.get(section, {}).get("api_key"):
-            api_key = masked[section]["api_key"]
-            prefix_end = 0
-            for i, c in enumerate(api_key):
-                if c == '-':
-                    prefix_end = i + 1
-                    break
-            if prefix_end > 0:
-                masked[section]["api_key"] = api_key[:prefix_end] + "***"
-            else:
-                masked[section]["api_key"] = "***"
+    llm_cfg = masked.get("llm")
+    if isinstance(llm_cfg, dict):
+        for key in list(llm_cfg.keys()):
+            # 脱敏 llm 块内全部密钥字段（兼容历史 fast_api_key 等字段名）
+            if "api_key" in key and isinstance(llm_cfg[key], str) and llm_cfg[key]:
+                api_key = llm_cfg[key]
+                prefix_end = 0
+                for i, c in enumerate(api_key):
+                    if c == '-':
+                        prefix_end = i + 1
+                        break
+                llm_cfg[key] = (api_key[:prefix_end] + "***") if prefix_end > 0 else "***"
 
     for provider in masked.get("metadata", {}).get("providers", []):
         if provider.get("api_key"):
             provider["api_key"] = "***"
 
-    if masked.get("hermes", {}).get("webhook", {}).get("secret"):
-        masked["hermes"]["webhook"]["secret"] = "***"
+    # ADR-0010 退役配置块不出现在前端载荷（底层 config 不动，仅视图剥离）
+    for retired in RETIRED_CONFIG_SECTIONS:
+        masked.pop(retired, None)
+
+    return masked
+
 
     return masked
 
@@ -121,7 +121,7 @@ def _value_in_list(value, valid_values):
     return False
 
 
-def load_config(config_path: str = None) -> dict:
+def load_config(config_path: Optional[str] = None) -> dict:
     trim_pkgvar = os.environ.get("TRIM_PKGVAR", "")
 
     if config_path is None:
@@ -155,7 +155,7 @@ def load_config(config_path: str = None) -> dict:
     if "source_policy" not in config:
         config["source_policy"] = {}
     source_policy = config["source_policy"]
-    source_policy.setdefault("cleanup_source_after_done", True)
+    source_policy.setdefault("cleanup_source_after_done", False)
     source_policy.setdefault("recycle_retention_days", 30)
     source_policy.setdefault("scan_recursive", True)
     source_policy.setdefault("scan_max_depth", 5)
@@ -197,25 +197,6 @@ def load_config(config_path: str = None) -> dict:
         config["manual_review"] = {"enabled": False}
 
     config.setdefault("fallback_dir", "")
-
-    ai_strategy = config.setdefault("ai_scene_strategy", {})
-    if not isinstance(ai_strategy, dict):
-        ai_strategy = {}
-        config["ai_scene_strategy"] = ai_strategy
-    DEFAULT_SCENE_STRATEGY = {
-        "dimension_supplement": {"primary": "ai_search", "fallback": ""},
-        "dimension_mapping": {"primary": "ai_assist", "fallback": ""},
-        "title_clean": {"primary": "ai_assist", "fallback": ""},
-        "match_assist": {"primary": "ai_search", "fallback": ""},
-        "source_clean": {"primary": "ai_assist", "fallback": ""},
-    }
-    for scene, defaults in DEFAULT_SCENE_STRATEGY.items():
-        section = ai_strategy.setdefault(scene, {})
-        if not isinstance(section, dict):
-            section = {}
-            ai_strategy[scene] = section
-        section.setdefault("primary", defaults["primary"])
-        section.setdefault("fallback", defaults["fallback"])
 
     errors = validate_config(config)
     if errors:

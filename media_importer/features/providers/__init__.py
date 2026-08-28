@@ -1,6 +1,7 @@
-from typing import Dict, List, Type, Optional
+from typing import Dict, Optional, Type
 
 from media_importer.features.configuration import ConfigView
+
 from .base import (
     DimensionMapping,
     Genre,
@@ -39,7 +40,7 @@ def create_providers(config: dict) -> list:
         cls = get_provider_class(pconf.get("type", ""))
         if cls:
             try:
-                providers.append(cls(pconf))
+                providers.append(cls(pconf))  # type: ignore
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(

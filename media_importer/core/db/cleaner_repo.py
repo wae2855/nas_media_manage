@@ -34,7 +34,7 @@ def save_cleaner_record(conn: sqlite3.Connection, record: dict) -> int:
         ),
     )
     conn.commit()
-    return cursor.lastrowid
+    return cursor.lastrowid or 0
 
 
 def get_cleaner_records(conn: sqlite3.Connection, limit: int = 20, offset: int = 0) -> list:

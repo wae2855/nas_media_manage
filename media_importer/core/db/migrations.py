@@ -1,6 +1,5 @@
 import sqlite3
 
-from .connection import logger
 from .constants import DEFAULT_DIMENSIONS
 
 

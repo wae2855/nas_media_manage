@@ -5,7 +5,7 @@
 **相关文档**：
 - 三级匹配：[scrape-matching.md](scrape-matching.md)
 - AI 提示词：[ai-prompt-design.md](ai-prompt-design.md)
-- 决策记录：[../decisions/0007-info-responsibility-split.md](../decisions/0007-info-responsibility-split.md)
+- 决策记录：[../decisions/0007-information-responsibility-split.md](../decisions/0007-information-responsibility-split.md)
 
 ---
 
@@ -373,7 +373,7 @@ if (reason.includes("AI")) { /* 显示 AI 区块 */ }
 | 字段 | 状态 | 处理 |
 |------|------|------|
 | `confirm_reason`（MatchResult dataclass） | 保留字段，不输出 | 编译安全用，业务不读写 |
-| `confirm_reason`（DB tasks 列） | 本计划退役(Phase 3) | 详见 [优化项计划](../plans/2026-06-16-optimization-items-plan.md) |
+| `confirm_reason`（DB tasks 列） | 本计划退役(Phase 3) | 详见 [优化项计划](../_archive/2026-08-22-plans-cleanup/2026-06-16-optimization-items-plan.md) |
 | `_confirm_reason`（task dict 键） | 已删除 | runner.py 改读 scrape_result.tier_short_reason |
 | `_build_confirm_reason`（review.py 方法） | 已删除 | 改为 `_build_concerns` 返回结构化 |
 | `preview_selected_candidate`（前端分支） | 已重构 | 改读 `selected_candidate.why_selected` |
@@ -390,4 +390,4 @@ if (reason.includes("AI")) { /* 显示 AI 区块 */ }
 
 ---
 
-**本标准由 [plan](../plans/2026-06-16-scrape-info-responsibility-split-plan.md) 落地，任何字段/视图变更须先更新本文件。**
+**本标准由 [plan](../_archive/2026-08-22-plans-cleanup/2026-06-16-scrape-info-responsibility-split-plan.md) 落地，任何字段/视图变更须先更新本文件。**

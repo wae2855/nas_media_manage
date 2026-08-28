@@ -26,6 +26,33 @@ function isMultiSelectDim(dimName) {
   return MULTI_SELECT_DIMS.indexOf(dimName) >= 0;
 }
 
+// 维度来源标签（详情页展示，列表页不展示）
+const DIM_SOURCE_BADGES = {
+  tmdb: { icon: "🗄", label: "TMDB" },
+  douban: { icon: "📚", label: "豆瓣" },
+  ai_assist: { icon: "🕘", label: "历史 AI 辅助" },
+  ai_search: { icon: "🕘", label: "历史 AI 搜索" },
+  default: { icon: "⚙", label: "默认值" },
+  file: { icon: "📄", label: "文件分析" },
+  manual: { icon: "✍", label: "人工填写" },
+};
+
+function dimSourceBadge(task, dimName) {
+  const sources = task.dim_sources || {};
+  const raw = String(sources[dimName] || "");
+  if (!raw) return "";
+  const key = raw.replace(/^provider:/, "");
+  const meta = DIM_SOURCE_BADGES[key];
+  if (!meta) return "";
+  return (
+    '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(234,191,99,0.1);color:var(--gold,#eabf63);margin-left:6px;white-space:nowrap" title="该维度值的来源">' +
+    meta.icon +
+    " " +
+    meta.label +
+    "</span>"
+  );
+}
+
 function buildTaskDimensionsForm(task, editable, enabled = editable) {
   const dimensions = currentEnabledDimensions.length
     ? currentEnabledDimensions
@@ -51,7 +78,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
             })();
         return `
                 <label class="cinema-modal-field">
-                    <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
+                    <span>${escapeHtml(dim.label || dim.name)}${dimSourceBadge(task, dim.name)}</span>
                     <span class="cinema-modal-readonly-value">${escapeHtml(displayValue || "—")}</span>
                 </label>`;
       }
@@ -76,7 +103,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
           .join("");
         return `
                 <div class="cinema-modal-field">
-                    <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
+                    <span>${escapeHtml(dim.label || dim.name)}${dimSourceBadge(task, dim.name)}</span>
                     <div class="cinema-modal-checkbox-group">${checkboxHtml}</div>
                 </div>`;
       }
@@ -95,7 +122,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
           .join("");
         return `
                 <label class="cinema-modal-field">
-                    <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
+                    <span>${escapeHtml(dim.label || dim.name)}${dimSourceBadge(task, dim.name)}</span>
                     <select data-task-dim="${escapeHtml(dim.name)}" class="cinema-modal-select"${disabledAttr}>
                         ${emptyStateHtml}
                         ${optionHtml}
@@ -106,7 +133,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
       // 无值域 → 自由文本
       return `
             <label class="cinema-modal-field">
-                <span>${escapeHtml(dim.label || dim.name)}<small class="cinema-modal-field-code">${escapeHtml(dim.name)}</small></span>
+                <span>${escapeHtml(dim.label || dim.name)}${dimSourceBadge(task, dim.name)}</span>
                 <input type="text" data-task-dim="${escapeHtml(dim.name)}" value="${escapeHtml(value)}" placeholder="${value ? "" : "无"}"${disabledAttr} />
             </label>`;
     })
@@ -189,6 +216,38 @@ function getTaskEditPermission(task) {
   };
 }
 
+// 详情页：待确认原因区块（逐条列出业务化原因与说明）
+function buildReviewReasonSection(task) {
+  const status = String(task.status || "").toUpperCase();
+  const stage = String(task.stage || "").toUpperCase();
+  if (!(status === "PENDING" && stage === "AWAIT_REVIEW")) return "";
+  const scrape = task.scrape_result || {};
+  const concerns = task.match_concerns || scrape.match_concerns || [];
+  const items = Array.isArray(concerns)
+    ? concerns.filter((c) => c && (c.message || c.code))
+    : [];
+  const rows = items
+    .map((c) => {
+      const title =
+        c.code === "MISSING_FIELDS" && c.message
+          ? c.message
+          : concernLabel(c.code);
+      const detail = c.detail || "";
+      return `
+        <div class="review-reason-row">
+            <span class="review-reason-title">⚠ ${escapeHtml(title)}</span>
+            ${detail ? `<span class="review-reason-detail">${escapeHtml(detail)}</span>` : ""}
+        </div>`;
+    })
+    .join("");
+  return `
+        <div class="cinema-modal-block review-reason-block">
+            <h4>待确认原因</h4>
+            ${rows || '<div class="cinema-modal-hint">需要人工核对刮削结果后确认入库。</div>'}
+            <div class="review-reason-tip">可在下方修改维度、手动刮削选片，确认无误后点击「确认入库」。</div>
+        </div>`;
+}
+
 function buildScrapeTraceSection(task) {
   var data = buildMatchPathData(task);
   var timelineHtml = "";
@@ -198,7 +257,6 @@ function buildScrapeTraceSection(task) {
     console.error("buildMatchPathData render error:", e);
     timelineHtml = '<div class="cinema-modal-hint">刮削流程数据不完整。</div>';
   }
-
   return `
         <div class="cinema-modal-block">
             <div class="config-collapse-card" data-collapse-card>
@@ -251,6 +309,12 @@ function showMatchPathModalFromData(dataJson, filename) {
   document.body.appendChild(overlay);
 }
 
+function subtitleLangLabel(lang) {
+  const map = { zh: "中文", chs: "简中", cht: "繁中", en: "英文", ja: "日文", ko: "韩文", unknown: "未识别" };
+  const key = String(lang || "").toLowerCase();
+  return map[key] || (lang && lang !== "-" ? lang : "未识别");
+}
+
 function buildSubtitleTable(subtitles) {
   if (!Array.isArray(subtitles) || subtitles.length === 0) {
     return '<div class="cinema-modal-hint">这个任务当前没有字幕记录。</div>';
@@ -260,7 +324,7 @@ function buildSubtitleTable(subtitles) {
       (item) => `
         <tr>
             <td>${escapeHtml(item.source_filename || "-")}</td>
-            <td>${escapeHtml(item.lang || "-")}</td>
+            <td>${escapeHtml(subtitleLangLabel(item.lang))}</td>
             <td>${escapeHtml(getTaskStatusText(item.status || "PENDING"))}</td>
             <td>${escapeHtml(item.import_path || "-")}</td>
         </tr>`,

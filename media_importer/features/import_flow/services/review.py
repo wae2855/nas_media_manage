@@ -9,10 +9,13 @@ class ReviewDecision:
 
 
 class ReviewDecisionService:
-    def evaluate(self, scraped: dict) -> ReviewDecision:
+    def evaluate(self, scraped: dict, required_dimensions=None, dim_labels=None) -> ReviewDecision:
         """根据刮削结果决定任务流向。
 
         基于 match_level 判断，返回结构化 concerns 而非拼接字符串。
+        required_dimensions：必填维度名列表（如 ['restricted_level']），
+        值缺失/null/空时即使匹配通过也强制进入人工确认。
+        dim_labels：维度名 → 业务名映射，用于面向用户的提示文案。
         """
         if not scraped:
             return ReviewDecision(
@@ -26,6 +29,19 @@ class ReviewDecisionService:
 
         if missing_fields:
             new_concerns = self._build_concerns(scraped, missing_fields, existing_concerns)
+            return ReviewDecision(action="confirm", concerns=new_concerns, warnings=warnings)
+
+        # 必填维度拦截：值缺失时强制人工干预（即使 AUTO_PASS）
+        missing_dims = self._validate_required_dimensions(scraped, required_dimensions)
+        if missing_dims:
+            new_concerns = self._build_concerns(scraped, [], existing_concerns)
+            labels = dim_labels or {}
+            dim_names = "、".join(labels.get(d, d) for d in missing_dims)
+            new_concerns.append({
+                "code": "REQUIRED_DIM_MISSING",
+                "message": f"必填维度缺失，需人工填写: {dim_names}",
+                "detail": "刮削未能确定以下维度值，已按配置拦截待人工处理",
+            })
             return ReviewDecision(action="confirm", concerns=new_concerns, warnings=warnings)
 
         if match_level == "AUTO_PASS":
@@ -43,6 +59,19 @@ class ReviewDecisionService:
             concerns=[{"code": "MATCH_FAILED", "message": "匹配失败，无法识别", "detail": ""}],
             warnings=warnings,
         )
+
+    @staticmethod
+    def _validate_required_dimensions(scraped: dict, required_dimensions) -> list:
+        """校验必填维度：值为 None/空串/缺失 时视为缺失。"""
+        if not required_dimensions:
+            return []
+        dimensions = scraped.get("dimensions", {}) or {}
+        missing = []
+        for dim_name in required_dimensions:
+            value = dimensions.get(dim_name)
+            if value is None or str(value).strip() in ("", "None", "null"):
+                missing.append(dim_name)
+        return missing
 
     def _build_concerns(self, scraped: dict, missing_fields: list, existing_concerns: list) -> list:
         """构建结构化关注点列表（不再拼接字符串）"""
@@ -81,14 +110,14 @@ class ReviewDecisionService:
 
     def _build_suggestions(self, missing_fields: list, scraped: dict) -> list:
         suggestions = []
-        for field in missing_fields:
-            if field == "title":
+        for field_name in missing_fields:
+            if field_name == "title":
                 suggestions.append("精确中文名或英文名")
-            elif field == "year":
+            elif field_name == "year":
                 suggestions.append("上映年份，用于区分同名作品")
-            elif field == "media_type":
+            elif field_name == "media_type":
                 suggestions.append("媒体类型（电影或电视剧）")
-            elif field.startswith("year_invalid"):
+            elif field_name.startswith("year_invalid"):
                 suggestions.append("合法年份")
         return suggestions
 

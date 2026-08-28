@@ -6,13 +6,16 @@
 - duplicate_handling: enabled / strategy
 - source_file_handling: delete_after_process
 - llm: api_key / base_url / model / verify_ssl / confidence_threshold
-- hermes: enabled / webhook.* / events
 - task_queue: max_concurrent
 - logging: level / format / max_size_mb / backup_count
 - import-flow: 同名检测 enable 开关生效
 - file_mover: 目标已存在同名文件兜底
 """
-import sys, os, tempfile, shutil, yaml
+import os
+import shutil
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 PASS = 0
@@ -37,7 +40,7 @@ def section(name):
 
 def test_config_loader_normalization():
     section("1. config_loader 兼容历史配置")
-    from media_importer.core.config_loader import _value_in_list, BOOL_TRUE_STRINGS, BOOL_FALSE_STRINGS
+    from media_importer.core.config_loader import _value_in_list
     # 当前事实：bool 字符串规范化只用于 dimension values
     cases = [
         ({'enabled': 'true'}, True),
@@ -56,7 +59,7 @@ def test_config_loader_normalization():
         if result is True:
             ok(f"{inp} -> matched")
         else:
-            bad(f"{inp}", f"not matched")
+            bad(f"{inp}", "not matched")
 
 
 def test_file_watcher_config():
@@ -148,53 +151,18 @@ def test_logger_config():
     from media_importer.core.logger import Logger
     tmpdir = tempfile.mkdtemp(prefix='logtest_')
     try:
-        l = Logger(level='DEBUG', fmt='text', log_dir=tmpdir,
-                   max_size_mb=10, backup_count=3)
-        l.info("hello")
+        logger = Logger(level='DEBUG', fmt='text', log_dir=tmpdir,
+                        max_size_mb=10, backup_count=3)
+        logger.info("hello")
         if os.path.isdir(tmpdir):
             ok("Logger 正常创建文件 handler")
         # 测试错误日志目录降级
-        l2 = Logger(level='INFO', fmt='json', log_dir='/root/forbidden_x',
-                    max_size_mb=10, backup_count=3)
+        _logger2 = Logger(level='INFO', fmt='json', log_dir='/root/forbidden_x',
+                           max_size_mb=10, backup_count=3)
         ok("Logger 对无权目录降级未崩溃")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-
-def test_hermes_config():
-    section("6. hermes_hook 配置消费")
-    from media_importer.notify.hermes_hook import HermesNotifier
-    cfg = {
-        'hermes': {
-            'enabled': True,
-            'webhook': {
-                'base_url': 'http://localhost:18644',
-                'route_name': 'media-normalize',
-                'secret': 'xxx',
-                'timeout': 30,
-                'max_retries': 1,
-                'retry_delay': 1,
-                'verify_ssl': False,
-                'events': ['batch_start', 'batch_complete'],
-            }
-        }
-    }
-    try:
-        n = HermesNotifier(cfg)
-        if n.enabled:
-            ok("HermesNotifier.enabled=True 正确解析")
-        else:
-            bad("HermesNotifier.enabled", "应为 True")
-    except Exception as e:
-        bad("HermesNotifier 实例化", str(e))
-
-    cfg['hermes']['enabled'] = False
-    try:
-        n2 = HermesNotifier(cfg)
-        if not n2.enabled:
-            ok("HermesNotifier.enabled=False 正确解析")
-    except Exception as e:
-        bad("HermesNotifier enabled=False", str(e))
 
 
 def test_import_flow_with_full_config():
@@ -216,10 +184,10 @@ def test_import_flow_with_full_config():
         'logging': {'level': 'INFO', 'format': 'text', 'max_size_mb': 10, 'backup_count': 2},
     }
     try:
-        from media_importer.features.import_flow import PipelineRunner
-        from media_importer.features.tasks import TaskManager
         from media_importer.core.logger import Logger
         from media_importer.core.metrics import Metrics
+        from media_importer.core.task_manager import TaskManager
+        from media_importer.features.import_flow import PipelineRunner
         logger = Logger(level='INFO', fmt='text', log_dir=cfg['log_dir'])
         tm = TaskManager('/tmp/test_data')
         metrics = Metrics()
@@ -228,7 +196,7 @@ def test_import_flow_with_full_config():
 
         # 验证 enable=False 时 _step_dedup 不会扫描
         dedup_enabled = p.config.get('duplicate_handling', {}).get('enabled', True)
-        if dedup_enabled == False:
+        if not dedup_enabled:
             ok("PipelineRunner 读取 duplicate_handling.enabled=False")
         else:
             bad("dedup enabled", f"应为 False，实际 {dedup_enabled}")
@@ -238,7 +206,11 @@ def test_import_flow_with_full_config():
 
 def test_permission_checker():
     section("8. permission_checker 配置消费")
-    from media_importer.monitor.permission_checker import check_config_permissions, check_path_permission, is_app_managed_path, extract_root_from_template
+    from media_importer.monitor.permission_checker import (
+        check_config_permissions,
+        extract_root_from_template,
+        is_app_managed_path,
+    )
 
     # is_app_managed_path
     if is_app_managed_path('/vol3/@appdata/nas-media-importer/logs'):
@@ -274,7 +246,10 @@ def test_permission_checker():
 
 def test_api_check_permission_endpoint():
     section("9. /api/config/check-permission 接口")
-    import subprocess, time, urllib.request, json
+    import json
+    import subprocess
+    import time
+    import urllib.request
     PROJ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     cfg_file = '/tmp/api_check_perm_test.yaml'
     shutil.copy(os.path.join(PROJ, 'config.yaml.example'), cfg_file)
@@ -306,7 +281,7 @@ def test_api_check_permission_endpoint():
         )
         resp = urllib.request.urlopen(req, timeout=5)
         d = json.loads(resp.read().decode())
-        if d.get('code') == 200 and d.get('data', {}).get('ok') == False:
+        if d.get('code') == 200 and not d.get('data', {}).get('ok'):
             ok("/api/path/test 无权路径返回 ok=False")
         else:
             bad("/api/path/test 无权路径", f"got: {d}")
@@ -329,7 +304,8 @@ def test_api_check_permission_endpoint():
     except Exception as e:
         bad("API 调用", str(e))
     finally:
-        proc.terminate(); proc.wait()
+        proc.terminate()
+        proc.wait()
 
 
 # =================================================================
@@ -341,12 +317,11 @@ def main():
     test_duplicate_handling_config()
     test_file_mover_dest_conflict()
     test_logger_config()
-    test_hermes_config()
     test_import_flow_with_full_config()
     test_permission_checker()
     test_api_check_permission_endpoint()
 
-    print(f"\n========== 汇总 ==========")
+    print("\n========== 汇总 ==========")
     print(f"✅ PASS: {PASS}")
     print(f"❌ FAIL: {FAIL}")
     if FAILS:

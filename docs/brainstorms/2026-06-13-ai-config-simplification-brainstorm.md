@@ -2,9 +2,10 @@
 title: "AI 配置简化与服务商预设模型"
 type: brainstorm
 date: 2026-06-13
+status: superseded
 participants: [用户, AI]
 related:
-  - docs/plans/2026-06-12-refactor-three-tier-matching-plan.md
+  - docs/_archive/2026-06-17-plans-cleanup/2026-06-12-refactor-three-tier-matching-plan.md
   - docs/decisions/0005-three-tier-matching.md
 ---
 

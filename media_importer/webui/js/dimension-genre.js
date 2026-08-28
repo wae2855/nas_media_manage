@@ -115,7 +115,7 @@ function _renderDimBody(dim) {
     var hasGenreMapping = false;
     var hasRegionMapping = false;
     var hasLangMapping = false;
-    if (dim.source_type === "ai+provider") {
+    if (dim.source_type === "provider") {
       var pm = dim.provider_mappings;
       if (typeof pm === "string") {
         try {
@@ -139,13 +139,13 @@ function _renderDimBody(dim) {
     }
 
     if (
-      dim.source_type === "ai+provider" &&
+      dim.source_type === "provider" &&
       hasGenreMapping &&
       dim.name !== "documentary" &&
       dim.name !== "animation"
     ) {
       mappingHtml = _renderGenreEditable(dim.name, valueList);
-    } else if (dim.source_type === "ai+provider") {
+    } else if (dim.source_type === "provider") {
       if (hasRegionMapping) mappingHtml = _renderRegionMapping(valueList);
       else if (hasLangMapping) mappingHtml = _renderLangMapping(valueList);
     }
@@ -167,34 +167,7 @@ function _renderDimBody(dim) {
       autoRuleHtml =
         '<div class="dim-auto-rule-info">' +
         '<div class="dim-auto-rule-title">⚙ 自动判定规则</div>' +
-        '<div class="dim-auto-rule-desc">从 Provider 获取 <strong>release_dates</strong> 字段中的分级认证（certification），按国家优先级（US → GB → 其他）匹配 MPAA 分级标准映射到年龄区间：G/U → 0-6、PG → 7-12、PG-13/12A → 13-16、R/NC-17 → 17+。若 Provider 无分级数据，则由 AI 根据内容辅助判断。</div>' +
-        "</div>";
-    }
-
-    var trustDisabled = dim.name === "media_type" ? " disabled" : "";
-    var trustHtml =
-      '<div class="dim-trust-panel">' +
-      '<label><input type="checkbox" id="dim-edit-trust-ai-assist"' +
-      (dim.trust_ai_assist !== 0 ? " checked" : "") +
-      trustDisabled +
-      "> <span>🤖 信任AI辅助映射</span><small>Provider 有数据但映射复杂时，AI辅助给出的结果是否直接采纳。</small></label>" +
-      '<label><input type="checkbox" id="dim-edit-trust-ai-search"' +
-      (dim.trust_ai_search ? " checked" : "") +
-      trustDisabled +
-      "> <span>🔍 信任AI联网搜索</span><small>AI联网搜索增强补出的维度值是否直接采纳，不信任则进入人工确认。</small></label>" +
-      (dim.name === "media_type"
-        ? '<div class="dim-media-type-note"><span style="font-size:16px;margin-right:6px">✕</span><strong>影视类型由 Provider 搜索端点直接确定，不经过 AI 判断，无需配置 AI 信任。</strong></div>'
-        : "") +
-      "</div>";
-
-    var aiPromptHtml = "";
-    if (dim.source_type !== "file") {
-      aiPromptHtml =
-        '<div class="dim-edit-field">' +
-        '<label class="dim-edit-label">AI 提示词 <span style="font-weight:400;color:var(--text-muted);">（保存时自动生成）</span></label>' +
-        '<textarea id="dim-edit-ai-prompt" class="form-textarea" rows="3">' +
-        _escapeHtml(dim.ai_prompt || "") +
-        "</textarea>" +
+        '<div class="dim-auto-rule-desc">从 Provider 获取 <strong>release_dates</strong> 字段中的分级认证（certification），按国家优先级 US → GB → DE → FR → CN → JP → KR → AU → CA 映射到年龄区间。Provider 无分级数据时，使用该维度的默认值；未设默认值则进入人工确认。</div>' +
         "</div>";
     }
 
@@ -219,7 +192,6 @@ function _renderDimBody(dim) {
       '" class="dim-color-picker">' +
       "</div>" +
       trustHtml +
-      aiPromptHtml +
       '<div class="dim-edit-row">' +
       '<span class="dim-edit-label">值域</span>' +
       '<div class="dim-value-tags">' +
@@ -420,4 +392,3 @@ function _renderGenreEditable(dimName, valueList) {
     "</div>"
   );
 }
-

@@ -1,6 +1,7 @@
 from difflib import SequenceMatcher
 from typing import Optional
-from media_importer.features.scraping.confidence_models import MatchResult, DEFAULT_CONFIDENCE_CONFIG
+
+from media_importer.features.scraping.confidence_models import DEFAULT_CONFIDENCE_CONFIG, MatchResult
 
 
 def _normalize_title(title: str) -> str:
@@ -103,7 +104,6 @@ class TitleMatcher:
                 )
 
     def match_standard(self, clean_title: str, search_item, year=None, season=None) -> MatchResult:
-        from media_importer.features.providers import SearchItem
         original_title = search_item.original_title or ""
         title = search_item.title or ""
         tmdb_year = search_item.year

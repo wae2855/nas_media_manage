@@ -3,7 +3,7 @@
 Date: 2026-06-16
 Status: Accepted
 Related: [0005-three-tier-matching.md](0005-three-tier-matching.md)
-Plan: [2026-06-16-scrape-info-responsibility-split-plan.md](../plans/2026-06-16-scrape-info-responsibility-split-plan.md)
+Plan: [2026-06-16-scrape-info-responsibility-split-plan.md](../_archive/2026-08-22-plans-cleanup/2026-06-16-scrape-info-responsibility-split-plan.md)
 
 ## Context
 
@@ -79,7 +79,7 @@ AI 输出用两个字段承载"有效性"和"确定性"：
 - `MatchResult.confirm_reason` 字段保留（编译安全），但 `to_dict()` 不输出
 - 任何业务代码不得读取或赋值
 - 前端不得引用
-- DB `tasks.confirm_reason` 列待清理（见 [../plans/2026-06-16-optimization-items-plan.md](../plans/2026-06-16-optimization-items-plan.md)）
+- DB `tasks.confirm_reason` 列待清理（见 [../plans/2026-06-16-optimization-items-plan.md](../_archive/2026-08-22-plans-cleanup/2026-06-16-optimization-items-plan.md)）
 
 ## Consequences
 
@@ -132,8 +132,8 @@ AI 输出用两个字段承载"有效性"和"确定性"：
 
 ## References
 
-- 实施 Plan：[2026-06-16-scrape-info-responsibility-split-plan.md](../plans/2026-06-16-scrape-info-responsibility-split-plan.md)
-- 字段传递修复：[2026-06-16-fix-field-propagation-prompt.md](../plans/2026-06-16-fix-field-propagation-prompt.md)
+- 实施 Plan：[2026-06-16-scrape-info-responsibility-split-plan.md](../_archive/2026-08-22-plans-cleanup/2026-06-16-scrape-info-responsibility-split-plan.md)
+- 字段传递修复：[2026-06-16-fix-field-propagation-prompt.md](../_archive/2026-08-22-plans-cleanup/2026-06-16-fix-field-propagation-prompt.md)
 - 行为标准：[../standards/scrape-matching.md](../standards/scrape-matching.md)
 - 信息架构：[../standards/info-architecture.md](../standards/info-architecture.md)
 - AI 提示词：[../standards/ai-prompt-design.md](../standards/ai-prompt-design.md)

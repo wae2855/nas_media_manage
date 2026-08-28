@@ -1,5 +1,4 @@
 """测试正式任务流程的字段传递（修复 scrape.py 透传断裂）"""
-import json
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -91,8 +90,9 @@ class TestReviewDecisionStructuredConcerns(unittest.TestCase):
 
     def test_review_decision_has_concerns_not_reason(self):
         """ReviewDecision 应有 concerns 字段，不应有 reason"""
-        from media_importer.features.import_flow.services.review import ReviewDecision
         import inspect
+
+        from media_importer.features.import_flow.services.review import ReviewDecision
 
         src = inspect.getsource(ReviewDecision)
         self.assertIn("concerns", src)

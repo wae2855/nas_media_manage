@@ -1,10 +1,12 @@
 import os
 from dataclasses import dataclass, field
+from typing import Optional
 
 from media_importer.features.configuration import ConfigView
+from media_importer.features.source_files import SourceCleanupService
+
 from .dedup_rules import check_duplicate
 from .paths import import_roots_from_config
-from media_importer.features.source_files import SourceCleanupService
 
 
 @dataclass
@@ -16,12 +18,12 @@ class DedupDecision:
 
 
 class DedupService:
-    def __init__(self, config: dict, cleanup_service: SourceCleanupService = None):
+    def __init__(self, config: dict, cleanup_service: Optional[SourceCleanupService] = None):
         self.config = ConfigView.from_dict(config)
         self.cleanup_service = cleanup_service or SourceCleanupService(config)
 
     def import_roots(self) -> list:
-        return import_roots_from_config(self.config)
+        return import_roots_from_config(self.config)  # type: ignore[arg-type]
 
     def check_task(self, task: dict) -> DedupDecision:
         if not self.config.dedup.enabled:
@@ -51,17 +53,17 @@ class DedupService:
             return DedupDecision(
                 action="skip",
                 result=dedup_result,
-                message=dedup_result.get(
+                message=str(dedup_result.get(
                     "skip_message",
                     f"同名文件已存在: {dedup_result.get('existing_file', 'unknown')}",
-                ),
+                )),
             )
 
         if strategy == "rename":
             return DedupDecision(
                 action="rename",
                 result=dedup_result,
-                final_filename=os.path.basename(dedup_result["suggested_filename"]),
+                final_filename=os.path.basename(str(dedup_result["suggested_filename"])),
             )
 
         if strategy == "replace":
@@ -75,7 +77,7 @@ class DedupService:
             return DedupDecision(
                 action="skip",
                 result=dedup_result,
-                message=dedup_result.get("skip_message", "质量优先: 保留已存在文件"),
+                message=str(dedup_result.get("skip_message", "质量优先: 保留已存在文件")),
             )
 
         return DedupDecision(action="continue", result=dedup_result)

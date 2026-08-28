@@ -4,6 +4,8 @@ from typing import Optional
 
 from media_importer.features.tasks.repository import (
     update_subtitles_by_task as update_subtitles_by_task_record,
+)
+from media_importer.features.tasks.repository import (
     update_task as update_task_record,
 )
 
@@ -67,7 +69,7 @@ def ignore_task_for_api(task_manager, config: dict, task_id: str) -> TaskFileLif
 
     source_policy = config.get("source_policy", {}) if config else {}
     recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
-    cleanup = source_policy.get("cleanup_source_after_done", True)
+    cleanup = source_policy.get("cleanup_source_after_done") is True
     file_location = task.get("file_location", "source")
 
     if file_location == "temp":

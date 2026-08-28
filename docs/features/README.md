@@ -21,4 +21,3 @@ Current feature docs:
 - [source-cleaning.md](source-cleaning.md)
 - [recycle.md](recycle.md)
 - [providers.md](providers.md)
-- [prompts.md](prompts.md)

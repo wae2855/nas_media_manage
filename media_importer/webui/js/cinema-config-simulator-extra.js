@@ -10,7 +10,7 @@ function renderSimulatorPreview(data) {
 function _simDecisionLabel2(matchLevel, gateBlocked) {
   if (gateBlocked) return "维度否决";
   if (matchLevel === "AUTO_PASS") return "自动入库";
-  if (matchLevel === "CONTEXT_PASS") return "🤖 AI辅助入库";
+  if (matchLevel === "CONTEXT_PASS") return "历史 AI 匹配结果";
   if (matchLevel === "NEEDS_CONFIRM") return "待确认";
   return "未识别";
 }
@@ -26,8 +26,8 @@ function _renderSimDims(dims) {
   const allDimDefs = window._dimensionsData || [];
   const sourceLabels = {
     tmdb: "Provider",
-    ai_assist: "AI辅助",
-    ai_search: "AI搜索",
+    file: "文件",
+    default: "默认值",
   };
   const fallbackColors = [
     "#f59e0b",
@@ -139,9 +139,9 @@ async function pollScrapePreviewJob(jobId) {
   }
   if (resultBox) {
     resultBox.innerHTML =
-      '<div class="sim-warning" style="margin-top:0">模拟测试超时，请检查 Provider / AI 配置或查看后端日志。</div>';
+      '<div class="sim-warning" style="margin-top:0">模拟测试超时，请检查 Provider 配置、网络或后端日志。</div>';
   }
-  showToast("模拟测试超时，请检查 Provider / AI 配置");
+  showToast("模拟测试超时，请检查 Provider 配置或后端日志");
 }
 
 function renderSimulatorProgress(job, _seenStepKeys) {
@@ -196,22 +196,22 @@ function renderSimulatorProgress(job, _seenStepKeys) {
   resultBox.innerHTML = html;
 }
 
-function updateConfigStageStatus(config, paths, pathRules) {
+function updateConfigStageStatus(config, paths, pathRules, readiness = null) {
   const hasSource = Boolean(paths.source_dir);
   const hasTemp = Boolean(paths.temp_dir);
   const hasRecycle = Boolean(paths.recycle_dir);
   const hasRules = Array.isArray(pathRules) && pathRules.length > 0;
   const metadata = config.metadata || {};
-  const llm = config.llm || {};
   const hasScrape = Object.keys(metadata).length > 0;
-  const hasAi = Boolean(llm.base_url || llm.model || llm.api_key);
+  const storageReady = readiness?.state === "READY";
+  const automationChosen = typeof config.file_watcher?.enabled === "boolean";
   const states = [
     ["source", hasSource],
-    ["temp", hasTemp],
-    ["recycle", hasRecycle],
+    ["temp", storageReady || (hasTemp && hasRecycle)],
+    ["recycle", storageReady && hasRules && hasScrape],
     ["rules", hasRules],
     ["scrape", hasScrape],
-    ["ai", hasAi],
+    ["ai", automationChosen],
   ];
   states.forEach(([stage, valid]) => {
     const card = document.querySelector(`[data-config-stage="${stage}"]`);

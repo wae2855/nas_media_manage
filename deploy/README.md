@@ -7,7 +7,6 @@
 Development source of truth:
 
 - `media_importer/`
-- `hermes/`
 - `config.yaml.example`
 - `requirements.txt`
 - `deploy/build_fpk.sh`

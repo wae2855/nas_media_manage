@@ -16,40 +16,22 @@
 | `media_importer/features/scraping/metadata_scraper.py` | High-level metadata scraping orchestration. |
 | `media_importer/features/scraping/match_engine.py` | Three-tier matching engine (replaces confidence_engine). |
 | `media_importer/features/scraping/match_models.py` | Match result dataclasses: MatchResult, MatchConcern (replaces confidence_models). |
-| `media_importer/features/scraping/confidence_engine.py` | Legacy re-export compatibility layer (deprecated). |
-| `media_importer/features/scraping/confidence_models.py` | Legacy compatibility layer (deprecated). |
+| `media_importer/features/scraping/confidence_models.py` | `DEFAULT_CONFIDENCE_CONFIG` 候选排序阈值配置（TitleMatcher 内部用，不作任务状态判定）。 |
 | `media_importer/features/scraping/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
 | `media_importer/features/scraping/dimensions_service.py` | Dimension CRUD/tier-gated application service for API callers. |
-| `media_importer/features/scraping/llm_scraper.py` | LLM prompt and parsing behavior (migrated from `scraper/`). |
-| `media_importer/features/scraping/title_matcher.py` | Title matching L1-L7 levels (migrated from `scraper/`). |
-| `media_importer/features/scraping/filename_cleaner.py` | Filename cleaning and CJK separation (migrated from `scraper/`). |
-| `media_importer/features/scraping/llm_match_assist.py` | LLM match assist helpers (migrated from `scraper/`). |
-| `media_importer/features/scraping/llm_client.py` | LLM HTTP client implementation (migrated from `scraper/`). |
-| `media_importer/features/scraping/errors.py` | LLM exception classes (migrated from `scraper/`). |
-| `media_importer/features/scraping/metadata_scrape_flow.py` | Metadata scrape flow orchestration (migrated from `scraper/`). |
-| `media_importer/scraper/metadata_scraper.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/match_engine.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/confidence_engine.py` | Compat re-export (deprecated,迁移期保留). |
-| `media_importer/scraper/confidence_models.py` | Compat re-export (deprecated,迁移期保留). |
-| `media_importer/scraper/dimension_manager.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/llm_scraper.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/title_matcher.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/filename_cleaner.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/tmdb_client.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/exceptions.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/_llm_client_impl.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/_llm_match_assist.py` | Compat re-export (迁移期,保留一个版本周期). |
-| `media_importer/scraper/metadata_scrape_flow.py` | Compat re-export (迁移期,保留一个版本周期). |
+| `media_importer/features/scraping/title_matcher.py` | Title matching L1-L7 levels. |
+| `media_importer/features/scraping/filename_cleaner.py` | Filename cleaning and CJK separation. |
+| `media_importer/features/scraping/errors.py` | LLM exception classes. |
+| `media_importer/features/scraping/metadata_scrape_flow.py` | Metadata scrape flow orchestration. |
 | `media_importer/features/providers/` | External metadata provider registry, interface, and implementations. |
 | `media_importer/features/providers/tmdb_client.py` | TMDB client and error type (migrated from `scraper/tmdb_client.py`). |
-| `media_importer/scraper/providers/` | Compat re-export wrappers (迁移期,保留一个版本周期). |
 
 ## Current Consumers
 
 - TMDB API handlers import `TMDbClient` and `TMDbError` from `media_importer.features.scraping`.
 - Dimension API handlers import dimension query/update services from `media_importer.features.scraping`.
 - Import-flow scrape steps import file-dimension lookup from `media_importer.features.scraping`.
-- `MetadataScraper`, `MatchEngine`, match models, and dimension mapping are under `media_importer/features/scraping/`; remaining `media_importer/scraper/` files are migration-period compat re-exports, retained for one release cycle (see S-Phase 5).
+- `MetadataScraper`, `MatchEngine`, match models, and dimension mapping are under `media_importer/features/scraping/`.
 
 ## Target Shape
 
@@ -69,8 +51,8 @@
 
 - `tests/test_match_engine.py`
 - `tests/test_review_decision_v2.py`
-- `tests/test_config_migration_v3.py`
-- `tests/test_match_pipeline_integration.py`
+- `tests/test_match_result_fields.py`
+- `tests/test_tier2_match_engine.py`
 - `tests/test_scrape_preview_api.py`
 - `tests/test_feature_entrypoints.py`
 - Scrape-related API and import-flow tests.
@@ -78,8 +60,9 @@
 
 ## Migration Notes
 
+> `media_importer/scraper/` 兼容层已于 2026-08-22 删除（简洁化 Phase 0）；guard 拦截旧导入。
+
 - New app/API/import-flow code should import from `media_importer.features.scraping` (architecture guard `test_no_production_code_imports_scraper_package` 阻止新增 `media_importer.scraper.*` 引用).
-- `media_importer/scraper/` files are migration-period compat re-exports, retained for one release cycle. They are not the preferred entry; production code must not import from them.
 - New scraping behavior must update `docs/architecture/scraping.md` and this feature doc.
 - Code referencing `confidence_engine` or `confidence_models` should migrate to `match_engine` and `match_models`.
 
@@ -88,7 +71,7 @@
 ## 三级匹配策略规范
 
 > ADR: [0005-three-tier-matching.md](../decisions/0005-three-tier-matching.md)
-> Plan: [2026-06-12-refactor-three-tier-matching-plan.md](../plans/2026-06-12-refactor-three-tier-matching-plan.md)
+> Plan（已归档）：[2026-06-12-refactor-three-tier-matching-plan.md](../_archive/2026-06-17-plans-cleanup/2026-06-12-refactor-three-tier-matching-plan.md)
 
 系统使用离散的三级匹配策略替代旧的数学公式化置信度体系（T×R×data_gate）。匹配判断回答「这个文件是哪部作品」，维度判断回答「这部作品属于什么分类」，两者彻底解耦。
 

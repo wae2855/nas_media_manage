@@ -1,10 +1,7 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
-from .base import (
-    MetadataProvider, SearchResult, SearchItem,
-    MediaDetails, Genre, DimensionMapping
-)
 from . import register_provider
+from .base import DimensionMapping, Genre, MediaDetails, MetadataProvider, SearchItem, SearchResult
 from .tmdb_client import TMDbClient, TMDbError
 
 

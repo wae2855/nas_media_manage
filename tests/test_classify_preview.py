@@ -7,17 +7,13 @@ edge cases properly.
 """
 import os
 import sys
-import json
-import shutil
-import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.features.import_flow.services.classification import (
     ClassificationService,
-    ClassificationResult,
 )
 
 

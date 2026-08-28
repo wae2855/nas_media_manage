@@ -3,8 +3,6 @@
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from media_importer.api.tmdb_handlers import (
     _SCRAPE_PREVIEW_JOBS,
     _find_provider,
@@ -69,10 +67,14 @@ class TestScrapePreviewJob:
 
     def test_preview_needs_confirm_uses_first_candidate(self):
         from media_importer.features.providers.base import (
-            MediaDetails, SearchItem, SearchResult,
+            MediaDetails,
+            SearchItem,
+            SearchResult,
         )
         from media_importer.features.scraping.match_models import (
-            MatchConcern, MatchResult, MatchTraceStep,
+            MatchConcern,
+            MatchResult,
+            MatchTraceStep,
         )
 
         job_id = "test-job-needs-confirm"
@@ -127,8 +129,7 @@ class TestScrapePreviewJob:
 
         with patch("media_importer.api.scrape_preview_job.globals._global_logger", MagicMock()):
             with patch("media_importer.features.scraping.match_engine.MatchEngine._tier1_exact_match", return_value=None):
-                with patch("media_importer.features.scraping.match_engine.MatchEngine._tier2_context_match", return_value=None):
-                    with patch("media_importer.features.scraping.match_engine.MatchEngine._tier3_user_confirm", return_value=mock_match_result):
+                with patch("media_importer.features.scraping.match_engine.MatchEngine._tier2_user_confirm", return_value=mock_match_result):
                         with patch("media_importer.features.providers.create_providers", return_value=[mock_provider]):
                             _run_scrape_preview_job(job_id, job["filename"], config)
 
@@ -145,7 +146,9 @@ class TestScrapePreviewJob:
     def test_preview_needs_confirm_without_candidates_returns_minimal(self):
         from media_importer.features.providers.base import SearchResult
         from media_importer.features.scraping.match_models import (
-            MatchConcern, MatchResult, MatchTraceStep,
+            MatchConcern,
+            MatchResult,
+            MatchTraceStep,
         )
 
         job_id = "test-job-no-candidates"
@@ -177,8 +180,7 @@ class TestScrapePreviewJob:
 
         with patch("media_importer.api.scrape_preview_job.globals._global_logger", MagicMock()):
             with patch("media_importer.features.scraping.match_engine.MatchEngine._tier1_exact_match", return_value=None):
-                with patch("media_importer.features.scraping.match_engine.MatchEngine._tier2_context_match", return_value=None):
-                    with patch("media_importer.features.scraping.match_engine.MatchEngine._tier3_user_confirm", return_value=mock_match_result):
+                with patch("media_importer.features.scraping.match_engine.MatchEngine._tier2_user_confirm", return_value=mock_match_result):
                         with patch("media_importer.features.providers.create_providers", return_value=[mock_provider]):
                             _run_scrape_preview_job(job_id, job["filename"], config)
 
@@ -191,10 +193,13 @@ class TestScrapePreviewJob:
 
     def test_preview_job_does_not_call_full_llm_scrape(self):
         from media_importer.features.providers.base import (
-            MediaDetails, SearchItem, SearchResult,
+            MediaDetails,
+            SearchItem,
+            SearchResult,
         )
         from media_importer.features.scraping.match_models import (
-            MatchResult, MatchTraceStep,
+            MatchResult,
+            MatchTraceStep,
         )
 
         job_id = "test-job-no-llm"
@@ -254,7 +259,6 @@ class TestScrapePreviewJob:
 
     def test_preview_job_exception_sets_failed_status(self):
         """后端异常时 job 状态设为 failed，并记录错误"""
-        from media_importer.features.providers.base import SearchResult
 
         job_id = "test-job-exception"
         now = time.time()
@@ -279,7 +283,7 @@ class TestScrapePreviewJob:
                     _run_scrape_preview_job(job_id, job["filename"], config)
 
         assert job["status"] == "failed", f"期望 failed，实际 {job['status']}"
-        assert job["error"], f"error 不应为空"
+        assert job["error"], "error 不应为空"
         failed_steps = [s for s in job["steps"] if s.get("status") == "failed"]
         assert len(failed_steps) > 0, f"steps 中应有 failed 步骤，steps={job['steps']}"
         assert any("search engine crash" in s.get("message", "") or "search engine crash" in s.get("label", "") for s in failed_steps), \
@@ -311,10 +315,13 @@ class TestScrapePreviewJob:
 
     def test_preview_job_auto_pass_gets_details(self):
         from media_importer.features.providers.base import (
-            MediaDetails, SearchItem, SearchResult,
+            MediaDetails,
+            SearchItem,
+            SearchResult,
         )
         from media_importer.features.scraping.match_models import (
-            MatchResult, MatchTraceStep,
+            MatchResult,
+            MatchTraceStep,
         )
 
         job_id = "test-job-auto-pass"

@@ -11,6 +11,7 @@
 file_watcher:
   enabled: true                   # 是否启用文件监控（轮询扫描源目录）
   poll_interval: 60               # 轮询间隔（秒），建议不低于30秒
+  stability_window_seconds: 120   # 文件大小和修改时间保持不变后再处理（高级项：30-1800秒）
   ignore_patterns:                # 监控忽略的文件名模式
     - "*.tmp"
     - ".DS_Store"
@@ -189,6 +190,14 @@ manual_review:
                                   #   确认后执行入库，有问题可回退到源目录
 
 # ------------------------------------------------------------
+# 6.7.1 必填维度拦截
+# ------------------------------------------------------------
+# 列出的维度若刮削结果为空（Provider 未返回），即使匹配成功也强制进入
+# 人工确认，等待手动填写。人工填写后维度来源会标记为"人工填写"。
+# 可选值即已启用的维度名，如 restricted_level / animation / documentary 等。
+required_dimensions: []           # 示例: ["restricted_level"]
+
+# ------------------------------------------------------------
 # 6.8 影视元数据刮削配置
 # ------------------------------------------------------------
 metadata:
@@ -212,61 +221,17 @@ metadata:
 # 7. LLM 大模型配置
 # ------------------------------------------------------------
 llm:
-  # AI 是否可用由 api_key + base_url + model 是否完整决定（无需 enabled 开关）
-  api_key: ""                     # [必须] AI刮削API密钥
+  # LLM 仅用于源目录清理器的 AI 分析（ADR-0010：AI 刮削已移除，刮削链路为 TMDB 主导）
+  # 可用性由 api_key + base_url + model 是否完整决定
+  api_key: ""                     # LLM API 密钥（不配置则清理器 AI 功能不可用）
   base_url: "https://api.openai.com/v1" # API地址，支持所有兼容OpenAI格式的服务
-  model: "gpt-3.5-turbo"         # 刮削模型（用于纯AI刮削和整剧刮削）
+  model: "gpt-4o-mini"            # 模型 ID
+  fallback_model: ""              # 备选模型（主模型失败时降级，留空不降级）
   timeout: 30                     # API超时时间（秒）
   max_retries: 2                  # 最大重试次数
   retry_delay: 3                  # 重试间隔（秒）
-  fallback_model: "gpt-3.5-turbo" # 备选模型（主模型失败时降级使用）
-  fast_model: ""                  # 辅助模型（标题清洗、数据整理等，留空则使用刮削模型）
-  fast_base_url: ""               # 辅助模型API地址（留空则使用刮削区块的接口地址）
-  fast_api_key: ""                # 辅助模型API密钥（留空则使用刮削区块的API Key）
-  source_cleaner_model: ""        # 源目录清理模型（留空则使用辅助模型）
-  confidence_threshold: 0.8       # AI置信度阈值（低于此值的刮削结果将被拒绝）
   verify_ssl: true                # 是否验证SSL证书（代理环境可设为false）
-  system_prompt: ""               # 如需自定义刮削提示词，请在 config/scraper_prompts.md 中配置
 
-  # 联网搜索增强配置
-  web_search:
-    enabled: false                # 是否启用联网搜索增强
-    provider: "none"              # 搜索提供商：
-                                  #   "zhipu"   - 智谱 GLM web_search
-                                  #   "minimax" - MiniMax web_search
-                                  #   "qwen"    - 通义千问 enable_search
-                                  #   "openai"  - OpenAI web_search_preview（暂不支持）
-                                  #   "none"    - 不启用
-    enabled_for_scrape: true      # 纯AI刮削时启用搜索
-    enabled_for_series_scrape: true # 整剧刮削时启用搜索
-    enabled_for_source_cleaner: false # 源目录清理时不启用搜索
-
-# ------------------------------------------------------------
-# 7.1 刮削提示词配置
-# ------------------------------------------------------------
-# 提示词配置已移至单独文件: config/scraper_prompts.md
-# 该文件包含:
-#   - system_prompt: 单个视频刮削提示词
-#   - series_prompt: 电视剧系列刮削提示词
-# 如需自定义刮削行为，请编辑 config/scraper_prompts.md 文件
-
-# ------------------------------------------------------------
-# 8. Hermes 通知配置
-# ------------------------------------------------------------
-hermes:
-  enabled: true                   # 是否启用Hermes通知
-  webhook:
-    base_url: "http://your-hermes-ip:8644" # Hermes服务地址
-    route_name: "media-normalize" # Webhook路由名称
-    secret: ""                    # HMAC签名密钥
-    timeout: 30                   # 请求超时（秒）
-    max_retries: 3                # 最大重试次数
-    retry_delay: 5                # 重试间隔（秒）
-    verify_ssl: true              # 是否验证SSL证书（HTTP无需验证，HTTPS建议true）
-    events:                       # 启用通知的事件类型
-      - batch_start               #   批量处理开始
-      - batch_complete            #   批量处理完成
-      - program_error             #   程序异常
 
 # ------------------------------------------------------------
 # 9. 任务队列配置

@@ -6,46 +6,40 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 CERTIFICATION_TO_LEVEL = {
-    'G': '0-6',
+    # 美国（MPAA/TV）
+    'G': '0-6', 'TV-Y': '0-6',
+    'PG': '7-12', 'TV-Y7': '7-12', 'TV-G': '7-12', 'TV-PG': '7-12',
+    'PG-13': '13-16', 'TV-14': '13-16',
+    'R': '17+', 'NC-17': '17+', 'TV-MA': '17+',
+    # 英国（BBFC）：15岁级别仍属于青少年段，18岁才是成人段
     'U': '0-6',
-    'PG': '7-12',
-    'TV-Y': '0-6',
-    'TV-Y7': '7-12',
-    'TV-G': '7-12',
-    'TV-PG': '7-12',
-    '12A': '13-16',
-    '12': '13-16',
-    'PG-13': '13-16',
-    'TV-14': '13-16',
-    'R': '17+',
-    'NC-17': '17+',
-    '15': '17+',
-    '18': '17+',
-    'TV-MA': '17+',
+    '12A': '13-16', '12': '13-16',
+    '15': '13-16', '18': '17+',
+    # 德国（FSK，TMDB 上为数字形式）
+    'FSK 0': '0-6', 'FSK 6': '7-12', '6': '7-12',
+    'FSK 12': '13-16',
+    'FSK 16': '13-16', '16': '13-16',
+    # 法国（CN）
+    '-10': '7-12',
+    '-12': '13-16',
+    '-16': '13-16', '-18': '17+',
+    # 日本（映倫）
+    'PG12': '13-16',
+    'R-15+': '13-16', 'R15+': '13-16',
+    'R-18+': '17+', 'R18+': '17+',
+    # 韩国（영등급위）
+    'ALL': '0-6', '전체관람가': '0-6',
+    '12세이상관람가': '13-16',
+    '15세이상관람가': '13-16',
+    '19': '17+', '청소년관람불가': '17+',
+    # 加拿大/澳大利亚常见
+    '14A': '13-16', '18A': '17+',
+    'MA15+': '13-16',
 }
 
 
 def check_tier_access(required_tier: str) -> bool:
     return True
-
-
-def get_dimensions_for_scrape(conn) -> list:
-    from media_importer.infrastructure.db import get_all_dimensions
-    dims = get_all_dimensions(conn)
-    result = []
-    for dim in dims:
-        source_type = dim.get('source_type', '')
-        ai_prompt = dim.get('ai_prompt', '')
-        if source_type == 'ai' or (source_type == 'ai+provider' and ai_prompt):
-            result.append({
-                'name': dim['name'],
-                'label': dim['label'],
-                'values': [v['value'] for v in dim.get('value_list', [])],
-                'ai_prompt': ai_prompt,
-                'source_type': source_type,
-                'is_enabled': dim.get('is_enabled', 1),
-            })
-    return result
 
 
 def get_dimensions_for_tmdb(conn) -> list:
@@ -70,7 +64,7 @@ def get_dimensions_for_provider(conn, provider_type: str) -> list:
     dims = get_all_dimensions(conn)
     result = []
     for dim in dims:
-        if dim.get('source_type') != 'ai+provider':
+        if dim.get('source_type') not in ('provider', 'ai+provider'):
             continue
         provider_mappings_raw = dim.get('provider_mappings', '')
         if not provider_mappings_raw:
@@ -279,9 +273,6 @@ def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dat
     return {'name': name, 'value': None, 'source_reliability': 0}
 
 
-get_dimensions_for_tmdb = lambda conn: get_dimensions_for_provider(conn, 'tmdb')
-
-map_tmdb_to_dimension = lambda dim_config, tmdb_data, release_dates=None: map_provider_to_dimension(dim_config, tmdb_data, release_dates, 'tmdb')
 
 
 def _map_region(name: str, value_list: list, tmdb_data: dict) -> dict:
@@ -390,6 +381,11 @@ def _map_animation(name: str, value_list: list, tmdb_data: dict) -> dict:
 
 
 def _map_restricted_level(name: str, value_list: list, release_dates: list) -> dict:
+    """TMDB release_dates 多国分级 → 年龄段（ADR-0010：9 国优先级规则增强）。
+
+    优先级：US > GB > DE > FR > CN > JP > KR > AU > CA > 其他（数据可信度递减）。
+    旧实现只消费 US/GB 两国数据，2026-08-22 起全 9 国参与映射。
+    """
     if not release_dates:
         return {'name': name, 'value': None, 'source_reliability': 0}
 
@@ -408,8 +404,6 @@ def _map_restricted_level(name: str, value_list: list, release_dates: list) -> d
 
     for _, result in sorted_dates:
         iso = result.get('iso_3166_1', '')
-        if iso not in country_priority[:2]:
-            continue
 
         tv_rating = result.get('rating', '').strip().upper()
         if tv_rating and tv_rating in CERTIFICATION_TO_LEVEL:

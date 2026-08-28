@@ -2,12 +2,12 @@ import os
 import threading
 
 from media_importer.core import db as db_module
+from media_importer.core.task_manager import TaskManager
 from media_importer.features.tasks import (
     STAGE_DONE,
     STAGE_QUEUED,
     STATUS_CANCELLED,
     STATUS_PENDING,
-    TaskManager,
     cancel_task_for_api,
     mark_cancelled,
 )

@@ -5,6 +5,59 @@ var _openGenrePicker = null;
 var _genreAdding = null;
 var _cachedProviderGenres = null;
 
+// 内置维度业务名兜底：维度接口未加载时（如任务列表直出）也能显示中文业务名，
+// 接口加载后由 _dimensionsData 的正式定义覆盖。
+var DIM_LABEL_FALLBACK = {
+  media_type: "影视类型",
+  animation: "是否动漫",
+  documentary: "是否纪录片",
+  restricted_level: "限制级分类",
+  region: "地区",
+  origin_lang: "原始语言",
+  broad_genre: "题材类型",
+};
+
+// 统一的维度业务名解析：接口定义优先，内置兜底次之，最后返回原名
+function dimLabelOf(name) {
+  var defs = (_dimensionsData || []).concat(
+    window.currentEnabledDimensions || [],
+  );
+  for (var i = 0; i < defs.length; i++) {
+    if (defs[i] && defs[i].name === name) return defs[i].label || name;
+  }
+  return DIM_LABEL_FALLBACK[name] || name;
+}
+
+// 维度业务色解析（用于标签左边框着色）
+function dimColorOf(name) {
+  var defs = (_dimensionsData || []).concat(
+    window.currentEnabledDimensions || [],
+  );
+  for (var i = 0; i < defs.length; i++) {
+    if (defs[i] && defs[i].name === name && defs[i].color) return defs[i].color;
+  }
+  return "rgba(234,191,99,0.35)";
+}
+
+// 按需补载维度定义（任务列表等页面直出时调用一次）
+var _dimDefsLoading = false;
+function ensureDimDefsLoaded() {
+  if (_dimensionsData.length || _dimDefsLoading) return;
+  _dimDefsLoading = true;
+  apiRequest("GET", "/dimensions")
+    .then(function (result) {
+      if (result.code === 200 && result.data) {
+        _dimensionsData = result.data.dimensions || [];
+        // 通知已渲染的页面（任务列表等）用正式维度定义重渲
+        window.dispatchEvent(new CustomEvent("dim-defs-loaded"));
+      }
+    })
+    .catch(function () {})
+    .finally(function () {
+      _dimDefsLoading = false;
+    });
+}
+
 var _FALLBACK_GENRE_MAP = {
   28: "动作 (Action)",
   12: "冒险 (Adventure)",
@@ -144,10 +197,12 @@ function _refreshGenreDisplay() {
 
 function getSourceLabel(sourceType) {
   var labels = {
-    ai: "AI 判断",
-    "ai+provider": "AI + Provider",
+    provider: "Provider 映射",
     file: "文件推导",
+    // 兼容旧数据（migration 前的历史显示）
+    ai: "历史 AI 判断",
+    "ai+provider": "Provider 映射（历史 AI 配置）",
+    "ai+provider": "Provider 映射",
   };
   return labels[sourceType] || sourceType;
 }
-

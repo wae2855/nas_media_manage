@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import time
 import threading
+import time
 from datetime import timedelta
+from typing import Optional
 
 
 class Metrics:
@@ -30,7 +31,7 @@ class Metrics:
             if self._queue_status["queued"] > 0:
                 self._queue_status["queued"] -= 1
 
-    def record_task_complete(self, status: str, duration: float = None):
+    def record_task_complete(self, status: str, duration: Optional[float] = None):
         with self._lock:
             self._queue_status["running"] -= 1
 

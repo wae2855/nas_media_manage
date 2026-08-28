@@ -70,8 +70,8 @@ media_importer/
 | `media_importer/features/` | current | Feature-first business source of truth. Expand here before touching old technical layers. |
 | `media_importer/infrastructure/` | infrastructure | Shared infrastructure adapters; currently exposes DB facade. |
 | `media_importer/pipeline/` | archived | Replaced by `features/import_flow`; archived under `_archive/2026-06-02-feature-first-reorg/code/media_importer/pipeline/`. |
-| `media_importer/scraper/` | feature_target | Move to `features/scraping` and `features/providers`. |
-| `media_importer/storage/` | infrastructure | Split filesystem utilities into infrastructure and feature-owned services. |
+| `media_importer/scraper/` | archive_candidate | Compat re-export layer; real implementation moved to `features/scraping`/`features/providers` (ADR-0008). Delete in simplification cleanup. |
+| `media_importer/storage/` | archived | Legacy compatibility wrappers deleted during 2026-06 cleanup; new imports blocked by architecture guards. |
 | `media_importer/monitor/` | infrastructure | Keep or move under notification/monitoring feature. |
 | `media_importer/notify/` | feature_target | Move to notification/monitoring feature. |
 | `media_importer/webui/` | frontend | Keep temporarily; frontend redesign is a later workstream. |
@@ -83,7 +83,7 @@ media_importer/
 | Path | Status | Decision |
 |------|--------|----------|
 | `docs/README.md` | current | Main documentation entry. |
-| `docs/INDEX.md` | current | Feature-first index after rebuild. |
+| `docs/ai-map.md` | current | Feature-first index after rebuild. |
 | `docs/ai-map.md` | current | AI task navigation after rebuild. |
 | `docs/architecture/` | current | Current architecture facts only. |
 | `docs/features/` | feature_target | New feature documentation location. |

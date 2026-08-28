@@ -11,6 +11,9 @@ function buildSourceConfigPayload() {
       document.getElementById("cfg-source-inline")?.value,
     ),
     source_policy: {
+      cleanup_source_after_done:
+        document.querySelector('input[name="cfg-source-after-done"]:checked')
+          ?.value === "recycle",
       scan_recursive: !!document.getElementById(
         "cfg-source-recursive-toggle-inline",
       )?.checked,
@@ -210,181 +213,32 @@ function preserveApiKey(section, inputId) {
   return value || saved || "***";
 }
 
-function buildAiAssistPayload() {
-  return {
-    ai_assist: {
-      base_url: String(
-        document.getElementById("cfg-ai_assist-base_url")?.value || "",
-      ).trim(),
-      model: String(
-        document.getElementById("cfg-ai_assist-model")?.value || "",
-      ).trim(),
-      api_key: preserveApiKey("ai_assist", "cfg-ai_assist-api_key"),
-      timeout:
-        Number(document.getElementById("cfg-ai_assist-timeout")?.value || 30) ||
-        30,
-      max_retries:
-        Number(
-          document.getElementById("cfg-ai_assist-max_retries")?.value || 2,
-        ) || 2,
-      retry_delay:
-        Number(
-          document.getElementById("cfg-ai_assist-retry_delay")?.value || 3,
-        ) || 3,
-      verify_ssl: !!document.getElementById("cfg-ai_assist-verify_ssl")
-        ?.checked,
-      prompt_title_clean: String(
-        document.getElementById("cfg-ai_assist-prompt_title_clean")?.value ||
-          "",
-      ),
-      prompt_match_assist: String(
-        document.getElementById("cfg-ai_assist-prompt_match_assist")?.value ||
-          "",
-      ),
-      prompt_dimension_mapping: String(
-        document.getElementById("cfg-ai_assist-prompt_dimension_mapping")
-          ?.value || "",
-      ),
-      prompt_source_clean: String(
-        document.getElementById("cfg-ai_assist-prompt_source_clean")?.value ||
-          "",
-      ),
-      prompt_match_assist_instruction: String(
-        document.getElementById("cfg-ai_assist-prompt_match_assist_instruction")
-          ?.value || "",
-      ),
-      prompt_dimension_mapping_instruction: String(
-        document.getElementById(
-          "cfg-ai_assist-prompt_dimension_mapping_instruction",
-        )?.value || "",
-      ),
-      prompt_source_clean_instruction: String(
-        document.getElementById("cfg-ai_assist-prompt_source_clean_instruction")
-          ?.value || "",
-      ),
-    },
-  };
-}
-
-function buildAiSearchPayload() {
-  return {
-    ai_search: {
-      provider: String(
-        document.getElementById("cfg-ai_search-provider")?.value || "",
-      ).trim(),
-      model: String(
-        document.getElementById("cfg-ai_search-model")?.value || "",
-      ).trim(),
-      search_type: String(
-        document.getElementById("cfg-ai_search-search_type")?.value || "",
-      ).trim(),
-      api_key: preserveApiKey("ai_search", "cfg-ai_search-api_key"),
-      base_url: String(
-        document.getElementById("cfg-ai_search-base_url")?.value || "",
-      ).trim(),
-      timeout:
-        Number(document.getElementById("cfg-ai_search-timeout")?.value || 30) ||
-        30,
-      max_retries:
-        Number(
-          document.getElementById("cfg-ai_search-max_retries")?.value || 2,
-        ) || 2,
-      retry_delay:
-        Number(
-          document.getElementById("cfg-ai_search-retry_delay")?.value || 3,
-        ) || 3,
-      verify_ssl: !!document.getElementById("cfg-ai_search-verify_ssl")
-        ?.checked,
-      prompt_dimension_supplement: String(
-        document.getElementById("cfg-ai_search-prompt_dimension_supplement")
-          ?.value || "",
-      ),
-      prompt_dimension_supplement_instruction: String(
-        document.getElementById(
-          "cfg-ai_search-prompt_dimension_supplement_instruction",
-        )?.value || "",
-      ),
-    },
-  };
-}
-
-function buildAiConfigPayload() {
-  return {
-    ai_assist: buildAiAssistPayload().ai_assist,
-    ai_search: buildAiSearchPayload().ai_search,
-  };
-}
-
 // T2.6 plan: 新增 ai_prompts / ai_scene_strategy 两个 payload 函数
 // (T2.10: buildAiApikeyPayload 已删除，复用 buildAiAssistPayload + buildAiSearchPayload)
 
-function buildAiPromptsPayload() {
+function buildLlmPayload() {
+  const preserved = preserveApiKey("llm", "cfg-llm-api_key");
   return {
-    ai_assist: {
-      prompt_title_clean: String(
-        document.getElementById("cfg-ai_assist-prompt_title_clean")?.value ||
-          "",
-      ),
-      prompt_match_assist: String(
-        document.getElementById("cfg-ai_assist-prompt_match_assist")?.value ||
-          "",
-      ),
-      prompt_dimension_mapping: String(
-        document.getElementById("cfg-ai_assist-prompt_dimension_mapping")
-          ?.value || "",
-      ),
-      prompt_source_clean: String(
-        document.getElementById("cfg-ai_assist-prompt_source_clean")?.value ||
-          "",
-      ),
-      prompt_match_assist_instruction: String(
-        document.getElementById("cfg-ai_assist-prompt_match_assist_instruction")
-          ?.value || "",
-      ),
-      prompt_dimension_mapping_instruction: String(
-        document.getElementById(
-          "cfg-ai_assist-prompt_dimension_mapping_instruction",
-        )?.value || "",
-      ),
-      prompt_source_clean_instruction: String(
-        document.getElementById("cfg-ai_assist-prompt_source_clean_instruction")
-          ?.value || "",
-      ),
-    },
-    ai_search: {
-      prompt_dimension_supplement: String(
-        document.getElementById("cfg-ai_search-prompt_dimension_supplement")
-          ?.value || "",
-      ),
-      prompt_dimension_supplement_instruction: String(
-        document.getElementById(
-          "cfg-ai_search-prompt_dimension_supplement_instruction",
-        )?.value || "",
-      ),
+    llm: {
+      base_url: String(
+        document.getElementById("cfg-llm-base_url")?.value || "",
+      ).trim(),
+      model: String(
+        document.getElementById("cfg-llm-model")?.value || "",
+      ).trim(),
+      api_key: preserved,
+      fallback_model: String(
+        document.getElementById("cfg-llm-fallback_model")?.value || "",
+      ).trim(),
+      timeout:
+        Number(document.getElementById("cfg-llm-timeout")?.value || 30) || 30,
+      max_retries:
+        Number(document.getElementById("cfg-llm-max_retries")?.value || 2) || 2,
+      retry_delay:
+        Number(document.getElementById("cfg-llm-retry_delay")?.value || 3) || 3,
+      verify_ssl: !!document.getElementById("cfg-llm-verify_ssl")?.checked,
     },
   };
-}
-
-function buildAiSceneStrategyPayload() {
-  const scenes = [
-    "dimension_supplement",
-    "dimension_mapping",
-    "title_clean",
-    "match_assist",
-    "source_clean",
-  ];
-  const data = {};
-  scenes.forEach((scene) => {
-    const primaryEl = document.querySelector(`[data-scene-primary="${scene}"]`);
-    const fallbackEl = document.querySelector(
-      `[data-scene-fallback="${scene}"]`,
-    );
-    data[scene] = {
-      primary: String(primaryEl?.value || "").trim(),
-      fallback: String(fallbackEl?.value || "").trim(),
-    };
-  });
-  return data;
 }
 
 function buildServerConfigPayload() {
@@ -399,57 +253,6 @@ function buildServerConfigPayload() {
           document.getElementById("cfg-server_port-inline")?.value || 9855,
         ) || 9855,
       api_key: apiKeyValue || currentServer.api_key || "***",
-    },
-  };
-}
-
-function buildHermesConfigPayload() {
-  const currentHermes = currentConfigSnapshot?.hermes?.webhook || {};
-  const secretValue = String(
-    document.getElementById("cfg-hermes_webhook_secret-inline")?.value || "",
-  ).trim();
-  const events = [];
-  if (document.getElementById("cfg-hermes_event_batch_start-inline")?.checked)
-    events.push("batch_start");
-  if (
-    document.getElementById("cfg-hermes_event_batch_complete-inline")?.checked
-  )
-    events.push("batch_complete");
-  if (document.getElementById("cfg-hermes_event_program_error-inline")?.checked)
-    events.push("program_error");
-  return {
-    hermes: {
-      enabled: !!document.getElementById("cfg-hermes_enabled-inline")?.checked,
-      webhook: {
-        base_url: String(
-          document.getElementById("cfg-hermes_webhook_base_url-inline")
-            ?.value || "",
-        ).trim(),
-        route_name: String(
-          document.getElementById("cfg-hermes_webhook_route_name-inline")
-            ?.value || "",
-        ).trim(),
-        secret: secretValue || currentHermes.secret || "***",
-        timeout:
-          Number(
-            document.getElementById("cfg-hermes_webhook_timeout-inline")
-              ?.value || 30,
-          ) || 30,
-        max_retries:
-          Number(
-            document.getElementById("cfg-hermes_webhook_max_retries-inline")
-              ?.value || 3,
-          ) || 3,
-        retry_delay:
-          Number(
-            document.getElementById("cfg-hermes_webhook_retry_delay-inline")
-              ?.value || 5,
-          ) || 5,
-        verify_ssl: !!document.getElementById(
-          "cfg-hermes_webhook_verify_ssl-inline",
-        )?.checked,
-        events,
-      },
     },
   };
 }

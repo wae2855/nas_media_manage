@@ -1,5 +1,6 @@
-import sqlite3
 import json
+import sqlite3
+from typing import Optional
 
 from .connection import _sqlite_conn_lock
 from .constants import DEFAULT_DIMENSIONS
@@ -37,7 +38,7 @@ def get_enabled_dimensions(conn: sqlite3.Connection) -> list:
     return result
 
 
-def get_dimension(conn: sqlite3.Connection, name: str) -> dict:
+def get_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
     cur = conn.execute("SELECT * FROM dimensions WHERE name=?", (name,))
     row = cur.fetchone()
     if row is None:
@@ -51,7 +52,7 @@ def get_dimension(conn: sqlite3.Connection, name: str) -> dict:
     return d
 
 
-def update_dimension(conn: sqlite3.Connection, name: str, **fields) -> dict:
+def update_dimension(conn: sqlite3.Connection, name: str, **fields) -> Optional[dict]:
     valid_columns = {
         "label", "ai_prompt", "tmdb_field", "provider_mappings", "value_list",
         "trust_ai_assist", "trust_ai_search", "color", "description",
@@ -73,21 +74,21 @@ def update_dimension(conn: sqlite3.Connection, name: str, **fields) -> dict:
     return get_dimension(conn, name)
 
 
-def enable_dimension(conn: sqlite3.Connection, name: str) -> dict:
+def enable_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
     with _sqlite_conn_lock:
         conn.execute("UPDATE dimensions SET is_enabled=1 WHERE name=?", (name,))
         conn.commit()
     return get_dimension(conn, name)
 
 
-def disable_dimension(conn: sqlite3.Connection, name: str) -> dict:
+def disable_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
     with _sqlite_conn_lock:
         conn.execute("UPDATE dimensions SET is_enabled=0 WHERE name=?", (name,))
         conn.commit()
     return get_dimension(conn, name)
 
 
-def reset_dimension(conn: sqlite3.Connection, name: str) -> dict:
+def reset_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
     row = conn.execute(
         "SELECT default_value_list, ai_prompt, description FROM dimensions WHERE name=?",
         (name,)

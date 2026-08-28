@@ -12,8 +12,7 @@ import sys
 
 import pytest
 
-from media_importer.api import config_handlers, globals
-from media_importer.api import tmdb_handlers
+from media_importer.api import config_handlers, globals, tmdb_handlers
 
 
 @pytest.fixture

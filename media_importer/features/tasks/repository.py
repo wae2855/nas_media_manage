@@ -11,14 +11,14 @@ from media_importer.infrastructure.db import (
     find_by_source_path,
     find_failed_too_many,
     get_next_pending,
+    get_subtitles_by_task,
     get_task,
     has_running_tasks,
     list_all_tasks,
     list_tasks,
+    update_subtitles_by_task,
     update_task,
 )
-from media_importer.infrastructure.db import update_subtitles_by_task
-from media_importer.infrastructure.db import get_subtitles_by_task
 
 __all__ = [
     "clear_tasks",

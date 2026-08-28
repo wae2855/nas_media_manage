@@ -162,7 +162,7 @@
 | 路径/删除安全检查 | 内部 | 内部 | `infrastructure/filesystem`, `features/recycle` | `test_recycle_safety.py:test_safe_delete_rejects_paths_*, test_validate_path_safety_rejects_traversal` | — |
 | 文件指纹稳定性 | 内部 | 内部 | `infrastructure/filesystem` | `test_recycle_safety.py:test_fingerprint_*` | — |
 | 入库文件被替换后入回收站 | 内部 | 内部 | `features/import_flow/services:file_operations` | `test_import_flow_services.py:ImportService` | — |
-| Legacy 兼容导出 | 内部 | 内部 | `core/recycle` 兼容层 | `test_recycle_safety.py:test_core_safety_keeps_compatibility_exports` | — |
+| Legacy 兼容导出 | 内部 | 内部 | `core/safety` facade | `test_recycle_safety.py:test_core_safety_keeps_compatibility_exports` | — |
 
 ## 9. 工作区 7 · 系统与通知 System & Notify
 
@@ -212,6 +212,6 @@
 
 - 新增功能点 → 同时新增/更新对应工作区章节、API 列表和测试脚本名。
 - 修改 API → 更新 [architecture/api.md](../architecture/api.md) + 本文档"后端 API"列 + 关联测试。
-- 新增业务域 feature → 同步 [docs/features/](../features/) + [INDEX.md](../INDEX.md) + 本文档相关工作区。
+- 新增业务域 feature → 同步 [docs/features/](../features/) + [ai-map.md](../ai-map.md) + 本文档相关工作区。
 - 删除/重命名测试 → 同步 [test-inventory.md](test-inventory.md) + 本文档"已覆盖测试"列。
 - 旧前端重做完成前，前台节点列以"目标 IA"为主，"当前一级空间"用于追溯。

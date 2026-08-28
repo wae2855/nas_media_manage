@@ -3,6 +3,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from media_importer.features.configuration import inspect_storage_readiness
 from media_importer.infrastructure.filesystem import validate_file_ext, validate_path_safety
 
 
@@ -19,6 +20,9 @@ def run_batch_for_api(
 ) -> RunFileResult:
     if pipeline is None:
         return RunFileResult(code=500, message="Pipeline not initialized")
+    readiness = inspect_storage_readiness(getattr(pipeline, "config", {}) or {})
+    if readiness["state"] != "READY":
+        return RunFileResult(code=409, message="配置尚未就绪，请先处理存储检查中的阻塞项")
 
     def run_background():
         pipeline.run_all()
@@ -52,6 +56,10 @@ def run_file_for_api(
 
     if not os.path.isfile(file_path):
         return RunFileResult(code=404, message=f"File not found: {file_path}")
+
+    readiness = inspect_storage_readiness(config or {})
+    if readiness["state"] != "READY":
+        return RunFileResult(code=409, message="配置尚未就绪，请先处理存储检查中的阻塞项")
 
     def run_one():
         video_file = os.path.basename(file_path)

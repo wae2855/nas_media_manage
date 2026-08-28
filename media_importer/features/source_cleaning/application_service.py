@@ -76,7 +76,7 @@ def execute_source_cleaning(
     cleaner = SourceCleaner(config)
     record = cleaner.execute(
         task_paths=collect_task_paths(conn),
-        merge_strategy=merge_strategy,
+        merge_strategy=merge_strategy or "",
     )
     save_cleaner_record(conn, record)
     return SourceCleanerExecutionResult(ok=True, record=record)

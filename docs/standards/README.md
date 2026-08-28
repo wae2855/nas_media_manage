@@ -4,6 +4,8 @@
 
 | 文档 | 内容 |
 |------|------|
+| [frontend.md](frontend.md) — 前端 UI 规范（cinema 实现总结）
+| [backend.md](backend.md) — 后端架构规范（分层/状态机/刮削/LLM 边界）
 | [coding.md](coding.md) | 代码风格、文件大小、导入规则 |
 | [architecture.md](architecture.md) | 分层、职责、重构边界 |
 | [documentation.md](documentation.md) | 文档结构、状态、归档规则 |

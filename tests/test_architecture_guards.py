@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = ROOT / "docs"
 
@@ -84,10 +83,10 @@ def test_filesystem_safety_lives_in_infrastructure():
         source = path.read_text(encoding="utf-8")
         assert "media_importer.core.safety" not in source
 
-    safety_source = (
-        ROOT / "media_importer" / "core" / "safety.py"
-    ).read_text(encoding="utf-8")
-    assert "from media_importer.infrastructure.filesystem import (" in safety_source
+    # core/safety.py facade 已于简洁化 Phase 0 删除，不得复活
+    assert not (ROOT / "media_importer" / "core" / "safety.py").exists(), (
+        "core/safety.py 兼容 facade 已删除；安全能力直接使用 media_importer.infrastructure.filesystem"
+    )
 
 
 def test_source_file_strategy_lives_in_source_files_feature():
@@ -103,7 +102,9 @@ def test_source_file_strategy_lives_in_source_files_feature():
     wrapper_source = (
         ROOT / "media_importer" / "features" / "import_flow" / "services" / "source_cleanup.py"
     ).read_text(encoding="utf-8")
-    assert "from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService" in wrapper_source
+    assert (
+        "from media_importer.features.source_files import SourceCleanupResult, SourceCleanupService" in wrapper_source
+    )
 
 
 def test_source_files_feature_does_not_depend_on_import_flow():
@@ -113,25 +114,19 @@ def test_source_files_feature_does_not_depend_on_import_flow():
 
 
 def test_source_cleaner_api_handler_uses_feature_application_service():
-    source = (
-        ROOT / "media_importer" / "api" / "source_cleaner_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "source_cleaner_handlers.py").read_text(encoding="utf-8")
     assert "from media_importer.features.source_cleaning.application_service import (" in source
     assert "from media_importer.core.db.task_repo import list_all_tasks" not in source
 
 
 def test_dimension_api_handler_uses_feature_dimension_service():
-    source = (
-        ROOT / "media_importer" / "api" / "dimension_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "dimension_handlers.py").read_text(encoding="utf-8")
     assert "from media_importer.features.scraping import (" in source
     assert "from media_importer.core.db import (" not in source
 
 
 def test_config_handler_delegates_runtime_component_refresh():
-    source = (
-        ROOT / "media_importer" / "api" / "config_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "config_handlers.py").read_text(encoding="utf-8")
     assert "apply_runtime_config" in source
     assert "restart_watcher" in source
     assert "from media_importer.notify.hermes_hook import HermesNotifier" not in source
@@ -139,18 +134,14 @@ def test_config_handler_delegates_runtime_component_refresh():
 
 
 def test_config_handler_delegates_task_listing_to_tasks_feature():
-    source = (
-        ROOT / "media_importer" / "api" / "config_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "config_handlers.py").read_text(encoding="utf-8")
     assert "from media_importer.features.tasks import list_tasks_for_api" in source
     assert "from media_importer.core.db import list_tasks" not in source
     assert "from media_importer.core.db import VALID_STATUSES" not in source
 
 
 def test_task_handler_delegates_queue_actions_to_tasks_feature():
-    source = (
-        ROOT / "media_importer" / "api" / "task_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "task_handlers.py").read_text(encoding="utf-8")
     assert "from media_importer.features.tasks import (" in source
     assert "clear_tasks_for_api" in source
     assert "retry_task_for_api" in source
@@ -162,30 +153,24 @@ def test_task_handler_delegates_queue_actions_to_tasks_feature():
 
 
 def test_task_handler_delegates_review_actions_to_tasks_feature():
-    source = (
-        ROOT / "media_importer" / "api" / "task_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "task_handlers.py").read_text(encoding="utf-8")
     assert "confirm_task_for_api" in source
     assert "reclassify_task_for_api" in source
     assert "confirm_all_tasks_for_api" in source
     assert "confirm_task(task_id)" not in source
     assert "reclassify_task(task_id" not in source
-    assert "list_tasks(status=\"CONFIRMING\"" not in source
+    assert 'list_tasks(status="CONFIRMING"' not in source
 
 
 def test_task_handler_delegates_rename_to_tasks_file_lifecycle_service():
-    source = (
-        ROOT / "media_importer" / "api" / "task_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "task_handlers.py").read_text(encoding="utf-8")
     assert "rename_task_file_for_api" in source
     assert "os.rename" not in source
     assert "new_filename 只能是文件名" not in source
 
 
 def test_task_handler_delegates_ignore_to_tasks_file_lifecycle_service():
-    source = (
-        ROOT / "media_importer" / "api" / "task_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "task_handlers.py").read_text(encoding="utf-8")
     assert "ignore_task_for_api" in source
     assert "os.remove" not in source
     assert "move_to_recycle_bin" not in source
@@ -194,9 +179,7 @@ def test_task_handler_delegates_ignore_to_tasks_file_lifecycle_service():
 
 
 def test_task_handler_delegates_run_file_to_import_flow_service():
-    source = (
-        ROOT / "media_importer" / "api" / "task_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "task_handlers.py").read_text(encoding="utf-8")
     assert "from media_importer.features.import_flow import run_batch_for_api, run_file_for_api" in source
     assert "run_batch_for_api" in source
     assert "validate_path_safety" not in source
@@ -207,9 +190,7 @@ def test_task_handler_delegates_run_file_to_import_flow_service():
 
 
 def test_task_handler_delegates_detail_queries_to_tasks_feature():
-    source = (
-        ROOT / "media_importer" / "api" / "task_handlers.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "media_importer" / "api" / "task_handlers.py").read_text(encoding="utf-8")
     assert "get_task_for_api" in source
     assert "get_task_subtitles_for_api" in source
     assert "get_task_stats_for_api" in source
@@ -226,6 +207,7 @@ def test_no_production_code_imports_core_db_directly():
     """
     import re
     from pathlib import Path
+
     root = Path(__file__).resolve().parent.parent
     media_importer_root = root / "media_importer"
     core_db_root = media_importer_root / "core" / "db"
@@ -244,7 +226,7 @@ def test_no_production_code_imports_core_db_directly():
             continue
         source = py_file.read_text(encoding="utf-8")
         for match in forbidden_pattern.finditer(source):
-            line_no = source[:match.start()].count("\n") + 1
+            line_no = source[: match.start()].count("\n") + 1
             violations.append(f"{py_file.relative_to(root)}:{line_no}: {match.group().strip()}")
     assert not violations, (
         "生产代码不得直接 import media_importer.core.db。以下违规需改为 infrastructure.db facade:\n"
@@ -253,29 +235,34 @@ def test_no_production_code_imports_core_db_directly():
 
 
 def test_no_production_code_imports_scraper_package():
-    """生产代码不得 import media_importer.scraper.*(scraper/ 自身除外)。
+    """scraper/ 兼容层已于 2026-08-22 删除（简洁化 Phase 0，ADR-0008 收尾）。
 
-    scraper/ 下的文件是迁移期 compat,保留一个版本周期。
-    新增生产代码必须直接 import features.scraping.* 或 features.providers.*。
+    守护两条：
+    1. media_importer/scraper/ 目录不得复活；
+    2. 任何代码（生产+测试）不得 import media_importer.scraper.*。
     """
     import re
+
     media_importer_root = ROOT / "media_importer"
     scraper_root = media_importer_root / "scraper"
+    assert not scraper_root.exists(), "media_importer/scraper/ 兼容层已删除，不得重新引入"
+
     violations = []
     forbidden_pattern = re.compile(
         r"^\s*(?:from\s+media_importer\.scraper|import\s+media_importer\.scraper)",
         re.MULTILINE,
     )
-    for py_file in media_importer_root.rglob("*.py"):
-        if scraper_root in py_file.parents:
+    for py_file in ROOT.rglob("*.py"):
+        if "__pycache__" in py_file.parts or ".venv" in py_file.parts:
             continue
-        if "__pycache__" in py_file.parts:
+        if "deploy" in py_file.parts:
+            continue  # deploy/ 是生成的 package workspace（ADR-0003：build_fpk.sh 从根源码重建）
+        if "docs" in py_file.parts and "_archive" in py_file.parts:
             continue
         source = py_file.read_text(encoding="utf-8")
         for match in forbidden_pattern.finditer(source):
-            line_no = source[:match.start()].count("\n") + 1
+            line_no = source[: match.start()].count("\n") + 1
             violations.append(f"{py_file.relative_to(ROOT)}:{line_no}: {match.group().strip()}")
     assert not violations, (
-        "生产代码不得 import media_importer.scraper.*。以下违规需改为 features.* 新路径:\n"
-        + "\n".join(violations)
+        "不得 import media_importer.scraper.*（兼容层已删除）。违规需改为 features.* 新路径:\n" + "\n".join(violations)
     )

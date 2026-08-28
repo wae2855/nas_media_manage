@@ -2,48 +2,80 @@
 import os
 import shutil
 import threading
-from datetime import datetime
+from typing import Optional
 
-from .task_lifecycle import mark_cancelled, reset_for_retry
+from media_importer.features.tasks.task_lifecycle_compat import mark_cancelled, reset_for_retry
+
 from .db import (
-    init_db, create_task as db_create_task,
-    get_task as db_get_task,
-    update_task as db_update_task,
-    delete_task as db_delete_task,
-    clear_tasks as db_clear_tasks,
-    list_tasks as db_list_tasks,
-    list_all_tasks as db_list_all_tasks,
-    count_by_status as db_count_by_status,
-    count_by_status_and_stage as db_count_by_status_and_stage,
-    has_running_tasks as db_has_running_tasks,
-    get_next_pending as db_get_next_pending,
-    count_all_tasks as db_count_all_tasks,
-    find_by_source_path as db_find_by_source_path,
-    find_by_fingerprint as db_find_by_fingerprint,
-    find_failed_too_many as db_find_failed,
-    create_subtitles as db_create_subtitles,
-    get_subtitles_by_task as db_get_subtitles,
-    update_subtitles_by_task as db_update_subs,
-    update_subtitle as db_update_subtitle,
-    count_subtitles_by_task as db_count_subs,
     VALID_STATUSES,
+    init_db,
 )
-
+from .db import (
+    claim_next_pending as db_claim_next_pending,
+)
+from .db import (
+    clear_tasks as db_clear_tasks,
+)
+from .db import (
+    count_by_status as db_count_by_status,
+)
+from .db import (
+    count_by_status_and_stage as db_count_by_status_and_stage,
+)
+from .db import (
+    create_subtitles as db_create_subtitles,
+)
+from .db import (
+    create_task as db_create_task,
+)
+from .db import (
+    find_by_fingerprint as db_find_by_fingerprint,
+)
+from .db import (
+    find_by_source_path as db_find_by_source_path,
+)
+from .db import (
+    get_next_pending as db_get_next_pending,
+)
+from .db import (
+    get_subtitles_by_task as db_get_subtitles,
+)
+from .db import (
+    get_task as db_get_task,
+)
+from .db import (
+    has_running_tasks as db_has_running_tasks,
+)
+from .db import (
+    list_all_tasks as db_list_all_tasks,
+)
+from .db import (
+    list_tasks as db_list_tasks,
+)
+from .db import (
+    update_subtitle as db_update_subtitle,
+)
+from .db import (
+    update_subtitles_by_task as db_update_subs,
+)
+from .db import (
+    update_task as db_update_task,
+)
 
 VALID_STATUSES = list(VALID_STATUSES)
 
 
 class TaskManager:
-    def __init__(self, data_dir: str, config: dict = None):
+    def __init__(self, data_dir: str, config: Optional[dict] = None):
         self.config = config or {}
         db_path = os.path.join(data_dir, "tasks.db")
         self.conn = init_db(db_path)
         self._lock = threading.RLock()
 
     def create_task(self, video_path: str, video_file: str,
-                    subtitle_files: list = None,
+                    subtitle_files: Optional[list] = None,
                     file_size_mb: float = 0,
-                    initial_status: str = None) -> dict:
+                    initial_status: Optional[str] = None) -> dict:
         task = db_create_task(
             self.conn,
             source_path=video_path,
@@ -62,11 +94,14 @@ class TaskManager:
         task["subtitle_success"] = 0
         return task
 
-    def get_task(self, task_id: str) -> dict:
+    def get_task(self, task_id: str) -> Optional[dict]:
         return db_get_task(self.conn, task_id)
 
-    def get_next_pending(self) -> dict:
+    def get_next_pending(self) -> Optional[dict]:
         return db_get_next_pending(self.conn)
+
+    def claim_next_pending(self) -> Optional[dict]:
+        return db_claim_next_pending(self.conn)
 
     def update_task(self, task: dict):
         if task is None:
@@ -99,9 +134,9 @@ class TaskManager:
                 **kwargs
             )
 
-    def list_tasks(self, status: str = None, limit: int = 20,
-                   offset: int = 0, exclude_completed: bool = None,
-                   stage: str = None) -> list:
+    def list_tasks(self, status: Optional[str] = None, limit: int = 20,
+                   offset: int = 0, exclude_completed: Optional[bool] = None,
+                   stage: Optional[str] = None) -> list:
         page = (offset // limit) + 1 if limit > 0 else 1
         page_size = limit
         if exclude_completed is True and not status:
@@ -122,42 +157,66 @@ class TaskManager:
         rows = db_list_all_tasks(self.conn, limit=limit + offset)
         return rows[offset:offset + limit]
 
-    def retry_task(self, task_id: str) -> dict:
+    def retry_task(self, task_id: str, *, resume: bool = True) -> Optional[dict]:
+        """重试复活（S3：CAS 原子化，并发双 retry 只成功一次）。
+
+        resume=True 时若 temp checkpoint 文件存在则保留（S2 断点续跑）。
+        """
         task = db_get_task(self.conn, task_id)
         if not task:
             return None
-        status = task.get("status", "")
-        stage = task.get("stage", "")
-        allowed = status in ("FAILED", "SKIPPED", "CANCELLED") or (
-            status == "PENDING" and stage == "AWAIT_REVIEW"
-        )
-        if not allowed:
+        from media_importer.features.tasks.transitions import can_apply
+        if not can_apply(task, "retry"):
             return None
-        db_update_task(self.conn, task_id, **reset_for_retry(task))
-        return db_get_task(self.conn, task_id)
+        # 先取期望态（reset_for_retry 会就地修改 task dict）
+        expect_status = task.get("status", "")
+        expect_stage = task.get("stage", "")
+        fields = reset_for_retry(task, resume=resume)
+        from media_importer.infrastructure.db import compare_and_update_task
+        return compare_and_update_task(
+            self.conn, task_id,
+            expect_status=expect_status,
+            expect_stage=expect_stage,
+            **fields,
+        )
 
-    def cancel_task(self, task_id: str, reason: str = "用户取消") -> dict:
+    def cancel_task(self, task_id: str, reason: str = "用户取消") -> Optional[dict]:
         with self._lock:
             task = db_get_task(self.conn, task_id)
             if not task:
                 return None
-            status = task.get("status", "")
-            stage = task.get("stage", "")
-            if status != "PENDING" or stage != "QUEUED":
-                return {"error": f"当前状态不可取消: {status}/{stage}"}
-            db_update_task(self.conn, task_id, **mark_cancelled(task, reason))
-            return db_get_task(self.conn, task_id)
+            from media_importer.features.tasks.transitions import can_apply
+            if not can_apply(task, "cancel"):
+                return {"error": f"当前状态不可取消: {task.get('status')}/{task.get('stage')}"}
+            fields = mark_cancelled(task, reason)
+            from media_importer.infrastructure.db import compare_and_update_task
+            return compare_and_update_task(
+                self.conn, task_id,
+                expect_status="PENDING", expect_stage="QUEUED",
+                **fields,
+            )
 
-    def retry_all_failed(self) -> list:
+    def retry_all_failed(self, *, include_skipped: bool = False,
+                         include_cancelled: bool = False) -> list:
+        """批量重试（S3 决策 D2）：默认仅 FAILED。
+
+        SKIPPED/CANCELLED 是用户终态决策，需显式参数才复活。
+        """
+        resurrectable = {"FAILED"}
+        if include_skipped:
+            resurrectable.add("SKIPPED")
+        if include_cancelled:
+            resurrectable.add("CANCELLED")
         rows = db_list_all_tasks(self.conn, limit=10000)
         retried = []
         for task in rows:
-            if task["status"] in ("FAILED", "SKIPPED", "CANCELLED"):
-                db_update_task(self.conn, task["task_id"], **reset_for_retry(task))
+            if task["status"] in resurrectable:
+                fields = reset_for_retry(task)
+                db_update_task(self.conn, task["task_id"], **fields)
                 retried.append(task)
         return retried
 
-    def clear_tasks(self, status: str = None, stage: str = None):
+    def clear_tasks(self, status: Optional[str] = None, stage: Optional[str] = None):
         db_clear_tasks(self.conn, status=status, stage=stage)
 
     def count_by_status(self) -> dict:
@@ -329,7 +388,7 @@ class TaskManager:
         ]
         self._cleanup_empty_dirs(source_path, protected_dirs=protected)
 
-    def _cleanup_empty_dirs(self, file_path: str, protected_dirs: list = None):
+    def _cleanup_empty_dirs(self, file_path: str, protected_dirs: Optional[list] = None):
         protected = set()
         if protected_dirs:
             for d in protected_dirs:

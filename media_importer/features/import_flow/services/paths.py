@@ -50,6 +50,10 @@ def allowed_dirs_from_config(config: dict) -> list:
         view.paths.source_dir,
         view.paths.temp_dir,
     ]
+    # fallback_dir 是合法入库目标（无规则命中时的兜底路径，Phase 2 矩阵测试发现的历史缺口）
+    fallback_dir = getattr(view.paths, "fallback_dir", "")
+    if fallback_dir:
+        allowed_dirs.append(fallback_dir)
     for rule in view.paths.path_rules:
         template = rule.get("template", "")
         if not template:

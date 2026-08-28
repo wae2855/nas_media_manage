@@ -1,11 +1,6 @@
 import time
-import logging
-import threading
-import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
 from media_importer.api import globals
-
 
 _SCRAPE_PREVIEW_JOBS = {}
 _PREVIEW_STEP_DELAY = 0.8
@@ -50,9 +45,9 @@ def _run_scrape_preview_job(job_id, filename, config):
 
     logger = globals._global_logger
     try:
+        from media_importer.features.providers import create_providers
         from media_importer.features.scraping import FilenameCleaner
         from media_importer.features.scraping.match_engine import MatchEngine
-        from media_importer.features.providers import create_providers
 
         _preview_add_step(job, "clean", "文件名清洗", "running", f"正在清洗：{filename}")
         _preview_step_delay()
@@ -139,40 +134,16 @@ def _run_scrape_preview_job(job_id, filename, config):
                                   {"match_level": "pending"})
                 _preview_step_delay()
 
-                # 第二级
-                _preview_add_step(job, "match_tier2", "第2级：🤖 AI纠正标题匹配", "running",
-                                  f"AI 根据原始文件名和目录上下文纠正标题...")
+                # 第二级：用户确认（ADR-0010：原 AI 纠正级已移除）
+                _preview_add_step(job, "match_tier2", "第2级：用户确认候选", "running",
+                                  "收集候选列表供用户选择...")
                 _preview_step_delay()
-                tier2_result = match_engine._tier2_context_match(
-                    clean_title, cjk_title, year, season, episode, providers, filename
+                match_result = match_engine._tier2_user_confirm(
+                    clean_title, cjk_title, year, season, episode, providers
                 )
-                if tier2_result:
-                    tier2_level = tier2_result.match_level
-                    if tier2_level == "CONTEXT_PASS":
-                        _preview_add_step(job, "match_tier2", "第2级：🤖 AI纠正标题匹配", "done",
-                                          f"AI高确定性纠正后匹配成功：{tier2_result.provider_title}",
-                                          {"match_level": "CONTEXT_PASS"})
-                    else:
-                        _preview_add_step(job, "match_tier2", "第2级：🤖 AI纠正标题匹配", "done",
-                                          f"AI中等确定性，提供候选列表供确认",
-                                          {"match_level": "NEEDS_CONFIRM"})
-                    match_result = tier2_result
-                else:
-                    _preview_add_step(job, "match_tier2", "第2级：🤖 AI纠正标题匹配", "done",
-                                      "AI低确定性无法纠正标题，进入第3级",
-                                      {"match_level": "pending"})
-                    _preview_step_delay()
-
-                    # 第三级
-                    _preview_add_step(job, "match_tier3", "第3级：用户确认候选", "running",
-                                      "收集候选列表供用户选择...")
-                    _preview_step_delay()
-                    match_result = match_engine._tier3_user_confirm(
-                        clean_title, cjk_title, year, season, episode, providers
-                    )
-                    _preview_add_step(job, "match_tier3", "第3级：用户确认候选", "done",
-                                      f"需人工确认，共 {len(match_result.candidates)} 个候选",
-                                      {"match_level": "NEEDS_CONFIRM"})
+                _preview_add_step(job, "match_tier2", "第2级：用户确认候选", "done",
+                                  f"需人工确认，共 {len(match_result.candidates)} 个候选",
+                                  {"match_level": "NEEDS_CONFIRM"})
 
         match_dict = match_result.to_dict()
 
@@ -198,7 +169,7 @@ def _run_scrape_preview_job(job_id, filename, config):
                 "dimensions": {},
             }
             _preview_add_step(job, "scrape", "生成刮削结果", "done",
-                              f"AI 判定非影视文件",
+                              "AI 判定非影视文件",
                               {"title": ""})
             scrape_elapsed = round(time.time() - job["started_at"], 2)
             job["status"] = "done"
@@ -380,8 +351,8 @@ def _run_scrape_preview_job(job_id, filename, config):
             _preview_add_step(job, "scrape", "维度推导", "running", "正在从 Provider 数据推导维度...")
             _preview_step_delay()
             try:
-                from media_importer.features.scraping import get_dimensions_for_provider
                 from media_importer.api import globals as _api_globals
+                from media_importer.features.scraping import get_dimensions_for_provider
                 conn = _api_globals._global_task_manager.conn if _api_globals._global_task_manager else None
                 if conn:
                     dim_configs = get_dimensions_for_provider(conn, cached_provider.provider_type)

@@ -1,12 +1,13 @@
-import os
-import re
 import json
 import logging
+import os
 from datetime import datetime
+from typing import Optional
+
 from media_importer.features.configuration import ConfigView
-from media_importer.features.prompts.defaults import PromptDefaults
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
-from media_importer.features.scraping.llm_match_assist import _assemble_prompt
+from media_importer.features.source_cleaning.prompts import SYSTEM_PROMPT, build_cleaner_prompt
+from media_importer.infrastructure.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 ai_logger = logging.getLogger("media_importer.ai")
@@ -14,15 +15,7 @@ ai_logger = logging.getLogger("media_importer.ai")
 __all__ = ["AI_SYSTEM_PROMPT", "SourceCleaner"]
 
 
-AI_SYSTEM_PROMPT = PromptDefaults.SOURCE_CLEAN
-
-
-def _build_source_clean_output_format() -> str:
-    return (
-        "## 输出要求\n"
-        '请严格按以下JSON格式返回，不要添加任何解释文字：\n'
-        '{"analysis": "...", "decisions": {"文件名": {"action": "keep或delete", "reason": "判断理由"}}}'
-    )
+AI_SYSTEM_PROMPT = SYSTEM_PROMPT
 
 
 class SourceCleaner:
@@ -42,16 +35,13 @@ class SourceCleaner:
         self.blacklist_patterns = cleaner.blacklist_patterns
         self.cleanup_empty_dirs = cleaner.cleanup_empty_dirs
 
-        from media_importer.features.scraping.llm_scraper import LLMScraper
-        from media_importer.features.scraping.prompt_resolver import PromptResolver
-        self.llm = LLMScraper(config)
-        self.prompt_resolver = PromptResolver.from_config(config)
+        self.llm = LLMClient(config)
 
         self.video_extensions = set(self.view.paths.video_extensions)
         self.subtitle_extensions = set(self.view.paths.subtitle_extensions)
         self.media_extensions = self.video_extensions | self.subtitle_extensions
 
-    def preview(self, task_paths: set = None) -> list:
+    def preview(self, task_paths: Optional[set] = None) -> list:
         if not self.source_dir or not os.path.isdir(self.source_dir):
             return []
         task_paths = task_paths or set()
@@ -69,8 +59,8 @@ class SourceCleaner:
 
         return merged
 
-    def execute(self, task_paths: set = None,
-                merge_strategy: str = None) -> dict:
+    def execute(self, task_paths: Optional[set] = None,
+                merge_strategy: Optional[str] = None) -> dict:
         if merge_strategy:
             self.merge_strategy = merge_strategy
 
@@ -133,7 +123,7 @@ class SourceCleaner:
         logger.info(f"源目录清理完成: 清理 {len(moved_items)} 个文件, {record['total_size_mb']}MB")
         return record
 
-    def ai_preview(self, task_paths: set = None) -> dict:
+    def ai_preview(self, task_paths: Optional[set] = None) -> dict:
         if not self.ai_enabled:
             return {"status": "disabled", "items": []}
         if not self.source_dir or not os.path.isdir(self.source_dir):
@@ -158,7 +148,7 @@ class SourceCleaner:
         results = {}
         video_stems_in_dirs = self._collect_video_stems()
 
-        for dirpath, dirnames, filenames in os.walk(self.source_dir):
+        for dirpath, _dirnames, filenames in os.walk(self.source_dir):
             for fname in filenames:
                 fpath = os.path.join(dirpath, fname)
                 if fpath in task_paths:
@@ -177,7 +167,7 @@ class SourceCleaner:
 
     def _collect_video_stems(self) -> dict:
         stems = {}
-        for dirpath, dirnames, filenames in os.walk(self.source_dir):
+        for dirpath, _dirnames, filenames in os.walk(self.source_dir):
             dir_stems = []
             for fname in filenames:
                 ext = os.path.splitext(fname)[1].lower()
@@ -273,7 +263,7 @@ class SourceCleaner:
         results = {}
         dirs_analyzed = 0
 
-        for dirpath, dirnames, filenames in os.walk(self.source_dir):
+        for dirpath, _dirnames, filenames in os.walk(self.source_dir):
             dir_files = []
             for fname in filenames:
                 fpath = os.path.join(dirpath, fname)
@@ -302,36 +292,20 @@ class SourceCleaner:
         return results
 
     def _ai_analyze_directory(self, dir_path: str, files: list) -> dict:
-        if not self.view.ai_assist.api_key and not self.view.ai_search.api_key:
+        if not self.llm.enabled:
             return {}
 
         ai_logger.info(
             f"ai.scene.business scene=source_clean trigger=manual "
             f"dir={dir_path!r} file_count={len(files)}"
         )
-        prompt = self._build_cleaner_prompt(dir_path, files)
+        system_prompt, user_prompt = build_cleaner_prompt(dir_path, files)
         try:
-            response_text = self._call_llm(prompt)
+            response_text = self.llm.call(system_prompt, user_prompt)
             return self._parse_ai_response(response_text)
         except Exception as e:
             logger.warning(f"AI 分析目录失败 {dir_path}: {e}")
             return {}
-
-    def _build_cleaner_prompt(self, dir_path: str, files: list) -> str:
-        instruction = self.prompt_resolver.get_source_clean_instruction()
-        is_legacy = (instruction == "")
-        files_desc = json.dumps(files, ensure_ascii=False, indent=2)
-        data_context = f"【待分析目录】\n目录: {dir_path}\n文件列表:\n{files_desc}"
-        output_format = "" if is_legacy else _build_source_clean_output_format()
-        return _assemble_prompt(instruction, data_context, output_format, is_legacy)
-
-    def _call_llm(self, prompt: str) -> str:
-        """调用 LLM 分析目录。统一通过 LLMScraper.call_with_prompt，按 source_clean 场景策略选模型。"""
-        return self.llm.call_with_prompt(
-            system_prompt=self.prompt_resolver.get_source_clean_prompt(),
-            user_prompt=prompt,
-            scene="source_clean",
-        )
 
     def _parse_ai_response(self, response_text: str) -> dict:
         try:
@@ -351,12 +325,12 @@ class SourceCleaner:
             logger.warning(f"AI 响应解析失败: {e}")
             return {}
 
-    def _scan_blacklist_dirs(self, task_paths: set, rule_items: dict = None) -> list:
+    def _scan_blacklist_dirs(self, task_paths: set, rule_items: Optional[dict] = None) -> list:
         items = []
         blacklist_dir_names = {"sample", "samples", "预告", "花絮", "trailer", "trailers", "extras"}
         already_marked = set(rule_items.keys()) if rule_items else set()
 
-        for dirpath, dirnames, filenames in os.walk(self.source_dir, topdown=True):
+        for dirpath, dirnames, _filenames in os.walk(self.source_dir, topdown=True):
             matched_dirs = []
             for dname in dirnames:
                 dname_lower = dname.lower()
@@ -374,7 +348,7 @@ class SourceCleaner:
                     full_dir = os.path.join(dirpath, dname)
                     if full_dir not in task_paths:
                         video_stems = self._collect_video_stems().get(full_dir, [])
-                        for dp, dn, fns in os.walk(full_dir):
+                        for dp, _dn, fns in os.walk(full_dir):
                             for fn in fns:
                                 fpath = os.path.join(dp, fn)
                                 if fpath in task_paths:
@@ -404,7 +378,7 @@ class SourceCleaner:
 
     def _find_empty_dirs(self) -> list:
         items = []
-        for dirpath, dirnames, filenames in os.walk(self.source_dir, topdown=False):
+        for dirpath, _dirnames, _filenames in os.walk(self.source_dir, topdown=False):
             if dirpath == self.source_dir:
                 continue
             if not os.listdir(dirpath):

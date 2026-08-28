@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-import os
-import sys
 import json
+import os
 import shutil
+import sys
 import tempfile
 import threading
 import time
 import unittest
-import urllib.request
 import urllib.error
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 
-from media_importer.api.handler import start_server, APIHandler
 from media_importer.api import globals as api_globals
-from media_importer.features.configuration import load_config
-from media_importer.core.db.connection import init_db
+from media_importer.api.handler import start_server
 from media_importer.core.db.task_repo import create_task, update_task
-from media_importer.features.tasks import TaskManager
+from media_importer.features.configuration import load_config
 
 
 def find_free_port():
@@ -176,7 +174,7 @@ class ConfigIntegrationTest(IntegrationRecycleTest):
         migrated = load_config(migrate_config_path)
         self.assertEqual(
             migrated["source_policy"]["recycle_dir"], new_recycle,
-            f"load_config should migrate quarantine_dir to recycle_dir"
+            "load_config should migrate quarantine_dir to recycle_dir"
         )
 
         api_globals._config["source_policy"]["recycle_dir"] = self.recycle_dir

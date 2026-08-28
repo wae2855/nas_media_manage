@@ -26,4 +26,14 @@ def detect_subtitle_lang(filename: str) -> str:
         return "ja"
     if ".ko." in name_lower or ".kor." in name_lower or "korean" in name_lower:
         return "ko"
+    # 纯语言码文件名（如 Subs/eng.srt、chs.srt，字幕单独放在子目录时常见）
+    stem = os.path.splitext(os.path.basename(name_lower))[0]
+    if stem in ("zh", "chs", "cht", "cn", "chinese", "sc", "tc"):
+        return "zh"
+    if stem in ("en", "eng", "english"):
+        return "en"
+    if stem in ("ja", "jpn", "japanese"):
+        return "ja"
+    if stem in ("ko", "kor", "korean"):
+        return "ko"
     return "unknown"

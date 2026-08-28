@@ -1,31 +1,60 @@
 import os
-from media_importer.infrastructure.db import (
-    update_task as db_update_task,
-    get_subtitles_by_task as db_get_subtitles,
-    update_subtitle as db_update_subtitle,
-)
+
 from media_importer.features.import_flow.services import (
     ClassificationService,
     DedupService,
     ImportService,
 )
+from media_importer.features.import_flow.services.naming import apply_filename_template
 from media_importer.features.import_flow.services.paths import (
     allowed_dirs_from_config,
     import_roots_from_config,
 )
-from media_importer.features.import_flow.services.naming import apply_filename_template
 from media_importer.features.import_flow.utils import PipelineError, PipelineSkipError
+from media_importer.infrastructure.db import (
+    get_subtitles_by_task as db_get_subtitles,
+)
+from media_importer.infrastructure.db import (
+    update_subtitle as db_update_subtitle,
+)
+from media_importer.infrastructure.db import (
+    update_task as db_update_task,
+)
 
 
 class FileStepsMixin:
     def _step_copy(self, task: dict):
         self._update_progress(task, 2, "copy", 20)
         file_location = task.get("file_location", "source")
+
+        # S2 断点续跑：retry 保留的 temp checkpoint 有效则跳过复制
+        if file_location == "temp":
+            checkpoint = task.get("video_path", "")
+            if checkpoint and os.path.exists(checkpoint):
+                self._log("info",
+                          f"断点续跑: temp 已存在，跳过复制 ({checkpoint})",
+                          task, "copy")
+                self._update_progress(task, 2, "copy", 30)
+                return
+            # checkpoint 失效（temp 被外部清理）→ 降级从头复制
+            self._log("warn",
+                      f"断点续跑失效: temp 不存在，重新复制 ({checkpoint})",
+                      task, "copy")
+            task["file_location"] = "source"
+
         if file_location in ("source", "recycle"):
             video_path = task.get("source_path", "")
+            # 从源复制时优先用原始字幕源路径：上次复制遗留的 temp 路径可能已被失败清理
+            subtitle_files = task.get("subtitle_source_files") or task.get("subtitle_files", [])
         else:
             video_path = task.get("video_path") or task.get("source_path", "")
-        subtitle_files = task.get("subtitle_files", [])
+            subtitle_files = task.get("subtitle_files", [])
+        # 防御：字幕文件不存在时跳过（缺失字幕不应阻断视频入库）
+        missing_subs = [sf for sf in subtitle_files if not os.path.exists(sf)]
+        if missing_subs:
+            for sf in missing_subs:
+                self._log("warn", f"字幕文件不存在，跳过: {sf}", task, "copy")
+            subtitle_files = [sf for sf in subtitle_files if os.path.exists(sf)]
         self._log("info", f"复制文件: {task.get('source_filename', '')} (从{file_location})", task, "copy")
 
         def progress_cb(copied, total):
@@ -52,7 +81,7 @@ class FileStepsMixin:
                         db_update_subtitle(self.task_manager.conn, sub["id"],
                                            target_path=sub_target_paths[i])
         except IOError as e:
-            raise PipelineError(f"复制失败: {e}")
+            raise PipelineError(f"复制失败: {e}") from e
 
         self._update_progress(task, 2, "copy", 30)
 
@@ -89,7 +118,7 @@ class FileStepsMixin:
             decision = DedupService(self.config).check_task(task)
         except OSError as e:
             self._log("warning", f"移入回收站失败: {e}", task, "dedup")
-            raise PipelineError(f"无法移入回收站: {e}")
+            raise PipelineError(f"无法移入回收站: {e}") from e
 
         if decision.message:
             self._log("info", decision.message, task, "dedup")

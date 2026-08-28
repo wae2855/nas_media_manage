@@ -1,35 +1,34 @@
+
 import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
-from media_importer.features.configuration import load_config, mask_sensitive
-from media_importer.features.tasks import TaskManager
-from media_importer.features.import_flow import PipelineRunner
-from media_importer.core.metrics import Metrics, get_metrics
 from media_importer.core.logger import get_logger
-from media_importer.notify.hermes_hook import HermesNotifier
-from media_importer.monitor.file_watcher import FileWatcher
+from media_importer.core.metrics import get_metrics
+from media_importer.core.task_lifecycle import FILE_LOCATION_SOURCE, mark_failed
+from media_importer.core.task_manager import TaskManager
+from media_importer.features.configuration import inspect_storage_readiness, load_config
+from media_importer.features.import_flow import PipelineRunner
 from media_importer.infrastructure.db import (
     update_task as db_update_task,
 )
-from media_importer.core.task_lifecycle import FILE_LOCATION_SOURCE, mark_failed
+from media_importer.monitor.file_watcher import FileWatcher
 
-from .utils import json_response, read_json_body, ThreadingHTTPServer, format_tasks_to_text
-from .static_server import StaticServerMixin
-from .task_handlers import TaskHandlersMixin
+from . import globals
 from .config_handlers import ConfigHandlersMixin
 from .connectivity_handlers import ConnectivityHandlersMixin
-from .tmdb_handlers import TMDbHandlersMixin
 from .dimension_handlers import DimensionHandlersMixin
-from .prompt_handlers import PromptHandlersMixin
 from .provider_handlers import ProviderHandlersMixin
-from .source_cleaner_handlers import SourceCleanerHandlers
 from .recycle_handlers import RecycleHandlers
-from .thumbnail_handlers import ThumbnailHandlersMixin
 from .routes import match_route
-from . import globals
+from .source_cleaner_handlers import SourceCleanerHandlers
+from .static_server import StaticServerMixin
+from .task_handlers import TaskHandlersMixin
+from .thumbnail_handlers import ThumbnailHandlersMixin
+from .tmdb_handlers import TMDbHandlersMixin
+from .utils import ThreadingHTTPServer, json_response, read_json_body
 
 
 class APIHandler(
@@ -39,7 +38,6 @@ class APIHandler(
     ConnectivityHandlersMixin,
     TMDbHandlersMixin,
     DimensionHandlersMixin,
-    PromptHandlersMixin,
     ProviderHandlersMixin,
     SourceCleanerHandlers,
     RecycleHandlers,
@@ -211,33 +209,25 @@ def start_server(host: str, port: int, config: dict):
     globals._global_metrics = get_metrics()
     globals._global_logger = get_logger(config)
 
-    hermes_cfg = config.get("hermes", {})
-    if hermes_cfg.get("enabled", False):
-        globals._global_notifier = HermesNotifier(config)
-
+    # Hermes 通知已移除（简洁化 Phase 1，2026-08-22）：notifier 恒为 None
     globals._global_pipeline = PipelineRunner(
         config=config,
         task_manager=globals._global_task_manager,
         metrics=globals._global_metrics,
         logger=globals._global_logger,
-        notifier=globals._global_notifier
+        notifier=None
     )
 
-    globals._global_logger.info("API 服务初始化完成")
+    globals._global_logger.info("API 服务初始化完成")  # type: ignore[union-attr]
 
     _cleanup_orphaned_state(config, globals._global_task_manager, globals._global_logger)
-
-    def notify_error(error_type: str, error_message: str, extra_data: dict = None):
-        if globals._global_notifier:
-            globals._global_notifier.notify_program_error(error_type, error_message, extra_data)
 
     def on_new_files(new_files):
         if globals._global_pipeline and not globals._global_pipeline.is_paused():
             try:
                 globals._global_pipeline.run_all()
             except Exception as e:
-                globals._global_logger.error(f"批量处理异常: {e}")
-                notify_error("batch_error", str(e), {"new_files": list(new_files)})
+                globals._global_logger.error(f"批量处理异常: {e}")  # type: ignore[union-attr]
 
         if globals._config_dirty and not globals._global_task_manager.has_running_tasks():
             globals._config_dirty = False
@@ -249,15 +239,16 @@ def start_server(host: str, port: int, config: dict):
                     globals._config.update(new_config)
                     if globals._global_pipeline:
                         globals._global_pipeline.config = globals._config
-                    globals._global_logger.info("任务完成后自动重载配置")
+                    globals._global_logger.info("任务完成后自动重载配置")  # type: ignore[union-attr]
             except Exception as e:
-                globals._global_logger.error(f"自动重载配置失败: {e}")
+                globals._global_logger.error(f"自动重载配置失败: {e}")  # type: ignore[union-attr]
 
     watcher_cfg = config.get("file_watcher", {})
-    if watcher_cfg.get("enabled", False):
+    watcher_readiness = inspect_storage_readiness(config)
+    if watcher_cfg.get("enabled", False) and watcher_readiness["automatic_allowed"]:
         globals._global_watcher = FileWatcher(config, on_new_files=on_new_files, logger=globals._global_logger)
         globals._global_watcher.start()
-        globals._global_logger.info(f"文件监控已启用 (轮询间隔 {watcher_cfg.get('poll_interval', 60)}s)")
+        globals._global_logger.info(f"文件监控已启用 (轮询间隔 {watcher_cfg.get('poll_interval', 60)}s)")  # type: ignore[union-attr]
 
         source_dir = config.get("source_dir", "")
         if source_dir and os.path.isdir(source_dir):
@@ -265,7 +256,7 @@ def start_server(host: str, port: int, config: dict):
             try:
                 groups = scan_source_dir(source_dir, config)
                 if groups:
-                    globals._global_logger.info(f"启动时发现 {len(groups)} 个待处理文件")
+                    globals._global_logger.info(f"启动时发现 {len(groups)} 个待处理文件")  # type: ignore[union-attr]
                     def run_initial_batch():
                         globals._global_pipeline.run_all()
                         if globals._config_dirty and not globals._global_task_manager.has_running_tasks():
@@ -278,15 +269,17 @@ def start_server(host: str, port: int, config: dict):
                                     globals._config.update(new_config)
                                     if globals._global_pipeline:
                                         globals._global_pipeline.config = globals._config
-                                    globals._global_logger.info("任务完成后自动重载配置")
+                                    globals._global_logger.info("任务完成后自动重载配置")  # type: ignore[union-attr]
                             except Exception as e:
-                                globals._global_logger.error(f"自动重载配置失败: {e}")
+                                globals._global_logger.error(f"自动重载配置失败: {e}")  # type: ignore[union-attr]
                     threading.Thread(target=run_initial_batch, daemon=True).start()
             except Exception as e:
-                globals._global_logger.error(f"启动扫描失败: {e}")
+                globals._global_logger.error(f"启动扫描失败: {e}")  # type: ignore[union-attr]
     else:
         globals._global_watcher = None
-        globals._global_logger.info("文件监控未启用，跳过启动扫描")
+        if watcher_cfg.get("enabled", False):
+            globals._global_logger.error("存储检查未达到自动运行条件，启动时保持文件监控停用")  # type: ignore[union-attr]
+        globals._global_logger.info("文件监控未启用，跳过启动扫描")  # type: ignore[union-attr]
 
     server_address = (host, port)
     server_cls = HTTPServer if os.environ.get("NAS_E2E_SINGLE_THREAD") == "1" else ThreadingHTTPServer
@@ -321,8 +314,6 @@ def start_server(host: str, port: int, config: dict):
     print("  GET  /api/logs             - 查询日志")
     print("  POST /api/run              - 触发批量处理")
     print("  POST /api/run/file         - 处理指定文件")
-    print("  GET  /api/skill            - 获取Hermes SKILL.md")
-    print("  GET  /api/skills           - 获取所有可用Skills列表")
     if globals._global_watcher and globals._global_watcher.enabled:
         print(f"  文件监控: 已启用 (轮询间隔 {globals._global_watcher.poll_interval}s)")
     print("")

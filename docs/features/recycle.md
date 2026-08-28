@@ -8,9 +8,8 @@
 |------|------|
 | `media_importer/features/recycle/manager.py` | Move files and companions into recycle with metadata. |
 | `media_importer/features/recycle/browser.py` | List, restore, delete, and cleanup recycle entries. |
+| `media_importer/features/recycle/ledger.py` | SQLite recycle-item ledger, stable opaque IDs, sidecar import, and root-boundary checks. |
 | `media_importer/features/recycle/__init__.py` | Public recycle feature API. |
-| `media_importer/core/recycle/` | Temporary wrapper for old imports. |
-| `media_importer/core/safety.py` | Compatibility facade used by older code paths. |
 | `media_importer/infrastructure/filesystem/safety.py` | Path validation and low-level safe filesystem primitives. |
 
 ## Related Areas
@@ -22,8 +21,10 @@
 
 ## Tests
 
-- `tests/test_feature_recycle.py`
 - `tests/test_recycle_safety.py`
+- `tests/test_recycle_list_payload.py`
+- `tests/test_recycle_api_boundary.py`
+- `tests/test_verified_transfer.py`
 - File operation regression tests that touch delete/overwrite behavior.
 
 ## Safety Rules
@@ -31,6 +32,10 @@
 - Do not use direct `os.remove()` for media/source/library files.
 - Temporary files are only directly deletable inside explicit temp or `.tmp` / `.copying` boundaries.
 - Metadata must preserve original path, reason, task id when available, and source zone.
+- HTTP list/restore/delete uses server-side recycle item IDs; clients cannot submit physical recycle paths.
+- Restore and cross-device recycle reuse verified `.copying` transfer. Source/recycle data is removed only after size and SHA-256 verification plus atomic publish.
+- `overwrite` restore fails closed until the existing destination has first been recorded and moved into recycle; it never falls back to permanent deletion.
+- `recycle_dir` must already exist on a local disk. Missing roots are treated as a mount/authorization failure and are not recreated.
 
 ## Migration Notes
 

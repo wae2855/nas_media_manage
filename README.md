@@ -1,583 +1,145 @@
-# 影音库AI智能整理
+# 影音库 AI 智能整理
 
-## 1. 项目简介
+个人 NAS 影视文件整理服务：扫描源目录，清洗文件名，通过 TMDB 获取元数据，按维度和路径规则分类入库。当前刮削不使用 AI；LLM 仅用于可选的源目录清理建议。
 
-影音库AI智能整理是一个轻量级的影视文件智能处理服务。它监控下载目录中的新文件，通过AI大模型自动刮削影视元数据（标题、年份、类型、季集等），按分类规则将影视文件重命名并移动到对应的入库目录，同时支持Hermes飞书通知和Skill交互。整个处理流程为10步流水线，从扫描到入库全自动完成，无需人工干预。
+## 当前能力
 
-## 2. 系统架构
+- 文件监控、手动批量/单文件处理
+- TMDB 主导的两级匹配：自动匹配或进入人工确认
+- 电影/电视剧、类型、地区、语言、限制级年龄段等维度映射
+- 源目录清理器，可选 LLM 辅助判断
+- 模拟刮削预览、维度管理、回收站恢复
+- 字幕关联、去重、路径规则、任务持久化
+- 安全删除、路径白名单、权限检查、hooks 高级扩展
+- fnOS `.fpk` 构建发布
 
-系统采用10步流水线处理每个影视文件：
+已移除：Hermes 通知/Skill、AI 刮削、AI 维度判断、旧 scraper/storage 兼容层。
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        10-Step Pipeline                             │
-│                                                                     │
-│  ①扫描 ──▶ ②复制 ──▶ ③刮削 ──▶ ④校验 ──▶ ⑤分类 ──▶              │
-│  source    copy     AI LLM    validate  classify                   │
-│                                                                     │
-│  ──▶ ⑥同名检测 ──▶ ⑦命名 ──▶ ⑧入库 ──▶ ⑨通知 ──▶ ⑩记录        │
-│      dedup        rename     import     notify     record          │
-└─────────────────────────────────────────────────────────────────────┘
+## 快速开始
 
-外部组件:
-  ┌──────────┐    ┌──────────┐    ┌──────────┐
-  │ FileWatcher │    │  LLM API  │    │  Hermes   │
-  │ (文件监控)   │    │ (AI刮削)   │    │ (飞书通知) │
-  └──────┬───┘    └─────┬────┘    └─────┬────┘
-         │              │               │
-         ▼              ▼               ▼
-  ┌──────────────────────────────────────────┐
-  │            HTTP API Server (:9855)        │
-  └──────────────────────────────────────────┘
-```
-
-## 3. 功能特性
-
-- **AI智能刮削** — 基于大模型API自动识别影视元数据，支持主模型+备选模型自动降级
-- **自动分类入库** — 按电影/电视剧/纪录片/限制级等维度匹配路径规则，自动归类
-- **文件名规范化** — 按模板重命名，统一命名风格（如 `绝命毒师.Breaking.Bad.2008.S01E02.720p.BluRay.mkv`）
-- **文件监控** — 轮询检测下载目录新文件，发现即处理
-- **字幕自动关联** — 自动识别并关联同名字幕文件一起入库
-- **同名文件检测** — 跳过/重命名策略，避免覆盖已有文件
-- **Hermes集成** — Webhook通知推送至飞书，支持Skill对话式管理
-- **安全防护** — API认证、路径穿越防护、文件类型白名单、hooks命令注入防护、密钥掩码、目录操作白名单、权限预检查
-- **任务持久化** — 任务状态落盘，服务重启不丢失
-- **轻量设计** — 运行时依赖保持精简，项目当前默认开发版本为 Python 3.12
-
-## 4. 部署指南
-
-### 4.1 环境要求
-
-| 项目 | 要求 |
-|------|------|
-| 操作系统 | FNOS / Linux（systemd） |
-| Python | 3.12.x（推荐 3.12.13） |
-| 依赖 | pyyaml >= 6.0 |
-| 网络 | 需访问LLM API（如 MiniMax / OpenAI） |
-
-### 4.2 快速部署
-
-#### FNOS 用户（推荐）
-
-下载 `.fpk` 安装包，在飞牛应用中心点击「手动安装」即可。
-
-> 如果应用中心没有上架，可使用下面的通用安装方式。
-
-#### 通用 Linux 安装（Root 用户）
+环境要求：Python 3.12.13、SQLite、YAML 配置。开发环境优先使用项目 `.venv/`。
 
 ```bash
-# 1. SSH 登录服务器，以 root 用户运行
-sudo -i
-cd /opt
-
-# 2. 克隆或上传代码
-git clone https://github.com/wae2855/nas_media_manage.git
-# 或: scp -r nas_media_manage/ root@nas:/opt/nas-media-importer
-
-# 3. 运行安装脚本
-cd nas-media-importer
-bash deploy/install.sh
-```
-
-#### 非 Root 用户 / 普通 Linux
-
-```bash
-# 以普通用户运行
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/wae2855/nas_media_manage/main/deploy/install-user.sh)"
-```
-
-安装脚本会自动：创建Python虚拟环境 → 安装依赖 → 注册服务 → 启动服务。
-
-#### 配置文件位置
-
-| 文件 | 路径 |
-|------|------|
-| 配置文件 | `/opt/nas-media-importer/config/config.yaml` |
-| 数据文件 | `/opt/nas-media-importer/data/tasks.json` |
-| 日志文件 | `/opt/nas-media-importer/logs/` |
-
-> **升级说明**：配置文件和数据目录独立于代码目录，升级时不会丢失。
-
-### 4.3 详细部署步骤
-
-#### 代码上传方式
-
-**方式一：scp上传（推荐）**
-```bash
-scp -r nas_media_manage/ root@nas:/opt/nas-media-importer
-```
-
-**方式二：git clone**
-```bash
-ssh root@nas 'git clone https://github.com/wae2855/nas_media_manage.git /opt/nas-media-importer'
-```
-
-**方式三：FNOS文件管理器**
-
-通过FNOS Web界面的文件管理器直接上传代码压缩包并解压到 `/opt/nas-media-importer`。
-
-#### 安装依赖
-
-推荐先在项目根目录使用 pyenv + 本地虚拟环境，避免影响全局 Python：
-
-```bash
-pyenv install 3.12.13 -s
-pyenv local 3.12.13
 ./scripts/bootstrap_python_env.sh
 source .venv/bin/activate
-```
 
-如需手动安装：
+# 启动开发服务，访问 http://127.0.0.1:9855
+PYTHONPATH="${PWD}" python -m media_importer.media_importer \
+  -c config/config.yaml serve -p 9855 --host 0.0.0.0
 
-```bash
-cd /opt/nas-media-importer
-python3.12 -m venv .venv
-.venv/bin/pip install --quiet --upgrade pip
-.venv/bin/pip install --quiet -r requirements-dev.txt
-```
-
-#### 配置说明
-
-首次启动时，如配置文件不存在会自动生成默认模板。编辑配置文件：
-
-**配置文件路径：** `/opt/nas-media-importer/config/config.yaml`
-
-**必须配置的项（标记 ⚠️）：**
-
-```yaml
-# ⚠️ 下载目录 — 影视文件来源
-source_dir: "/vol1/网盘下载"
-
-# ⚠️ 临时目录 — 处理过程中的中转目录
-temp_dir: "/vol1/tmp/media_import"
-
-# ⚠️ 日志目录
-log_dir: "/vol1/logs/media_import"
-
-# ⚠️ 入库目标路径 — path_rules 中的 template 必须改为实际路径
-path_rules:
-  - conditions:
-      media_type: "tv"
-      restricted: "no"
-    template: "/vol1/影视/电视剧/{title_cn} ({year})/Season {season}/"
-  - conditions:
-      media_type: "tv"
-      restricted: "yes"
-    template: "/vol1/影视/TV-R/{title_cn} ({year})/Season {season}/"
-  - conditions:
-      media_type: "movie"
-      documentary: "no"
-      restricted: "no"
-    template: "/vol1/影视/电影/{year}/"
-  # ... 更多规则见 config.yaml.example
-
-# ⚠️ AI刮削API密钥 — 必须填写有效的API Key
-llm:
-  api_key: "sk-your-actual-api-key"
-  base_url: "https://api.minimaxi.com/v1"
-  model: "MiniMax-M2.5"
-```
-
-**有合理默认值的项：**
-
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `server.host` | `0.0.0.0` | API监听地址 |
-| `server.port` | `9855` | API监听端口（修改后需重启服务，并同步调整Hermes路由配置） |
-| `server.api_key` | `""` | API认证密钥，为空则不启用认证 |
-| `file_watcher.enabled` | `true` | 文件监控开关 |
-| `file_watcher.poll_interval` | `60` | 监控轮询间隔（秒） |
-| `duplicate_handling.strategy` | `quality` | 同名文件策略 |
-| `source_file_handling.delete_after_process` | `true` | 处理后删除源文件 |
-| `llm.fallback_model` | 同 `llm.model` | 备选模型 |
-| `llm.confidence_threshold` | `0.8` | AI置信度阈值 |
-| `llm.verify_ssl` | `true` | SSL验证 |
-| `hermes.webhook.verify_ssl` | `true` | Hermes SSL验证 |
-| `task_queue.max_concurrent` | `1` | 最大并发任务数 |
-| `logging.level` | `INFO` | 日志级别 |
-| `hermes.enabled` | `false` | Hermes通知默认关闭 |
-| `hooks.allowed_dir` | `""` | 钩子脚本允许目录，为空则仅做基本路径校验 |
-
-#### 启动服务
-
-**方式一：systemd（生产环境推荐）**
-```bash
-bash deploy/install.sh
-```
-
-**方式二：启动脚本**
-```bash
+# 或
 ./start.sh
 ```
 
-**方式三：直接运行**
-```bash
-python -m media_importer.media_importer -c config/config.yaml serve -p 9855 --host 0.0.0.0
+首次使用：
+
+1. 复制或准备 `config/config.yaml`。
+2. 设置 `source_dir`、`temp_dir`、路径规则和 TMDB 配置。
+3. 启动服务，先使用模拟器或单文件处理验证路径规则。
+4. 生产发布前运行测试和 `deploy/build_fpk.sh`。
+
+## 配置要点
+
+配置模板：`config.yaml.example`。运行配置：`config/config.yaml`。
+
+| 配置块 | 用途 |
+|--------|------|
+| `source_dir` / `temp_dir` | 源目录与临时目录 |
+| `path_rules` | 根据维度生成入库路径 |
+| `metadata` | TMDB Provider 配置 |
+| `manual_review` | AUTO_PASS 任务是否强制人工确认 |
+| `file_watcher` | 是否启用源目录轮询监控 |
+| `source_cleaner` | 源目录清理策略 |
+| `llm` | 清理器 LLM 连接，可不配置 |
+| `hooks` | 高级用户脚本钩子，必须使用绝对路径和白名单目录 |
+
+LLM 只服务源目录清理器。API Key 返回前端时会脱敏；没有 LLM 配置时清理器仍可使用规则模式。
+
+## 处理流程
+
+```text
+扫描 → 复制到 temp → TMDB 搜索 → 匹配判定
+                         ├─ AUTO_PASS → 分类 → 去重 → 命名 → 入库
+                         └─ NEEDS_CONFIRM → 人工检索/编辑 → 入库
 ```
 
-#### 验证服务
+任务状态由 `status`、`stage`、`file_location` 共同表达。状态转换唯一事实源是 `media_importer/features/tasks/transitions.py`，支持 CAS 并发保护和 temp checkpoint 续跑。
 
-```bash
-# 健康检查
-curl -s http://127.0.0.1:9855/api/health | python -m json.tool
-
-# 预期返回:
-# {
-#   "code": 200,
-#   "data": {
-#     "status": "ok",
-#     "checks": {
-#       "source_dir": "ok",
-#       "temp_dir": "ok",
-#       "llm_api": "ok",
-#       "hermes": "disabled",
-#       "disk_space": "ok"
-#     }
-#   }
-# }
-```
-
-### 4.4 systemd服务管理
-
-```bash
-# 查看服务状态
-systemctl status nas-media-importer
-
-# 查看实时日志
-journalctl -u nas-media-importer -f
-
-# 停止服务
-systemctl stop nas-media-importer
-
-# 重启服务
-systemctl restart nas-media-importer
-
-# 重新加载配置（不重启服务）
-curl -X POST http://127.0.0.1:9855/api/config/reload
-```
-
-### 4.5 升级更新
+## 测试与质量检查
 
 ```bash
-# 进入安装目录
-cd /opt/nas-media-importer
+# 全量测试（UI 测试需要本地服务和浏览器）
+.venv/bin/python -m pytest tests/
 
-# 方式一：使用安装脚本（推荐，自动处理）
-sudo bash deploy/install.sh upgrade
+# 非 UI 测试
+.venv/bin/python -m pytest tests/ \
+  --ignore=tests/test_ai_config_ui.py \
+  --ignore=tests/test_cinema_ui_smoke.py \
+  --ignore=tests/test_scrape_ui.py \
+  --ignore=tests/test_frontend_recycle.py \
+  --ignore=tests/test_scrape_preview_ui.py \
+  --ignore=tests/test_e2e_cinema_workflow.py
 
-# 方式二：手动升级
-sudo systemctl stop nas-media-importer
-git pull
-sudo systemctl start nas-media-importer
+# 架构护栏
+.venv/bin/python -m pytest tests/test_architecture_guards.py
+
+# 文档检查
+python3 scripts/check_docs.py
+
+# Python lint（新改文件必须通过）
+.venv/bin/ruff check <改动文件>
 ```
 
-> **升级不会丢失配置和数据** — 配置文件和数据目录独立于代码目录。
-
-## 5. 配置说明
-
-详细配置项请参考 `config.yaml.example` 中的注释。以下为**必须配置**的项目：
-
-| 配置项 | 说明 | 示例 |
-|--------|------|------|
-| `source_dir` | 下载目录，影视文件来源 | `/vol1/网盘下载` |
-| `path_rules.*.template` | 入库目标路径模板 | `/vol1/影视/电视剧/{title_cn} ({year})/Season {season}/` |
-| `llm.api_key` | AI刮削API密钥 | `sk-xxxxx` |
-| `llm.base_url` | LLM API地址 | `https://api.minimaxi.com/v1` |
-| `llm.model` | 使用的模型名称 | `MiniMax-M2.5` |
-| `temp_dir` | 临时中转目录 | `/vol1/tmp/media_import` |
-| `log_dir` | 日志目录 | `/vol1/logs/media_import` |
-
-**可选但推荐配置：**
-
-| 配置项 | 说明 | 示例 |
-|--------|------|------|
-| `hermes.webhook.base_url` | Hermes服务地址 | `http://10.200.200.6:8644` |
-| `hermes.webhook.route_name` | Webhook路由名 | `media-normalize` |
-| `hermes.webhook.secret` | HMAC签名密钥 | `KsMEsyjo...` |
-| `hermes.webhook.events` | 启用通知的事件 | `batch_start, batch_complete, program_error` |
-
-路径模板支持的变量：`{title_cn}` `{title_en}` `{year}` `{season}` `{episode}` `{resolution}` `{quality}` `{ext}`
-
-## 6. 使用方式
-
-### 6.1 自动模式（文件监控）
-
-当 `file_watcher.enabled: true` 时，系统自动轮询 `source_dir`，发现新文件后自动触发处理流水线。无需任何操作，下载完成的影视文件会被自动刮削、分类、入库。
-
-```yaml
-file_watcher:
-  enabled: true
-  poll_interval: 10    # 每10秒扫描一次
-```
-
-### 6.2 手动触发
-
-**API方式：**
+## fnOS 发布
 
 ```bash
-# 触发批量处理（扫描source_dir中所有待处理文件）
-curl -X POST http://localhost:9855/api/run
-
-# 处理指定文件
-curl -X POST http://localhost:9855/api/run/file \
-  -H "Content-Type: application/json" \
-  -d '{"path": "/vol1/网盘下载/Inception.2010.1080p.mkv"}'
+./deploy/build_fpk.sh <version>
 ```
 
-**CLI方式：**
+构建脚本从根源码生成 package workspace，不直接把 `deploy/nas-media-importer/` 当作开发源。详细说明见 [`deploy/README.md`](deploy/README.md) 和 [`docs/architecture/deployment-fnos.md`](docs/architecture/deployment-fnos.md)。
 
-```bash
-# 执行一次批量处理
-python -m media_importer.media_importer -c config/config.yaml run
+## 文档与开发流程
 
-# 仅扫描不处理（dry-run）
-python -m media_importer.media_importer -c config/config.yaml run --dry-run
+AI 或开发者先读 [`AGENTS.md`](AGENTS.md)，再读 [`docs/ai-map.md`](docs/ai-map.md)。
 
-# 查看任务列表
-python -m media_importer.media_importer -c config/config.yaml list --status all
+中改及以上流程：
 
-# 查看任务详情
-python -m media_importer.media_importer -c config/config.yaml show <task_id>
-
-# 重试失败任务
-python -m media_importer.media_importer -c config/config.yaml retry <task_id>
-python -m media_importer.media_importer -c config/config.yaml retry  # 重试所有
-
-# 查看队列状态
-python -m media_importer.media_importer -c config/config.yaml queue
-
-# 查看日志
-python -m media_importer.media_importer -c config/config.yaml log -f --tail 50
-
-# 健康检查
-python -m media_importer.media_importer -c config/config.yaml health
-
-# 运行指标
-python -m media_importer.media_importer -c config/config.yaml metrics
+```text
+需求看板 → proposal → ADR（架构级）→ plan（含测试计划）
+→ 实施与测试 → 验收 → completed-items → 归档
 ```
 
-### 6.3 Hermes Skill（AI助手交互）
+文档入口：
 
-通过Hermes Skill可以在飞书对话中管理入库系统。配置方法详见 [Hermes集成指南](docs/07-hermes-integration-guide.md)。
+- [`docs/README.md`](docs/README.md)：文档目录
+- [`docs/ai-map.md`](docs/ai-map.md)：任务到代码、测试、文档映射
+- [`docs/features/`](docs/features/)：业务功能事实
+- [`docs/architecture/`](docs/architecture/)：当前架构事实
+- [`docs/standards/`](docs/standards/)：长期规范和行为契约
+- [`docs/testing/`](docs/testing/)：测试策略与矩阵
+- [`docs/tracking/requirements-board.md`](docs/tracking/requirements-board.md)：需求看板
 
-配置完成后，可在飞书中对话操作：
+## 安全边界
 
-- "查一下入库任务状态"
-- "重试失败的任务"
-- "跑一批新的"
-- "系统健康吗"
+- 影视文件不得直接 `os.remove()`，删除和覆盖必须走回收站。
+- 文件操作必须限制在允许目录，禁止路径穿越。
+- 临时文件只允许在明确的 temp 或 `.tmp`/`.copying` 边界直接清理。
+- 配置密钥不得明文返回 API 响应。
 
-## 7. API参考
+完整规则见 [`docs/standards/safety.md`](docs/standards/safety.md)。
 
-默认监听地址：`http://0.0.0.0:9855`
+## 项目结构
 
-### API认证
-
-当配置文件中设置了 `server.api_key` 时，所有 `/api/` 端点（健康检查除外）需要携带认证头：
-
-```bash
-# 带认证的请求示例
-curl -H "Authorization: Bearer your-api-key" http://localhost:9855/api/config
-
-# 健康检查端点无需认证
-curl http://localhost:9855/api/health
+```text
+media_importer/
+├── media_importer.py       # CLI 入口
+├── api/                    # HTTP API
+├── core/                   # 配置、DB、任务、日志兼容层
+├── features/               # 业务功能事实源
+├── infrastructure/         # DB、文件系统、LLM 基础能力
+├── monitor/                # 文件监控与权限检查
+├── notify/                 # hooks 高级扩展
+└── webui/                  # 原生 HTML/CSS/JS 前端
 ```
 
-未配置 `server.api_key` 时不启用认证，适合内网环境使用。
-
-### 系统管理
-
-| 方法 | 端点 | 说明 | 参数 |
-|------|------|------|------|
-| GET | `/api/health` | 健康检查（无需认证） | - |
-| GET | `/api/metrics` | 运行指标统计 | - |
-| GET | `/api/config` | 获取当前配置（敏感信息已脱敏） | - |
-| POST | `/api/config` | 保存配置（hooks字段不可通过API修改） | 配置JSON |
-| POST | `/api/config/reload` | 重新加载配置文件 | - |
-| GET | `/api/config/validate` | 基础配置验证 | - |
-| POST | `/api/config/test-llm` | 测试LLM连通性 | `base_url`, `api_key`, `model` |
-| POST | `/api/config/test-hermes` | 测试Hermes通知 | `base_url`, `route_name`, `secret` |
-
-### 任务管理
-
-| 方法 | 端点 | 说明 | 参数 |
-|------|------|------|------|
-| GET | `/api/tasks` | 任务列表 | `status`, `limit`, `offset`, `all`, `format` |
-| GET | `/api/tasks/{id}` | 任务详情 | - |
-| DELETE | `/api/tasks/{id}` | 删除任务 | - |
-| POST | `/api/tasks/{id}/retry` | 重试指定任务 | - |
-| POST | `/api/tasks/clear` | 清空任务 | `{"status": "failed\|all"}` |
-
-### 队列控制
-
-| 方法 | 端点 | 说明 | 参数 |
-|------|------|------|------|
-| GET | `/api/queue/status` | 队列状态 | - |
-| POST | `/api/queue/pause` | 暂停队列 | - |
-| POST | `/api/queue/resume` | 恢复队列 | - |
-| POST | `/api/queue/retry-all` | 重试所有失败任务 | - |
-
-### 处理触发
-
-| 方法 | 端点 | 说明 | 参数 |
-|------|------|------|------|
-| POST | `/api/run` | 触发批量处理 | - |
-| POST | `/api/run/file` | 处理指定文件 | `{"path": "/path/to/file.mkv"}` |
-
-### 文件监控
-
-| 方法 | 端点 | 说明 | 参数 |
-|------|------|------|------|
-| GET | `/api/watcher/status` | 监控状态 | - |
-| POST | `/api/watcher/control` | 监控控制 | `action=pause\|resume\|status` |
-
-### 日志查询
-
-| 方法 | 端点 | 说明 | 参数 |
-|------|------|------|------|
-| GET | `/api/logs` | 查询日志 | `limit`, `task_id` |
-
-### 响应格式
-
-所有API返回统一JSON格式：
-
-```json
-{
-  "code": 200,
-  "status": "success",
-  "message": "操作描述",
-  "data": { ... }
-}
-```
-
-### 任务状态流转
-
-```
-PENDING → PROCESSING → SUCCESS
-                     → FAILED → (retry) → PENDING
-                     → SKIPPED
-```
-
-## 8. 目录结构
-
-```
-nas_media_manage/
-├── start.sh                             # 前台启动脚本
-├── requirements.txt                     # Python依赖
-├── config.yaml.example                   # 配置模板（首次安装时复制）
-├── config/                              # 用户配置（升级时保留，.gitignore）
-│   └── config.yaml
-├── data/                                # 数据目录（升级时保留，.gitignore）
-│   └── tasks.json
-├── logs/                                # 日志目录（升级时保留，.gitignore）
-├── deploy/
-│   ├── install.sh                       # Root用户安装脚本
-│   ├── install-user.sh                  # 非Root用户安装脚本
-│   ├── nas-media-importer.service       # systemd服务文件
-│   └── fnpack/                          # FNOS fpk 打包配置
-├── docs/
-│   ├── 01-requirements.md               # 需求文档
-│   ├── 02-design.md                     # 设计文档
-│   ├── 03-development-plan.md           # 开发计划
-│   ├── 05-checklist.md                  # 检查清单
-│   ├── 06-test-guide.md                  # 测试指南
-│   ├── 07-hermes-integration-guide.md   # Hermes集成指南
-│   ├── fnos-deploy-guide.md             # FNOS部署指南
-│   ├── SECURITY_AUDIT_REPORT.md         # 安全审计报告
-│   └── README.md                        # 文档索引
-└── media_importer/                      # 程序代码
-    ├── api_server.py                    # HTTP API服务（ThreadingHTTPServer）
-    ├── classifier.py                    # 分类匹配引擎（维度+规则匹配）
-    ├── config_loader.py                 # 配置加载、校验、布尔值归一化、密钥掩码
-    ├── config_validator.py              # 配置验证（LLM/Hermes测试）
-    ├── dedup_checker.py                 # 同名文件检测（4种策略）
-    ├── file_copier.py                   # 文件复制（含进度回调）
-    ├── file_mover.py                    # 文件移动、重命名、附属文件清理
-    ├── file_scanner.py                  # 文件扫描（视频+字幕分组）
-    ├── file_watcher.py                  # 文件监控（轮询）
-    ├── hermes_hook.py                   # Hermes Webhook通知
-    ├── hooks.py                         # 钩子系统（路径白名单校验）
-    ├── llm_scraper.py                   # AI刮削引擎（含重试降级）
-    ├── logger.py                        # 日志管理（文件+控制台+内存缓冲）
-    ├── media_importer.py                # 主入口（CLI + serve）
-    ├── metrics.py                       # 运行指标统计
-    ├── pipeline.py                      # 10步流水线编排
-    ├── safety.py                        # 安全模块（路径验证、安全删除、API认证）
-    ├── task_manager.py                  # 任务管理（持久化、倒序）
-    └── webui/                           # Web界面（零依赖纯原生）
-        ├── index.html                   # 主页面
-        ├── app.js                       # 前端逻辑
-        └── styles.css                   # 样式
-```
-
-## 9. 常见问题
-
-### Q: 启动后健康检查返回 `source_dir: error`
-
-`source_dir` 配置的目录不存在或无读取权限。请确认目录路径正确且已创建：
-
-```bash
-mkdir -p /vol1/网盘下载
-```
-
-### Q: 刮削失败，任务状态为 FAILED
-
-常见原因：
-1. **API Key无效** — 检查 `llm.api_key` 是否正确
-2. **网络不通** — 确认NAS能访问LLM API地址（`llm.base_url`）
-3. **模型名称错误** — 确认 `llm.model` 在对应API中可用
-
-排查命令：
-```bash
-# 查看失败任务详情
-curl -s "http://localhost:9855/api/tasks?status=FAILED" | python -m json.tool
-
-# 查看日志
-curl -s "http://localhost:9855/api/logs?limit=50" | python -m json.tool
-```
-
-### Q: 同名文件被跳过
-
-这是正常行为。默认策略 `duplicate_handling.strategy: skip` 会跳过已存在的文件。如需覆盖或重命名，修改配置：
-
-```yaml
-duplicate_handling:
-  strategy: "rename"   # 或 "skip"
-```
-
-### Q: 如何配置Hermes飞书通知？
-
-详见 [Hermes集成指南](docs/07-hermes-integration-guide.md)，核心步骤：
-1. 在Hermes中创建 `media-normalize` Webhook路由
-2. 安装 `nas-media-importer` Skill
-3. 将Hermes返回的HMAC Secret填入 `config.yaml` 的 `hermes.webhook.secret`
-4. 设置 `hermes.enabled: true`
-
-### Q: 如何修改监听端口？
-
-修改 `config.yaml` 中的 `server.port`，或启动时指定：
-
-```bash
-python -m media_importer.media_importer serve -p 9090
-```
-
-> ⚠️ 修改端口影响面较大，需同步处理以下事项：
-> 1. 重启服务后生效，浏览器登录地址需同步修改
-> 2. Hermes 的 Skill 路由配置中 NAS API 地址需同步修改，否则 Hermes 无法回调
-> 3. 若通过 FNM OS 应用商店安装，需同步修改应用端口配置
-> 4. 防火墙规则需放行新端口
-
-### Q: 服务重启后任务会丢失吗？
-
-不会。任务状态持久化到 `task_queue.persistence_path`（默认 `data/tasks.json`），服务重启后会自动恢复未完成的任务。
-
-### Q: 支持哪些视频和字幕格式？
-
-视频：`.mkv` `.mp4` `.avi` `.ts` `.mov` `.wmv` `.m2ts` `.flv`
-字幕：`.srt` `.ass` `.ssa` `.vtt` `.sub`
-
-可在 `config.yaml` 的 `video_extensions` 和 `subtitle_extensions` 中扩展。
-
-## 10. 许可证
-
-MIT License
+当前路线图：[`docs/_archive/2026-08-27-simplification-complete/2026-08-22-simplification-roadmap.md（已归档）`（已归档）](docs/_archive/2026-08-27-simplification-complete/2026-08-22-simplification-roadmap.md)。

@@ -24,11 +24,7 @@ class APIRoute:
         object.__setattr__(
             self,
             "param_names",
-            tuple(
-                part[1:-1]
-                for part in parts
-                if part.startswith("{") and part.endswith("}")
-            ),
+            tuple(part[1:-1] for part in parts if part.startswith("{") and part.endswith("}")),
         )
 
 
@@ -47,7 +43,6 @@ API_ROUTES = [
     _route("GET", "/api/metrics", "_metrics"),
     _route("GET", "/api/config", "_config"),
     _route("GET", "/api/config/validate", "_config_validate"),
-    _route("GET", "/api/config/prompt-defaults", "_prompt_defaults"),
     _route("GET", "/api/watcher/status", "_watcher_status"),
     _route("GET", "/api/tasks", "_list_tasks"),
     _route("GET", "/api/tasks/stats", "_task_stats"),
@@ -55,8 +50,6 @@ API_ROUTES = [
     _route("GET", "/api/tasks/{task_id}", "_get_task"),
     _route("GET", "/api/queue/status", "_queue_status"),
     _route("GET", "/api/logs", "_logs"),
-    _route("GET", "/api/skill", "_skill"),
-    _route("GET", "/api/skills", "_skills_list"),
     _route("GET", "/api/dimensions", "_dimensions_list"),
     _route("GET", "/api/dimensions/enabled", "_dimensions_enabled"),
     _route("GET", "/api/dimensions/{dim_name}", "_dimension_get"),
@@ -69,7 +62,6 @@ API_ROUTES = [
     _route("GET", "/api/thumbnails", "_thumbnails_list"),
     _route("GET", "/api/thumbnails/{filename}", "_thumbnails_serve"),
     _route("GET", "/api/recycle/list", "recycle_list"),
-
     _route("POST", "/api/run", "_run_batch"),
     _route("POST", "/api/restart", "_restart_service"),
     _route("POST", "/api/watcher/control", "_watcher_control"),
@@ -91,8 +83,6 @@ API_ROUTES = [
     _route("POST", "/api/queue/retry-all", "_queue_retry_all"),
     _route("POST", "/api/config/reload", "_config_reload"),
     _route("POST", "/api/config/test-llm", "_config_test_llm"),
-    _route("POST", "/api/config/ai-demo", "_config_ai_demo"),
-    _route("POST", "/api/config/test-hermes", "_config_test_hermes"),
     _route("POST", "/api/scrape/preview/start", "_scrape_preview_start"),
     _route("GET", "/api/scrape/preview/status/{job_id}", "_scrape_preview_status"),
     _route("POST", "/api/providers/{provider_type}/test", "_provider_test"),
@@ -109,9 +99,7 @@ API_ROUTES = [
     _route("POST", "/api/source-cleaner/execute", "source_cleaner_execute"),
     _route("POST", "/api/recycle/restore", "recycle_restore"),
     _route("POST", "/api/recycle/delete", "recycle_delete"),
-
     _route("PUT", "/api/dimensions/{dim_name}", "_dimension_update"),
-
     _route("DELETE", "/api/tasks/{task_id}", "_delete_task"),
 ]
 
@@ -126,7 +114,7 @@ def match_route(method: str, path: str) -> Optional[RouteMatch]:
             continue
         params = {}
         matched = True
-        for pattern_part, path_part in zip(route.pattern_parts, path_parts):
+        for pattern_part, path_part in zip(route.pattern_parts, path_parts, strict=False):
             if pattern_part.startswith("{") and pattern_part.endswith("}"):
                 params[pattern_part[1:-1]] = path_part
             elif pattern_part != path_part:

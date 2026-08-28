@@ -61,8 +61,8 @@ async function performTaskAction(action, taskId) {
     const isAwaitReview =
       taskStatusOf(task) === "PENDING" && taskStageOf(task) === "AWAIT_REVIEW";
     const confirmMsg = isAwaitReview
-      ? `确定重试「${taskFileName(task)}」吗？将从刮削开始重新处理，维度会被重新刮削覆盖。`
-      : `确定重试「${taskFileName(task)}」吗？`;
+      ? `确定重新处理「${taskFileName(task)}」吗？任务会回到队列；中转文件仍存在时将从中转断点继续，否则从源文件重新复制。`
+      : `确定重试「${taskFileName(task)}」吗？中转文件仍存在时将从断点继续，否则从源文件重新复制。`;
     showConfirm("重试任务", confirmMsg, async () => {
       const result = await requestApi(
         "POST",
@@ -179,19 +179,17 @@ function updateBatchToolbar() {
   const confirmBtn = document.getElementById("task-batch-confirm");
   const ignoreBtn = document.getElementById("task-batch-ignore");
   const deleteBtn = document.getElementById("task-batch-delete");
-  const hasFailedOrSkipped = selectedRecords.some((t) =>
-    ["FAILED", "SKIPPED", "CANCELLED"].includes(taskStatusOf(t)),
-  );
+  const hasFailed = selectedRecords.some((t) => taskStatusOf(t) === "FAILED");
   const hasAwaitReview = selectedRecords.some(
     (t) => taskStatusOf(t) === "PENDING" && taskStageOf(t) === "AWAIT_REVIEW",
   );
   const hasProcessable = selectedRecords.some((t) =>
     isBatchableStatus(taskStatusOf(t)),
   );
-  if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailedOrSkipped);
+  if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailed);
   if (confirmBtn) confirmBtn.hidden = !(count > 0 && hasAwaitReview);
   if (ignoreBtn)
-    ignoreBtn.hidden = !(count > 0 && (hasAwaitReview || hasFailedOrSkipped));
+    ignoreBtn.hidden = !(count > 0 && (hasAwaitReview || hasFailed));
   if (deleteBtn) deleteBtn.hidden = !(count > 0 && hasProcessable);
   const actionButtons = [retryBtn, confirmBtn, ignoreBtn, deleteBtn].filter(
     Boolean,
@@ -275,16 +273,14 @@ async function performBatchTaskAction(action) {
     return;
   }
   if (action === "batch-retry") {
-    const eligible = records.filter((t) =>
-      ["FAILED", "SKIPPED", "CANCELLED"].includes(taskStatusOf(t)),
-    );
+    const eligible = records.filter((t) => taskStatusOf(t) === "FAILED");
     if (eligible.length === 0) {
       showToast("当前选中项中没有可重试的任务");
       return;
     }
     showConfirm(
       "批量重试",
-      `确定对「${eligible.length}」项失败/已跳过/已取消任务发起重试吗？`,
+      `确定对「${eligible.length}」项失败任务发起重试吗？中转文件仍存在时将从断点继续。`,
       async () => {
         const settled = await Promise.allSettled(
           eligible.map((t) =>
@@ -400,11 +396,6 @@ function showMatchTraceModal(trace, filename) {
         html +=
           '<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#CBD5E1">' +
           escapeHtml(step.reason) +
-          "</div>";
-      if (step.ai_reason)
-        html +=
-          '<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#06B6D4;border-left:2px solid #06B6D420;padding-left:12px">AI: ' +
-          escapeHtml(step.ai_reason) +
           "</div>";
       html += "</div>";
     }

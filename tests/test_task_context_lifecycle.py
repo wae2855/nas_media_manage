@@ -5,6 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from media_importer.features.import_flow import TaskContext
 from media_importer.features.tasks import (
     CONFIRM_CONFIRMED,
     CONFIRM_PENDING,
@@ -26,10 +27,6 @@ from media_importer.features.tasks import (
     reset_for_retry,
     start_processing,
 )
-from media_importer.core.task_lifecycle import (
-    STATUS_PENDING,
-)
-from media_importer.features.import_flow import TaskContext
 
 
 class TestTaskContext(unittest.TestCase):
@@ -93,14 +90,14 @@ class TestTaskLifecycle(unittest.TestCase):
         cases = [
             (
                 "start",
-                {},
+                {"status": "PENDING", "stage": "QUEUED"},
                 lambda task: start_processing(task, started_at="2026-06-02T10:00:00"),
                 {"status": STATUS_PENDING, "started_at": "2026-06-02T10:00:00"},
                 [],
             ),
             (
                 "processing_step",
-                {},
+                {"status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_processing_step(
                     task, current_step=3, step_name="scrape", percentage=35
                 ),
@@ -114,14 +111,14 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "temp_ready",
-                {"video_path": "/temp/movie.mkv"},
+                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 mark_temp_ready,
                 {"file_location": FILE_LOCATION_TEMP, "video_path": "/temp/movie.mkv"},
                 [],
             ),
             (
                 "confirming",
-                {"video_path": "/temp/movie.mkv"},
+                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_confirming(task, "needs confirm"),
                 {
                     "status": STATUS_PENDING,
@@ -134,7 +131,7 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "confirmed",
-                {},
+                {"status": "PENDING", "stage": "AWAIT_REVIEW"},
                 lambda task: mark_confirmed(task, confirmed_at="2026-06-02T10:01:00"),
                 {
                     "confirm_status": CONFIRM_CONFIRMED,
@@ -144,7 +141,7 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "needs_review",
-                {"video_path": "/temp/movie.mkv"},
+                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_needs_review(task, "manual review"),
                 {
                     "status": STATUS_PENDING,
@@ -156,8 +153,8 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "failed",
-                {"video_path": "/temp/movie.mkv"},
-                lambda task: mark_failed(task, "failed"),
+                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
+                lambda task: mark_failed(task, "failed", video_path=""),
                 {
                     "status": STATUS_FAILED,
                     "file_location": FILE_LOCATION_SOURCE,
@@ -168,7 +165,7 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "skipped",
-                {"video_path": "/temp/movie.mkv"},
+                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_skipped(task, "duplicate"),
                 {
                     "status": STATUS_SKIPPED,
@@ -180,7 +177,7 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "imported",
-                {"import_video_path": "/import/movie.mkv"},
+                {"import_video_path": "/import/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 mark_imported,
                 {
                     "status": STATUS_SUCCESS,
@@ -205,7 +202,7 @@ class TestTaskLifecycle(unittest.TestCase):
                     self.assertIn(key, task)
 
     def test_start_processing_sets_status_and_started_at(self):
-        task = {"task_id": "t1"}
+        task = {"task_id": "t1", "status": "PENDING", "stage": "QUEUED"}
 
         fields = start_processing(task, started_at="2026-05-31T10:00:00")
 
@@ -214,7 +211,7 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(task["status"], STATUS_PENDING)
 
     def test_mark_temp_ready_tracks_current_temp_video(self):
-        task = {"source_path": "/source/movie.mkv", "video_path": "/temp/movie.mkv"}
+        task = {"source_path": "/source/movie.mkv", "video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_temp_ready(task)
 
@@ -223,7 +220,7 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(task["file_location"], FILE_LOCATION_TEMP)
 
     def test_mark_confirming_can_preserve_error_message_when_no_reason(self):
-        task = {"video_path": "/temp/movie.mkv", "error_message": "old"}
+        task = {"video_path": "/temp/movie.mkv", "error_message": "old", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_confirming(task)
 
@@ -233,7 +230,7 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(task["error_message"], "old")
 
     def test_mark_confirming_records_reason_when_provided(self):
-        task = {"video_path": "/temp/movie.mkv"}
+        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_confirming(task, "需要人工确认")
 
@@ -241,7 +238,7 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(fields["error_message"], "需要人工确认")
 
     def test_mark_needs_review_records_temp_location(self):
-        task = {"video_path": "/temp/movie.mkv"}
+        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_needs_review(task, "来源不可信")
 
@@ -249,20 +246,21 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
         self.assertEqual(fields["video_path"], "/temp/movie.mkv")
 
-    def test_mark_failed_can_clear_or_preserve_video_path(self):
-        clear_task = {"video_path": "/temp/movie.mkv"}
-        preserve_task = {"video_path": "/temp/movie.mkv"}
+    def test_mark_failed_video_path_semantics(self):
+        """S1 语义：缺省=保留不动（供失败清理读取）；显式 ""=清空。"""
+        keep_task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        clear_task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
-        clear_fields = mark_failed(clear_task, "失败")
-        preserve_fields = mark_failed(preserve_task, "失败", video_path=None)
+        keep_fields = mark_failed(keep_task, "失败")
+        clear_fields = mark_failed(clear_task, "失败", video_path="")
 
-        self.assertEqual(clear_fields["status"], STATUS_FAILED)
-        self.assertEqual(clear_fields["video_path"], "")
-        self.assertNotIn("video_path", preserve_fields)
-        self.assertEqual(preserve_task["video_path"], "/temp/movie.mkv")
+        self.assertEqual(keep_fields["status"], STATUS_FAILED)
+        self.assertNotIn("video_path", keep_fields)          # 缺省保留：不写该字段
+        self.assertEqual(keep_task["video_path"], "/temp/movie.mkv")
+        self.assertEqual(clear_fields["video_path"], "")     # 显式清空
 
     def test_mark_skipped_records_completion_and_location(self):
-        task = {"video_path": "/temp/movie.mkv"}
+        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_skipped(task, "重复文件")
 
@@ -273,7 +271,7 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertIn("completed_at", fields)
 
     def test_mark_imported_records_success_fields(self):
-        task = {"import_video_path": "/import/movie.mkv"}
+        task = {"import_video_path": "/import/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_imported(task)
 
@@ -285,6 +283,7 @@ class TestTaskLifecycle(unittest.TestCase):
     def test_reset_for_retry_resets_runtime_fields(self):
         task = {
             "status": "FAILED",
+            "stage": "DONE",
             "retry_count": 2,
             "error_message": "失败",
             "video_path": "/temp/movie.mkv",

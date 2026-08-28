@@ -32,7 +32,7 @@ class FakePipeline:
         self.reclassified = []
         self.confirm_exceptions = {}
 
-    def confirm_task(self, task_id):
+    def confirm_task(self, task_id, confirmed_title=None, override_source=None):
         self.confirmed.append(task_id)
         if task_id in self.confirm_exceptions:
             raise RuntimeError(self.confirm_exceptions[task_id])

@@ -2,7 +2,7 @@
 
 Date: 2026-06-18
 Status: Accepted
-Plan: [2026-06-18-refactor-scraper-feature-first-migration-plan.md](../plans/2026-06-18-refactor-scraper-feature-first-migration-plan.md)
+Plan: [2026-06-18-refactor-scraper-feature-first-migration-plan.md](../_archive/2026-08-22-plans-cleanup/2026-06-18-refactor-scraper-feature-first-migration-plan.md)
 Related:
 - [0004-feature-first-architecture-restructure.md](0004-feature-first-architecture-restructure.md)
 - [0005-three-tier-matching.md](0005-three-tier-matching.md)
@@ -97,7 +97,7 @@ Related:
 - `MatchResult.to_dict()` 字段契约不变。
 - 正式任务与模拟器 `scrape_result` 结构一致。
 - Provider 测试、刮削搜索测试、任务详情重新刮削、模拟器、确认入库等前端入口可用。
-- 文档同步更新 `docs/architecture/scraping.md`、`docs/features/scraping.md`、`docs/INDEX.md`、`docs/ai-map.md`。
+- 文档同步更新 `docs/architecture/scraping.md`、`docs/features/scraping.md`、`docs/ai-map.md`、`docs/ai-map.md`。
 
 推荐前端 smoke 命令:
 

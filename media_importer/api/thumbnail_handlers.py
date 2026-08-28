@@ -1,8 +1,9 @@
-import os
 import mimetypes
+import os
 from urllib.parse import quote, unquote
-from .utils import json_response
+
 from . import globals
+from .utils import json_response
 
 # 允许的图片扩展名
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}

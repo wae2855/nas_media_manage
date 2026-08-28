@@ -1,8 +1,8 @@
-import os
-import time
 import copy
+import time
 
 from media_importer.api import globals
+
 from .utils import json_response
 
 
@@ -28,7 +28,7 @@ class ProviderHandlersMixin:
         if not config:
             return None
         try:
-            return cls(config)
+            return cls(config)  # type: ignore[call-arg]
         except Exception:
             return None
 
@@ -38,7 +38,7 @@ class ProviderHandlersMixin:
         all_providers = get_all_registered_providers()
         enabled_types = set()
         if globals._config:
-            for p in globals._config.get("metadata", {}).get("providers", []):
+            for p in globals._config.get("metadata", {}).get("providers", []):  # type: ignore[union-attr]
                 if p.get("enabled", False):
                     enabled_types.add(p.get("type", ""))
 
@@ -142,7 +142,7 @@ class ProviderHandlersMixin:
         provider_type = params.get("provider_type", "")
         query_str = (body or {}).get("query", "").strip()
         media_type = (body or {}).get("type", "movie")
-        language = (body or {}).get("language", "").strip() or None
+        _language = (body or {}).get("language", "").strip() or None
 
         if not query_str:
             json_response(self, 400, message="请输入影视名称")

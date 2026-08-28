@@ -49,7 +49,7 @@
 
 - `tests/test_task_context_lifecycle.py` — legacy lifecycle transition contract tests.
 - `tests/test_stage_lifecycle.py` — stage transition unit tests for status+stage dual model.
-- `tests/test_stage_db_migration.py` — DB migration tests for stage column.
+- `tests/test_migration_confirm_reason_drop.py` — DB migration tests.
 - `tests/test_classify_preview.py` — classify-preview API unit and integration tests.
 - Task manager and lifecycle tests.
 - `tests/test_feature_task_detail.py` covers detail, subtitles, and stats feature responses.

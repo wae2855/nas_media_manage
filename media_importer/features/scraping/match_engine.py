@@ -1,21 +1,19 @@
 """三级匹配引擎：Provider精确匹配 → 上下文辅助匹配 → 用户确认。"""
 import logging
-from typing import List, Optional
+from typing import Optional
 
+from media_importer.features.scraping._match_tiers_impl import (
+    _tier1_exact_match_impl,
+    _tier2_user_confirm_impl,
+)
 from media_importer.features.scraping.match_models import (
     MatchConcern,
     MatchResult,
     MatchTraceStep,
 )
-from media_importer.features.scraping.confidence_models import CleanResult
-from .title_matcher import TitleMatcher
-from .filename_cleaner import FilenameCleaner
 
-from media_importer.features.scraping._match_tiers_impl import (
-    _tier1_exact_match_impl,
-    _tier2_context_match_impl,
-    _tier3_user_confirm_impl,
-)
+from .filename_cleaner import FilenameCleaner
+from .title_matcher import TitleMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +71,8 @@ class MatchEngine:
         )
         if result:
             return result
-        result = self._tier2_context_match(
-            clean_title, cjk_title, year, season, episode, providers, video_path
-        )
-        if result:
-            return result
-
-        return self._tier3_user_confirm(
+        # ADR-0010：原 Tier2 AI 上下文匹配已移除；不确定直接进人工确认
+        return self._tier2_user_confirm(
             clean_title, cjk_title, year, season, episode, providers
         )
 
@@ -98,22 +91,7 @@ class MatchEngine:
             self, clean_title, cjk_title, year, season, episode, providers, path_context=path_context
         )
 
-    def _tier2_context_match(
-        self,
-        clean_title: str,
-        cjk_title: str,
-        year: Optional[int],
-        season: Optional[int],
-        episode: Optional[int],
-        providers: list,
-        video_path: str = "",
-    ) -> Optional[MatchResult]:
-        """第二级：上下文辅助匹配（thin wrapper，测试可 patch）。"""
-        return _tier2_context_match_impl(
-            self, clean_title, cjk_title, year, season, episode, providers, video_path
-        )
-
-    def _tier3_user_confirm(
+    def _tier2_user_confirm(
         self,
         clean_title: str,
         cjk_title: str,
@@ -122,8 +100,8 @@ class MatchEngine:
         episode: Optional[int],
         providers: list,
     ) -> MatchResult:
-        """第三级：用户确认（thin wrapper，测试可 patch）。"""
-        return _tier3_user_confirm_impl(
+        """第二级：用户确认（原 Tier3，thin wrapper，测试可 patch）。"""
+        return _tier2_user_confirm_impl(
             self, clean_title, cjk_title, year, season, episode, providers
         )
 

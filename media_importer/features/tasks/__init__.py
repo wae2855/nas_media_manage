@@ -1,43 +1,11 @@
-from media_importer.core.task_lifecycle import (
-    CONFIRM_CONFIRMED,
-    CONFIRM_NONE,
-    CONFIRM_PENDING,
-    FILE_LOCATION_IMPORT,
-    FILE_LOCATION_RECYCLE,
-    FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
-    STAGE_AWAIT_REVIEW,
-    STAGE_DONE,
-    STAGE_QUEUED,
-    STAGE_RUNNING,
-    STATUS_CANCELLED,
-    STATUS_FAILED,
-    STATUS_PENDING,
-    STATUS_SKIPPED,
-    STATUS_SUCCESS,
-    VALID_STAGES,
-    current_video_path,
-    mark_cancelled,
-    mark_confirmed,
-    mark_confirming,
-    mark_failed,
-    mark_imported,
-    mark_needs_review,
-    mark_processing_step,
-    mark_skipped,
-    mark_temp_ready,
-    reset_for_retry,
-    start_processing,
-)
-from media_importer.core.task_manager import TaskManager
 from .cancel_service import TaskCancelResult, cancel_task_for_api
+from .delete_service import DeleteTaskResult, delete_task
 from .detail_service import (
     TaskDetailResult,
     get_task_for_api,
     get_task_stats_for_api,
     get_task_subtitles_for_api,
 )
-from .delete_service import DeleteTaskResult, delete_task
 from .file_lifecycle_service import (
     TaskFileLifecycleResult,
     ignore_task_for_api,
@@ -61,9 +29,44 @@ from .review_service import (
     reclassify_task_for_api,
 )
 from .search_service import search_provider_candidates
+from .task_lifecycle_compat import (
+    current_video_path,
+    mark_cancelled,
+    mark_confirmed,
+    mark_confirming,
+    mark_failed,
+    mark_imported,
+    mark_needs_review,
+    mark_processing_step,
+    mark_skipped,
+    mark_temp_ready,
+    reset_for_retry,
+    start_processing,
+)
+from .transitions import (
+    CONFIRM_CONFIRMED,
+    CONFIRM_NONE,
+    CONFIRM_PENDING,
+    FILE_LOCATION_IMPORT,
+    FILE_LOCATION_RECYCLE,
+    FILE_LOCATION_SOURCE,
+    FILE_LOCATION_TEMP,
+    STAGE_AWAIT_REVIEW,
+    STAGE_DONE,
+    STAGE_QUEUED,
+    STAGE_RUNNING,
+    STATUS_CANCELLED,
+    STATUS_FAILED,
+    STATUS_PENDING,
+    STATUS_SKIPPED,
+    STATUS_SUCCESS,
+    VALID_STAGES,
+    VALID_STATUS,
+    TransitionError,
+    can_apply,
+)
 
 __all__ = [
-    "TaskManager",
     "DeleteTaskResult",
     "TaskCancelResult",
     "TaskDetailResult",
@@ -74,6 +77,9 @@ __all__ = [
     "CONFIRM_CONFIRMED",
     "CONFIRM_NONE",
     "CONFIRM_PENDING",
+    "VALID_STATUS",
+    "TransitionError",
+    "can_apply",
     "FILE_LOCATION_IMPORT",
     "FILE_LOCATION_RECYCLE",
     "FILE_LOCATION_SOURCE",

@@ -1,7 +1,10 @@
+import json
 import os
 import shutil
-import json
 from datetime import datetime
+from typing import Optional
+
+from media_importer.infrastructure.filesystem.safety import verified_copy
 
 
 def _validate_no_path_traversal(path: str) -> tuple:
@@ -46,13 +49,15 @@ def _determine_source_zone(original_path: str, source_dir: str, import_roots: li
 
 def move_dir_to_recycle(dir_path: str, recycle_dir: str,
                         reason: str = "", task_id: str = "",
-                        source_dir: str = "", import_roots: list = None,
-                        extra_meta: dict = None) -> tuple:
+                        source_dir: str = "", import_roots: Optional[list] = None,
+                        extra_meta: Optional[dict] = None) -> tuple:
     if not os.path.exists(dir_path):
         return True, "", ""
 
     if not recycle_dir:
         return False, "", "回收站目录未配置"
+    if not os.path.isdir(recycle_dir):
+        return False, "", "回收站目录不存在，可能挂载已失效；已保留原目录"
 
     ok, msg = _validate_no_path_traversal(dir_path)
     if not ok:
@@ -78,13 +83,29 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
         try:
             os.rename(real, dest_path)
         except OSError:
-            shutil.copytree(real, dest_path)
+            staging_path = dest_path + ".copying"
+            os.makedirs(staging_path, exist_ok=True)
+            for current_dir, dir_names, file_names in os.walk(real):
+                relative = os.path.relpath(current_dir, real)
+                target_dir = staging_path if relative == "." else os.path.join(staging_path, relative)
+                os.makedirs(target_dir, exist_ok=True)
+                for dir_name in dir_names:
+                    os.makedirs(os.path.join(target_dir, dir_name), exist_ok=True)
+                for file_name in file_names:
+                    source_file = os.path.join(current_dir, file_name)
+                    target_file = os.path.join(target_dir, file_name)
+                    if os.path.exists(target_file):
+                        continue
+                    copied, copy_message = verified_copy(source_file, target_file)
+                    if not copied:
+                        return False, "", f"跨盘回收校验失败，原目录已保留: {copy_message}"
+            os.replace(staging_path, dest_path)
             shutil.rmtree(real)
 
         source_zone = _determine_source_zone(dir_path, source_dir, import_roots or [])
         total_size = 0
         file_count = 0
-        for dp, dn, fns in os.walk(dest_path):
+        for dp, _dn, fns in os.walk(dest_path):
             for fn in fns:
                 try:
                     total_size += os.path.getsize(os.path.join(dp, fn))
@@ -122,13 +143,15 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
 
 def move_to_recycle(src_path: str, recycle_dir: str,
                     reason: str = "", task_id: str = "",
-                    source_dir: str = "", import_roots: list = None,
-                    extra_meta: dict = None) -> tuple:
+                        source_dir: str = "", import_roots: Optional[list] = None,
+                        extra_meta: Optional[dict] = None) -> tuple:
     if not os.path.exists(src_path):
         return True, "", ""
 
     if not recycle_dir:
         return False, "", "回收站目录未配置"
+    if not os.path.isdir(recycle_dir):
+        return False, "", "回收站目录不存在，可能挂载已失效；已保留源文件"
 
     ok, msg = _validate_no_path_traversal(src_path)
     if not ok:
@@ -158,8 +181,9 @@ def move_to_recycle(src_path: str, recycle_dir: str,
         try:
             os.rename(real, dest_path)
         except OSError:
-            shutil.copy2(real, dest_path)
-            os.remove(real)
+            copied, copy_message = verified_copy(real, dest_path, remove_source=True)
+            if not copied:
+                return False, "", f"跨盘回收校验失败，源文件已保留: {copy_message}"
 
         source_zone = _determine_source_zone(src_path, source_dir, import_roots or [])
         meta = {
@@ -194,8 +218,8 @@ def move_to_recycle_with_companions(video_path: str, subtitle_paths: list,
                                      reason: str = "source_cleanup",
                                      task_id: str = "",
                                      source_dir: str = "",
-                                     import_roots: list = None,
-                                     allowed_base_dirs: list = None) -> int:
+                                      import_roots: Optional[list] = None,
+                                      allowed_base_dirs: Optional[list] = None) -> int:
     if not os.path.exists(video_path):
         return 0
 

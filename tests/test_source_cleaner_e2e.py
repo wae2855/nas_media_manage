@@ -2,7 +2,6 @@
 import json
 import os
 import subprocess
-import sys
 import time
 import urllib.request
 
@@ -589,11 +588,11 @@ with sync_playwright() as p:
         items = resp.get("data", {}).get("items", [])
         delete_paths = set(it.get("path", "") for it in items)
 
-        def is_del(rel):
-            return f"{source}/{rel}" in delete_paths
+        def is_del(rel, paths=delete_paths):
+            return f"{source}/{rel}" in paths
 
-        def is_keep(rel):
-            return f"{source}/{rel}" not in delete_paths
+        def is_keep(rel, paths=delete_paths):
+            return f"{source}/{rel}" not in paths
 
         # 关键验证点
         if combo["mode"] == "media_only":

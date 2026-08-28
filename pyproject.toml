@@ -1,0 +1,29 @@
+[project]
+name = "nas-media-importer"
+version = "1.0.0"
+description = "NAS 影视库 AI 智能整理服务"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["deploy", "docs/_archive", "build", "hermes", ".trae"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear（常见 bug 模式）
+]
+ignore = [
+    "E501", # 行宽由 format 控制
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["media_importer"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

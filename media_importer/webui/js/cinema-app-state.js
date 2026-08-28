@@ -45,6 +45,7 @@ const TASK_FILTER_PARAMS = {
 let currentTaskFilter = "all";
 let currentConfigStage = "source";
 let currentConfigSnapshot = null;
+let currentConfigRevision = "";
 let currentCleanerTab = "delete";
 let dashboardRefreshTimer = null;
 let currentTaskRecords = [];
@@ -64,7 +65,6 @@ const STICKY_HERO_VIEWS = new Set([
   "naming-config",
   "dimensions-config",
   "security-config",
-  "hermes-config",
   "system-settings",
 ]);
 
@@ -380,13 +380,6 @@ function toggleAdvancedDisclosure(name) {
   panel.classList.toggle("active", next);
 }
 
-function toggleHermesInlineFields() {
-  const toggle = document.getElementById("cfg-hermes_enabled-inline");
-  const fields = document.getElementById("hermes-inline-fields");
-  if (!toggle || !fields) return;
-  fields.style.display = toggle.checked ? "grid" : "none";
-}
-
 function toggleSourceCleanerUi() {
   const enabledToggle = document.getElementById(
     "cfg-source-cleaner-enabled-inline",
@@ -438,4 +431,3 @@ function setFieldValue(id, value) {
   if (!field) return;
   field.value = value;
 }
-

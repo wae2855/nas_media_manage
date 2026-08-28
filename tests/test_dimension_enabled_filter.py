@@ -7,18 +7,14 @@ Covers:
   T3: reclassify_task_for_api rejects disabled dimension names
   T4: reclassify_task cleans disabled dimension values from scrape_dimensions
 """
-import pytest
-from unittest.mock import MagicMock
 
 from media_importer.features.import_flow.services.classification_rules import (
-    match_conditions,
     classify,
+    match_conditions,
 )
 from media_importer.features.tasks.review_service import (
     reclassify_task_for_api,
-    TaskReviewActionResult,
 )
-
 
 # ── T1: match_conditions with enabled_dims ──────────────────────────
 
@@ -326,7 +322,6 @@ class FakePipelineWithCleanTask:
         self.logged = []
 
     def reclassify_task(self, task_id, new_dimensions):
-        from media_importer.features.import_flow.confirm import ConfirmMixin
 
         # Minimal mixin test: manually test the cleaning logic
         task = self.task_manager.get_task(task_id)
@@ -355,7 +350,7 @@ class TestReclassifyCleansDisabledDims:
             "task_id": "task-1",
             "scrape_dimensions": {"media_type": "movie", "genre": "action"},
         }
-        pipe = FakePipelineWithCleanTask(tm)
+        _pipe = FakePipelineWithCleanTask(tm)
 
         from media_importer.core.db.dimension_repo import get_enabled_dimensions
         enabled_dim_names = {d["name"] for d in get_enabled_dimensions(tm.conn)}
@@ -378,7 +373,7 @@ class TestReclassifyCleansDisabledDims:
             "task_id": "task-1",
             "scrape_dimensions": {"media_type": "movie"},
         }
-        pipe = FakePipelineWithCleanTask(tm)
+        _pipe = FakePipelineWithCleanTask(tm)
 
         from media_importer.core.db.dimension_repo import get_enabled_dimensions
         enabled_dim_names = {d["name"] for d in get_enabled_dimensions(tm.conn)}

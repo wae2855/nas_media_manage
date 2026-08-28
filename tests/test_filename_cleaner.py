@@ -1,7 +1,8 @@
 """FilenameCleaner 单元测试（从 test_confidence_engine.py 迁移）。"""
 
 import unittest
-from media_importer.scraper.filename_cleaner import FilenameCleaner
+
+from media_importer.features.scraping.filename_cleaner import FilenameCleaner
 
 
 class TestFilenameCleaner(unittest.TestCase):

@@ -57,6 +57,19 @@ class FakeScraper:
         self.config = config
 
 
+def _ready_config(tmp_path, *, enabled=True):
+    paths = [tmp_path / name for name in ("source", "temp", "recycle", "target")]
+    for path in paths:
+        path.mkdir()
+    return {
+        "source_dir": str(paths[0]),
+        "temp_dir": str(paths[1]),
+        "source_policy": {"recycle_dir": str(paths[2])},
+        "fallback_dir": str(paths[3]),
+        "file_watcher": {"enabled": enabled, "poll_interval": 3},
+    }
+
+
 def test_build_notifier_returns_none_when_disabled():
     assert build_notifier({"hermes": {"enabled": False}}, notifier_factory=object) is None
 
@@ -77,11 +90,11 @@ def test_restart_watcher_stops_existing_and_returns_none_when_disabled():
     assert ("info", "文件监控已停用（配置 enabled=false）") in logger.messages
 
 
-def test_restart_watcher_starts_new_watcher_and_callback_runs_pipeline():
+def test_restart_watcher_starts_new_watcher_and_callback_runs_pipeline(tmp_path):
     pipeline = FakePipeline()
 
     watcher = restart_watcher(
-        {"file_watcher": {"enabled": True, "poll_interval": 3}},
+        _ready_config(tmp_path),
         pipeline=pipeline,
         logger=FakeLogger(),
         watcher_factory=FakeWatcher,
@@ -92,13 +105,9 @@ def test_restart_watcher_starts_new_watcher_and_callback_runs_pipeline():
     assert pipeline.run_count == 1
 
 
-def test_apply_runtime_config_refreshes_pipeline_notifier_and_watcher():
+def test_apply_runtime_config_refreshes_pipeline_notifier_and_watcher(tmp_path):
     pipeline = FakePipeline()
-    config = {
-        "temp_dir": "/tmp/new",
-        "hermes": {"enabled": True},
-        "file_watcher": {"enabled": True},
-    }
+    config = _ready_config(tmp_path)
 
     components = apply_runtime_config(
         config,
@@ -111,8 +120,22 @@ def test_apply_runtime_config_refreshes_pipeline_notifier_and_watcher():
 
     assert pipeline.config is config
     assert isinstance(pipeline.scraper, FakeScraper)
-    assert pipeline.copier.temp_dir == "/tmp/new"
-    assert pipeline.notifier == {"notifier_config": config}
-    assert components.notifier == {"notifier_config": config}
+    assert pipeline.copier.temp_dir == config["temp_dir"]
+    # Hermes 通知已移除（简洁化 Phase 1）：notifier 恒为 None
+    assert pipeline.notifier is None
+    assert components.notifier is None
     assert isinstance(components.watcher, FakeWatcher)
     assert components.watcher.started is True
+
+
+def test_restart_watcher_blocks_when_storage_is_not_green(tmp_path):
+    logger = FakeLogger()
+    config = {
+        "file_watcher": {"enabled": True},
+        "source_dir": str(tmp_path / "missing"),
+    }
+
+    watcher = restart_watcher(config, logger=logger, watcher_factory=FakeWatcher)
+
+    assert watcher is None
+    assert any("保持停用" in message for _level, message in logger.messages)

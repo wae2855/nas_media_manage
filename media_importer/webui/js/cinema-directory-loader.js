@@ -5,6 +5,74 @@ function loadCinemaConfidenceConfig(rawConfig) {
   // TODO: populate confidence threshold UI when implemented
 }
 
+function formatStorageBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return "容量未知";
+  if (bytes >= 1024 ** 4) return `${(bytes / 1024 ** 4).toFixed(1)} TB`;
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
+
+function renderStorageReadiness(readiness) {
+  const host = document.getElementById("storage-readiness-grid");
+  const locations = Array.isArray(readiness?.locations)
+    ? readiness.locations
+    : [];
+  const roleLabels = {
+    source: "文件来源",
+    temp: "本地中转",
+    recycle: "本地回收",
+    target: "片库目标",
+    log: "运行日志",
+  };
+  if (host) {
+    host.innerHTML = locations.length
+      ? locations
+          .map((item) => {
+            const capacity = item.capacity || {};
+            const capacityText = item.status === "OFFLINE"
+              ? "修复目录后重新读取容量"
+              : capacity.known
+              ? `可用 ${formatStorageBytes(capacity.free)} · 安全余量 ${formatStorageBytes(capacity.reserve)}`
+              : "容量由远程挂载提供，运行时再次确认";
+            const source = !item.identity
+              ? "尚未验证"
+              : item.identity.locality === "remote"
+                ? "远程挂载"
+                : "本地目录";
+            return `<article class="storage-readiness-card is-${escapeHtml(item.level || "error")}">
+              <div class="storage-card-head"><span class="storage-status-dot"></span><div><b>${escapeHtml(roleLabels[item.role] || item.role || "目录")}</b><small>${escapeHtml(source)}</small></div><strong>${item.level === "ok" ? "无需修改" : item.level === "warning" ? "请留意" : "需要处理"}</strong></div>
+              <code title="${escapeHtml(item.path || "")}">${escapeHtml(item.path || "未配置")}</code>
+              <p>${escapeHtml(item.message || "")}</p>
+              <span class="storage-capacity">${escapeHtml(capacityText)}</span>
+            </article>`;
+          })
+          .join("")
+      : '<article class="storage-skeleton">还没有可检查的目录，请先完成 fnOS 目录选择。</article>';
+  }
+
+  const overall = document.getElementById("setup-overall-state");
+  if (overall) {
+    const ready = readiness?.state === "READY";
+    overall.className = `setup-opening-state ${ready ? "is-ready" : "is-blocked"}`;
+    overall.innerHTML = `<span class="setup-state-light" aria-hidden="true"></span><div><b>${ready ? "基础配置已就绪" : `还有 ${(readiness?.blocking || []).length} 项需要处理`}</b><small>${ready ? (readiness?.automatic_allowed ? "可以模拟或开启自动运行" : "可人工运行，自动运行暂缓") : "打开“存储检查”查看原因"}</small></div>`;
+  }
+
+  const finale = document.getElementById("setup-finale");
+  if (finale) {
+    const ready = readiness?.state === "READY";
+    finale.classList.toggle("is-ready", ready);
+    const mark = finale.querySelector(".setup-finale-mark");
+    if (mark) mark.innerHTML = `<span>${ready ? "READY" : "HOLD"}</span><b>${ready ? "可以开始" : "暂不运行"}</b>`;
+    const title = finale.querySelector("h3");
+    const copy = finale.querySelector("p");
+    if (title) title.textContent = ready ? "片库已经准备好开场" : "先解决阻塞项，再开始任务";
+    if (copy) copy.textContent = ready
+      ? "默认配置可以直接使用。建议先模拟一部影片，熟悉后再进入高级配置。"
+      : "系统不会在目录离线、权限不足或空间不足时执行文件移动。";
+  }
+}
+
 async function loadDirectoryConfig() {
   const result = await requestApi("GET", "/config");
   if (result.code !== 200 || !result.data) {
@@ -15,6 +83,8 @@ async function loadDirectoryConfig() {
     return;
   }
   const rawConfig = result.data.config || result.data;
+  const readiness = result.data.readiness || null;
+  currentConfigRevision = result.data.revision || "";
   currentConfigSnapshot = rawConfig;
   const metadata = rawConfig.metadata || {};
   const llm = rawConfig.llm || {};
@@ -28,6 +98,13 @@ async function loadDirectoryConfig() {
   setFieldValue("cfg-source-inline", paths.source_dir);
   setFieldValue("cfg-temp-inline", paths.temp_dir);
   setFieldValue("cfg-recycle-inline", paths.recycle_dir);
+  document
+    .querySelectorAll('input[name="cfg-source-after-done"]')
+    .forEach((radio) => {
+      radio.checked =
+        radio.value ===
+        (sourcePolicy.cleanup_source_after_done === true ? "recycle" : "keep");
+    });
   document.getElementById("cfg-source-recursive-toggle-inline").checked =
     sourcePolicy.scan_recursive ?? true;
   setFieldValue("cfg-source-depth-inline", sourcePolicy.scan_max_depth || 5);
@@ -72,6 +149,8 @@ async function loadDirectoryConfig() {
   const watcherCfg = rawConfig.file_watcher || {};
   document.getElementById("cfg-file_watcher-enabled-inline").checked =
     !!watcherCfg.enabled;
+  const automationToggle = document.getElementById("cfg-auto-watcher-enabled");
+  if (automationToggle) automationToggle.checked = !!watcherCfg.enabled;
   setFieldValue(
     "cfg-file_watcher-poll_interval-inline",
     watcherCfg.poll_interval || 60,
@@ -85,152 +164,18 @@ async function loadDirectoryConfig() {
     "cfg-subtitle_extensions-inline",
     (rawConfig.subtitle_extensions || []).join("\n"),
   );
-  const aiAssist = rawConfig.ai_assist || {};
-  const aiSearch = rawConfig.ai_search || {};
-  setFieldValue(
-    "cfg-ai_assist-base_url",
-    aiAssist.base_url || llm.fast_base_url || llm.base_url || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-model",
-    aiAssist.model || llm.fast_model || llm.model || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-api_key",
-    aiAssist.api_key || llm.fast_api_key || "",
-  );
-  setFieldValue("cfg-ai_assist-timeout", aiAssist.timeout || llm.timeout || 30);
-  setFieldValue(
-    "cfg-ai_assist-max_retries",
-    aiAssist.max_retries || llm.max_retries || 2,
-  );
-  setFieldValue(
-    "cfg-ai_assist-retry_delay",
-    aiAssist.retry_delay || llm.retry_delay || 3,
-  );
-  document.getElementById("cfg-ai_assist-verify_ssl").checked =
-    aiAssist.verify_ssl !== false;
-  setFieldValue(
-    "cfg-ai_assist-prompt_title_clean",
-    aiAssist.prompt_title_clean || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-prompt_match_assist",
-    aiAssist.prompt_match_assist || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-prompt_dimension_mapping",
-    aiAssist.prompt_dimension_mapping || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-prompt_source_clean",
-    aiAssist.prompt_source_clean || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-prompt_match_assist_instruction",
-    aiAssist.prompt_match_assist_instruction || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-prompt_dimension_mapping_instruction",
-    aiAssist.prompt_dimension_mapping_instruction || "",
-  );
-  setFieldValue(
-    "cfg-ai_assist-prompt_source_clean_instruction",
-    aiAssist.prompt_source_clean_instruction || "",
-  );
-  setFieldValue(
-    "cfg-ai_search-provider",
-    aiSearch.provider || (llm.web_search || {}).provider || "",
-  );
-  setFieldValue(
-    "cfg-ai_search-base_url",
-    aiSearch.base_url || llm.base_url || "",
-  );
-  syncAiSearchOptions();
-  setFieldValue("cfg-ai_search-model", aiSearch.model || llm.model || "");
-  setFieldValue(
-    "cfg-ai_search-search_type",
-    aiSearch.search_type || (llm.web_search || {}).search_type || "",
-  );
-  setFieldValue("cfg-ai_search-api_key", aiSearch.api_key || llm.api_key || "");
-  setFieldValue("cfg-ai_search-timeout", aiSearch.timeout || llm.timeout || 30);
-  setFieldValue(
-    "cfg-ai_search-max_retries",
-    aiSearch.max_retries || llm.max_retries || 2,
-  );
-  setFieldValue(
-    "cfg-ai_search-retry_delay",
-    aiSearch.retry_delay || llm.retry_delay || 3,
-  );
-  document.getElementById("cfg-ai_search-verify_ssl").checked =
-    aiSearch.verify_ssl !== false;
-  setFieldValue(
-    "cfg-ai_search-prompt_dimension_supplement",
-    aiSearch.prompt_dimension_supplement || "",
-  );
-  setFieldValue(
-    "cfg-ai_search-prompt_dimension_supplement_instruction",
-    aiSearch.prompt_dimension_supplement_instruction || "",
-  );
-  // T2.6 plan: 新增 ai_scene_strategy 字段回填（5 场景 × 2 下拉）
-  const aiStrategy = rawConfig.ai_scene_strategy || {};
-  const sceneKeys = [
-    "dimension_supplement",
-    "dimension_mapping",
-    "title_clean",
-    "match_assist",
-    "source_clean",
-  ];
-  sceneKeys.forEach((scene) => {
-    const sec = aiStrategy[scene] || {};
-    const primaryEl = document.querySelector(`[data-scene-primary="${scene}"]`);
-    const fallbackEl = document.querySelector(
-      `[data-scene-fallback="${scene}"]`,
-    );
-    if (primaryEl)
-      primaryEl.value = sec.primary || primaryEl.value || "ai_assist";
-    if (fallbackEl) fallbackEl.value = sec.fallback || "";
-  });
-  updateAiConfigStatus();
+  setFieldValue("cfg-llm-base_url", llm.base_url || "");
+  setFieldValue("cfg-llm-model", llm.model || "");
+  setFieldValue("cfg-llm-api_key", llm.api_key || "");
+  setFieldValue("cfg-llm-fallback_model", llm.fallback_model || "");
+  setFieldValue("cfg-llm-timeout", llm.timeout || 30);
+  setFieldValue("cfg-llm-max_retries", llm.max_retries || 2);
+  setFieldValue("cfg-llm-retry_delay", llm.retry_delay || 3);
+  const llmSsl = document.getElementById("cfg-llm-verify_ssl");
+  if (llmSsl) llmSsl.checked = llm.verify_ssl !== false;
+  updateLlmConfigStatus();
   document.getElementById("cfg-source-cleaner-enabled-inline").checked =
     !!sourceCleaner.enabled;
-  document.getElementById("cfg-hermes_enabled-inline").checked = !!(
-    rawConfig.hermes || {}
-  ).enabled;
-  setFieldValue(
-    "cfg-hermes_webhook_base_url-inline",
-    ((rawConfig.hermes || {}).webhook || {}).base_url || "",
-  );
-  setFieldValue(
-    "cfg-hermes_webhook_route_name-inline",
-    ((rawConfig.hermes || {}).webhook || {}).route_name || "",
-  );
-  setFieldValue(
-    "cfg-hermes_webhook_secret-inline",
-    ((rawConfig.hermes || {}).webhook || {}).secret || "",
-  );
-  setFieldValue(
-    "cfg-hermes_webhook_timeout-inline",
-    ((rawConfig.hermes || {}).webhook || {}).timeout || 30,
-  );
-  setFieldValue(
-    "cfg-hermes_webhook_max_retries-inline",
-    ((rawConfig.hermes || {}).webhook || {}).max_retries || 3,
-  );
-  setFieldValue(
-    "cfg-hermes_webhook_retry_delay-inline",
-    ((rawConfig.hermes || {}).webhook || {}).retry_delay || 5,
-  );
-  const hermesEvents = ((rawConfig.hermes || {}).webhook || {}).events || [];
-  document.getElementById("cfg-hermes_webhook_verify_ssl-inline").checked = !!(
-    (rawConfig.hermes || {}).webhook || {}
-  ).verify_ssl;
-  document.getElementById("cfg-hermes_event_batch_start-inline").checked =
-    hermesEvents.includes("batch_start");
-  document.getElementById("cfg-hermes_event_batch_complete-inline").checked =
-    hermesEvents.includes("batch_complete");
-  document.getElementById("cfg-hermes_event_program_error-inline").checked =
-    hermesEvents.includes("program_error");
   document
     .querySelectorAll('input[name="cfg-source_cleaner-cleanup_mode_inline"]')
     .forEach((radio) => {
@@ -268,7 +213,8 @@ async function loadDirectoryConfig() {
     "cfg-source_cleaner-schedule-inline",
     sourceCleaner.schedule || "",
   );
-  updateConfigStageStatus(rawConfig, paths, rawConfig.path_rules || []);
+  renderStorageReadiness(readiness);
+  updateConfigStageStatus(rawConfig, paths, rawConfig.path_rules || [], readiness);
   try {
     loadCinemaConfidenceConfig(rawConfig);
   } catch (err) {
@@ -281,7 +227,6 @@ async function loadDirectoryConfig() {
   }
   toggleSourceDepthField();
   toggleSourceCleanerUi();
-  toggleHermesInlineFields();
   if (typeof loadDimensions === "function") {
     try {
       await loadDimensions();

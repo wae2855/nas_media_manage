@@ -1,189 +1,46 @@
-from datetime import datetime
+"""兼容 shim：生命周期函数已迁 features/tasks（Phase 2 S1）。
 
-
-# --- 任务终态（status） ---
-STATUS_PENDING = "PENDING"
-STATUS_FAILED = "FAILED"
-STATUS_SKIPPED = "SKIPPED"
-STATUS_SUCCESS = "SUCCESS"
-STATUS_CANCELLED = "CANCELLED"
-
-# --- 处理环节（stage，仅 status=PENDING 时有意义） ---
-STAGE_QUEUED = "QUEUED"
-STAGE_RUNNING = "RUNNING"
-STAGE_AWAIT_REVIEW = "AWAIT_REVIEW"
-STAGE_DONE = "DONE"
-
-VALID_STAGES = [STAGE_QUEUED, STAGE_RUNNING, STAGE_AWAIT_REVIEW, STAGE_DONE]
-
-CONFIRM_NONE = "NONE"
-CONFIRM_PENDING = "PENDING"
-CONFIRM_CONFIRMED = "CONFIRMED"
-
-FILE_LOCATION_SOURCE = "source"
-FILE_LOCATION_TEMP = "temp"
-FILE_LOCATION_IMPORT = "import"
-FILE_LOCATION_RECYCLE = "recycle"
-
-_NO_FIELD = object()
-
-
-def _now() -> str:
-    return datetime.now().isoformat()
-
-
-def _raw(task):
-    return getattr(task, "raw", task)
-
-
-def _apply(task, **fields) -> dict:
-    data = _raw(task)
-    update_fields = {}
-    for key, value in fields.items():
-        if value is _NO_FIELD:
-            continue
-        data[key] = value
-        update_fields[key] = value
-    return update_fields
-
-
-def current_video_path(task) -> str:
-    data = _raw(task)
-    return data.get("video_path") or data.get("source_path", "")
-
-
-def start_processing(task, *, started_at: str = None) -> dict:
-    return _apply(
-        task,
-        status=STATUS_PENDING,
-        stage=STAGE_RUNNING,
-        started_at=started_at or _now(),
-    )
-
-
-def mark_processing_step(task, *, current_step: int, step_name: str,
-                         percentage: int) -> dict:
-    return _apply(
-        task,
-        status=STATUS_PENDING,
-        stage=STAGE_RUNNING,
-        current_step=current_step,
-        step_name=step_name,
-        percentage=percentage,
-    )
-
-
-def mark_temp_ready(task, *, video_path: str = None) -> dict:
-    return _apply(
-        task,
-        file_location=FILE_LOCATION_TEMP,
-        video_path=video_path if video_path is not None else current_video_path(task),
-    )
-
-
-def mark_confirmed(task, *, confirmed_at: str = None) -> dict:
-    return _apply(
-        task,
-        confirm_status=CONFIRM_CONFIRMED,
-        confirmed_at=confirmed_at or _now(),
-    )
-
-
-def mark_confirming(task, reason=_NO_FIELD, *, video_path: str = None) -> dict:
-    return _apply(
-        task,
-        status=STATUS_PENDING,
-        stage=STAGE_AWAIT_REVIEW,
-        confirm_status=CONFIRM_PENDING,
-        video_path=video_path if video_path is not None else current_video_path(task),
-        file_location=FILE_LOCATION_TEMP,
-        error_message=reason,
-    )
-
-
-def mark_needs_review(task, reason: str, *, video_path: str = None) -> dict:
-    return _apply(
-        task,
-        status=STATUS_PENDING,
-        stage=STAGE_AWAIT_REVIEW,
-        error_message=reason,
-        video_path=video_path if video_path is not None else current_video_path(task),
-        file_location=FILE_LOCATION_TEMP,
-    )
-
-
-def mark_failed(task, error_message: str, *, file_location: str = FILE_LOCATION_SOURCE,
-                video_path="", completed: bool = True) -> dict:
-    return _apply(
-        task,
-        status=STATUS_FAILED,
-        stage=STAGE_DONE,
-        error_message=error_message,
-        completed_at=_now() if completed else _NO_FIELD,
-        file_location=file_location,
-        video_path=_NO_FIELD if video_path is None else video_path,
-    )
-
-
-def mark_skipped(task, reason: str, *, file_location: str = FILE_LOCATION_SOURCE,
-                 video_path="") -> dict:
-    return _apply(
-        task,
-        status=STATUS_SKIPPED,
-        stage=STAGE_DONE,
-        skip_reason=reason,
-        completed_at=_now(),
-        file_location=file_location,
-        video_path=_NO_FIELD if video_path is None else video_path,
-    )
-
-
-def mark_cancelled(task, reason: str = "用户取消", *,
-                   file_location: str = FILE_LOCATION_SOURCE,
-                   video_path="") -> dict:
-    return _apply(
-        task,
-        status=STATUS_CANCELLED,
-        stage=STAGE_DONE,
-        error_message=reason,
-        completed_at=_now(),
-        file_location=file_location,
-        video_path=_NO_FIELD if video_path is None else video_path,
-    )
-
-
-def mark_imported(task, *, import_video_path: str = None) -> dict:
-    return _apply(
-        task,
-        status=STATUS_SUCCESS,
-        stage=STAGE_DONE,
-        completed_at=_now(),
-        import_success=1,
-        file_location=FILE_LOCATION_IMPORT,
-        import_video_path=import_video_path
-        if import_video_path is not None else _raw(task).get("import_video_path", ""),
-    )
-
-
-def reset_for_retry(task) -> dict:
-    data = _raw(task)
-    return _apply(
-        task,
-        status=STATUS_PENDING,
-        stage=STAGE_QUEUED,
-        retry_count=data.get("retry_count", 0) + 1,
-        error_code=0,
-        error_message="",
-        current_step=0,
-        step_name="",
-        percentage=0,
-        video_path="",
-        import_video_path="",
-        import_path="",
-        final_filename="",
-        classify_result="",
-        file_location=FILE_LOCATION_SOURCE,
-        confirmed_override=0,
-        confirmed_title="",
-        override_source="",
-    )
+旧导入路径 media_importer.core.task_lifecycle 保持可用；
+新代码请用 media_importer.features.tasks。
+"""
+from media_importer.features.tasks.task_lifecycle_compat import (  # noqa: F401
+    current_video_path,
+    mark_cancelled,
+    mark_confirmed,
+    mark_confirming,
+    mark_failed,
+    mark_imported,
+    mark_needs_review,
+    mark_processing_step,
+    mark_skipped,
+    mark_temp_ready,
+    reset_for_retry,
+    start_processing,
+)
+from media_importer.features.tasks.transitions import (  # noqa: F401
+    ACTIVE_STATES,
+    ALL_STATES,
+    CONFIRM_CONFIRMED,
+    CONFIRM_NONE,
+    CONFIRM_PENDING,
+    FILE_LOCATION_IMPORT,
+    FILE_LOCATION_RECYCLE,
+    FILE_LOCATION_SOURCE,
+    FILE_LOCATION_TEMP,
+    STAGE_AWAIT_REVIEW,
+    STAGE_DONE,
+    STAGE_QUEUED,
+    STAGE_RUNNING,
+    STATUS_CANCELLED,
+    STATUS_FAILED,
+    STATUS_PENDING,
+    STATUS_SKIPPED,
+    STATUS_SUCCESS,
+    TERMINAL_STATES,
+    TRANSITIONS,
+    VALID_STAGES,
+    VALID_STATUS,
+    TransitionError,
+    apply,
+    can_apply,
+)

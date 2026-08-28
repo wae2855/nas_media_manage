@@ -76,6 +76,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
                 ${task.source_path ? `<small>源路径：${escapeHtml(task.source_path)}</small>` : ""}
                 ${task.import_video_path ? `<small>入库路径：${escapeHtml(task.import_video_path)}</small>` : ""}
             </div>
+            ${buildReviewReasonSection(task)}
             ${buildFailureSection(task)}
             ${buildScrapeTraceSection(task)}
             ${dimSectionHtml}
@@ -292,11 +293,29 @@ async function doScrapeSearch(taskId) {
   detailEl.innerHTML =
     '<div class="tmdb-preview-placeholder">点击左侧搜索结果查看详情</div>';
 
+  // 从输入中提取年份（支持 "标题 2014" / "标题 (2014)" / "标题.2014"），
+  // 避免整串含年份的 query 发给 Provider 导致搜不到
+  var searchQuery = query;
+  var year = "";
+  var yearMatch = query.match(/(?:[.\s_([（]+|^)((?:19|20)\d{2})[)\]）]?\s*$/);
+  if (yearMatch) {
+    year = yearMatch[1];
+    searchQuery = query
+      .slice(0, yearMatch.index)
+      .replace(/[.\s_([（]+$/, "")
+      .trim();
+    if (!searchQuery) {
+      searchQuery = query;
+      year = "";
+    }
+  }
+
   var result = await requestApi(
     "POST",
     `/tasks/${encodeURIComponent(taskId)}/scrape-search`,
     {
-      query: query,
+      query: searchQuery,
+      year: year ? Number(year) : null,
     },
   );
   btn.disabled = false;
@@ -435,12 +454,23 @@ function renderScrapeCandidateDetail(candidate, taskId) {
           },
         );
         if (result.code === 200) {
-          showToast("已应用刮削结果，请查看入库预览");
+          // 候选确认代表用户已经完成选片，直接沿用确认入库流程，避免再点一次。
+          var importResult = await requestApi(
+            "POST",
+            `/tasks/${encodeURIComponent(taskId)}/confirm`,
+          );
           var overlay = document.getElementById("scrape-search-overlay");
           if (overlay) overlay.remove();
-          removeAppModal();
-          await openTaskDetailImpl(taskId, true);
-          await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          if (importResult.code === 200) {
+            showToast("已刮削并入库");
+            removeAppModal();
+            await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          } else {
+            showToast(importResult.message || "入库失败", "error");
+            removeAppModal();
+            await openTaskDetailImpl(taskId, true);
+            await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          }
         } else {
           showToast("应用失败: " + (result.message || "未知错误"), "error");
           confirmBtn.disabled = false;

@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from unittest.mock import patch
 
-
 # ============================================================================
 # preview_task 测试（真实 SQLite + TaskManager + Mock ClassificationService）
 # ============================================================================
@@ -155,7 +154,9 @@ class TestPreviewTask(unittest.TestCase):
         self.assertIn("2009", task["final_filename"])
 
     def test_preview_task_not_found(self):
-        with self.assertRaises(Exception):
+        from media_importer.features.import_flow.utils import PipelineError
+
+        with self.assertRaises(PipelineError):
             self.pipeline.preview_task("nonexistent", {})
 
     def test_preview_filters_disabled_dimensions(self):

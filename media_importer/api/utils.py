@@ -1,9 +1,10 @@
 import json
 from http.server import HTTPServer
 from socketserver import ThreadingMixIn
+from typing import Optional
 
 
-def json_response(handler, code: int, data=None, message: str = "", code_str: str = None):
+def json_response(handler, code: int, data=None, message: str = "", code_str: Optional[str] = None):
     status_map = {
         200: "success",
         201: "created",
@@ -56,7 +57,7 @@ def format_tasks_to_text(json_data: dict) -> str:
     tasks = json_data.get("tasks", [])
 
     lines.append("+--------------------------------------------------------------------------------------------+")
-    lines.append(f"|  影音库AI智能整理 - 活跃任务                                                                  |")
+    lines.append("|  影音库AI智能整理 - 活跃任务                                                                  |")
     lines.append(f"|  活跃任务: {active_count}{' ' * 6}总记录: {total}{' ' * 54} |")
     lines.append("+--------------------------------------------------------------------------------------------+")
     lines.append("")

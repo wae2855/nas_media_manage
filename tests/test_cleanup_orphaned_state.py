@@ -1,10 +1,9 @@
 import os
 
-import pytest
-
 from media_importer.api.handler import _cleanup_orphaned_state
 from media_importer.core import db as db_module
-from media_importer.features.tasks import STAGE_DONE, STATUS_FAILED, TaskManager
+from media_importer.core.task_manager import TaskManager
+from media_importer.features.tasks import STAGE_DONE, STATUS_FAILED
 
 
 class _RecordingLogger:

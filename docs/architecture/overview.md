@@ -21,7 +21,7 @@ shared: tiny cross-feature constants and helpers
 | `media_importer/api/` | 入口层 | HTTP 路由、Mixin handler、静态文件服务 |
 | `media_importer/features/` | 业务事实源 | feature-first 业务能力入口 |
 | `media_importer/scraper/` | 待迁移业务能力 | LLM、Provider、匹配引擎、维度映射，目标是 `features/scraping` 与 `features/providers` |
-| `media_importer/storage/` | 待拆分能力 | 文件扫描、复制、移动、分类、去重，目标是 feature service + infrastructure/filesystem |
+| `media_importer/infrastructure/` | 基础能力 | 文件系统（复制/安全删除/指纹）与 DB facade；`storage/` 兼容层已删除 |
 | `media_importer/core/` | 待拆分基础设施 | DB、配置、任务、安全、日志、指标，目标是 feature-owned repos + infrastructure |
 | `media_importer/monitor/` | 待迁移周边能力 | 文件监控、权限检查 |
 | `media_importer/notify/` | 待迁移周边能力 | Hermes 和 hook 通知 |
@@ -46,7 +46,4 @@ shared: tiny cross-feature constants and helpers
 - 旧技术目录如果只是转发到 feature，可在测试和文档完成后归档；旧 `pipeline/` 包装层已归档。
 - 当前事实文档不得引用归档内容作为依据。
 
-详见：
-
-- [Feature-first 重组计划](../plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md)
-- [ADR-0004](../decisions/0004-feature-first-architecture-restructure.md)
+详见 [ADR-0004](../decisions/0004-feature-first-architecture-restructure.md)。

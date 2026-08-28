@@ -12,8 +12,8 @@ class TaskReviewActionResult:
 
 
 def confirm_task_for_api(pipeline, task_manager, task_id: str,
-                         confirmed_title: str = None,
-                         override_source: str = None) -> TaskReviewActionResult:
+                         confirmed_title: Optional[str] = None,
+                         override_source: Optional[str] = None) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
 

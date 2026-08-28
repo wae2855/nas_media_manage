@@ -1,11 +1,15 @@
-import os
-import time
 import threading
-from media_importer.infrastructure.db import (
-    update_task as db_update_task,
-    get_subtitles_by_task as db_get_subtitles,
-    count_subtitles_by_task as db_count_subs,
-)
+import time
+from typing import Optional
+
+from media_importer.features.import_flow.confirm import ConfirmMixin
+from media_importer.features.import_flow.context import TaskContext
+from media_importer.features.import_flow.scan_service import FileScanner
+from media_importer.features.import_flow.steps import StepsMixin
+from media_importer.features.import_flow.utils import PipelineSkipError
+from media_importer.features.scraping import MetadataScraper
+from media_importer.features.scraping.match_enums import TierShortReason
+from media_importer.features.source_files import SourceCleanupService, delete_source_files
 from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
@@ -18,17 +22,20 @@ from media_importer.features.tasks import (
     mark_temp_ready,
     start_processing,
 )
-from media_importer.features.import_flow.confirm import ConfirmMixin
-from media_importer.features.import_flow.context import TaskContext
-from media_importer.features.source_files import SourceCleanupService
-from media_importer.features.import_flow.scan_service import FileScanner
+from media_importer.infrastructure.db import (
+    compare_and_update_task,
+)
+from media_importer.infrastructure.db import (
+    count_subtitles_by_task as db_count_subs,
+)
+from media_importer.infrastructure.db import (
+    get_subtitles_by_task as db_get_subtitles,
+)
+from media_importer.infrastructure.db import (
+    update_task as db_update_task,
+)
 from media_importer.infrastructure.filesystem import FileCopier
-from media_importer.features.scraping import MetadataScraper
-from media_importer.features.scraping.match_enums import TierShortReason
-from media_importer.features.import_flow.services.file_operations import delete_source_files
 from media_importer.notify.hooks import HookRunner
-from media_importer.features.import_flow.utils import PipelineSkipError
-from media_importer.features.import_flow.steps import StepsMixin
 
 
 class PipelineRunner(StepsMixin, ConfirmMixin):
@@ -64,7 +71,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
     def is_paused(self) -> bool:
         return self._paused.is_set()
 
-    def _log(self, level: str, message: str, task: dict = None, step: str = ""):
+    def _log(self, level: str, message: str, task: Optional[dict] = None, step: str = ""):
         if self.logger:
             if task:
                 self.logger.step_log(task.get("task_id", ""), step, level, message)
@@ -87,7 +94,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         return any(keyword in error_lower for keyword in system_error_keywords)
 
     def _notify_program_error(self, error_type: str, error_message: str,
-                              extra_data: dict = None):
+                              extra_data: Optional[dict] = None):
         if not self.notifier:
             return
         current_time = time.time()
@@ -129,15 +136,28 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         self._log("info", f"扫描完成，创建/重试 {len(tasks)} 个任务")
         return tasks
 
-    def process_one(self, task: dict) -> bool:
+    def process_one(self, task: dict, *, claimed: bool = False) -> bool:
+        if not claimed:
+            # 对直接处理单个任务的入口也执行 CAS，避免与批处理线程重复消费。
+            start_fields = start_processing(dict(task))
+            claimed_task = compare_and_update_task(
+                self.task_manager.conn,
+                task.get("task_id", ""),
+                expect_status="PENDING",
+                expect_stage="QUEUED",
+                **start_fields,
+            )
+            if claimed_task is None:
+                self._log("warn", "任务已被其他执行器领取，跳过重复处理", task)
+                return False
+            task.update(claimed_task)
+
         ctx = TaskContext(task)
         original_source_video = ctx.source_path or ctx.current_video_path
         original_source_subs = list(ctx.subtitle_files)
         temp_video_path_for_cleanup = None
 
         tid = ctx.task_id
-
-        db_update_task(self.task_manager.conn, tid, **start_processing(ctx))
 
         try:
             self.hooks.run_before_process(task)
@@ -184,8 +204,19 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             if task.get("_needs_confirm"):
                 scrape_result = task.get("scrape_result", {})
                 tier_short = scrape_result.get('tier_short_reason') or TierShortReason.UNKNOWN
-                db_update_task(self.task_manager.conn, tid,
-                               **mark_confirming(ctx, tier_short))
+                # 组合文案：匹配状态 + 具体拦截原因（前端及日志都能看懂为何待确认）
+                concern_msgs = [
+                    c.get("message") for c in (scrape_result.get("match_concerns") or [])
+                    if isinstance(c, dict) and c.get("message")
+                ]
+                confirm_reason = "；".join([tier_short] + concern_msgs[:2]) if concern_msgs else tier_short
+                fields = mark_confirming(ctx, confirm_reason)
+                # 同步持久化刮削结果（含 match_concerns 待确认原因），供前端展示
+                fields.update({
+                    "scrape_result": scrape_result,
+                    "scrape_dimensions": task.get("scrape_dimensions", {}),
+                })
+                db_update_task(self.task_manager.conn, tid, **fields)
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')} - {tier_short}", task)
                 self.hooks.run_after_success(task)
                 if self.metrics:
@@ -222,7 +253,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
         except PipelineSkipError as e:
             self._log("info", f"任务跳过: {task.get('source_filename', '')} - {e}", task)
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup or "")
             source_cleanup = SourceCleanupService(self.config).recycle_source_after_skip(
                 task,
                 original_source_video,
@@ -243,7 +274,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             error_msg = str(e)
             fields = mark_failed(ctx, error_msg, file_location=FILE_LOCATION_SOURCE)
             self._log("error", f"任务失败: {task.get('source_filename', '')} - {e}", task)
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup)
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup or "")
 
             db_update_task(self.task_manager.conn, tid, **fields)
 
@@ -273,6 +304,12 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             self._log("info", f"已清理 temp 目录失败文件: {len(files_to_delete)} 个", task, "cleanup")
 
     def run_all(self):
+        from media_importer.features.configuration import inspect_storage_readiness
+
+        readiness = inspect_storage_readiness(self.config)
+        if readiness["state"] != "READY":
+            blocking = ", ".join(readiness["blocking"])
+            raise RuntimeError(f"配置尚未就绪，已阻止文件处理: {blocking}")
         self._log("info", "开始批量处理")
 
         source_dir = self.config.get("source_dir", "")
@@ -305,14 +342,14 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         }
 
         while not self._paused.is_set():
-            task = self.task_manager.get_next_pending()
+            task = self.task_manager.claim_next_pending()
             if task is None:
                 break
             batch_stats["total"] += 1
             total, _ = db_count_subs(self.task_manager.conn, task.get("task_id", ""))
             batch_stats["subtitle_count"] += total
             batch_stats["video_count"] += 1
-            self.process_one(task)
+            self.process_one(task, claimed=True)
             final_status = task.get("status", "UNKNOWN")
             batch_stats[final_status] = batch_stats.get(final_status, 0) + 1
 

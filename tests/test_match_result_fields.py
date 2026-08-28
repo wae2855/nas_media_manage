@@ -1,6 +1,7 @@
 import unittest
-from media_importer.features.scraping.match_models import MatchResult, SelectedCandidate
+
 from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
+from media_importer.features.scraping.match_models import MatchResult, SelectedCandidate
 
 
 class TestMatchResultFields(unittest.TestCase):

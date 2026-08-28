@@ -1,6 +1,7 @@
 """ReviewDecisionService 基于 match_level 的测试。"""
 
 import unittest
+
 from media_importer.features.import_flow.services.review import ReviewDecisionService
 
 
@@ -64,6 +65,19 @@ class TestReviewDecisionV2(unittest.TestCase):
         })
         self.assertEqual(decision.action, "continue")
         self.assertTrue(len(decision.warnings) > 0)
+
+    def test_required_dimension_missing_blocks_auto_pass(self):
+        """必填维度缺失 → 即使 AUTO_PASS 也必须人工确认"""
+        decision = self.service.evaluate({
+            "match_level": "AUTO_PASS",
+            "title_cn": "测试",
+            "media_type": "movie",
+            "year": 2020,
+            "dimensions": {"restricted_level": None},
+        }, required_dimensions=["restricted_level"])
+        self.assertEqual(decision.action, "confirm")
+        codes = [c.get("code", "") for c in decision.concerns]
+        self.assertIn("REQUIRED_DIM_MISSING", codes)
 
 
 if __name__ == "__main__":

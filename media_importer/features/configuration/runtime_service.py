@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
+
+from .storage_readiness import inspect_storage_readiness
 
 
 @dataclass
@@ -13,9 +15,9 @@ def apply_runtime_config(
     pipeline,
     current_watcher=None,
     logger=None,
-    notifier_factory: Callable = None,
-    watcher_factory: Callable = None,
-    scraper_factory: Callable = None,
+    notifier_factory: Optional[Callable] = None,
+    watcher_factory: Optional[Callable] = None,
+    scraper_factory: Optional[Callable] = None,
 ) -> RuntimeComponents:
     if pipeline:
         pipeline.config = config
@@ -38,12 +40,9 @@ def apply_runtime_config(
     return RuntimeComponents(notifier=notifier, watcher=watcher)
 
 
-def build_notifier(config: dict, notifier_factory: Callable = None):
-    hermes_cfg = config.get("hermes", {})
-    if not hermes_cfg.get("enabled", False):
-        return None
-    factory = notifier_factory or _default_notifier_factory()
-    return factory(config)
+def build_notifier(config: dict, notifier_factory: Optional[Callable] = None):
+    # Hermes 通知已移除（简洁化 Phase 1，2026-08-22）：notifier 恒为 None
+    return None
 
 
 def restart_watcher(
@@ -51,7 +50,7 @@ def restart_watcher(
     current_watcher=None,
     pipeline=None,
     logger=None,
-    watcher_factory: Callable = None,
+    watcher_factory: Optional[Callable] = None,
 ):
     if current_watcher:
         current_watcher.stop()
@@ -59,6 +58,10 @@ def restart_watcher(
     watcher_cfg = config.get("file_watcher", {})
     if not watcher_cfg.get("enabled", False):
         _log(logger, "info", "文件监控已停用（配置 enabled=false）")
+        return None
+    readiness = inspect_storage_readiness(config)
+    if not readiness["automatic_allowed"]:
+        _log(logger, "error", "存储检查未达到自动运行条件，文件监控保持停用")
         return None
 
     def on_new_files(new_files):
@@ -89,16 +92,11 @@ def _log(logger, level: str, message: str):
         log_method(message)
 
 
-def _default_notifier_factory():
-    from media_importer.notify.hermes_hook import HermesNotifier
-    return HermesNotifier
-
-
 def _default_watcher_factory():
     from media_importer.monitor.file_watcher import FileWatcher
     return FileWatcher
 
 
 def _default_scraper_factory():
-    from media_importer.features.scraping import LLMScraper
-    return LLMScraper
+    from media_importer.features.scraping import MetadataScraper
+    return MetadataScraper

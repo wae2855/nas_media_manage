@@ -1,7 +1,9 @@
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 from media_importer.features.configuration import ConfigView
+
 from .classification_rules import classify, render_template
 from .paths import resolve_project_path
 
@@ -19,7 +21,7 @@ class ClassificationService:
     def __init__(self, config: dict):
         self.config = ConfigView.from_dict(config)
 
-    def classify_task(self, task: dict, enabled_dims: set = None) -> ClassificationResult:
+    def classify_task(self, task: dict, enabled_dims: Optional[set] = None) -> ClassificationResult:
         path_rules = self.config.paths.path_rules
         scraped = task.get("scrape_result", {})
         dimensions = task.get("scrape_dimensions", {})
@@ -40,7 +42,7 @@ class ClassificationService:
                     rules_description=self._format_rules(path_rules),
                 )
 
-        import_path = resolve_project_path(import_path, self.config)
+        import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
         return ClassificationResult(
             import_path=import_path,
             classify_result=import_path,
@@ -65,8 +67,8 @@ class ClassificationService:
             rules.append(f"规则{index + 1}: [{conditions_text}]")
         return "; ".join(rules) if rules else "无规则配置"
 
-    def preview_classify(self, task: dict, override_dimensions: dict = None,
-                         override_filename: str = None, enabled_dims: set = None) -> dict:
+    def preview_classify(self, task: dict, override_dimensions: Optional[dict] = None,
+                         override_filename: Optional[str] = None, enabled_dims: Optional[set] = None) -> dict:
         """预览分类结果，不执行任何文件操作。"""
         path_rules = self.config.paths.path_rules
         scraped = task.get("scrape_result", {})
@@ -96,7 +98,7 @@ class ClassificationService:
                     "dimensions_text": dimensions_text,
                 }
 
-        import_path = resolve_project_path(import_path, self.config)
+        import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
 
         final_filename = override_filename or task.get("final_filename", "") or task.get("source_filename", "")
         full_path = os.path.join(import_path, final_filename) if import_path and final_filename else ""

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import os
-import re
-import tempfile
 import getpass
+import os
+import tempfile
 
 
 def get_current_user():

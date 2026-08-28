@@ -1,15 +1,15 @@
 """Match engine tier implementations — extracted from MatchEngine."""
 import logging
 import os as _os
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
+from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
 from media_importer.features.scraping.match_models import (
     MatchConcern,
     MatchResult,
     MatchTraceStep,
     SelectedCandidate,
 )
-from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
 
 
 def _sort_candidates_by_trust(candidates: list) -> list:
@@ -104,9 +104,10 @@ def _tier1_exact_match_impl(
                 match_result = title_matcher.match_standard(
                     clean_title, item, year, season
                 )
+                # L3（标题精确但无年份/季号佐证）不再授予 AUTO_PASS：
+                # 泛名词文件名（如 sample/interview）极易唯一命中同名影片，
+                # 缺少年份证据时必须降级到人工确认（tier2 提供候选列表）
                 if match_result.level in ("L1", "L2"):
-                    exact_matches.append((item, match_result))
-                elif match_result.level == "L3" and year is None:
                     exact_matches.append((item, match_result))
 
             if len(exact_matches) == 1:
@@ -265,155 +266,7 @@ def _tier1_exact_match_impl(
     return None
 
 
-def _tier2_high_certainty_impl(
-    self,
-    corrected_title: str,
-    corrected_year: Optional[int],
-    media_type_hint: Optional[str],
-    providers: list,
-    ai_reason: str,
-    ai_short_reason: str,
-    concerns: list,
-    trace_steps: list,
-    tier1_candidates=None,
-    selected_candidate_id=None,
-) -> Optional[MatchResult]:
-    """AI 高确定性：用纠正后的标题搜 Provider → CONTEXT_PASS。"""
-    candidates = []
-    # 优先用 AI 指定的候选
-    if selected_candidate_id and tier1_candidates:
-        candidates = [c for c in tier1_candidates if str(c.get("id")) == str(selected_candidate_id)]
-    if not candidates and tier1_candidates:
-        candidates = [
-            c for c in tier1_candidates
-            if (not corrected_year or c.get("year") == corrected_year)
-        ]
-    if not candidates:
-        candidates = _search_providers_impl(self.title_matcher, corrected_title, corrected_year, providers)
-    if candidates:
-        selected = candidates[0]
-        trace_steps.append(MatchTraceStep(
-            tier=2,
-            name="上下文辅助匹配(高确定性)",
-            matched=True,
-            search_query=f"AI 纠正后搜索词: {corrected_title}" + (f" ({corrected_year}年)" if corrected_year else ""),
-            reason=f"AI高确定性纠正后搜索结果: {selected['title']}",
-            ai_reason=ai_reason,
-        ))
-        return MatchResult(
-            match_level="CONTEXT_PASS",
-            provider_id=selected.get("id"),
-            provider_title=selected.get("title", ""),
-            match_tier=2,
-            concerns=concerns,
-            trace_steps=trace_steps,
-            candidates=candidates[:5],
-            tier_short_reason=ai_short_reason or TierShortReason.TIER2_HIGH_PASS,
-            ai_reason=ai_reason,
-            selected_candidate=SelectedCandidate(
-                provider_type=selected.get("provider_type", ""),
-                provider_id=str(selected.get("id", "")),
-                title=selected.get("title", ""),
-                year=selected.get("year"),
-                media_type=selected.get("media_type", ""),
-                why_selected=WhySelected.AI_SUGGESTION,
-                score=selected.get("vote_average"),
-            ),
-        )
-    logger.warning(f"AI high certainty 但搜索结果为空，降级为 medium: {corrected_title}")
-    return _tier2_medium_certainty_impl(
-        self, corrected_title, corrected_year, media_type_hint,
-        providers, f"高确定性但未搜到结果: {ai_reason}", ai_short_reason, concerns, trace_steps,
-        tier1_candidates=tier1_candidates,
-    )
 
-
-def _tier2_medium_certainty_impl(
-    self,
-    corrected_title: str,
-    corrected_year: Optional[int],
-    media_type_hint: Optional[str],
-    providers: list,
-    ai_reason: str,
-    ai_short_reason: str,
-    concerns: list,
-    trace_steps: list,
-    tier1_candidates=None,
-) -> Optional[MatchResult]:
-    """AI 中确定性：搜 Provider → NEEDS_CONFIRM（带候选列表）。"""
-    candidates = []
-    if tier1_candidates:
-        candidates = [
-            c for c in tier1_candidates
-            if (not corrected_year or c.get("year") == corrected_year)
-        ]
-    if not candidates:
-        candidates = _search_providers_impl(self.title_matcher, corrected_title, corrected_year, providers)
-    concerns.append(MatchConcern(
-        code="AI_UNCERTAIN",
-        message="AI 中等确定性，需要人工确认",
-        detail=ai_reason,
-    ))
-    trace_steps.append(MatchTraceStep(
-        tier=2,
-        name="上下文辅助匹配(中确定性)",
-        matched=False,
-        search_query=f"AI 建议搜索词: {corrected_title}" + (f" ({corrected_year}年)" if corrected_year else ""),
-        reason=f"AI中确定性，提供候选列表供确认: {ai_reason}",
-        ai_reason=ai_reason,
-    ))
-    return MatchResult(
-        match_level="NEEDS_CONFIRM",
-        match_tier=2,
-        concerns=concerns,
-        trace_steps=trace_steps,
-        candidates=candidates[:5],
-        tier_short_reason=ai_short_reason or TierShortReason.TIER2_MEDIUM,
-        ai_reason=ai_reason,
-        selected_candidate=SelectedCandidate(
-            provider_type=candidates[0].get("provider_type", ""),
-            provider_id=str(candidates[0].get("id", "")),
-            title=candidates[0].get("title", ""),
-            year=candidates[0].get("year"),
-            media_type=candidates[0].get("media_type", ""),
-            why_selected=WhySelected.AI_SUGGESTION,
-            score=candidates[0].get("vote_average"),
-        ) if candidates else None,
-    )
-
-
-def _tier2_low_certainty_impl(
-    self,
-    corrected_title: str,
-    ai_reason: str,
-    concerns: list,
-    trace_steps: list,
-    original_title: str = "",
-) -> Optional[MatchResult]:
-    """AI 低确定性：不搜 Provider → NEEDS_CONFIRM。"""
-    concerns.append(MatchConcern(
-        code="AI_UNCERTAIN",
-        message="AI 无法确定标题，需要人工确认",
-        detail=ai_reason,
-    ))
-    trace_steps.append(MatchTraceStep(
-        tier=2,
-        name="上下文辅助匹配(低确定性)",
-        matched=False,
-        search_query=f"AI 建议搜索词: {corrected_title}" if corrected_title else "AI 未给出有效搜索词",
-        reason=f"AI低确定性，需要人工确认: {ai_reason}",
-        ai_reason=ai_reason,
-    ))
-    return MatchResult(
-        match_level="NEEDS_CONFIRM",
-        match_tier=2,
-        concerns=concerns,
-        trace_steps=trace_steps,
-        candidates=[],
-        tier_short_reason=TierShortReason.TIER2_LOW,
-        ai_reason=ai_reason,
-        selected_candidate=None,
-    )
 
 
 def _extract_year_from_raw(raw_data: dict):
@@ -466,126 +319,6 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
     return candidates
 
 
-def _tier2_context_match_impl(
-    self,
-    clean_title: str,
-    cjk_title: str,
-    year: Optional[int],
-    season: Optional[int],
-    episode: Optional[int],
-    providers: list,
-    video_path: str = "",
-) -> Optional[MatchResult]:
-    """第二级：上下文辅助匹配。"""
-    concerns = self._pending_concerns
-    trace_steps = self._pending_trace
-
-    context = _call_collect_context(self, video_path) if video_path else {}
-    # 把 Tier 1 候选塞入 AI 上下文
-    context["provider_candidates"] = getattr(self, '_pending_candidates', None) or []
-    # 把 Tier 1 搜索结果传给 AI：让它知道这个名字已经搜过了，要换名字
-    candidate_type = getattr(self, '_pending_candidate_type', 'none')
-    candidate_count = len(context.get("provider_candidates", []))
-    context["tier1_search_info"] = {
-        "searched_title": clean_title,
-        "searched_year": year,
-        "candidate_type": candidate_type,  # "exact" / "fuzzy" / "none"
-        "candidate_count": candidate_count,
-        "provider_results": (
-            "0 条结果" if candidate_type == "none"
-            else f"{candidate_count} 条精确匹配" if candidate_type == "exact"
-            else f"{candidate_count} 条模糊匹配（标题不完全一致）"
-        ),
-    }
-    original_filename = video_path or clean_title
-
-    try:
-        from media_importer.features.scraping.llm_scraper import LLMScraper
-        llm = LLMScraper(self.config)
-        ai_result = llm.tier2_correct(
-            original_filename=original_filename,
-            path_context=context,
-            clean_title=clean_title,
-            year=year,
-        )
-    except Exception as e:
-        logger.warning(f"AI 标题纠正失败: {e}")
-        concerns.append(MatchConcern(
-            code="AI_UNCERTAIN",
-            message="AI 标题纠正不可用",
-            detail=f"AI 调用失败: {e}",
-        ))
-        trace_steps.append(MatchTraceStep(
-            tier=2,
-            name="上下文辅助匹配",
-            matched=False,
-            reason=f"AI 调用失败: {e}",
-        ))
-        self._pending_concerns = concerns
-        self._pending_trace = trace_steps
-        return None
-
-    certainty = ai_result.get("certainty", "low")
-    corrected_title = ai_result.get("corrected_title", clean_title) or clean_title
-    corrected_year = ai_result.get("corrected_year", year)
-    ai_reason = ai_result.get("reason", "")
-    ai_short_reason = ai_result.get("short_reason", "")
-    ai_is_valid = ai_result.get("is_valid", True)
-    ai_selected_id = ai_result.get("selected_candidate_id")
-    suggestion = ai_result.get("suggestion", corrected_title)
-    media_type_hint = ai_result.get("media_type_hint")
-
-    # 优先使用 AI 纠正后的标题，suggestion 只作辅助日志
-    search_title = corrected_title
-
-    tier1_candidates = getattr(self, '_pending_candidates', None) or []
-
-    # is_valid=false → 立即 FAILED
-    if not ai_is_valid:
-        concerns.append(MatchConcern(
-            code="INVALID_FILENAME",
-            message="AI 判定文件名无可识别影视信息",
-            detail=ai_reason,
-        ))
-        trace_steps.append(MatchTraceStep(
-            tier=2,
-            name="AI 辅助匹配",
-            matched=False,
-            reason=f"AI 判定为非影视文件: {ai_short_reason or ''}",
-            ai_reason=ai_reason,
-        ))
-        self._pending_concerns = concerns
-        self._pending_trace = trace_steps
-        return MatchResult(
-            match_level="FAILED",
-            match_tier=2,
-            concerns=concerns,
-            trace_steps=trace_steps,
-            tier_short_reason=ai_short_reason or "文件名无可识别影视信息",
-            ai_reason=ai_reason,
-            selected_candidate=None,
-        )
-
-    if certainty == "high":
-        return _tier2_high_certainty_impl(
-            self, search_title, corrected_year, media_type_hint,
-            providers, ai_reason, ai_short_reason, concerns, trace_steps,
-            tier1_candidates=tier1_candidates,
-            selected_candidate_id=ai_selected_id,
-        )
-    elif certainty == "medium":
-        return _tier2_medium_certainty_impl(
-            self, search_title, corrected_year, media_type_hint,
-            providers, ai_reason, ai_short_reason, concerns, trace_steps,
-            tier1_candidates=tier1_candidates,
-        )
-    else:
-        return _tier2_medium_certainty_impl(
-            self, search_title, corrected_year, media_type_hint,
-            providers, ai_reason, ai_short_reason, concerns, trace_steps,
-            tier1_candidates=tier1_candidates,
-        )
-
 
 def _collect_context_impl(source_dir: str, video_path: str) -> dict:
     """收集视频文件所在目录的上下文信息。"""
@@ -621,7 +354,7 @@ def _collect_context_impl(source_dir: str, video_path: str) -> dict:
     return context
 
 
-def _tier3_user_confirm_impl(
+def _tier2_user_confirm_impl(
     self,
     clean_title: str,
     cjk_title: str,

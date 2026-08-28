@@ -8,7 +8,7 @@ class TierShortReason:
     TIER1_TOP_RATED = "同名{count}部，预选热度最高，请确认"
     TIER1_MULTI = "{count}部同名作品，需确认"
     TIER1_FUZZY = "标题不完全匹配"
-    TIER1_NO_RESULT = "Provider 无结果"
+    TIER1_NO_RESULT = "影视库无结果"
     # Tier 2
     TIER2_HIGH_PASS = "AI 高确定性匹配通过"
     TIER2_MEDIUM = "AI 建议候选，需确认"

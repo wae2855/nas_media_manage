@@ -30,6 +30,14 @@ Status: Proposed | Accepted | Superseded | Deprecated
 | [0003](0003-deploy-package-generation-strategy.md) | Accepted | Deploy package generation strategy |
 | [0004](0004-feature-first-architecture-restructure.md) | Accepted | Feature-first architecture restructure |
 | [0005](0005-three-tier-matching.md) | Accepted | Three-tier matching |
-| [0007-info](0007-information-responsibility-split.md) | Accepted | Scrape information responsibility split |
-| [0007-confirm](0007-confirm-workflow-preview-vs-import-split.md) | 已实施 | Confirm workflow preview vs import split |
-| [0008](0008-scraper-feature-first-migration.md) | Proposed | Scraper feature-first migration |
+| [0007](0007-information-responsibility-split.md) | Accepted | Scrape information responsibility split |
+| [0009](0009-confirm-workflow-preview-vs-import-split.md) | 已实施 | Confirm workflow preview vs import split |
+| [0008](0008-scraper-feature-first-migration.md) | Accepted | Scraper feature-first migration |
+| [0010](0010-remove-ai-scraping.md) | Accepted | Remove AI scraping, TMDB-first two-tier matching |
+| [0011](0011-fnos-install-runtime-config-ownership.md) | Accepted | fnOS install/runtime config ownership |
+| [0012](0012-storage-role-topology.md) | Accepted | Storage role topology and directory boundaries |
+| [0013](0013-verified-transfer-recovery.md) | Accepted | Verified transfer, recycle and recovery |
+
+## Numbering Note
+
+编号 0006 从未使用（历史缺口，保持空号不改，编号只增不重排）。原 `0007-confirm-workflow-preview-vs-import-split.md` 与 0007 重号，2026-08-22 改号为 0009。

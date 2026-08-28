@@ -1,5 +1,8 @@
 # Frontend Information Architecture
 
+> status: frozen-pending-reevaluation（2026-08-22）
+> 项目转向「功能简洁化」，本文档内容需先经 [tracking/backlog-reevaluation.md](../tracking/backlog-reevaluation.md) 重估；重估前仅作为现状参考，不作为执行目标。
+
 ## Scope
 
 本文件定义前端重做前的信息架构事实，目标是让新的 UI 与当前 feature-first 后端结构对齐，而不是继续围绕旧单页大文件增量堆逻辑。

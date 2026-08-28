@@ -6,7 +6,7 @@
 
 | Location | Content |
 |----------|---------|
-| `docs/_archive/` | Historical documents, old plans, old architecture notes, superseded docs. |
+| `docs/_archive/` | Historical documents, old plans, old architecture notes, superseded docs. 唯一文档归档地；不设 `docs/plans/_archive/` 等二级归档目录 |
 | `_archive/` | Non-document files, historical tests/scripts, obsolete generated artifacts, old source snapshots if needed. |
 
 ## What To Archive

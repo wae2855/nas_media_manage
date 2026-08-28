@@ -21,10 +21,12 @@ EXTERNAL_UI_FILES = {
     "test_scrape_ui.py",
     "test_source_cleaner_e2e.py",
     "test_e2e_cinema_workflow.py",
+    "test_cinema_ui_smoke.py",
 }
 
 SELF_STARTED_UI_FILES = {
     "test_frontend_recycle.py",
+    "test_ai_config_ui.py",
 }
 
 SERVICE_INTEGRATION_FILES = {

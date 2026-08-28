@@ -10,18 +10,16 @@
   6. 非法操作: 对不合法状态执行操作应返回错误
 """
 import os
-import sys
-import json
 import shutil
+import sys
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.core import db as db_module
-from media_importer.features.tasks import TaskManager
+from media_importer.core.task_manager import TaskManager
 
 
 class TestTaskOperations(unittest.TestCase):
@@ -62,7 +60,8 @@ class TestTaskOperations(unittest.TestCase):
         task = db_module.create_task(self.conn, source_path=sp, source_filename=sf,
                                      file_size_mb=100.0)
         tid = task["task_id"]
-        updates = {"status": status, "video_path": video_path}
+        stage = "DONE" if status in ("FAILED", "SKIPPED", "CANCELLED", "SUCCESS") else "QUEUED"
+        updates = {"status": status, "stage": stage, "video_path": video_path}
         updates.update(extra)
         if updates:
             db_module.update_task(self.conn, tid, **updates)
@@ -294,7 +293,7 @@ class TestTaskOperations(unittest.TestCase):
         self.assertEqual(rows[0]["file_size_mb"], 100.0)
 
     def test_list_tasks_retry_count(self):
-        task = self._create_task(status="FAILED", retry_count=2)
+        _task = self._create_task(status="FAILED", retry_count=2)
         rows, _, _ = db_module.list_tasks(self.conn, page=1, page_size=20)
         self.assertEqual(rows[0]["retry_count"], 2)
 

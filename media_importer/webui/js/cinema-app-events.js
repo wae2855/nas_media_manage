@@ -111,21 +111,19 @@ function bindEvents() {
         rules: saveRulesConfig,
         scrape: () => saveProvidersConfig(""),
         ai: saveLlmConfig,
-        // T2.10 后：每个 tab 独立保存（key 用下划线与配置 section 名一致）
-        ai_assist: saveAiAssistConfig,
-        ai_search: saveAiScrapeConfig,
-        // 向后兼容老 key（连字符形式，当前 HTML 已不使用）
-        "ai-assist": saveAiAssistConfig,
-        "ai-scrape": saveAiScrapeConfig,
-        "ai-prompts": saveAiPromptsConfig,
-        "ai-scene-strategy": saveAiSceneStrategyConfig,
+        llm: saveLlmConfig,
         naming: saveImportOptionsConfig,
         security: saveSecurityConfig,
-        hermes: saveHermesConfig,
         system: saveAdvancedSystemConfig,
+        automation: saveAutomationConfig,
       };
       const handler = actionMap[configSave.dataset.configSave];
       if (handler) handler();
+      return;
+    }
+    if (event.target.closest("[data-storage-refresh]")) {
+      loadDirectoryConfig();
+      showToast("正在重新检查目录与空间...");
       return;
     }
     const pathTest = event.target.closest("[data-path-test]");
@@ -157,52 +155,6 @@ function bindEvents() {
       }
       return;
     }
-    const hermesTest = event.target.closest("[data-hermes-test]");
-    if (hermesTest) {
-      testHermesConnection();
-      return;
-    }
-    const demoScenario = event.target.closest("[data-demo-scenario]");
-    if (demoScenario) {
-      const scenario = demoScenario.dataset.demoScenario;
-      const demoFile = demoScenario.dataset.demoFile;
-      if (scenario === "scrape" || scenario === "series_scrape") {
-        runAiScrapeDemo(scenario, demoFile);
-      } else {
-        runAiAssistDemo(scenario, demoFile);
-      }
-      return;
-    }
-    if (event.target.closest("#btn-ai-scrape-demo")) {
-      openAiScrapeDemoModal();
-      return;
-    }
-    if (event.target.closest("#btn-ai-scrape-demo-close")) {
-      closeAiScrapeDemoModal();
-      return;
-    }
-    if (
-      event.target.closest("#ai-scrape-demo-modal") &&
-      !event.target.closest(".ai-demo-modal-content")
-    ) {
-      closeAiScrapeDemoModal();
-      return;
-    }
-    if (event.target.closest("#btn-ai-assist-demo")) {
-      openAiAssistDemoModal();
-      return;
-    }
-    if (event.target.closest("#btn-ai-assist-demo-close")) {
-      closeAiAssistDemoModal();
-      return;
-    }
-    if (
-      event.target.closest("#ai-assist-demo-modal") &&
-      !event.target.closest(".ai-demo-modal-content")
-    ) {
-      closeAiAssistDemoModal();
-      return;
-    }
     const action = event.target.closest("[data-action]");
     if (action) runAction(action.dataset.action, action);
     const detailToggleBtn = event.target.closest("#tmdb-detail-toggle-btn");
@@ -231,11 +183,8 @@ function bindEvents() {
   document.addEventListener("input", (event) => {
     if (event.target.id === "task-rename-input")
       updateRenamePreview(event.target);
-    if (
-      event.target.id?.startsWith("cfg-ai_assist-") ||
-      event.target.id?.startsWith("cfg-ai_search-")
-    ) {
-      updateAiConfigStatus();
+    if (event.target.id?.startsWith("cfg-llm-")) {
+      updateLlmConfigStatus();
     }
   });
   document.addEventListener("change", (event) => {
@@ -268,12 +217,8 @@ function bindEvents() {
   );
   if (watcherToggle)
     watcherToggle.addEventListener("change", toggleFileWatcherPollGroup);
-  const hermesToggle = document.getElementById("cfg-hermes_enabled-inline");
-  if (hermesToggle)
-    hermesToggle.addEventListener("change", toggleHermesInlineFields);
   window.addEventListener("scroll", updateStickyHeroState, { passive: true });
   window.addEventListener("resize", updateStickyHeroState);
   toggleSourceCleanerUi();
   toggleSourceDepthField();
-  toggleHermesInlineFields();
 }

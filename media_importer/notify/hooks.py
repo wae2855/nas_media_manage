@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import subprocess
 import os
+import subprocess
+from typing import Optional
 
 
 class HookRunner:
@@ -41,7 +42,7 @@ class HookRunner:
 
         return True
 
-    def _run_hook(self, hook_path: str, hook_name: str, env: dict = None) -> bool:
+    def _run_hook(self, hook_path: str, hook_name: str, env: Optional[dict] = None) -> bool:
         if not hook_path or not hook_path.strip():
             return True
 

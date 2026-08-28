@@ -12,7 +12,7 @@
 4. Plan: 在 `docs/plans/` 建立当前计划，只保留活跃或待执行计划。
 5. Implementation: 按计划改代码、文档和测试。
 6. Verification: 运行单元、集成、回归、UI/E2E 或明确说明为什么暂缓。
-7. Documentation Update: 同步 `docs/features/`、`docs/architecture/`、`docs/testing/`、`docs/INDEX.md` 和 `AGENTS.md`。
+7. Documentation Update: 同步 `docs/features/`、`docs/architecture/`、`docs/testing/`、`docs/ai-map.md` 和 `AGENTS.md`。
 8. Pending Acceptance: 完成但未用户验收时写入 `docs/tracking/pending-acceptance.md`。
 9. User Acceptance: 用户确认后移入 `docs/tracking/completed-items.md`。
 10. Standards Backfill: 如果形成可复用规则，更新 `docs/standards/` 或 `AGENTS.md` 导航。

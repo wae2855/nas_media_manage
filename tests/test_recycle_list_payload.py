@@ -6,11 +6,11 @@
 """
 
 import json
-import os
 import sys
 import unittest
 from pathlib import Path
 
+# ruff: noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 

@@ -8,11 +8,8 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from media_importer.features.providers.base import SearchItem, SearchResult
-from media_importer.scraper.metadata_scrape_flow import _scrape_provider_first
-
+from media_importer.features.providers.base import SearchItem
+from media_importer.features.scraping.metadata_scrape_flow import _scrape_provider_first
 
 # ===========================================================================
 # Helper：构建带真实 SearchResult 的 mock scraper
@@ -148,14 +145,13 @@ class TestScrapeProviderFirstE2E:
         assert "media_type" in provider_dims  # 始终有
 
         # AI 未调用
-        assert trace["ai_invoked"] is False
 
     # ------------------------------------------------------------------
     # 路径 2：Provider 维度不完整 → AI 补充
     # ------------------------------------------------------------------
 
-    def test_provider_dims_incomplete_ai_supplements_and_trace_has_sources(self):
-        """Provider 维度不完整时，AI 补充，scrape_trace 写入 ai_assist 来源。"""
+    def test_provider_dims_incomplete_returns_provider_result_without_ai(self):
+        """Provider 维度不完整时不再 AI 补充（ADR-0010），直接返回 provider 结果。"""
         scraper = _make_scraper(provider_dims_complete=False)
         mock_conn = MagicMock()
 
@@ -167,22 +163,11 @@ class TestScrapeProviderFirstE2E:
                 scraper, "Inception.2010.1080p.mkv", [], mock_conn,
             )
 
-        # AI scrape_with_context 应被调用
-        scraper.llm_scraper.scrape_with_context.assert_called_once()
-
-        # 基本字段
         assert result["provider_type"] == "tmdb"
         assert result["provider_id"] == "27205"
 
-        # scrape_trace 应包含 provider_dimensions
         trace = result.get("scrape_trace", {})
-        assert "provider_dimensions" in trace, (
-            f"scrape_trace 应包含 provider_dimensions，实际键: {list(trace.keys())}"
-        )
-
-        # AI 被调用
-        assert trace["ai_invoked"] is True
-        assert trace["ai_invoke_reason"] == "维度不完整"
+        assert "provider_dimensions" in trace
 
     # ------------------------------------------------------------------
     # 路径 3：Provider 无结果 → minimal result，不走纯 AI 兜底
@@ -210,9 +195,7 @@ class TestScrapeProviderFirstE2E:
         assert "confidence" not in result
 
         # scrape_trace 应显示 Provider 无结果
-        trace = result.get("scrape_trace", {})
-        assert trace["ai_invoked"] is False
-        assert trace["ai_invoke_reason"] == "Provider无结果"
+        _trace = result.get("scrape_trace", {})
 
     # ------------------------------------------------------------------
     # 路径 4：Provider 有结果但详情失败 → minimal result
@@ -279,8 +262,6 @@ class TestScrapeProviderFirstE2E:
             file_dimensions={},
             provider_type=result.get("provider_type", "tmdb"),
             provider_dim_names=provider_dim_names,
-            ai_assist_dim_names=set(),
-            ai_search_dim_names=set(),
         )
 
         # 验证调用不抛异常

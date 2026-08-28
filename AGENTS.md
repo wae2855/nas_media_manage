@@ -1,170 +1,112 @@
-# 影音库AI智能整理 - AI Agent Guide
+# 影音库AI智能整理 — AI Agent 入口
 
-本文件是 AI 执行入口，只保留最高优先级规则和导航。详细规范见 `docs/standards/`，开发流程见 `docs/workflows/`。
+本文件只保留最高优先级信息：环境命令、安全红线、导航路由。完整规范见 `docs/standards/`，流程见 `docs/workflows/`。
 
-## 0. Start Here
+## 1. Start Here（导航路由）
 
 | 目标 | 入口 |
 |------|------|
+| **任务→代码→测试→文档映射（先查这里）** | [docs/ai-map.md](docs/ai-map.md) |
 | 文档总入口 | [docs/README.md](docs/README.md) |
-| 代码/文档/测试索引 | [docs/INDEX.md](docs/INDEX.md) |
-| AI 任务导航 | [docs/ai-map.md](docs/ai-map.md) |
-| 代码规范 | [docs/standards/coding.md](docs/standards/coding.md) |
-| 架构规范 | [docs/standards/architecture.md](docs/standards/architecture.md) |
-| 文档规范 | [docs/standards/documentation.md](docs/standards/documentation.md) |
-| 测试规范 | [docs/standards/testing.md](docs/standards/testing.md) |
-| 安全规范 | [docs/standards/safety.md](docs/standards/safety.md) |
-| 功能开发流程 | [docs/workflows/feature-development.md](docs/workflows/feature-development.md) |
-| 重构流程 | [docs/workflows/refactor-development.md](docs/workflows/refactor-development.md) |
-| 项目闭环流程 | [docs/workflows/project-lifecycle.md](docs/workflows/project-lifecycle.md) |
-| 需求管理规范 | [docs/standards/requirement-management.md](docs/standards/requirement-management.md) |
-| 需求看板 | [docs/tracking/requirements-board.md](docs/tracking/requirements-board.md) |
-| 待验收/完成事项 | [docs/tracking/pending-acceptance.md](docs/tracking/pending-acceptance.md), [docs/tracking/completed-items.md](docs/tracking/completed-items.md) |
-| 仓库结构与归档 | [docs/architecture/repository-structure.md](docs/architecture/repository-structure.md), [docs/architecture/archive-policy.md](docs/architecture/archive-policy.md) |
-| 旧文档说明 | [docs/legacy.md](docs/legacy.md) |
+| 前端/后端/代码规范 | [docs/standards/frontend.md](docs/standards/frontend.md), [docs/standards/backend.md](docs/standards/backend.md), [docs/standards/](docs/standards/) |
+| 开发/重构/发布流程 | [docs/workflows/](docs/workflows/) |
+| 需求看板与待办重估 | [docs/tracking/requirements-board.md](docs/tracking/requirements-board.md), [docs/tracking/backlog-reevaluation.md](docs/tracking/backlog-reevaluation.md) |
+| 架构决策（ADR） | [docs/decisions/](docs/decisions/) |
+| 测试策略与回归矩阵 | [docs/testing/](docs/testing/) |
 
-## 1. Project Summary
+## 2. Project Summary
 
-自动扫描源目录视频文件，通过 AI + TMDB/Provider 刮削元数据，按规则分类入库。运行在飞牛 fnOS NAS 上，提供原生 Web UI 管理任务、配置、维度、提示词、回收站和源目录清理。
+自动扫描源目录视频文件，通过 AI + TMDB/Provider 刮削元数据，按规则分类入库。运行在飞牛 fnOS NAS 上，提供原生 Web UI。
 
-技术栈：
+技术栈：Python 3.12 + SQLite + 原生 HTTP API + 原生 HTML/CSS/JS + YAML 配置。
 
-- Python 3
-- SQLite + JSON 字段
-- 原生 HTTP API
-- 原生 HTML/CSS/JS
-- YAML 配置 + 自动迁移
-
-## 2. Commands
+## 3. Commands
 
 ```bash
-# 初始化项目 Python 3.12 环境
-pyenv install 3.12.13 -s
-pyenv local 3.12.13
-./scripts/bootstrap_python_env.sh
-source .venv/bin/activate
+# 初始化环境
+pyenv install 3.12.13 -s && pyenv local 3.12.13
+./scripts/bootstrap_python_env.sh && source .venv/bin/activate
 
-# 启动开发服务，端口默认 9855
+# 启动开发服务（端口 9855）
 PYTHONPATH="${PWD}" python -m media_importer.media_importer -c config/config.yaml serve -p 9855 --host 0.0.0.0
+# 或 ./start.sh [config] [host] [port]
 
-# 或用封装脚本
-./start.sh [config] [host] [port]
-
-# 全部测试，包含需要本地服务的 UI 测试
+# 全部测试（含需要本地服务的 UI 测试）
 python -m pytest tests/
-
-# 单个测试文件
-python -m pytest tests/test_feature_import_flow.py
-
-# 架构/依赖方向护栏
-python -m pytest tests/test_architecture_guards.py
 
 # 非 UI 测试
 python -m pytest tests/ --ignore=tests/test_*_ui.py --ignore=tests/test_frontend_*.py --ignore=tests/test_scrape_ui.py
 
+# 架构护栏
+python -m pytest tests/test_architecture_guards.py
+
 # 编译检查
 PYTHONPYCACHEPREFIX=/private/tmp/nas_media_manage_pycache python -m compileall -q media_importer tests
+
+# Python lint（新改动文件必须通过；存量基线 Phase 4 清零）
+.venv/bin/ruff check <改动文件>
+
+# 文档检查（断链/行数/front-matter）
+python scripts/check_docs.py
 ```
 
-测试前注意：
-
-- 仓库使用 `.python-version` 固定到 Python `3.12.13`；本地开发优先走项目 `.venv/`，不要依赖全局 `python3`。
-- 当前仍未新增 `pyproject.toml`；在 lint/formatter/typecheck 工具链明确前，继续使用 `pytest.ini` 和文档化命令。
+注意事项：
+- 优先用项目 `.venv/`（`.python-version` 固定 3.12.13）。
 - UI 测试依赖 Playwright 模块、浏览器二进制和本地运行服务。
-- 在 Codex Desktop 的 macOS 环境里，优先使用右侧 `Browser` 工具做本地 `localhost` / `127.0.0.1` 检查；不要默认假设可以从沙箱内直接启动 Chromium。
-- 右侧工具若显示 GitHub CLI 不可用，优先使用 GitHub 插件/连接器路径，不要把本地 `gh` 当作默认前置条件。
-- 许多测试可能已有历史失败，改动前先看 `.pytest_cache/v/cache/lastfailed`。
+- 改动前先看 `.pytest_cache/v/cache/lastfailed`（可能有历史失败）。
 
-## 3. Source Layout
+## 4. Source Layout
 
 ```text
 media_importer/
 ├── media_importer.py          # CLI 入口
-├── api/                       # HTTP API 和静态文件服务
-├── core/                      # 配置、DB、任务、日志、指标和 legacy facade
-├── features/                  # feature-first 业务能力事实源，含 import_flow/source_files/tasks 等
-├── infrastructure/            # DB/filesystem 等基础设施；路径校验、安全移动/删除在 filesystem
-├── scraper/                   # 待迁移到 features/scraping 与 features/providers
-├── storage/                   # legacy wrappers；新代码优先用 feature 或 infrastructure/filesystem
-├── monitor/                   # 待并入 notification/monitoring feature 或 infrastructure
-├── notify/                    # 待迁移到 notification/monitoring feature
+├── api/                       # HTTP API（入口层，不载业务策略）
+├── core/                      # 配置/DB/任务/日志（迁移期兼容层）
+├── features/                  # 业务事实源（import_flow/scraping/tasks/...）
+├── infrastructure/            # DB/文件系统基础能力
+├── monitor/ notify/           # legacy/待迁移
 └── webui/                     # 原生前端
 ```
 
-`deploy/` 内有部署副本，不是默认开发源。不要自动同步或修改 deploy，除非任务明确要求。
-`deploy/nas-media-importer/` 是生成 package workspace；应用代码事实以根目录 `media_importer/` 为准。发布时通过 `deploy/build_fpk.sh` 从根源码重建。
+依赖方向：api/CLI → features → infrastructure。`features/` 是业务事实源。
 
-## 4. Highest Priority Safety Rules
+## 5. Safety Rules（红线）
 
 - 删除或覆盖影视文件必须走回收站，禁止直接 `os.remove()` 删除源文件或入库文件。
-- 临时文件只在明确属于 `temp_dir` 或 `.tmp` / `.copying` 边界时可直接删除。
-- 文件操作必须限制在允许目录内，避免路径穿越和误删。
+- 临时文件只在明确属于 `temp_dir` 或 `.tmp`/`.copying` 边界时可直接删除。
+- 文件操作必须限制在允许目录内，防路径穿越和误删。
 - 敏感配置项返回前端前必须脱敏为 `***`。
-- 不要回滚用户已有改动；在 dirty worktree 中只处理本任务相关文件。
+- 不回滚用户已有改动；dirty worktree 中只处理本任务相关文件。
+- 完整规则见 [docs/standards/safety.md](docs/standards/safety.md)。
 
-完整安全规则见 [docs/standards/safety.md](docs/standards/safety.md)。
+## 6. Change Impact
 
-## 5. Change Impact Rules
+改动必须同步的文档矩阵见 [docs/ai-map.md §3](docs/ai-map.md)（唯一事实源）。关键提醒：
 
 | 改动类型 | 必须同步 |
 |----------|----------|
-| 新增 API | `docs/architecture/api.md`, `docs/standards/api.md`, `docs/INDEX.md` |
+| 新增 API | routes.py + architecture/api.md + standards/api.md + ai-map §2 |
 | 新增配置项 | loader/migration/validator/API/frontend/docs/tests |
 | 修改任务状态 | DB constants/task manager/import-flow/API/frontend/docs/tests |
-| 修改文件删除/覆盖逻辑 | safety/recycle 文档和回收站测试 |
-| 新增 Provider | Provider 文档、配置、API、测试 |
-| 大架构重构 | plan + ADR + `docs/features/` + 相关 architecture 文档 |
-| 发布 fnOS package | 使用 `deploy/build_fpk.sh` 从根源码生成，不手动补丁 deploy package 副本 |
+| 修改文件删除/覆盖逻辑 | safety 文档 + 回收站测试 |
 
-详细映射见 [docs/INDEX.md](docs/INDEX.md) 和 [docs/ai-map.md](docs/ai-map.md)。
+## 7. Development Workflow（轻量流程）
 
-旧中文目录、历史方案和被替代计划已统一移入 `docs/_archive/`，只作为 traceability，不作为当前架构事实来源。AI 修改代码前应优先读取 `docs/features/`、`docs/architecture/`、`docs/standards/`、`docs/workflows/` 和 `docs/decisions/`。
+按变更级别准备文档（详见 [docs/workflows/feature-development.md](docs/workflows/feature-development.md)）：
 
-## 6. Coding Rules
+| 级别 | 需求注册 | 方案(proposal) | ADR | 计划(plan) | 测试计划 |
+|------|---------|------|-----|------|----------|
+| 小改（bugfix） | ✅ 看板一行 | ❌ | ❌ | ❌ 可省 | 必跑既有回归 |
+| 中改（功能/行为变更） | ✅ | ✅ | 仅架构级 | ✅ | ✅ plan 内章节 |
+| 大改（跨feature/架构） | ✅ | ✅ | ✅ | ✅ | ✅ 独立章节 |
 
-- Python 文件建议不超过 500 行。
-- 文档建议不超过 500 行。
-- API handler 不承载复杂业务策略。
-- `features/` 是业务事实源；API、CLI 和旧技术目录只能薄调用 feature service。
-- 同子包内相对导入；跨子包使用 `media_importer.xxx` 绝对导入。
-- 不添加无意义注释；复杂规则优先写入文档。
-- CSS 使用变量体系，不硬编码颜色。
-- 前端 JS 按功能模块拆分。
+流程：注册需求 → 方案 → [ADR] → 计划 → 实施+测试 → 验收 → 归档（plan 必须归档，不得滞留）。
+模板见 [docs/standards/documentation.md](docs/standards/documentation.md)。
 
-完整规则见 [docs/standards/coding.md](docs/standards/coding.md)。
+## 8. Current Status（2026-08-22 恢复）
 
-## 7. Workflow Rules
-
-新功能：
-
-1. Brainstorm
-2. Proposal
-3. ADR if architecture decision is needed
-4. Plan
-5. Implementation
-6. Unit -> Integration -> UI/Regression tests
-7. Documentation update
-8. Review and commit
-
-重构：
-
-1. 确认 baseline commit
-2. 明确目标和非目标
-3. 分阶段保持可运行
-4. 结构重构和行为变更分开
-5. 每阶段同步文档和测试
-
-完整流程见 [docs/workflows/](docs/workflows/)。
-
-## 8. Current Refactor Direction
-
-当前大方向是 AI 友好的 feature-first 激进重构：
-
-- `features/` 是新业务入口，优先按业务能力检索和扩展。
-- `features/import_flow/` 已替代旧 `pipeline/` 包装层；旧包装层已归档，不作为可导入入口。
-- 路径校验、复制/移动、删除基础能力属于 `infrastructure/filesystem/`；源文件处理策略属于 `features/source_files/`。
-- `storage/`、`core/recycle/`、`core/safety.py` 等旧技术路径只作为兼容入口或待迁移目录，不作为新事实源。
-- 历史文档、旧方案、旧测试脚本和生成物统一归档，当前文档不得引用归档内容作为事实。
-- 前端重做和深层 UI/E2E 测试在代码与文档架构稳定后单独展开。
-
-当前执行计划见 [docs/plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md](docs/plans/2026-06-03-refactor-ai-efficient-architecture-completion-plan.md)，上一轮重组基线见 [docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md](docs/plans/2026-06-02-refactor-domain-first-code-and-docs-plan.md)，架构决策见 [docs/decisions/0004-feature-first-architecture-restructure.md](docs/decisions/0004-feature-first-architecture-restructure.md)。
+- 项目停摆一个月后恢复，新方向：**功能简洁化**。
+- 简洁化 Phase 0-4 与二轮文档治理已完成（2026-08-27）；前端/后端规范见 standards/frontend.md、standards/backend.md。
+- 当前执行：**简洁化路线图**（[plan（已归档）](docs/_archive/2026-08-27-simplification-complete/2026-08-22-simplification-roadmap.md)，Phase 0-4）；移除 Hermes 与 AI 刮削（[ADR-0010](docs/decisions/0010-remove-ai-scraping.md)）；状态机重构（REQ-20260822-000004）。
+- 业务决策已拍板：前端只做减法；保留 watcher/源清理器/模拟器/维度/手动处理；公开发布 fpk。详见需求看板。
+- feature-first 重构已落地（ADR-0004），scraper 迁移已完成（ADR-0008）。

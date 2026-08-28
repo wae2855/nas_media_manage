@@ -1,7 +1,8 @@
 """TitleMatcher 单元测试（从 test_confidence_engine.py 迁移）。"""
 
 import unittest
-from media_importer.scraper.title_matcher import TitleMatcher
+
+from media_importer.features.scraping.title_matcher import TitleMatcher
 
 
 class TestTitleMatcher(unittest.TestCase):

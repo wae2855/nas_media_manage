@@ -541,9 +541,6 @@ main() {
     log_step "复制应用代码到 app/server/"
     mkdir -p "${PKG_DIR}/app/server"
     cp -r "${PROJECT_DIR}/media_importer" "${PKG_DIR}/app/server/"
-    if [ -d "${PROJECT_DIR}/hermes" ]; then
-        cp -r "${PROJECT_DIR}/hermes"         "${PKG_DIR}/app/server/"
-    fi
     cp "${PROJECT_DIR}/config.yaml.example" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/requirements.txt"    "${PKG_DIR}/app/server/"
     log_info "代码复制完成"

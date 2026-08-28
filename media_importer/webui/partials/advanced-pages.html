@@ -6,7 +6,7 @@
             <div class="path-breadcrumb" aria-label="当前路径">
                 <span>系统配置</span><i>/</i><strong>高级配置</strong>
             </div>
-            <p>主流程跑通后，再在这里微调提示词、维度、通知和系统策略。</p>
+            <p>主流程跑通后，再在这里微调命名、维度、安全、自动扫描和系统策略。</p>
         </div>
         <div class="hero-action-group">
             <button class="btn btn-secondary" data-nav="config" data-view-target="config">返回系统配置</button>
@@ -27,7 +27,7 @@
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                            <b>再补安全、通知和系统策略</b>
+                            <b>再补安全和系统策略</b>
                         </div>
                         <small>这些通常是低频配置，建议在主流程稳定后再逐项展开。</small>
                     </div>
@@ -36,7 +36,7 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
                             <b>改完后去跑一次模拟测试</b>
                         </div>
-                        <small>提示词、维度和规则联动较多，最好先做一次整体试跑再开始真实任务。</small>
+                        <small>维度、命名和路径规则联动较多，最好先做一次整体试跑再开始真实任务。</small>
                     </div>
                 </div>
             </article>
@@ -46,7 +46,6 @@
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="naming-config"><div><h3>入库名称规范</h3><p>决定电影、剧集、字幕和重名文件最后怎样命名。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="dimensions-config"><div><h3>影视分类维度</h3><p>控制哪些维度参与分类判断、变量输出和目录映射。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="security-config"><div><h3>安全配置</h3><p>控制 API 认证和监听端口，属于低频但高影响的设置。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
-        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="hermes-config"><div><h3>Hermes通知</h3><p>配置外部通知链路、重试策略和测试入口。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="system-settings"><div><h3>系统设置</h3><p>管理应用目录、并发数以及视频和字幕识别范围。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
     </section>
 </section>
@@ -59,7 +58,7 @@
             <div class="path-breadcrumb" aria-label="当前路径">
                 <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>模拟测试</strong>
             </div>
-            <p>输入文件名，测试三级匹配刮削的完整路径和入库决策。</p>
+            <p>输入文件名，测试两级匹配、维度映射和入库决策。</p>
         </div>
         <div class="hero-action-group">
             <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
@@ -75,43 +74,43 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
                             <b>输入真实文件名</b>
                         </div>
-                        <small>系统将执行三级匹配刮削，展示完整匹配路径和入库决策。</small>
+                        <small>系统将执行 TMDB 两级匹配，展示匹配路径和入库决策。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
                             <b>查看匹配路径</b>
                         </div>
-                        <small>Provider精确匹配 → 🤖 AI上下文辅助匹配 → 用户确认，每一步都有清晰说明。</small>
+                        <small>TMDB 匹配 → 用户确认；每一步都有清晰说明。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
                             <b>有偏差就回去微调</b>
                         </div>
-                        <small>调整提示词或 Provider 配置后回来重跑。</small>
+                        <small>调整文件名、Provider、维度或路径规则后回来重跑。</small>
                     </div>
                 </div>
             </article>
         </div>
         <article class="match-preview">
             <div>
-                <span class="match-preview-kicker">三级匹配模拟</span>
-                <h3>输入一个文件名，测试三级匹配刮削流程</h3>
-                <p>Provider精确匹配 → 🤖 AI上下文辅助匹配 → 用户确认，展示完整匹配路径和入库决策。</p>
+                <span class="match-preview-kicker">两级匹配模拟</span>
+                <h3>输入一个文件名，测试 TMDB 匹配与入库流程</h3>
+                <p>文件名规则清洗 → TMDB 匹配 → 自动入库或用户确认，展示完整匹配路径和入库决策。</p>
             </div>
             <div class="match-preview-row">
                 <input id="match-preview-filename" type="text" placeholder="例如：Dune.Part.Two.2024.1080p.mkv">
                 <button class="btn btn-primary" type="button" id="btn-match-preview">刮削开始</button>
             </div>
-            <div class="match-preview-result" id="match-preview-result">输入文件名后，系统将执行三级匹配刮削并展示完整路径。</div>
+            <div class="match-preview-result" id="match-preview-result">输入文件名后，系统将执行两级匹配并展示完整路径。</div>
         </article>
     </section>
 </section>
 
 <section class="page-view" data-view="metadata-config">
     <div class="page-hero"><div><div class="eyebrow">高级配置</div><h2>影视刮削配置</h2><p>统一管理 Provider、搜索策略和元数据源。</p></div><button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button></div>
-    <section class="config-grid"><article><b>Provider 顺序</b><span>TMDB、Provider、文件名与 AI 数据源优先级。</span></article><article><b>搜索策略</b><span>标题清洗、年份匹配、结果数量与降级策略。</span></article><article><b>可用性检查</b><span>展示连接状态、API Key 状态和最近测试结果。</span></article></section>
+    <section class="config-grid"><article><b>TMDB Provider</b><span>管理语言、地址、凭据和连接状态。</span></article><article><b>搜索策略</b><span>文件名规则清洗、年份匹配和英文标题回退。</span></article><article><b>可用性检查</b><span>展示连接状态、API Key 状态和最近测试结果。</span></article></section>
 </section>
 
 <section class="page-view" data-view="schedule-config">
@@ -226,7 +225,7 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
                             <b>最后回看变量联动</b>
                         </div>
-                        <small>维度变化会影响提示词、入库规则和变量输出，调整后建议一起检查。</small>
+                        <small>维度变化会影响入库规则和变量输出，调整后建议一起检查。</small>
                     </div>
                 </div>
             </article>
@@ -295,147 +294,12 @@
             <label class="form-card form-card-full">
                 <span>API 监听端口</span>
                 <input type="number" id="cfg-server_port-inline" min="1024" max="65535" placeholder="9855" />
-                <p>⚠️ 修改端口影响面较大：重启服务后生效，浏览器登录地址、Hermes 回调地址、fnOS 应用端口配置和防火墙规则都需同步修改。</p>
+                <p>⚠️ 修改端口影响面较大：重启服务后生效，浏览器登录地址、fnOS 应用端口配置和防火墙规则都需同步修改。</p>
             </label>
         </div>
     </section>
 </section>
 
-<section class="page-view" data-view="hermes-config">
-    <div class="page-hero">
-        <div>
-            <div class="eyebrow">高级配置</div>
-            <h2>Hermes通知</h2>
-            <div class="path-breadcrumb" aria-label="当前路径">
-                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>Hermes通知</strong>
-            </div>
-            <p>承接旧“通知安全 / Hermes通知”，保留原有字段分组、测试入口和保存操作。</p>
-        </div>
-        <div class="hero-action-group">
-            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
-            <button class="btn btn-primary" type="button" data-config-save="hermes">保存</button>
-        </div>
-    </div>
-    <section class="config-panel advanced-host-panel" id="hermes-config-inline">
-        <div class="config-form-grid">
-            <article class="form-card form-card-full config-guide-card">
-                <span>这一页先做什么</span>
-                <div class="config-guide-list compact">
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                            <b>先确定是否开启通知</b>
-                        </div>
-                        <small>不需要外部通知时，可以先关闭，后续按需接入。</small>
-                    </div>
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                            <b>再填 Webhook 信息</b>
-                        </div>
-                        <small>把地址、路由、签名和超时策略一次补齐，后面更容易测试。</small>
-                    </div>
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
-                            <b>最后测试通知链路</b>
-                        </div>
-                        <small>保存前最好先发一次测试通知，确认 Hermes 端可以收到。</small>
-                    </div>
-                </div>
-            </article>
-            <article class="form-card form-card-full">
-                <span>启用通知</span>
-                <label class="toggle-row-inline">
-                    <input type="checkbox" id="cfg-hermes_enabled-inline" />
-                    <b>开启 Hermes 通知</b>
-                </label>
-            </article>
-            <div class="hermes-inline-fields active" id="hermes-inline-fields">
-                <label class="form-card form-card-full">
-                    <span>Webhook 地址</span>
-                    <input type="text" id="cfg-hermes_webhook_base_url-inline" placeholder="http://hermes:8644" />
-                </label>
-                <label class="form-card form-card-full">
-                    <span>路由名称</span>
-                    <input type="text" id="cfg-hermes_webhook_route_name-inline" placeholder="media-normalize" />
-                </label>
-                <label class="form-card form-card-full">
-                    <span>签名密钥</span>
-                    <input type="password" id="cfg-hermes_webhook_secret-inline" placeholder="secret" />
-                </label>
-                <label class="form-card">
-                    <span>超时时间（秒）</span>
-                    <input type="number" id="cfg-hermes_webhook_timeout-inline" min="5" max="120" value="30" />
-                </label>
-                <label class="form-card">
-                    <span>最大重试次数</span>
-                    <input type="number" id="cfg-hermes_webhook_max_retries-inline" min="0" max="10" value="3" />
-                </label>
-                <label class="form-card">
-                    <span>重试间隔（秒）</span>
-                    <input type="number" id="cfg-hermes_webhook_retry_delay-inline" min="1" max="60" value="5" />
-                </label>
-                <article class="form-card form-card-full">
-                    <span>验证 SSL 证书</span>
-                    <label class="toggle-row-inline">
-                        <input type="checkbox" id="cfg-hermes_webhook_verify_ssl-inline" />
-                        <b>HTTPS 且证书有效时开启</b>
-                    </label>
-                    <p>HTTP 或内网地址请关闭。</p>
-                </article>
-                <article class="form-card form-card-full">
-                    <span>通知事件</span>
-                    <small class="form-card-hint">勾选需要通过 Hermes Webhook 推送的事件类型</small>
-                    <div class="event-grid">
-                        <label class="event-tile" for="cfg-hermes_event_batch_start-inline">
-                            <input type="checkbox" id="cfg-hermes_event_batch_start-inline" />
-                            <span class="event-tile-icon" aria-hidden="true">
-                                <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-clapper"></use></svg>
-                            </span>
-                            <span class="event-tile-body">
-                                <b class="event-tile-title">批量处理开始</b>
-                                <small class="event-tile-desc">任务启动时立即推送一条通知</small>
-                            </span>
-                            <span class="event-tile-check" aria-hidden="true">
-                                <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
-                            </span>
-                        </label>
-                        <label class="event-tile" for="cfg-hermes_event_batch_complete-inline">
-                            <input type="checkbox" id="cfg-hermes_event_batch_complete-inline" />
-                            <span class="event-tile-icon" aria-hidden="true">
-                                <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
-                            </span>
-                            <span class="event-tile-body">
-                                <b class="event-tile-title">批量处理完成</b>
-                                <small class="event-tile-desc">整批任务结束时汇报汇总结果</small>
-                            </span>
-                            <span class="event-tile-check" aria-hidden="true">
-                                <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
-                            </span>
-                        </label>
-                        <label class="event-tile" for="cfg-hermes_event_program_error-inline">
-                            <input type="checkbox" id="cfg-hermes_event_program_error-inline" />
-                            <span class="event-tile-icon event-tile-icon-danger" aria-hidden="true">
-                                <svg class="icon icon-md" viewBox="0 0 24 24"><use href="#icon-alert"></use></svg>
-                            </span>
-                            <span class="event-tile-body">
-                                <b class="event-tile-title">程序错误</b>
-                                <small class="event-tile-desc">运行期出现异常时立即告警</small>
-                            </span>
-                            <span class="event-tile-check" aria-hidden="true">
-                                <svg class="icon" viewBox="0 0 24 24"><use href="#icon-check"></use></svg>
-                            </span>
-                        </label>
-                    </div>
-                </article>
-                <div class="advanced-action-row">
-                    <button class="btn btn-secondary" type="button" data-hermes-test="inline">测试 Hermes 通知</button>
-                </div>
-            </div>
-        </div>
-    </section>
-</section>
 
 <section class="page-view" data-view="system-settings">
     <div class="page-hero">

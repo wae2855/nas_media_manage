@@ -2,7 +2,7 @@
 import os
 import re
 import time
-from typing import List, Optional, Tuple
+from typing import List
 
 from media_importer.features.configuration import ConfigView
 
@@ -36,9 +36,6 @@ class FileScanner:
         return self._group_videos(all_files)
 
     def _group_videos(self, all_files: List[str]) -> List[dict]:
-        video_files = []
-        subtitle_file_sets = []
-        seen = set()
         video_set = {
             f for f in all_files
             if f.lower().endswith(self.video_extensions)
@@ -78,7 +75,7 @@ class FileScanner:
                     subtitle_set.discard(sf)
 
         result = []
-        for clean_name, info in groups.items():
+        for _clean_name, info in groups.items():
             vpath = info["video"]
             vfile = os.path.basename(vpath)
             try:

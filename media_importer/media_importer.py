@@ -6,12 +6,11 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from media_importer.features.configuration import load_config, mask_sensitive
-from media_importer.features.tasks import TaskManager
-from media_importer.features.import_flow import PipelineRunner
-from media_importer.core.metrics import get_metrics
 from media_importer.core.logger import get_logger
-from media_importer.notify.hermes_hook import HermesNotifier
+from media_importer.core.metrics import get_metrics
+from media_importer.core.task_manager import TaskManager
+from media_importer.features.configuration import load_config, mask_sensitive
+from media_importer.features.import_flow import PipelineRunner
 
 
 def _get_data_dir(config):
@@ -27,20 +26,13 @@ def _build_components(config):
     metrics = get_metrics()
     logger = get_logger(config)
 
-    notifier = None
-    hermes_cfg = config.get("hermes", {})
-    if hermes_cfg.get("enabled", False):
-        try:
-            notifier = HermesNotifier(config)
-        except Exception:
-            pass
-
+    # Hermes 通知已移除（简洁化 Phase 1，2026-08-22）：notifier 传 None
     pipeline = PipelineRunner(
         config=config,
         task_manager=task_manager,
         metrics=metrics,
         logger=logger,
-        notifier=notifier
+        notifier=None
     )
     return pipeline, task_manager, metrics, logger
 
@@ -58,22 +50,22 @@ def cmd_run(args):
     pipeline, task_manager, metrics, logger = _build_components(config)
 
     if args.dry_run:
-        logger.info("Dry-run: 扫描源目录")
+        logger.info("Dry-run: 扫描源目录")  # type: ignore[union-attr]
         from media_importer.features.import_flow import scan_source_dir
         groups = scan_source_dir(config.get("source_dir", ""), config)
-        logger.info(f"扫描到 {len(groups)} 个视频文件组")
+        logger.info(f"扫描到 {len(groups)} 个视频文件组")  # type: ignore[union-attr]
         for group in groups:
-            logger.info(f"  - {group['video_path']}")
+            logger.info(f"  - {group['video_path']}")  # type: ignore[union-attr]
         return
 
-    logger.info("开始批量处理")
+    logger.info("开始批量处理")  # type: ignore[union-attr]
 
     def run_in_background():
         pipeline.run_all()
 
     thread = threading.Thread(target=run_in_background, daemon=True)
     thread.start()
-    logger.info("批量处理已在后台启动")
+    logger.info("批量处理已在后台启动")  # type: ignore[union-attr]
 
 
 def cmd_list(args):
@@ -131,7 +123,7 @@ def cmd_show(args):
     if task.error_message:
         print(f"错误信息: {task.error_message}")
     if task.scraped_info:
-        print(f"刮削信息:")
+        print("刮削信息:")
         for k, v in task.scraped_info.items():
             print(f"  {k}: {v}")
     print(f"{'='*60}\n")
@@ -200,7 +192,7 @@ def cmd_log(args):
         return
 
     if args.task_id:
-        lines = [l for l in lines if args.task_id in l]
+        lines = [line for line in lines if args.task_id in line]
 
     display_lines = lines[-args.tail:] if args.tail else lines
 
@@ -236,21 +228,6 @@ def cmd_health(args):
     temp_dir = config.get("temp_dir", "")
     checks["temp_dir"] = "ok" if os.path.isdir(temp_dir) else "error"
 
-    ai_assist = config.get("ai_assist", {})
-    ai_search = config.get("ai_search", {})
-    assist_ok = bool(
-        ai_assist.get("api_key") and ai_assist.get("base_url") and ai_assist.get("model")
-    )
-    search_ok = bool(
-        ai_search.get("api_key") and ai_search.get("model")
-    )
-    checks["ai_api"] = "ok" if (assist_ok or search_ok) else "missing_api_key"
-    checks["ai_assist_configured"] = "ok" if assist_ok else "missing"
-    checks["ai_search_configured"] = "ok" if search_ok else "missing"
-
-    hermes_cfg = config.get("hermes", {})
-    checks["hermes"] = "ok" if hermes_cfg.get("enabled") else "disabled"
-
     try:
         disk_dir = temp_dir or "/tmp"
         stat = os.statvfs(disk_dir)
@@ -285,7 +262,7 @@ def cmd_metrics(args):
     print(f"  平均耗时:   {metrics.avg_processing_time:.1f}s")
     print(f"  LLM调用:   {metrics._llm_calls} (失败 {metrics._llm_failures})")
     print(f"  运行时间:   {metrics.uptime}")
-    print(f"\n队列状态:")
+    print("\n队列状态:")
     print(f"  待处理:     {counts.get('PENDING', 0)}")
     print()
 
@@ -331,7 +308,7 @@ def main():
     retry_parser = subparsers.add_parser("retry", help="重试失败任务")
     retry_parser.add_argument("task_id", nargs="?", help="任务ID (省略则重试所有失败任务)")
 
-    queue_parser = subparsers.add_parser("queue", help="查看队列状态")
+    _queue_parser = subparsers.add_parser("queue", help="查看队列状态")
 
     clear_parser = subparsers.add_parser("clear", help="清空任务队列")
     clear_parser.add_argument("--status", choices=["all", "pending", "processing", "success", "failed", "skipped"],

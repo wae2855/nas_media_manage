@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import os
 import threading
-import logging
+import time
+
 from media_importer.features.import_flow import scan_source_dir
 from media_importer.features.recycle import recycle_cleanup
 
@@ -11,6 +12,10 @@ class FileWatcher:
         watcher_cfg = config.get("file_watcher", {})
         self.enabled = watcher_cfg.get("enabled", False)
         self.poll_interval = watcher_cfg.get("poll_interval", 10)
+        self.stability_window_seconds = max(
+            30,
+            min(1800, int(watcher_cfg.get("stability_window_seconds", 120))),
+        )
         self.ignore_patterns = watcher_cfg.get("ignore_patterns", [])
         self.source_dir = config.get("source_dir", "")
         self.config = config
@@ -20,15 +25,17 @@ class FileWatcher:
         self._thread = None
         self._known_files = set()
         self._scan_count = 0
+        self._observations = {}
+        self._source_online = False
 
     def _log(self, level: str, message: str):
         if self.logger:
             log_method = getattr(self.logger, level.lower(), self.logger.info)
             log_method(message)
 
-    def _scan_known_files(self) -> set:
+    def _scan_known_files(self):
         if not self.source_dir or not os.path.isdir(self.source_dir):
-            return set()
+            return None
         known = set()
         try:
             groups = scan_source_dir(self.source_dir, self.config)
@@ -38,7 +45,35 @@ class FileWatcher:
                     known.add(sub)
         except Exception as e:
             self._log("warn", f"文件监控扫描失败: {e}")
+            return None
+        if self.ignore_patterns:
+            import fnmatch
+            known = {
+                p for p in known
+                if not any(fnmatch.fnmatch(os.path.basename(p), pat) or
+                           fnmatch.fnmatch(p, pat) for pat in self.ignore_patterns)
+            }
         return known
+
+    def _stable_new_files(self, candidates: set, now: float) -> set:
+        stable = set()
+        for path in candidates:
+            try:
+                stat = os.stat(path, follow_symlinks=False)
+            except OSError:
+                self._observations.pop(path, None)
+                continue
+            version = (stat.st_size, stat.st_mtime_ns)
+            previous = self._observations.get(path)
+            if not previous or previous[0] != version:
+                self._observations[path] = (version, now, 1)
+                continue
+            observed_at = previous[1]
+            observation_count = previous[2] + 1
+            self._observations[path] = (version, observed_at, observation_count)
+            if observation_count >= 2 and now - observed_at >= self.stability_window_seconds:
+                stable.add(path)
+        return stable
 
     def start(self):
         if not self.enabled:
@@ -52,7 +87,12 @@ class FileWatcher:
             self._log("warn", f"源目录不存在，文件监控未启动: {self.source_dir}")
             return
 
-        self._known_files = self._scan_known_files()
+        initial_files = self._scan_known_files()
+        if initial_files is None:
+            self._log("warn", f"源目录当前不可读取，文件监控未启动: {self.source_dir}")
+            return
+        self._known_files = initial_files
+        self._source_online = True
         self._log("info",
             f"文件监控启动: 目录={self.source_dir}, "
             f"轮询间隔={self.poll_interval}s, "
@@ -81,14 +121,26 @@ class FileWatcher:
     def _check_changes(self):
         self._scan_count += 1
         current_files = self._scan_known_files()
-        new_files = current_files - self._known_files
+        if current_files is None:
+            if self._source_online:
+                self._log("error", f"源目录离线或挂载不可读，暂停扫描且保留已知文件: {self.source_dir}")
+            self._source_online = False
+            return
+
+        if not self._source_online:
+            self._log("info", f"源目录恢复，重新核对文件: {self.source_dir}")
+        self._source_online = True
+        candidates = current_files - self._known_files
+        new_files = self._stable_new_files(candidates, time.monotonic())
 
         if new_files:
             self._log("info", f"检测到 {len(new_files)} 个新文件")
             for f in new_files:
                 self._log("info", f"  新文件: {os.path.basename(f)}")
 
-            self._known_files = current_files
+            self._known_files.update(new_files)
+            for path in new_files:
+                self._observations.pop(path, None)
 
             if self.on_new_files:
                 try:
@@ -98,7 +150,10 @@ class FileWatcher:
         else:
             removed = self._known_files - current_files
             if removed:
-                self._known_files = current_files
+                self._known_files.difference_update(removed)
+            for path in list(self._observations):
+                if path not in current_files:
+                    self._observations.pop(path, None)
 
         recycle_dir = self.config.get("source_policy", {}).get("recycle_dir", "")
         retention_days = self.config.get("source_policy", {}).get("recycle_retention_days", 0)
@@ -115,5 +170,7 @@ class FileWatcher:
             "source_dir": self.source_dir,
             "poll_interval": self.poll_interval,
             "known_files": len(self._known_files),
-            "scan_count": self._scan_count
+            "scan_count": self._scan_count,
+            "source_online": self._source_online,
+            "stability_window_seconds": self.stability_window_seconds,
         }

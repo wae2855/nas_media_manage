@@ -3,7 +3,7 @@
 Date: 2026-06-12
 Status: Accepted
 Supersedes: Confidence formula system (`T x R x data_gate`)
-Plan: [2026-06-12-refactor-three-tier-matching-plan.md](../plans/2026-06-12-refactor-three-tier-matching-plan.md)
+Plan（已归档）: [2026-06-12-refactor-three-tier-matching-plan.md](../_archive/2026-06-17-plans-cleanup/2026-06-12-refactor-three-tier-matching-plan.md)
 
 ## Context
 

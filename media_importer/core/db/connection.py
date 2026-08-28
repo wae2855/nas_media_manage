@@ -1,16 +1,18 @@
-import sqlite3
-import os
 import logging
+import os
+import sqlite3
 import threading
+from typing import Optional
 
 from .constants import (
-    CREATE_TASKS_TABLE,
-    CREATE_SUBTITLES_TABLE,
     CREATE_DIMENSIONS_TABLE,
-    CREATE_TASKS_INDEXES,
+    CREATE_RECYCLE_ITEMS_INDEXES,
+    CREATE_RECYCLE_ITEMS_TABLE,
     CREATE_SUBTITLES_INDEXES,
+    CREATE_SUBTITLES_TABLE,
+    CREATE_TASKS_INDEXES,
+    CREATE_TASKS_TABLE,
 )
-
 
 logger = logging.getLogger(__name__)
 _sqlite_conn_lock = threading.RLock()
@@ -27,10 +29,13 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.execute(CREATE_TASKS_TABLE)
     conn.execute(CREATE_SUBTITLES_TABLE)
     conn.execute(CREATE_DIMENSIONS_TABLE)
+    conn.execute(CREATE_RECYCLE_ITEMS_TABLE)
     _migrate_schema(conn)
     for idx_sql in CREATE_TASKS_INDEXES:
         conn.execute(idx_sql)
     for idx_sql in CREATE_SUBTITLES_INDEXES:
+        conn.execute(idx_sql)
+    for idx_sql in CREATE_RECYCLE_ITEMS_INDEXES:
         conn.execute(idx_sql)
     from .migrations import _seed_dimensions
     _seed_dimensions(conn)
@@ -62,6 +67,16 @@ def _migrate_schema(conn: sqlite3.Connection):
             pass  # 列已存在（新库通过 CREATE TABLE 创建，旧库通过 ALTER 补上）
     # 2026-06-19: confirm_reason 万能胶字段退役 — DROP COLUMN
     _drop_confirm_reason_column(conn)
+    # 2026-08-22: 维度默认值（ADR-0010 B 方案）— 映射不到时的兜底默认值
+    if not _column_exists(conn, "dimensions", "default_value"):
+        conn.execute(
+            "ALTER TABLE dimensions ADD COLUMN default_value TEXT DEFAULT ''"
+        )
+    # 2026-08-23: source_type 收敛（ADR-0010）：ai/ai+provider → provider
+    conn.execute(
+        "UPDATE dimensions SET source_type='provider' "
+        "WHERE source_type IN ('ai', 'ai+provider', 'ai+tmdb')"
+    )
 
 
 def _parse_sqlite_version(version_str: str) -> tuple:
@@ -112,7 +127,7 @@ def _drop_confirm_reason_column(conn: sqlite3.Connection) -> None:
         )
 
 
-def _row_to_dict(row) -> dict:
+def _row_to_dict(row) -> Optional[dict]:
     if row is None:
         return None
     return dict(row)

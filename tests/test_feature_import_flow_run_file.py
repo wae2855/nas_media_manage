@@ -23,9 +23,10 @@ class FakeTaskManager:
 
 
 class FakePipeline:
-    def __init__(self):
+    def __init__(self, config=None):
         self.processed = []
         self.run_all_count = 0
+        self.config = config or {}
 
     def process_one(self, task):
         self.processed.append(task)
@@ -36,7 +37,19 @@ class FakePipeline:
 
 def test_run_batch_starts_background_processing():
     FakeThread.started_targets = []
-    pipeline = FakePipeline()
+    import tempfile
+    from pathlib import Path
+
+    base = Path(tempfile.mkdtemp())
+    directories = [base / name for name in ("source", "temp", "recycle", "target")]
+    for directory in directories:
+        directory.mkdir()
+    pipeline = FakePipeline({
+        "source_dir": str(directories[0]),
+        "temp_dir": str(directories[1]),
+        "source_policy": {"recycle_dir": str(directories[2])},
+        "fallback_dir": str(directories[3]),
+    })
 
     result = run_batch_for_api(pipeline, thread_factory=FakeThread)
 
@@ -62,9 +75,18 @@ def test_run_file_starts_single_file_processing(tmp_path):
     task_manager = FakeTaskManager()
     pipeline = FakePipeline()
 
+    temp_dir = tmp_path / "temp"
+    recycle_dir = tmp_path / "recycle"
+    target_dir = tmp_path / "target"
+    for directory in (temp_dir, recycle_dir, target_dir):
+        directory.mkdir()
+
     result = run_file_for_api(
         {
             "source_dir": str(source_dir),
+            "temp_dir": str(temp_dir),
+            "source_policy": {"recycle_dir": str(recycle_dir)},
+            "fallback_dir": str(target_dir),
             "video_extensions": ["mkv"],
             "subtitle_extensions": ["srt"],
         },
@@ -100,6 +122,21 @@ def test_run_file_requires_path():
 
     assert result.code == 400
     assert result.message == "Missing 'path' field"
+
+
+def test_run_file_blocks_when_storage_is_not_ready(tmp_path):
+    video_path = tmp_path / "movie.mkv"
+    video_path.write_text("video")
+
+    result = run_file_for_api(
+        {"source_dir": str(tmp_path), "video_extensions": ["mkv"]},
+        FakeTaskManager(),
+        FakePipeline(),
+        str(video_path),
+    )
+
+    assert result.code == 409
+    assert "存储检查" in result.message
 
 
 def test_run_file_rejects_file_outside_source_dir(tmp_path):

@@ -46,4 +46,4 @@ Rules:
 
 ## Documentation Mapping
 
-业务文档在 [../features/](../features/)；仓库结构在 [repository-structure.md](repository-structure.md)；代码和文档索引在 [../INDEX.md](../INDEX.md)。
+业务文档在 [../features/](../features/)；仓库结构在 [repository-structure.md](repository-structure.md)；任务导航和变更影响矩阵在 [../ai-map.md](../ai-map.md)。

@@ -2,14 +2,14 @@
 import os
 import sys
 import unittest
+
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.features.configuration import ConfigView
-from media_importer.features.scraping import LLMScraper
-from media_importer.features.source_cleaning import SourceCleaner
 from media_importer.features.import_flow.scan_service import FileScanner
+from media_importer.features.source_cleaning import SourceCleaner
 
 
 class TestConfigViewDefaults(unittest.TestCase):
@@ -17,7 +17,7 @@ class TestConfigViewDefaults(unittest.TestCase):
         view = ConfigView.from_dict({})
 
         self.assertEqual(view.paths.log_dir, "logs")
-        self.assertEqual(view.source_policy.cleanup_source_after_done, True)
+        self.assertEqual(view.source_policy.cleanup_source_after_done, False)
         self.assertEqual(view.source_policy.recycle_retention_days, 30)
         self.assertEqual(view.source_policy.scan_recursive, True)
         self.assertEqual(view.source_policy.scan_max_depth, 5)
@@ -113,25 +113,6 @@ class TestConfigViewConsumers(unittest.TestCase):
         self.assertEqual(cleaner.delete_extensions, {".url"})
         self.assertEqual(cleaner.media_extensions, {".mkv", ".srt"})
 
-    def test_llm_scraper_uses_config_view_llm_values(self):
-        scraper = LLMScraper({
-            "ai_assist": {
-                "api_key": "fast-secret",
-                "base_url": "https://fast.example/v1",
-                "model": "fast-model",
-            },
-            "ai_search": {
-                "api_key": "secret",
-                "base_url": "https://llm.example/v1",
-                "model": "main-model",
-            }
-        })
-
-        self.assertEqual(scraper.api_key, "secret")
-        self.assertEqual(scraper.base_url, "https://llm.example/v1")
-        self.assertEqual(scraper.fast_model, "fast-model")
-        self.assertEqual(scraper.fast_api_key, "fast-secret")
-        self.assertEqual(scraper.fast_base_url, "https://fast.example/v1")
 
 
 if __name__ == "__main__":

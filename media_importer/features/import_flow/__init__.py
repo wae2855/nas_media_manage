@@ -1,3 +1,4 @@
+from .confirm import ConfirmMixin
 from .context import TaskContext
 from .lifecycle import (
     CONFIRM_CONFIRMED,
@@ -24,6 +25,9 @@ from .lifecycle import (
     start_processing,
 )
 from .review import ReviewDecision, ReviewDecisionService
+from .run_file_service import RunFileResult, run_batch_for_api, run_file_for_api
+from .runner import PipelineRunner
+from .scan_service import FileScanner, scan_source_dir
 from .services import (
     ClassificationResult,
     ClassificationService,
@@ -35,10 +39,6 @@ from .services import (
     SourceCleanupService,
 )
 from .steps import FileStepsMixin, ScrapeStepsMixin, StepsMixin
-from .confirm import ConfirmMixin
-from .runner import PipelineRunner
-from .run_file_service import RunFileResult, run_batch_for_api, run_file_for_api
-from .scan_service import FileScanner, scan_source_dir
 
 __all__ = [
     "ConfirmMixin",

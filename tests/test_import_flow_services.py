@@ -303,7 +303,10 @@ class TestSourceCleanupService(unittest.TestCase):
         config = {
             "source_dir": "/source",
             "temp_dir": "/temp",
-            "source_policy": {"recycle_dir": "/recycle"},
+            "source_policy": {
+                "recycle_dir": "/recycle",
+                "cleanup_source_after_done": True,
+            },
             "path_rules": [{"template": "/import"}],
             "video_extensions": [".mkv"],
             "subtitle_extensions": [".srt"],

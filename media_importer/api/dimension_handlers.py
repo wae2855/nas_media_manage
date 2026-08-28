@@ -1,3 +1,4 @@
+from media_importer.api import globals
 from media_importer.features.scraping import (
     disable_dimension_detail,
     enable_dimension_detail,
@@ -7,7 +8,7 @@ from media_importer.features.scraping import (
     reset_dimension_detail,
     update_dimension_detail,
 )
-from media_importer.api import globals
+
 from .utils import json_response
 
 

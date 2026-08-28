@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from urllib.parse import parse_qs
 
-from media_importer.api.utils import json_response
 from media_importer.api import globals
+from media_importer.api.utils import json_response
 from media_importer.features.recycle import (
     delete_from_recycle,
     list_recycle_dir,
@@ -23,6 +23,30 @@ def _query_first(query, key, default=""):
 
 class RecycleHandlers:
 
+    @staticmethod
+    def _recycle_db():
+        manager = globals._global_task_manager
+        return manager.conn if manager and hasattr(manager, "conn") else None
+
+    @staticmethod
+    def _server_item_ids(items) -> list:
+        if not isinstance(items, list):
+            return []
+        item_ids = []
+        for item in items:
+            if isinstance(item, str) and item:
+                item_ids.append(item)
+            elif (
+                isinstance(item, dict)
+                and set(item) == {"id"}
+                and isinstance(item.get("id"), str)
+                and item["id"]
+            ):
+                item_ids.append(item["id"])
+            else:
+                return []
+        return item_ids
+
     def recycle_list(self, *, body: dict, params: dict, query: dict):
         config = globals._config or {}
         recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
@@ -30,25 +54,36 @@ class RecycleHandlers:
         reason = _query_first(query, "reason")
         limit = int(_query_first(query, "limit", "100"))
         offset = int(_query_first(query, "offset", "0"))
-        result = list_recycle_dir(recycle_dir, zone=zone, reason=reason, limit=limit, offset=offset)
+        conn = self._recycle_db()
+        if conn is None:
+            return json_response(self, 503, message="回收台账数据库不可用")
+        result = list_recycle_dir(
+            recycle_dir,
+            zone=zone,
+            reason=reason,
+            limit=limit,
+            offset=offset,
+            conn=conn,
+        )
         return json_response(self, 200, result)
 
     def recycle_restore(self, *, body: dict, params: dict, query: dict):
         body = body or {}
-        items = body.get("items", [])
+        items = self._server_item_ids(body.get("items", []))
         conflict_mode = body.get("conflict_mode", "skip")
-
-        restore_items = []
-        for it in items:
-            if isinstance(it, str):
-                restore_items.append({"recycle_path": it})
-            elif isinstance(it, dict):
-                restore_items.append(it)
-
-        if not restore_items:
-            return json_response(self, 400, {"restored": [], "failed": []}, "未指定要恢复的回收项")
-
-        result = restore_from_recycle(restore_items, conflict_mode=conflict_mode)
+        if not items:
+            return json_response(self, 400, {"restored": [], "failed": []}, "未指定有效的回收项 ID")
+        config = globals._config or {}
+        recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
+        conn = self._recycle_db()
+        if conn is None:
+            return json_response(self, 503, message="回收台账数据库不可用")
+        result = restore_from_recycle(
+            items,
+            conflict_mode=conflict_mode,
+            recycle_dir=recycle_dir,
+            conn=conn,
+        )
         restored_count = len(result.get("restored", []))
         failed_count = len(result.get("failed", []))
         if failed_count == 0:
@@ -60,19 +95,15 @@ class RecycleHandlers:
 
     def recycle_delete(self, *, body: dict, params: dict, query: dict):
         body = body or {}
-        items = body.get("items", [])
-
-        delete_items = []
-        for it in items:
-            if isinstance(it, str):
-                delete_items.append({"recycle_path": it})
-            elif isinstance(it, dict):
-                delete_items.append(it)
-
-        if not delete_items:
-            return json_response(self, 400, {"deleted": [], "failed": []}, "未指定要删除的回收项")
-
-        result = delete_from_recycle(delete_items)
+        items = self._server_item_ids(body.get("items", []))
+        if not items:
+            return json_response(self, 400, {"deleted": [], "failed": []}, "未指定有效的回收项 ID")
+        config = globals._config or {}
+        recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
+        conn = self._recycle_db()
+        if conn is None:
+            return json_response(self, 503, message="回收台账数据库不可用")
+        result = delete_from_recycle(items, recycle_dir, conn=conn)
         deleted_count = len(result.get("deleted", []))
         failed_count = len(result.get("failed", []))
         if failed_count == 0:

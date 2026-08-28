@@ -1,7 +1,6 @@
 import re
 from dataclasses import dataclass, field
-from typing import Optional, List
-
+from typing import List, Optional
 
 # TitleMatcher 内部候选排序所需阈值。任务状态由 MatchResult.level 决定，
 # 本配置不再作为任务状态判定依据。
@@ -56,6 +55,7 @@ _CN_SEASON_EPISODE = re.compile(r"第\s*(\d+)\s*季\s*第\s*(\d+)\s*集")
 _CN_SEASON = re.compile(r"第\s*(\d+)\s*季")
 _CN_EPISODE = re.compile(r"第\s*(\d+)\s*集")
 _BARE_EPISODE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf](\d{2,3})$")
+_BARE_EPISODE_E = re.compile(r'[.\s_-][Ee](\d{1,3})(?=[.\s_-]|$)', re.IGNORECASE)
 _YEAR_PATTERN = re.compile(r'[.\s_(](19\d{2}|20\d{2})[Pp]?(?=[.\s_)]|$)')
 _YEAR_PAREN = re.compile(r'\s*\((19\d{2}|20\d{2})\)')
 _AD_PATTERN = re.compile(r'(www\.|https?://|\.com\b|\.net\b|\.org\b)', re.IGNORECASE)

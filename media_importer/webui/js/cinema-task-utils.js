@@ -92,26 +92,43 @@ function taskDescription(task) {
   return "文件已经进入队列，等待系统开始扫描与识别。";
 }
 
-function taskMeta(task) {
-  const bits = [];
+// 任务元信息标签：返回 [{tone,text}] 供卡片渲染成徽标（不再裸拼字符串）
+function taskMetaTags(task) {
+  const tags = [];
   const status = String(task.status || "").toUpperCase();
   const scrape = task.scrape_result || {};
   const matchLevel =
     task.match_level || task.scrape_match_level || scrape.match_level;
   const mediaType = task.scrape_media_type || scrape.type;
-  const year = task.scrape_year || scrape.year;
-  if (mediaType === "movie") bits.push("电影");
-  if (mediaType === "tv") bits.push("剧集");
-  if (year) bits.push(String(year));
-  if (matchLevel === "AUTO_PASS") bits.push("自动匹配");
-  else if (matchLevel === "CONTEXT_PASS") bits.push("🤖 AI辅助匹配");
-  else if (matchLevel === "NEEDS_CONFIRM") bits.push("需确认");
-  if (status === "FAILED" && task.error_message) bits.push("查看失败原因");
-  if (["SUCCESS", "SKIPPED", "CANCELLED"].includes(status) && task.completed_at)
-    bits.push(formatActivityTime(task.completed_at));
-  if (bits.length === 0 && task.created_at)
-    bits.push(formatActivityTime(task.created_at));
-  return bits.join(" · ") || "等待处理";
+  const season = task.scrape_season ?? scrape.season;
+  const episode = task.scrape_episode ?? scrape.episode;
+  if (mediaType === "movie") tags.push({ tone: "type", text: "电影" });
+  if (mediaType === "tv") {
+    tags.push({ tone: "type", text: "剧集" });
+    if (season !== null && season !== undefined && season !== "")
+      tags.push({ tone: "se", text: "S" + String(season).padStart(2, "0") });
+    if (episode !== null && episode !== undefined && episode !== "")
+      tags.push({ tone: "se", text: "E" + String(episode).padStart(2, "0") });
+  }
+  if (matchLevel === "NEEDS_CONFIRM")
+    tags.push({ tone: "warn", text: "需确认" });
+  if (status === "FAILED" && task.error_message)
+    tags.push({ tone: "danger", text: "有失败原因" });
+  const time =
+    ["SUCCESS", "SKIPPED", "CANCELLED"].includes(status) && task.completed_at
+      ? task.completed_at
+      : task.started_at || task.created_at;
+  if (time)
+    tags.push({ tone: "time", text: "处理于 " + formatActivityTime(time) });
+  return tags;
+}
+
+// 兼容旧调用：拼接纯文本（详情页 tooltip 等场景仍可用）
+function taskMeta(task) {
+  const text = taskMetaTags(task)
+    .map((t) => t.text)
+    .join(" · ");
+  return text || "等待处理";
 }
 
 function taskPrimaryAction(task) {

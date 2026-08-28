@@ -168,8 +168,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadReelWheelFromTasks();
   startDashboardAutoRefresh();
   initHelpAccordions();
-  if (typeof bindAiConfigInteractions === "function")
-    bindAiConfigInteractions();
   loadDirectoryConfig();
   if (typeof checkApiKeyRequired === "function") checkApiKeyRequired();
 
@@ -199,148 +197,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-function updateScrapeModeHint() {
-  const select = document.getElementById("cfg-metadata_scrape_mode");
-  const hint = document.getElementById("cfg-scrape-mode-hint");
-  if (!select || !hint) return;
-  const hints = {
-    provider_first:
-      "Provider 权威，维度缺失时优先使用 AI 搜索增强补缺（降级 AI 辅助）",
-  };
-  hint.textContent = hints[select.value] || hints.provider_first;
-}
-
-function updateWebSearchSupport() {
-  const supportInfo = document.getElementById("ai-search-support-text");
-  if (!supportInfo) return;
-
+function updateLlmConfigStatus() {
   const baseUrl = String(
-    document.getElementById("cfg-llm_base_url")?.value || "",
-  )
-    .trim()
-    .toLowerCase();
-  const supportedProviders = {
-    "bigmodel.cn": "智谱 GLM",
-    zhipu: "智谱 GLM",
-    dashscope: "通义千问",
-    aliyun: "通义千问",
-    moonshot: "Kimi / Moonshot",
-  };
-
-  let detected = null;
-  for (const [keyword, name] of Object.entries(supportedProviders)) {
-    if (baseUrl.includes(keyword)) {
-      detected = name;
-      break;
-    }
-  }
-
-  if (detected) {
-    supportInfo.innerHTML =
-      '<small style="color:var(--success-fg,#155724);">✓ 检测到 <b>' +
-      detected +
-      "</b>，支持AI联网搜索增强</small>";
-  } else if (baseUrl) {
-    supportInfo.innerHTML =
-      '<small style="color:var(--warning-fg,#856404);">✗ 当前接口地址暂不支持联网搜索。支持的厂商：智谱 GLM、通义千问、Kimi/Moonshot。</small>';
-  } else {
-    supportInfo.innerHTML =
-      "<small>填写接口地址后，系统自动检测是否支持联网搜索。</small>";
-  }
-}
-
-function updateAiConfigStatus() {
-  // T2.6 plan: 按 3 个 card（ai-apikey / ai-prompts / ai-scene-strategy）分别更新状态徽章
-
-  // 1) API Key 区：ai_assist 或 ai_search 任一配置完整即视为已配置
-  const assistModel = String(
-    document.getElementById("cfg-ai_assist-model")?.value || "",
+    document.getElementById("cfg-llm-base_url")?.value || "",
   ).trim();
-  const assistKey = String(
-    document.getElementById("cfg-ai_assist-api_key")?.value || "",
+  const model = String(
+    document.getElementById("cfg-llm-model")?.value || "",
   ).trim();
-  const assistBaseUrl = String(
-    document.getElementById("cfg-ai_assist-base_url")?.value || "",
+  const apiKey = String(
+    document.getElementById("cfg-llm-api_key")?.value || "",
   ).trim();
-  const assistConfigured = assistModel && assistKey && assistBaseUrl;
-
-  const searchModel = String(
-    document.getElementById("cfg-ai_search-model")?.value || "",
-  ).trim();
-  const searchProvider = String(
-    document.getElementById("cfg-ai_search-provider")?.value || "",
-  ).trim();
-  const searchKey = String(
-    document.getElementById("cfg-ai_search-api_key")?.value || "",
-  ).trim();
-  const searchConfigured = searchProvider && searchModel && searchKey;
-
-  const apikeyConfigured = assistConfigured || searchConfigured;
-  const apikeyStatus = document.getElementById("ai-apikey-status");
-  if (apikeyStatus) {
-    if (apikeyConfigured) {
-      apikeyStatus.textContent = "已配置";
-      apikeyStatus.className = "config-collapse-status status-configured";
-    } else {
-      apikeyStatus.textContent = "未配置";
-      apikeyStatus.className = "config-collapse-status status-unconfigured";
-    }
-  }
-
-  // 2) 提示词区：5 个 prompt + 4 个 instruction 任一非默认即视为已自定义
-  const promptFields = [
-    "cfg-ai_assist-prompt_title_clean",
-    "cfg-ai_assist-prompt_match_assist",
-    "cfg-ai_assist-prompt_dimension_mapping",
-    "cfg-ai_assist-prompt_source_clean",
-    "cfg-ai_search-prompt_dimension_supplement",
-    "cfg-ai_assist-prompt_match_assist_instruction",
-    "cfg-ai_assist-prompt_dimension_mapping_instruction",
-    "cfg-ai_assist-prompt_source_clean_instruction",
-    "cfg-ai_search-prompt_dimension_supplement_instruction",
-  ];
-  const promptsConfigured = promptFields.some((id) => {
-    const el = document.getElementById(id);
-    return el && String(el.value || "").trim() !== "";
-  });
-  const promptsStatus = document.getElementById("ai-prompts-status");
-  if (promptsStatus) {
-    if (promptsConfigured) {
-      promptsStatus.textContent = "已自定义";
-      promptsStatus.className = "config-collapse-status status-configured";
-    } else {
-      promptsStatus.textContent = "使用默认";
-      promptsStatus.className = "config-collapse-status status-unconfigured";
-    }
-  }
-
-  // 3) 场景策略区：5 个场景 primary 都已配置
-  const scenes = [
-    "dimension_supplement",
-    "dimension_mapping",
-    "title_clean",
-    "match_assist",
-    "source_clean",
-  ];
-  const strategyConfigured = scenes.every((scene) => {
-    const el = document.querySelector(`[data-scene-primary="${scene}"]`);
-    return el && String(el.value || "").trim() !== "";
-  });
-  const strategyStatus = document.getElementById("ai-scene-strategy-status");
-  if (strategyStatus) {
-    if (strategyConfigured) {
-      strategyStatus.textContent = "已配置";
-      strategyStatus.className = "config-collapse-status status-configured";
-    } else {
-      strategyStatus.textContent = "未配置";
-      strategyStatus.className = "config-collapse-status status-unconfigured";
-    }
-  }
-
-  // 兼容旧 id（保留 scrape-mode-status）
-  const scrapeModeStatus = document.getElementById("scrape-mode-status");
-  if (scrapeModeStatus) {
-    scrapeModeStatus.textContent = "Provider 优先";
-    scrapeModeStatus.className = "config-collapse-status status-configured";
+  const configured = baseUrl && model && apiKey;
+  const status = document.getElementById("llm-connection-status");
+  if (status) {
+    status.textContent = configured ? "已配置" : "未配置";
+    status.className = configured
+      ? "config-collapse-status status-configured"
+      : "config-collapse-status status-unconfigured";
   }
 }

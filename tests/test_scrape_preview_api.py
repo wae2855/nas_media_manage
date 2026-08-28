@@ -5,7 +5,6 @@
 """
 
 import unittest
-import json
 
 
 class TestScrapePreviewAPI(unittest.TestCase):
@@ -89,7 +88,7 @@ class TestScrapePreviewAPI(unittest.TestCase):
     def test_preview_does_not_expose_legacy_confidence_fields(self):
         """preview 响应不再包含旧数值评分字段。"""
         response = self._make_preview_response("AUTO_PASS")
-        mode_data = response["data"]["modes"]["provider_first"]
+        _mode_data = response["data"]["modes"]["provider_first"]
         pass
 
 

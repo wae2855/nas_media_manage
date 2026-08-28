@@ -1,33 +1,34 @@
 import re
+
 from media_importer.features.scraping.confidence_models import (
-    CleanResult,
-    _RESOLUTION_PATTERNS,
-    _SOURCE_CODEC_PATTERNS,
-    _RELEASE_GROUP_START,
-    _RELEASE_GROUP_TAIL,
-    _SEASON_EPISODE,
-    _SEASON_ONLY,
-    _CN_SEASON_EPISODE,
-    _CN_SEASON,
-    _CN_EPISODE,
-    _BARE_EPISODE,
-    _YEAR_PATTERN,
-    _YEAR_PAREN,
-    _AD_PATTERN,
     _AD_FULL_PATTERN,
-    _EDITION_PATTERN,
+    _AD_PATTERN,
+    _BARE_EPISODE,
+    _BARE_EPISODE_E,
     _BRACKET_CONTENT,
+    _CJK_DESCRIPTOR_PATTERN,
+    _CN_EPISODE,
+    _CN_SEASON,
+    _CN_SEASON_EPISODE,
+    _CODEC_PREFIX_RE,
+    _EDITION_PATTERN,
     _EXTENSION_PATTERN,
     _MULTI_EP,
-    _CODEC_PREFIX_RE,
+    _RELEASE_GROUP_START,
+    _RELEASE_GROUP_TAIL,
+    _RESOLUTION_PATTERNS,
+    _SEASON_EPISODE,
+    _SEASON_ONLY,
+    _SOURCE_CODEC_PATTERNS,
     _SUBTITLE_LANG_PATTERN,
-    _CJK_DESCRIPTOR_PATTERN,
+    _YEAR_PAREN,
+    _YEAR_PATTERN,
+    CleanResult,
 )
 
 
 class FilenameCleaner:
     def clean(self, filename: str) -> CleanResult:
-        original = filename
         name = _EXTENSION_PATTERN.sub('', filename)
         removed = []
 
@@ -89,6 +90,16 @@ class FilenameCleaner:
                     episode = num
                     season = 1
                     name = name[:bare_match.start(1)] + name[bare_match.end(1):]
+                    removed.append(f"集=E{episode:02d}")
+
+        if season is None and episode is None:
+            bare_e_match = _BARE_EPISODE_E.search(name)
+            if bare_e_match:
+                num = int(bare_e_match.group(1))
+                if not (1900 <= num <= 2099) and num not in (720, 1080, 2160):
+                    episode = num
+                    season = 1
+                    name = name[:bare_e_match.start()] + name[bare_e_match.end():]
                     removed.append(f"集=E{episode:02d}")
 
         year = None

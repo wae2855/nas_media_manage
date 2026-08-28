@@ -5,8 +5,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from media_importer.api.routes import API_ROUTES, match_route
 from media_importer.api.handler import APIHandler
+from media_importer.api.routes import API_ROUTES, match_route
 
 
 class TestAPIRoutes(unittest.TestCase):

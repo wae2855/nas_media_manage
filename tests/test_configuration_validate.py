@@ -11,7 +11,7 @@
 - AI 辅助 / AI 联网（api_key / base_url / model）
 """
 
-import os
+# ruff: noqa: E402
 import sys
 import unittest
 from pathlib import Path
@@ -296,50 +296,44 @@ class TestValidateConfigScrapeMode(unittest.TestCase):
         self.assertEqual(_status(results, "metadata.scrape_mode"), "error")
 
 
-class TestValidateConfigAIAssist(unittest.TestCase):
+class TestValidateConfigLLM(unittest.TestCase):
+    """ADR-0010：llm 块校验（LLM 仅服务源目录清理器，warning 级而非 error）。"""
+
     def _base_cfg(self, tmp_path):
         return _make_config(tmp_path)
 
-    def test_ai_assist_missing_api_key_is_error(self):
+    def test_llm_missing_api_key_is_warning(self):
         import tempfile
         tmp_path = Path(tempfile.mkdtemp())
         cfg = self._base_cfg(tmp_path)
-        cfg["ai_assist"] = {"api_key": "", "base_url": "https://x", "model": "gpt"}
+        cfg["llm"] = {"api_key": "", "base_url": "https://x", "model": "gpt"}
         results = validate_config(cfg)
-        self.assertEqual(_status(results, "ai_assist.api_key"), "error")
+        self.assertEqual(_status(results, "llm.api_key"), "warning")
 
-    def test_ai_assist_masked_api_key_is_warning(self):
+    def test_llm_masked_api_key_is_warning(self):
         import tempfile
         tmp_path = Path(tempfile.mkdtemp())
         cfg = self._base_cfg(tmp_path)
-        cfg["ai_assist"] = {"api_key": "***", "base_url": "https://x", "model": "gpt"}
+        cfg["llm"] = {"api_key": "***", "base_url": "https://x", "model": "gpt"}
         results = validate_config(cfg)
-        self.assertEqual(_status(results, "ai_assist.api_key"), "warning")
+        self.assertEqual(_status(results, "llm.api_key"), "warning")
 
-    def test_ai_assist_invalid_base_url_is_error(self):
+    def test_llm_invalid_base_url_is_error(self):
         import tempfile
         tmp_path = Path(tempfile.mkdtemp())
         cfg = self._base_cfg(tmp_path)
-        cfg["ai_assist"] = {"api_key": "k", "base_url": "ftp://x", "model": "gpt"}
+        cfg["llm"] = {"api_key": "k", "base_url": "ftp://x", "model": "gpt"}
         results = validate_config(cfg)
-        self.assertEqual(_status(results, "ai_assist.base_url"), "error")
+        self.assertEqual(_status(results, "llm.base_url"), "error")
 
-    def test_ai_search_enabled_without_model_is_error(self):
+    def test_llm_valid_is_ok(self):
         import tempfile
         tmp_path = Path(tempfile.mkdtemp())
         cfg = self._base_cfg(tmp_path)
-        cfg["ai_search"] = {"api_key": "k", "base_url": "https://x", "model": "", "enabled": True}
+        cfg["llm"] = {"api_key": "k", "base_url": "https://x", "model": "gpt-4o"}
         results = validate_config(cfg)
-        self.assertEqual(_status(results, "ai_search.model"), "error")
-
-    def test_ai_search_valid_is_ok(self):
-        import tempfile
-        tmp_path = Path(tempfile.mkdtemp())
-        cfg = self._base_cfg(tmp_path)
-        cfg["ai_search"] = {"api_key": "k", "base_url": "https://x", "model": "gpt-4o", "enabled": True}
-        results = validate_config(cfg)
-        self.assertEqual(_status(results, "ai_search.api_key"), "ok")
-        self.assertEqual(_status(results, "ai_search.model"), "ok")
+        self.assertEqual(_status(results, "llm.api_key"), "ok")
+        self.assertEqual(_status(results, "llm.model"), "ok")
 
 
 class TestValidateConfigOverall(unittest.TestCase):

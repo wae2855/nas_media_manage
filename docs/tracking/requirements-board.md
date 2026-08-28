@@ -6,12 +6,12 @@
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
+| REQ-20260828-151346 | 存储安全与配置界面简化重构 | refactor | P0 | REQ-20260822-000003 已关闭 | configuration, filesystem, import_flow, recycle, tasks, monitor, webui, deploy, docs | main | Proposal: [方案](../proposals/2026-08-28-storage-safe-configuration-redesign.md) \| Plan: [计划](../plans/2026-08-28-storage-safe-configuration-redesign-plan.md) \| ADR: [0011](../decisions/0011-fnos-install-runtime-config-ownership.md), [0012](../decisions/0012-storage-role-topology.md), [0013](../decisions/0013-verified-transfer-recovery.md) | 2026-08-28 | 2026-08-28 |
 
 ## Pending Acceptance
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
-| REQ-20260616-000001 | 待确认流程端到端整治 | bugfix+refactor | P0 | - | features/import_flow, api/task_handlers, webui/js/cinema-*, infrastructure/db | main | Plan: [plan](../plans/2026-06-16-confirm-workflow-overhaul-plan.md) \| ADR: [0007](../decisions/0007-confirm-workflow-preview-vs-import-split.md) \| Tests: [test_p0_confirm_workflow_fixes](../../tests/test_p0_confirm_workflow_fixes.py) | 2026-06-16 | 2026-06-20 |
 
 ## Planned
 
@@ -22,6 +22,7 @@
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
+| REQ-20260822-000005 | 授权系统接入 | feature | P2 | 简洁化完成后 | api, deploy, webui | main | 用户 2026-08-22 声明：未来计划，暂不启动 | 2026-08-22 | 2026-08-22 |
 
 ## Rules
 

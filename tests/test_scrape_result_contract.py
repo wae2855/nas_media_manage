@@ -3,7 +3,6 @@
 当前事实（ADR-0005）：刮削结果只使用 media_type，不再兼容旧 type 字段。
 """
 
-import pytest
 
 
 class TestMediaTypeContract:

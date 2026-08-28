@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 import os
 import re
-from typing import Dict, List, Optional, Any
-from media_importer.features.providers import create_providers
+from typing import Any, Dict, List, Optional
+
+from media_importer.features.configuration import ConfigView
 from media_importer.features.providers import (
-    MetadataProvider,
-    SearchItem,
-    MediaDetails,
-    DimensionMapping,
+    create_providers,
 )
-from .llm_scraper import LLMScraper
-from .filename_cleaner import FilenameCleaner
-from .title_matcher import TitleMatcher
-from .confidence_models import MatchResult
 from media_importer.features.scraping.confidence_models import (
     DEFAULT_CONFIDENCE_CONFIG,
     CleanResult,
 )
-from media_importer.features.configuration import ConfigView
 from media_importer.features.scraping.metadata_scrape_flow import scrape_metadata, scrape_series_metadata
+
+from .filename_cleaner import FilenameCleaner
+from .title_matcher import TitleMatcher
 
 
 class MetadataScraper:
@@ -26,7 +22,7 @@ class MetadataScraper:
         self.config = config
         self.view = ConfigView.from_dict(config)
         self.providers = create_providers(config)
-        self.llm_scraper = LLMScraper(config)
+        # AI 刮削已移除（ADR-0010）：无 llm_scraper，刮削为 TMDB 主导两级匹配
         self._cleaner = FilenameCleaner()
         self._matcher = TitleMatcher()
 
@@ -43,6 +39,8 @@ class MetadataScraper:
         episode_match = re.search(r'[eE](\d+)', clean_name)
         if episode_match:
             episode = int(episode_match.group(1))
+            if season is None:
+                season = 1
 
         year = None
         year_match = re.search(r'[.(](19\d\d|20\d\d)[.)]|\.(19\d\d|20\d\d)\.', clean_name)
@@ -56,6 +54,7 @@ class MetadataScraper:
             r'\[(.*?)\]',
             r'\((.*?)\)',
             r'[sS]\d+[eE]\d+',
+            r'[.\s_-][eE]\d+',
             r'Season\.\d+',
             r'Episode\.\d+',
             r'[._](19\d\d|20\d\d)',
@@ -214,7 +213,7 @@ class MetadataScraper:
         if overview:
             context_parts.append(f"简介: {overview[:300]}")
         if adult:
-            context_parts.append(f"成人内容标记: 是")
+            context_parts.append("成人内容标记: 是")
         if vote_average:
             context_parts.append(f"评分: {vote_average}")
         if country_names:
@@ -248,7 +247,8 @@ class MetadataScraper:
                 tmdb_year = int(release_date[:4])
             except (ValueError, TypeError):
                 pass
-        from media_importer.features.providers import MediaDetails as _MD, Genre as _G
+        from media_importer.features.providers import Genre as _G
+        from media_importer.features.providers import MediaDetails as _MD
         details = _MD(
             provider_type="tmdb",
             item_id=str(tmdb_data.get("id", "")),
@@ -276,11 +276,12 @@ class MetadataScraper:
         return {dm.name: {'value': dm.value, 'source_reliability': dm.source_reliability, 'source': dm.source} for dm in dim_mappings}
 
     def _map_tmdb_dimensions(self, tmdb_data: dict, conn, media_type: str = "movie",
-                            tmdb_id: int = None) -> dict:
+                             tmdb_id: Optional[int] = None) -> dict:
         if not self.providers:
             return {}
         provider = self.providers[0]
-        from media_importer.features.providers import MediaDetails as _MD, Genre as _G
+        from media_importer.features.providers import Genre as _G
+        from media_importer.features.providers import MediaDetails as _MD
         date_field = "release_date" if media_type == "movie" else "first_air_date"
         release_date = tmdb_data.get(date_field, "")
         tmdb_year = None
@@ -308,8 +309,8 @@ class MetadataScraper:
         )
         return self._map_provider_dimensions(provider, details, conn)
 
-    def scrape(self, video_filename: str, subtitle_filenames: List[str] = None,
-               conn=None, force_mode: str = None) -> Dict[str, Any]:
+    def scrape(self, video_filename: str, subtitle_filenames: Optional[List[str]] = None,
+               conn=None, force_mode: Optional[str] = None) -> Dict[str, Any]:
         return scrape_metadata(self, video_filename, subtitle_filenames, conn, force_mode=force_mode)
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:

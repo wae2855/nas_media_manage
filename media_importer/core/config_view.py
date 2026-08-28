@@ -46,7 +46,7 @@ class PathConfig:
 @dataclass(frozen=True)
 class SourcePolicyConfig:
     recycle_dir: str = ""
-    cleanup_source_after_done: bool = True
+    cleanup_source_after_done: bool = False
     recycle_retention_days: int = 30
     scan_recursive: bool = True
     scan_max_depth: int = 5
@@ -75,84 +75,6 @@ class ManualReviewConfig:
 class MetadataProviderConfig:
     providers: list = field(default_factory=list)
     scrape_mode: str = "provider_first"  # 当前唯一模式：provider_first
-
-
-@dataclass(frozen=True)
-class AiAssistConfig:
-    base_url: str = ""
-    model: str = ""
-    api_key: str = ""
-    timeout: int = 30
-    max_retries: int = 2
-    retry_delay: int = 3
-    verify_ssl: bool = True
-    prompt_title_clean: str = ""
-    prompt_match_assist: str = ""
-    prompt_dimension_mapping: str = ""
-    prompt_source_clean: str = ""
-    prompt_match_assist_instruction: str = ""
-    prompt_dimension_mapping_instruction: str = ""
-    prompt_source_clean_instruction: str = ""
-    log_prompt: bool = True
-
-    @property
-    def is_configured(self) -> bool:
-        return bool(self.api_key and self.base_url and self.model)
-
-
-@dataclass
-class SceneModelConfig:
-    primary: str = ""
-    fallback: str = ""
-
-
-@dataclass
-class AiSceneStrategyConfig:
-    dimension_supplement: SceneModelConfig = field(default_factory=SceneModelConfig)
-    dimension_mapping: SceneModelConfig = field(default_factory=SceneModelConfig)
-    title_clean: SceneModelConfig = field(default_factory=SceneModelConfig)
-    match_assist: SceneModelConfig = field(default_factory=SceneModelConfig)
-    source_clean: SceneModelConfig = field(default_factory=SceneModelConfig)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "AiSceneStrategyConfig":
-        result = cls()
-        for key in (
-            "dimension_supplement", "dimension_mapping",
-            "title_clean", "match_assist", "source_clean",
-        ):
-            section = data.get(key, {}) or {}
-            if not isinstance(section, dict):
-                section = {}
-            setattr(result, key, SceneModelConfig(
-                primary=str(section.get("primary", "")),
-                fallback=str(section.get("fallback", "")),
-            ))
-        return result
-
-
-@dataclass(frozen=True)
-class AiSearchConfig:
-    enabled: bool = True
-    provider: str = ""
-    model: str = ""
-    search_type: str = ""
-    api_key: str = ""
-    base_url: str = ""
-    timeout: int = 30
-    max_retries: int = 2
-    retry_delay: int = 3
-    verify_ssl: bool = True
-    prompt_dimension_supplement: str = ""
-    prompt_dimension_supplement_instruction: str = ""
-
-    @property
-    def is_configured(self) -> bool:
-        return bool(self.api_key and self.model)
-
-    @property
-    def is_effective(self) -> bool:
-        return self.enabled and self.is_configured
 
 
 @dataclass(frozen=True)
@@ -186,9 +108,6 @@ class ConfigView:
     filename_templates: FilenameTemplateConfig
     manual_review: ManualReviewConfig
     metadata: MetadataProviderConfig
-    ai_assist: AiAssistConfig
-    ai_search: AiSearchConfig
-    ai_scene_strategy: AiSceneStrategyConfig
     scanner: ScannerConfig
     source_cleaner: SourceCleanerConfig
 
@@ -201,8 +120,6 @@ class ConfigView:
         duplicate_handling = _dict(config.get("duplicate_handling"))
         filename_templates = _dict(config.get("filename_templates"))
         metadata = _dict(config.get("metadata"))
-        ai_assist = _dict(config.get("ai_assist"))
-        ai_search = _dict(config.get("ai_search"))
         source_cleaner = _dict(config.get("source_cleaner"))
 
         paths = PathConfig(
@@ -221,7 +138,9 @@ class ConfigView:
             paths=paths,
             source_policy=SourcePolicyConfig(
                 recycle_dir=source_policy.get("recycle_dir", ""),
-                cleanup_source_after_done=source_policy.get("cleanup_source_after_done", True),
+                cleanup_source_after_done=(
+                    source_policy.get("cleanup_source_after_done", False) is True
+                ),
                 recycle_retention_days=source_policy.get("recycle_retention_days", 30),
                 scan_recursive=source_policy.get("scan_recursive", True),
                 scan_max_depth=source_policy.get("scan_max_depth", 5),
@@ -242,40 +161,6 @@ class ConfigView:
             metadata=MetadataProviderConfig(
                 providers=_list(metadata.get("providers")),
                 scrape_mode=metadata.get("scrape_mode", "provider_first"),
-            ),
-            ai_assist=AiAssistConfig(
-                base_url=ai_assist.get("base_url", ""),
-                model=ai_assist.get("model", ""),
-                api_key=ai_assist.get("api_key", ""),
-                timeout=ai_assist.get("timeout", 30),
-                max_retries=ai_assist.get("max_retries", 2),
-                retry_delay=ai_assist.get("retry_delay", 3),
-                verify_ssl=ai_assist.get("verify_ssl", True),
-                prompt_title_clean=ai_assist.get("prompt_title_clean", ""),
-                prompt_match_assist=ai_assist.get("prompt_match_assist", ""),
-                prompt_dimension_mapping=ai_assist.get("prompt_dimension_mapping", ""),
-                prompt_source_clean=ai_assist.get("prompt_source_clean", ""),
-                prompt_match_assist_instruction=ai_assist.get("prompt_match_assist_instruction", ""),
-                prompt_dimension_mapping_instruction=ai_assist.get("prompt_dimension_mapping_instruction", ""),
-                prompt_source_clean_instruction=ai_assist.get("prompt_source_clean_instruction", ""),
-                log_prompt=ai_assist.get("log_prompt", True),
-            ),
-            ai_scene_strategy=AiSceneStrategyConfig.from_dict(
-                config.get("ai_scene_strategy", {}) or {}
-            ),
-            ai_search=AiSearchConfig(
-                enabled=ai_search.get("enabled", True),
-                provider=ai_search.get("provider", ""),
-                model=ai_search.get("model", ""),
-                search_type=ai_search.get("search_type", ""),
-                api_key=ai_search.get("api_key", ""),
-                base_url=ai_search.get("base_url", ""),
-                timeout=ai_search.get("timeout", 30),
-                max_retries=ai_search.get("max_retries", 2),
-                retry_delay=ai_search.get("retry_delay", 3),
-                verify_ssl=ai_search.get("verify_ssl", True),
-                prompt_dimension_supplement=ai_search.get("prompt_dimension_supplement", ""),
-                prompt_dimension_supplement_instruction=ai_search.get("prompt_dimension_supplement_instruction", ""),
             ),
             scanner=ScannerConfig(
                 scan_source=config.get("scan_source", True),

@@ -87,7 +87,7 @@ class TestBuildProviderOnlyResultTitles(unittest.TestCase):
     """P0-1: _build_provider_only_result 必须写入 title_cn/title_en。"""
 
     def _build_call_args(self):
-        from media_importer.scraper.metadata_scrape_flow import (
+        from media_importer.features.scraping.metadata_scrape_flow import (
             _build_provider_only_result,
         )
 
@@ -122,7 +122,6 @@ class TestBuildProviderOnlyResultTitles(unittest.TestCase):
             provider_dimensions={},
             search_info={},
             match_result={},
-            ai_clean_result=None,
             enabled_dims_set=None,
             log=__import__("logging").getLogger(__name__),
             t_start=0.0,
@@ -150,7 +149,6 @@ class TestBuildProviderOnlyResultTitles(unittest.TestCase):
             provider_dimensions={},
             search_info={},
             match_result={},
-            ai_clean_result=None,
             enabled_dims_set=None,
             log=__import__("logging").getLogger(__name__),
             t_start=0.0,
@@ -164,7 +162,7 @@ class TestProviderOnlyResultPlusNamingE2E(unittest.TestCase):
     """P0-1 + P0-3 联动：provider-only 结果直接喂给命名模板，文件名应包含标题。"""
 
     def test_end_to_end_movie_filename_has_title(self):
-        from media_importer.scraper.metadata_scrape_flow import (
+        from media_importer.features.scraping.metadata_scrape_flow import (
             _build_provider_only_result,
         )
 
@@ -191,7 +189,6 @@ class TestProviderOnlyResultPlusNamingE2E(unittest.TestCase):
             provider_dimensions={},
             search_info={},
             match_result={},
-            ai_clean_result=None,
             enabled_dims_set=None,
             log=__import__("logging").getLogger(__name__),
             t_start=0.0,

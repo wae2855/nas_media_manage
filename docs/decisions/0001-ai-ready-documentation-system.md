@@ -12,7 +12,7 @@ The previous documentation was useful but scattered across architecture, plans, 
 Create a documentation system with:
 
 - `docs/README.md`
-- `docs/INDEX.md`
+- `docs/ai-map.md`
 - `docs/ai-map.md`
 - `docs/product/`
 - `docs/architecture/`

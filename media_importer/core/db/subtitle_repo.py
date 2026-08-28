@@ -1,12 +1,13 @@
-import sqlite3
 import os
+import sqlite3
 from datetime import datetime
+from typing import Optional
 
-from .connection import _sqlite_conn_lock, _row_to_dict, _rows_to_dicts
+from .connection import _row_to_dict, _rows_to_dicts, _sqlite_conn_lock
 
 
 def create_subtitles(conn: sqlite3.Connection, task_id: str,
-                     subtitle_paths: list, target_paths: list = None) -> list:
+                     subtitle_paths: list, target_paths: Optional[list] = None) -> list:
     now = datetime.now().isoformat()
     inserted = []
     tpaths = target_paths or []
@@ -40,7 +41,7 @@ def get_subtitles_by_task(conn: sqlite3.Connection, task_id: str) -> list:
     return _rows_to_dicts(rows)
 
 
-def update_subtitle(conn: sqlite3.Connection, subtitle_id: int, **fields) -> dict:
+def update_subtitle(conn: sqlite3.Connection, subtitle_id: int, **fields) -> Optional[dict]:
     valid_columns = {
         "lang", "status", "import_path", "confirm_status",
         "error_message", "completed_at", "target_path", "source_path",

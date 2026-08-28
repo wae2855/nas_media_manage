@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import os
-import sys
 import json
 import logging
+import os
+import sys
 import threading
-from logging.handlers import RotatingFileHandler
-from datetime import datetime
 from collections import deque
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
+from typing import Optional
 
 
 class Logger:
@@ -140,11 +141,11 @@ class Logger:
             if isinstance(handler, RotatingFileHandler):
                 handler.doRollover()
 
-    def get_recent_logs(self, limit: int = 100, task_id: str = None) -> list:
+    def get_recent_logs(self, limit: int = 100, task_id: Optional[str] = None) -> list:
         with self._buffer_lock:
             logs = list(self._log_buffer)
         if task_id:
-            logs = [l for l in logs if l.get("task_id") == task_id]
+            logs = [entry for entry in logs if entry.get("task_id") == task_id]
         return logs[-limit:]
 
 
@@ -191,7 +192,7 @@ class TextFormatter(logging.Formatter):
 _default_logger = None
 
 
-def get_logger(config: dict = None) -> Logger:
+def get_logger(config: Optional[dict] = None) -> Optional[Logger]:
     global _default_logger
     if _default_logger is None and config is not None:
         logging_config = config.get("logging", {})
