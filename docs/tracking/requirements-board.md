@@ -10,7 +10,7 @@
 
 | ID | Title | Type | Priority | Deps | Affects | Branch | Links | Created | Updated |
 |----|-------|------|----------|------|---------|--------|-------|---------|---------|
-| REQ-20260828-151346 | 存储安全与配置界面简化重构 | refactor | P0 | REQ-20260822-000003 已关闭 | configuration, filesystem, import_flow, recycle, tasks, monitor, webui, deploy, docs | main | Proposal: [方案](../proposals/2026-08-28-storage-safe-configuration-redesign.md) \| Plan: [底座](../plans/2026-08-28-storage-safe-configuration-redesign-plan.md), [依赖整合](../plans/2026-08-28-feat-configuration-dependency-and-readiness-plan.md) \| ADR: [0011](../decisions/0011-fnos-install-runtime-config-ownership.md), [0012](../decisions/0012-storage-role-topology.md), [0013](../decisions/0013-verified-transfer-recovery.md), [0014](../decisions/0014-source-unit-lifecycle.md), [0015](../decisions/0015-library-root-relative-rules.md) | 2026-08-28 | 2026-08-28 |
+| REQ-20260828-151346 | 存储安全与配置界面简化重构 | refactor | P0 | REQ-20260822-000003 已关闭 | configuration, filesystem, import_flow, recycle, tasks, monitor, webui, deploy, docs | main | Proposal: [方案](../proposals/2026-08-28-storage-safe-configuration-redesign.md) \| Plan: [底座](../plans/2026-08-28-storage-safe-configuration-redesign-plan.md), [依赖整合](../plans/2026-08-28-feat-configuration-dependency-and-readiness-plan.md), [fnOS 包就绪（已归档）](../_archive/2026-08-30-fnos-package-readiness/2026-08-30-fix-fnos-package-readiness-plan.md) \| ADR: [0011](../decisions/0011-fnos-install-runtime-config-ownership.md), [0012](../decisions/0012-storage-role-topology.md), [0013](../decisions/0013-verified-transfer-recovery.md), [0014](../decisions/0014-source-unit-lifecycle.md), [0015](../decisions/0015-library-root-relative-rules.md) | 2026-08-28 | 2026-08-30 |
 
 ## Planned
 

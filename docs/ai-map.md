@@ -18,7 +18,7 @@
 | 修改文件移动/删除 | [features/source-files.md](features/source-files.md), [features/recycle.md](features/recycle.md), [standards/safety.md](standards/safety.md) | `features/source_files/`, `features/import_flow/services/file_operations.py`, `features/recycle/`, `infrastructure/filesystem/` | recycle/safety/e2e/feature smoke | source-files/recycle 文档和回归矩阵 |
 | 修改源目录清理 | [features/source-cleaning.md](features/source-cleaning.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `features/source_cleaning/`, `api/source_cleaner_handlers.py`, `webui/js/cinema-config.js` | source cleaner/recycle/config/feature smoke | source-cleaning 文档 |
 | 修改前端 | [standards/frontend.md](standards/frontend.md), [architecture/api.md](architecture/api.md) | `media_importer/webui/` | Playwright 或相关 UI 测试 | API/产品/测试文档 |
-| 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md) | `deploy/build_fpk.sh`, 根 `media_importer/` | release smoke/build checks | deployment 文档 |
+| 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md), [decisions/0011-fnos-install-runtime-config-ownership.md](decisions/0011-fnos-install-runtime-config-ownership.md) | `deploy/build_fpk.sh`, `deploy/fnos_config.py`, `scripts/validate_fpk.py`, 根 `media_importer/` | `tests/test_fnos_packaging.py` + FPK 内容验证 | deployment / release / testing 文档 |
 
 ## 2. Module Map（模块 → 文档 → 测试）
 

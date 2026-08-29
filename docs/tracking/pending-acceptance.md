@@ -4,8 +4,9 @@
 
 | Item | Completed at | Commit | Scope | Verification | User confirmation needed |
 |------|--------------|--------|-------|--------------|--------------------------|
+| fnOS 0.3.0 候选包真机验收（REQ-20260828-151346） | 2026-08-30 | 未提交 | 首次安装目录/API Key、python312、桌面入口、启动、升级保留 | LOCAL_BUILD PASS；717 tests；FPK/SHA-256 PASS | 在真实 fnOS 安装并反馈向导、授权、启动和升级结果 |
 
-（当前无待验收事项。2026-08-22 停摆恢复后，用户授权：工程验收由 AI 以测试/回归结果自行判定，仅业务级决策需用户确认。历史 5 项停摆前待验收事项已批量豁免并转入 completed-items.md；其中前端全流程验收项并入前端方向重估，见 [backlog-reevaluation.md](backlog-reevaluation.md)。）
+（2026-08-22 停摆恢复后，用户授权：工程验收由 AI 以测试/回归结果自行判定，仅业务级决策需用户确认。历史 5 项停摆前待验收事项已批量豁免并转入 completed-items.md；其中前端全流程验收项并入前端方向重估，见 [backlog-reevaluation.md](backlog-reevaluation.md)。）
 
 ## Rules
 

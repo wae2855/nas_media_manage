@@ -2,11 +2,13 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${PROJECT_DIR}/build"
+BUILD_DIR="${BUILD_DIR:-${PROJECT_DIR}/build}"
 DEPLOY_DIR="${PROJECT_DIR}/deploy"
 APP_NAME="nas-media-importer"
-PKG_DIR="${DEPLOY_DIR}/${APP_NAME}"
-FPACK_BIN="/tmp/fnpack/fnpack"
+PKG_DIR="${PKG_DIR:-${DEPLOY_DIR}/${APP_NAME}}"
+FPACK_BIN="${FPACK_BIN:-/tmp/fnpack/fnpack-1.2.3}"
+FPACK_VERSION="1.2.3"
+VALIDATOR_PYTHON="${VALIDATOR_PYTHON:-${PROJECT_DIR}/.venv/bin/python}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -20,21 +22,37 @@ log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}${BOLD}>>> $1${NC}"; }
 
 ensure_fnpack() {
-    if [ ! -x "${FPACK_BIN}" ]; then
+    local platform checksum actual_checksum version_output
+    case "$(uname -s)-$(uname -m)" in
+        Darwin-arm64) platform="darwin-arm64"; checksum="d40cb00896cb2a5d211357d255750ed0cbe7f2d141df671c2b717afb4e74bf77" ;;
+        Darwin-x86_64) platform="darwin-amd64"; checksum="30a9f50a35e8d8d425b687881761478c3c778e9c0da3a1b59f298b666dd7a268" ;;
+        Linux-x86_64) platform="linux-amd64"; checksum="54b97fa7b70968c4d05c79840f5daeff508957d0bb2062fdb0376d00d9615c93" ;;
+        *) echo "不支持的 fnpack 构建平台: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+    esac
+    if [ ! -f "${FPACK_BIN}" ]; then
         mkdir -p "$(dirname "${FPACK_BIN}")"
-        local arch
-        [ "$(uname -m)" = "arm64" ] && arch="arm64" || arch="amd64"
-        curl -L -o "${FPACK_BIN}" "https://static2.fnnas.com/fnpack/fnpack-1.2.1-darwin-${arch}"
-        chmod +x "${FPACK_BIN}"
+        curl -fL --retry 2 -o "${FPACK_BIN}.download" "https://static2.fnnas.com/fnpack/fnpack-${FPACK_VERSION}-${platform}"
+        mv "${FPACK_BIN}.download" "${FPACK_BIN}"
     fi
+    actual_checksum="$(shasum -a 256 "${FPACK_BIN}" | awk '{print $1}')"
+    if [ "${actual_checksum}" != "${checksum}" ]; then
+        echo "fnpack 校验和不匹配，拒绝构建" >&2
+        exit 1
+    fi
+    chmod +x "${FPACK_BIN}"
+    version_output="$(${FPACK_BIN} 2>&1 || true)"
+    case "${version_output}" in
+        *"${FPACK_VERSION}"*) ;;
+        *) echo "fnpack 版本不匹配: ${version_output}" >&2; exit 1 ;;
+    esac
 }
 
 create_manifest() {
     cat > "${PKG_DIR}/manifest" << EOF
 appname               = ${APP_NAME}
 version               = ${VERSION}
-display_name          = 影音库AI智能整理
-desc                  = 影音库AI智能整理，支持AI智能刮削、自动分类入库影视文件
+display_name          = 影音库智能整理
+desc                  = 自动识别影视文件、获取元数据并按规则整理入库
 platform              = all
 source                = thirdparty
 maintainer            = wae2855
@@ -44,6 +62,7 @@ desktop_applaunchname = nas-media-importer.main
 service_port          = 9855
 checkport             = false
 ctl_stop              = true
+install_dep_apps      = python312
 changelog             = ${VERSION} 初始版本发布
 EOF
 }
@@ -51,22 +70,26 @@ EOF
 create_cmd_main() {
     cat > "${PKG_DIR}/cmd/main" << 'SCRIPT'
 #!/bin/bash
+set -u
 
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
-APP_DIR="${TRIM_APPDEST}"
 SERVER_DIR="${TRIM_APPDEST}/server"
-VENV_DIR="${TRIM_APPDEST}/venv"
+VENV_DIR="${TRIM_PKGVAR}/venv"
 CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
-APP_PORT="${wizard_port:-9855}"
 REQUIRED_PYTHON_MAJOR=3
 REQUIRED_PYTHON_MINOR=12
-
-CMD="${VENV_DIR}/bin/python3 ${SERVER_DIR}/media_importer/media_importer.py -c ${CONFIG_FILE} serve --host 0.0.0.0 --port ${APP_PORT}"
+export PATH="/var/apps/python312/target/bin:/usr/local/bin:/usr/bin:/bin"
 
 log_msg() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+fail_visible() {
+    log_msg "$1"
+    echo "$1" > "${TRIM_TEMP_LOGFILE}"
+    return 1
 }
 
 start_process() {
@@ -79,7 +102,7 @@ start_process() {
     if [ -x "${VENV_DIR}/bin/python3" ]; then
         if ! "${VENV_DIR}/bin/python3" -c "import sys, yaml; raise SystemExit(0 if sys.version_info >= (${REQUIRED_PYTHON_MAJOR}, ${REQUIRED_PYTHON_MINOR}) else 1)" >/dev/null 2>&1; then
             log_msg "venv exists but Python version is too old or dependencies are missing, will reinstall"
-            rm -rf "${VENV_DIR}"
+            rm -rf -- "${VENV_DIR}"
         fi
     fi
 
@@ -89,49 +112,58 @@ start_process() {
 
         # locate python3 with absolute path (fnOS package user has stripped PATH)
         PYTHON_BIN=""
-        for candidate in /usr/bin/python3 /usr/local/bin/python3 /opt/python3/bin/python3; do
+        for candidate in /var/apps/python312/target/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
             if [ -x "${candidate}" ]; then
                 PYTHON_BIN="${candidate}"
                 break
             fi
         done
         if [ -z "${PYTHON_BIN}" ]; then
-            PYTHON_BIN=$(PATH=/usr/local/bin:/usr/bin:/bin command -v python3 2>/dev/null)
+            PYTHON_BIN=$(command -v python3 2>/dev/null || true)
         fi
         if [ -z "${PYTHON_BIN}" ] || [ ! -x "${PYTHON_BIN}" ]; then
-            echo "无法定位 python3 解释器，请确认系统已安装 Python 3" > "${TRIM_TEMP_LOGFILE}"
-            exit 1
+            fail_visible "无法定位 fnOS Python 3.12 运行时，请确认 python312 依赖已安装"
+            return 1
         fi
         log_msg "using python: ${PYTHON_BIN}"
 
         if ! "${PYTHON_BIN}" -c "import sys; raise SystemExit(0 if sys.version_info >= (${REQUIRED_PYTHON_MAJOR}, ${REQUIRED_PYTHON_MINOR}) else 1)"; then
-            echo "当前 fnOS 环境的 Python 版本过低，至少需要 Python ${REQUIRED_PYTHON_MAJOR}.${REQUIRED_PYTHON_MINOR}" > "${TRIM_TEMP_LOGFILE}"
-            exit 1
+            fail_visible "当前 fnOS Python 版本过低，至少需要 Python ${REQUIRED_PYTHON_MAJOR}.${REQUIRED_PYTHON_MINOR}"
+            return 1
         fi
 
-        if "${PYTHON_BIN}" -m venv "${VENV_DIR}" >> ${LOG_FILE} 2>&1; then
+        if "${PYTHON_BIN}" -m venv "${VENV_DIR}" >> "${LOG_FILE}" 2>&1; then
             log_msg "venv created successfully"
             log_msg "installing pip dependencies..."
-            if "${VENV_DIR}/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" >> ${LOG_FILE} 2>&1; then
+            if "${VENV_DIR}/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" >> "${LOG_FILE}" 2>&1; then
                 log_msg "pip install OK"
             else
-                echo "pip 依赖安装失败，请检查网络连接后重启应用" > "${TRIM_TEMP_LOGFILE}"
-                exit 1
+                fail_visible "Python 依赖安装失败，请检查设备网络或软件源后重试"
+                return 1
             fi
         else
-            echo "Python 虚拟环境创建失败。详细日志: ${LOG_FILE}" > "${TRIM_TEMP_LOGFILE}"
-            exit 1
+            fail_visible "Python 虚拟环境创建失败，详细日志：${LOG_FILE}"
+            return 1
         fi
     fi
 
     if [ ! -f "${CONFIG_FILE}" ]; then
-        log_msg "config file not found, will auto-create from template"
+        fail_visible "运行配置不存在，请重新安装并完成目录与 API Key 配置"
+        return 1
     fi
 
     log_msg "Starting process ..."
-    bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
-    printf "%s" "$!" > ${PID_FILE}
-    log_msg "process started, pid=$!"
+    "${VENV_DIR}/bin/python3" "${SERVER_DIR}/media_importer/media_importer.py" \
+        -c "${CONFIG_FILE}" serve --host 0.0.0.0 >> "${LOG_FILE}" 2>&1 &
+    local started_pid=$!
+    printf "%s" "${started_pid}" > "${PID_FILE}"
+    sleep 2
+    if ! check_process "${started_pid}"; then
+        rm -f -- "${PID_FILE}"
+        fail_visible "服务启动后立即退出，请查看日志：${LOG_FILE}"
+        return 1
+    fi
+    log_msg "process started, pid=${started_pid}"
     return 0
 }
 
@@ -143,13 +175,13 @@ stop_process() {
 
         log_msg "pid=${pid}"
         if ! check_process "${pid}"; then
-            rm -f "${PID_FILE}"
+            rm -f -- "${PID_FILE}"
             log_msg "remove pid file, process already gone"
             return 0
         fi
 
         log_msg "send TERM signal to PID:${pid}..."
-        kill -TERM ${pid} >> ${LOG_FILE} 2>&1
+        kill -TERM "${pid}" >> "${LOG_FILE}" 2>&1
 
         local count=0
         while check_process "${pid}" && [ $count -lt 10 ]; do
@@ -162,7 +194,7 @@ stop_process() {
             log_msg "send KILL signal to PID:${pid}..."
             kill -KILL "${pid}"
             sleep 1
-            rm -f "${PID_FILE}"
+            rm -f -- "${PID_FILE}"
         else
             log_msg "process killed"
         fi
@@ -186,13 +218,13 @@ status() {
         if check_process "${pid}"; then
             return 0
         else
-            rm -f "${PID_FILE}"
+            rm -f -- "${PID_FILE}"
         fi
     fi
     return 1
 }
 
-case $1 in
+case "${1:-}" in
 start)
     start_process
     ;;
@@ -217,44 +249,42 @@ SCRIPT
 create_install_callback() {
     cat > "${PKG_DIR}/cmd/install_callback" << 'SCRIPT'
 #!/bin/bash
+set -eu
 APP_DIR="${TRIM_APPDEST}"
 DATA_DIR="${TRIM_PKGVAR}"
-
-mkdir -p "${DATA_DIR}/config"  2>/dev/null || true
-mkdir -p "${DATA_DIR}/data"   2>/dev/null || true
-mkdir -p "${DATA_DIR}/logs"   2>/dev/null || true
-mkdir -p "${DATA_DIR}/source"  2>/dev/null || true
-mkdir -p "${DATA_DIR}/tmp"    2>/dev/null || true
-
+PYTHON_BIN="/var/apps/python312/target/bin/python3"
 CONFIG_FILE="${DATA_DIR}/config/config.yaml"
+TEMPLATE_FILE="${APP_DIR}/server/config.yaml.example"
 
-if [ ! -f "${CONFIG_FILE}" ]; then
-    if [ -f "${APP_DIR}/server/config.yaml.example" ]; then
-        cp "${APP_DIR}/server/config.yaml.example" "${CONFIG_FILE}" 2>/dev/null || true
-    elif [ -f "${APP_DIR}/config.yaml.example" ]; then
-        cp "${APP_DIR}/config.yaml.example" "${CONFIG_FILE}" 2>/dev/null || true
-    fi
+fail_visible() {
+    echo "$1" > "${TRIM_TEMP_LOGFILE}"
+    exit 1
+}
+
+mkdir -p "${DATA_DIR}/config" "${DATA_DIR}/data" "${DATA_DIR}/logs" "${DATA_DIR}/tmp" || fail_visible "无法创建应用私有数据目录"
+
+if [ ! -x "${PYTHON_BIN}" ]; then
+    fail_visible "未找到 fnOS Python 3.12 运行时，请确认 python312 依赖已安装"
+fi
+if [ ! -f "${TEMPLATE_FILE}" ]; then
+    fail_visible "安装包缺少配置模板，安装已中止"
 fi
 
-if [ -f "${CONFIG_FILE}" ]; then
-    if grep -qE "^source_dir:.*\"/vol1/" "${CONFIG_FILE}" 2>/dev/null; then
-        sed -i "s|^source_dir:.*|source_dir: \"${DATA_DIR}/source\"|" "${CONFIG_FILE}" 2>/dev/null || true
-    fi
-    if grep -qE "^temp_dir:.*\"/vol1/" "${CONFIG_FILE}" 2>/dev/null; then
-        sed -i "s|^temp_dir:.*|temp_dir: \"${DATA_DIR}/tmp\"|" "${CONFIG_FILE}" 2>/dev/null || true
-    fi
-    if grep -qE "^log_dir:.*\"/vol1/" "${CONFIG_FILE}" 2>/dev/null; then
-        sed -i "s|^log_dir:.*|log_dir: \"${DATA_DIR}/logs\"|" "${CONFIG_FILE}" 2>/dev/null || true
-    fi
+if ! printf "%s" "${wizard_api_key:-}" | "${PYTHON_BIN}" "${APP_DIR}/server/fnos_config.py" initialize \
+    --config "${CONFIG_FILE}" \
+    --template "${TEMPLATE_FILE}" \
+    --source-dir "${wizard_source_dir:-}" \
+    --library-root "${wizard_library_root:-}" \
+    --recycle-dir "${wizard_recycle_dir:-}" \
+    --temp-dir "${DATA_DIR}/tmp" \
+    --log-dir "${DATA_DIR}/logs" \
+    --port "${wizard_port:-}" \
+    --api-key-stdin >/dev/null 2>"${DATA_DIR}/install-error.log"; then
+    error_message=$(tail -n 1 "${DATA_DIR}/install-error.log" 2>/dev/null || true)
+    fail_visible "${error_message:-首次配置写入失败，请检查安装输入}"
 fi
 
-if [ -f "${CONFIG_FILE}" ] && [ -n "${wizard_port}" ]; then
-    sed -i "s/^\\(  port:\\).*/\\1 ${wizard_port}/" "${CONFIG_FILE}" 2>/dev/null || true
-fi
-
-if [ ! -f "${DATA_DIR}/data/tasks.json" ]; then
-    echo '{}' > "${DATA_DIR}/data/tasks.json" 2>/dev/null || true
-fi
+rm -f -- "${DATA_DIR}/install-error.log"
 SCRIPT
     chmod +x "${PKG_DIR}/cmd/install_callback"
 }
@@ -262,10 +292,15 @@ SCRIPT
 create_upgrade_callback() {
     cat > "${PKG_DIR}/cmd/upgrade_callback" << 'SCRIPT'
 #!/bin/bash
-APP_DIR="${TRIM_APPDEST}"
+set -eu
 SERVER_DIR="${TRIM_APPDEST}/server"
-if [ -x "${APP_DIR}/venv/bin/pip" ]; then
-    "${APP_DIR}/venv/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" 2>/dev/null || true
+VENV_DIR="${TRIM_PKGVAR}/venv"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+if [ -x "${VENV_DIR}/bin/pip" ]; then
+    if ! "${VENV_DIR}/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" >>"${LOG_FILE}" 2>&1; then
+        echo "升级 Python 依赖失败，原配置已保留。请检查网络后重试" > "${TRIM_TEMP_LOGFILE}"
+        exit 1
+    fi
 fi
 SCRIPT
     chmod +x "${PKG_DIR}/cmd/upgrade_callback"
@@ -274,8 +309,8 @@ SCRIPT
 create_uninstall_callback() {
     cat > "${PKG_DIR}/cmd/uninstall_callback" << 'SCRIPT'
 #!/bin/bash
-APP_DIR="${TRIM_APPDEST}"
-rm -rf "${APP_DIR}/venv" 2>/dev/null || true
+VENV_DIR="${TRIM_PKGVAR}/venv"
+rm -rf -- "${VENV_DIR}" 2>/dev/null || true
 SCRIPT
     chmod +x "${PKG_DIR}/cmd/uninstall_callback"
 }
@@ -283,13 +318,21 @@ SCRIPT
 create_config_callback() {
     cat > "${PKG_DIR}/cmd/config_callback" << 'SCRIPT'
 #!/bin/bash
+set -eu
 CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
+PYTHON_BIN="/var/apps/python312/target/bin/python3"
 
-if [ -f "${CONFIG_FILE}" ] && [ -n "${wizard_port}" ]; then
-    sed -i "s/^\\(  port:\\).*/\\1 ${wizard_port}/" "${CONFIG_FILE}" 2>/dev/null || true
+if [ ! -x "${PYTHON_BIN}" ]; then
+    echo "未找到 fnOS Python 3.12 运行时" > "${TRIM_TEMP_LOGFILE}"
+    exit 1
 fi
-
-exit 0
+if ! "${PYTHON_BIN}" "${TRIM_APPDEST}/server/fnos_config.py" update-port \
+    --config "${CONFIG_FILE}" --port "${wizard_port:-}" >/dev/null 2>"${TRIM_PKGVAR}/config-error.log"; then
+    error_message=$(tail -n 1 "${TRIM_PKGVAR}/config-error.log" 2>/dev/null || true)
+    echo "${error_message:-端口配置失败}" > "${TRIM_TEMP_LOGFILE}"
+    exit 1
+fi
+rm -f -- "${TRIM_PKGVAR}/config-error.log"
 SCRIPT
     chmod +x "${PKG_DIR}/cmd/config_callback"
 }
@@ -298,17 +341,61 @@ create_wizard_install() {
     cat > "${PKG_DIR}/wizard/install" << 'EOF'
 [
     {
-        "stepTitle": "安装提示",
+        "stepTitle": "开始前确认",
         "items": [
             {
                 "type": "tips",
-                "helpText": "安装完成后，请打开应用进入前台界面，在「配置」页面完善以下信息：\n\n【必填配置】\n1. 基础配置 → 源目录 source_dir（如 /vol1/网盘下载）\n2. 入库规则 path_rules 中的入库目录（如 /vol1/影视/电视剧）\n3. LLM 配置：API Key、API 地址、模型名称\n\n【可选 - 高级配置】\n4. 中转目录、日志目录、任务持久化路径等已自动配置好，一般无需修改\n\n⚠️ 重要：授权目录\n如果使用 /vol1/、/vol2/ 等共享盘下的目录，必须：\n   应用中心 → nas-media-importer → 设置 → 授权目录\n   添加上述目录并赋予权限：\n   • 源目录：勾选【读】\n   • 入库目录：勾选【读】+【写】\n\n配置完成后点击「保存配置」（保存时会自动检测路径权限），然后点击概览页的「重启服务」按钮使配置生效。"
+                "helpText": "本应用会在安装时记录来源、片库和本地回收目录，但不会自动创建这些外部目录。请先在 fnOS 中创建目录并为应用授权。\n\n• 来源目录：至少读取；若以后启用垃圾清理或整组清理，还需要写入权限\n• 片库根目录：读取和写入\n• 回收目录：读取和写入，建议使用本机磁盘，不要使用云盘挂载\n\n网盘挂载可能暂时离线或能力受限。安装后必须运行“开场检查”，全部关键项通过后再启动后台整理。"
             }
         ]
     },
     {
-        "stepTitle": "端口配置",
+        "stepTitle": "目录配置",
         "items": [
+            {
+                "type": "text",
+                "field": "wizard_source_dir",
+                "label": "来源目录",
+                "initValue": "/vol1/下载",
+                "rules": [
+                    { "required": true, "message": "请输入来源目录" },
+                    { "pattern": "^/.*", "message": "请输入以 / 开头的绝对路径" }
+                ]
+            },
+            {
+                "type": "text",
+                "field": "wizard_library_root",
+                "label": "片库根目录",
+                "initValue": "/vol1/影视",
+                "rules": [
+                    { "required": true, "message": "请输入片库根目录" },
+                    { "pattern": "^/.*", "message": "请输入以 / 开头的绝对路径" }
+                ]
+            },
+            {
+                "type": "text",
+                "field": "wizard_recycle_dir",
+                "label": "本地回收目录",
+                "initValue": "/vol1/回收站/影音库智能整理",
+                "rules": [
+                    { "required": true, "message": "请输入本地回收目录" },
+                    { "pattern": "^/.*", "message": "请输入以 / 开头的绝对路径" }
+                ]
+            }
+        ]
+    },
+    {
+        "stepTitle": "访问安全与端口",
+        "items": [
+            {
+                "type": "password",
+                "field": "wizard_api_key",
+                "label": "初始 API Key",
+                "rules": [
+                    { "required": true, "message": "请输入用于保护配置接口的 API Key" },
+                    { "pattern": "^.{16,}$", "message": "API Key 至少 16 个字符" }
+                ]
+            },
             {
                 "type": "text",
                 "field": "wizard_port",
@@ -365,18 +452,7 @@ EOF
 
 create_config_resource() {
     cat > "${PKG_DIR}/config/resource" << 'EOF'
-{
-    "data-share": {
-        "shares": [
-            {
-                "name": "nas-media-importer",
-                "permission": {
-                    "rw": ["nas-media-importer"]
-                }
-            }
-        ]
-    }
-}
+{}
 EOF
 }
 
@@ -497,6 +573,13 @@ main() {
     log_step "检查 fnpack 工具"
     ensure_fnpack
     log_info "fnpack 就绪"
+    if [ ! -x "${VALIDATOR_PYTHON}" ]; then
+        VALIDATOR_PYTHON="$(command -v python3 || true)"
+    fi
+    if [ -z "${VALIDATOR_PYTHON}" ] || [ ! -x "${VALIDATOR_PYTHON}" ]; then
+        echo "未找到用于验证 FPK 的 Python 3" >&2
+        exit 1
+    fi
 
     log_step "重建应用目录"
     rm -rf "${PKG_DIR}"
@@ -543,6 +626,9 @@ main() {
     cp -r "${PROJECT_DIR}/media_importer" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/config.yaml.example" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/requirements.txt"    "${PKG_DIR}/app/server/"
+    cp "${PROJECT_DIR}/deploy/fnos_config.py" "${PKG_DIR}/app/server/"
+    find "${PKG_DIR}" -type d -name '__pycache__' -prune -exec rm -rf -- {} +
+    find "${PKG_DIR}" -type f \( -name '*.pyc' -o -name '.DS_Store' \) -delete
     log_info "代码复制完成"
 
     log_step "打包 FPK"
@@ -550,8 +636,14 @@ main() {
     "${FPACK_BIN}" build
     log_info "FPK 打包完成"
 
+    log_step "验证 FPK 内容"
+    "${VALIDATOR_PYTHON}" "${PROJECT_DIR}/scripts/validate_fpk.py" \
+        "${PKG_DIR}/${APP_NAME}.fpk" --version "${VERSION}"
+    log_info "FPK 内容验证通过"
+
     mkdir -p "${BUILD_DIR}"
     cp "${PKG_DIR}/${APP_NAME}.fpk" "${BUILD_DIR}/"
+    (cd "${BUILD_DIR}" && shasum -a 256 "${APP_NAME}.fpk" > "${APP_NAME}.fpk.sha256")
 
     echo ""
     echo -e "${GREEN}${BOLD}========================================${NC}"
@@ -560,6 +652,7 @@ main() {
     echo ""
     echo "  Version: ${VERSION}"
     echo "  FPK:     ${BUILD_DIR}/${APP_NAME}.fpk"
+    echo "  SHA256:  ${BUILD_DIR}/${APP_NAME}.fpk.sha256"
     echo "  Size:    $(du -sh "${BUILD_DIR}/${APP_NAME}.fpk" | awk '{print $1}')"
     echo ""
 }

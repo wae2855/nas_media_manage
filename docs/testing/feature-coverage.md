@@ -43,6 +43,7 @@
 | `test_source_cleaner*` / `test_feature_source_cleaning*` | 源目录清理 | `test_source_cleaner_comprehensive.py` | 单元/集成 |
 | `test_task_*` / `test_feature_task_*` | 任务领域 | `test_task_operations.py` | 单元/集成 |
 | `test_config_*` / `test_feature_configuration_*` | 配置加载/校验/脱敏 | `test_config_view.py` | 单元 |
+| `test_fnos_packaging` | fnOS 首次配置、生命周期合同与 FPK 内容门禁 | `test_fnos_packaging.py` | 单元/产物 |
 | `test_api_*` | API 路由表与契约 | `test_api_routes.py` | 集成 |
 | `test_architecture_guards` | 架构护栏（防回退） | `test_architecture_guards.py` | 静态/单测 |
 | `test_no_legacy_*` | 历史兼容面清理验证 | `test_no_legacy_compat_surface.py` | 静态/单测 |
