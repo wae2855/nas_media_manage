@@ -29,7 +29,8 @@
 | `media_importer/core/` | 配置、任务、DB、日志、指标（legacy facade 迁移期） | [features/configuration.md](features/configuration.md), [features/tasks.md](features/tasks.md) | core 单测 |
 | `media_importer/core/db/` | SQLite 真实实现（推荐 import 入口 `media_importer.infrastructure.db`） | [architecture/data-flow.md](architecture/data-flow.md) | `tests/test_task_operations.py` |
 | `media_importer/infrastructure/` | DB facade、filesystem 基础能力（路径校验/复制/安全删除/指纹） | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_recycle_safety.py`, `tests/test_architecture_guards.py` |
-| `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏 | [features/configuration.md](features/configuration.md) | `tests/test_config_view.py` 等 |
+| `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏、片库根边界、开场检查 | [features/configuration.md](features/configuration.md) | `tests/test_config_view.py`、`tests/test_library_root_boundary.py`、`tests/test_startup_readiness.py` |
+| `media_importer/features/source_files/source_units.py` | 来源单元识别、快照与整组回收门禁 | [features/source-files.md](features/source-files.md), [decisions/0014-source-unit-lifecycle.md](decisions/0014-source-unit-lifecycle.md) | `tests/test_source_unit_lifecycle.py` |
 | `media_importer/features/tasks/` | 任务管理、状态、生命周期 | [features/tasks.md](features/tasks.md) | `tests/test_task_*.py` 系列 |
 | `media_importer/features/recycle/` | 回收站移动/浏览/恢复/清理 | [features/recycle.md](features/recycle.md) | `tests/test_recycle_safety.py`, `tests/test_recycle_list_payload.py` |
 | `media_importer/features/import_flow/` | 入库流程：runner、steps、confirm、services | [features/import-flow.md](features/import-flow.md) | `tests/test_feature_import_flow.py` 等 |
@@ -68,13 +69,16 @@
 
 ## 5. Active Plans（活跃计划）
 
-（无——简洁化路线图 Phase 0-4 已完成归档（`_archive/2026-08-27-simplification-complete/`），REQ-000003/000004 已关闭。
+- [存储安全与配置界面简化重构](plans/2026-08-28-storage-safe-configuration-redesign-plan.md)
+- [配置依赖、来源单元与开场检查](plans/2026-08-28-feat-configuration-dependency-and-readiness-plan.md)
+
+简洁化路线图 Phase 0-4 已完成归档（`_archive/2026-08-27-simplification-complete/`），REQ-000003/000004 已关闭。
 
 现行依据文档：
 - 前端：[standards/frontend.md](standards/frontend.md)
 - 后端：[standards/backend.md](standards/backend.md)
 - 刮削契约：[standards/scrape-matching.md](standards/scrape-matching.md)
-- 架构决策：[decisions/](decisions/)（ADR-0010 为刮削边界现行依据））
+- 架构决策：[decisions/](decisions/)（ADR-0010 为刮削边界现行依据）
 
 ## 6. Decision Flow（AI 执行流程）
 

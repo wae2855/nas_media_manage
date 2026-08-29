@@ -11,10 +11,10 @@ def create_subtitles(conn: sqlite3.Connection, task_id: str,
     now = datetime.now().isoformat()
     inserted = []
     tpaths = target_paths or []
-    for i, sp in enumerate(subtitle_paths):
-        filename = os.path.basename(sp)
-        tp = tpaths[i] if i < len(tpaths) else ""
-        with _sqlite_conn_lock:
+    with _sqlite_conn_lock:
+        for i, sp in enumerate(subtitle_paths):
+            filename = os.path.basename(sp)
+            tp = tpaths[i] if i < len(tpaths) else ""
             cur = conn.execute(
                 """INSERT INTO task_subtitles
                    (task_id, source_path, source_filename, target_path, status, created_at)
@@ -34,11 +34,12 @@ def create_subtitles(conn: sqlite3.Connection, task_id: str,
 
 
 def get_subtitles_by_task(conn: sqlite3.Connection, task_id: str) -> list:
-    rows = conn.execute(
-        "SELECT * FROM task_subtitles WHERE task_id=? ORDER BY id ASC",
-        (task_id,)
-    ).fetchall()
-    return _rows_to_dicts(rows)
+    with _sqlite_conn_lock:
+        rows = conn.execute(
+            "SELECT * FROM task_subtitles WHERE task_id=? ORDER BY id ASC",
+            (task_id,)
+        ).fetchall()
+        return _rows_to_dicts(rows)
 
 
 def update_subtitle(conn: sqlite3.Connection, subtitle_id: int, **fields) -> Optional[dict]:
@@ -48,10 +49,11 @@ def update_subtitle(conn: sqlite3.Connection, subtitle_id: int, **fields) -> Opt
     }
     update_fields = {k: v for k, v in fields.items() if k in valid_columns}
     if not update_fields:
-        cur = conn.execute(
-            "SELECT * FROM task_subtitles WHERE id=?", (subtitle_id,)
-        )
-        return _row_to_dict(cur.fetchone())
+        with _sqlite_conn_lock:
+            cur = conn.execute(
+                "SELECT * FROM task_subtitles WHERE id=?", (subtitle_id,)
+            )
+            return _row_to_dict(cur.fetchone())
     set_clause = ", ".join(f"{k}=?" for k in update_fields)
     params = list(update_fields.values()) + [subtitle_id]
     with _sqlite_conn_lock:
@@ -60,10 +62,10 @@ def update_subtitle(conn: sqlite3.Connection, subtitle_id: int, **fields) -> Opt
             params
         )
         conn.commit()
-    cur = conn.execute(
-        "SELECT * FROM task_subtitles WHERE id=?", (subtitle_id,)
-    )
-    return _row_to_dict(cur.fetchone())
+        cur = conn.execute(
+            "SELECT * FROM task_subtitles WHERE id=?", (subtitle_id,)
+        )
+        return _row_to_dict(cur.fetchone())
 
 
 def update_subtitles_by_task(conn: sqlite3.Connection, task_id: str,
@@ -78,20 +80,22 @@ def update_subtitles_by_task(conn: sqlite3.Connection, task_id: str,
     set_clause = ", ".join(f"{k}=?" for k in update_fields)
     params = list(update_fields.values()) + [task_id]
     with _sqlite_conn_lock:
-        conn.execute(
+        cur = conn.execute(
             f"UPDATE task_subtitles SET {set_clause} WHERE task_id=?",
             params
         )
         conn.commit()
-    return conn.total_changes
+        return max(cur.rowcount, 0)
 
 
 def count_subtitles_by_task(conn: sqlite3.Connection, task_id: str) -> tuple:
-    total = conn.execute(
-        "SELECT COUNT(*) FROM task_subtitles WHERE task_id=?", (task_id,)
-    ).fetchone()[0]
-    success = conn.execute(
-        "SELECT COUNT(*) FROM task_subtitles WHERE task_id=? AND status='SUCCESS'",
-        (task_id,)
-    ).fetchone()[0]
-    return total, success
+    with _sqlite_conn_lock:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM task_subtitles WHERE task_id=?", (task_id,)
+        ).fetchone()[0]
+        success = conn.execute(
+            "SELECT COUNT(*) FROM task_subtitles "
+            "WHERE task_id=? AND status='SUCCESS'",
+            (task_id,)
+        ).fetchone()[0]
+        return total, success

@@ -299,7 +299,7 @@ class TestSourceCleanupService(unittest.TestCase):
 
         self.assertIn("源文件保留", result.message)
 
-    def test_skip_recycle_uses_recycle_policy(self):
+    def test_skip_legacy_recycle_policy_keeps_failed_source_unit(self):
         config = {
             "source_dir": "/source",
             "temp_dir": "/temp",
@@ -313,16 +313,14 @@ class TestSourceCleanupService(unittest.TestCase):
         }
         service = SourceCleanupService(config)
 
-        with patch("media_importer.features.source_files.cleanup_service.move_to_recycle_with_companions", return_value=1), \
-             patch("media_importer.features.source_files.cleanup_service.remove_empty_parent_dir"):
-            result = service.recycle_source_after_skip(
-                {"task_id": "t1"},
-                "/source/Movie.mkv",
-                [],
-            )
+        result = service.recycle_source_after_skip(
+            {"task_id": "t1"},
+            "/source/Movie.mkv",
+            [],
+        )
 
-        self.assertEqual(result.moved_count, 1)
-        self.assertIn("跳过任务源文件", result.message)
+        self.assertEqual(result.moved_count, 0)
+        self.assertIn("未全部成功", result.message)
 
     def test_temp_cleanup_only_deletes_files_inside_temp_dir(self):
         service = SourceCleanupService({

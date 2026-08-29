@@ -70,6 +70,12 @@ class ConfirmMixin:  # type: ignore[misc]
             self._step_record(task)
 
             db_update_task(self.task_manager.conn, tid, **mark_imported(ctx))
+            if task.get("source_unit_id"):
+                from media_importer.features.source_files import SourceUnitCoordinator
+                cleanup = SourceUnitCoordinator(
+                    self.task_manager.conn, self.config
+                ).try_recycle(task["source_unit_id"])
+                self._log("info", cleanup.message, task, "cleanup")
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")

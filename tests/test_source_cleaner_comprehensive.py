@@ -1062,6 +1062,11 @@ class TestCartesianConfigCombinations(unittest.TestCase):
             cleanup_empty_dirs=cleanup_empty_dirs,
         )
         cleaner = SourceCleaner(config)
+        if ai_enabled:
+            # 配置笛卡尔积验证的是规则与合并行为，不应向测试配置里的
+            # localhost 假地址发起真实 LLM 请求。真实协议另由 LLM 专项测试覆盖。
+            with patch.object(SourceCleaner, "_ai_analyze_all", return_value={}):
+                return cleaner.preview()
         return cleaner.preview()
 
     def test_all_cartesian_combinations(self):

@@ -17,7 +17,8 @@
 - Database: source cleaner execution records.
 - Frontend: config/source cleanup controls.
 - Safety: every delete-like action must go through recycle.
-- `source_policy.cleanup_source_after_done` controls the source video after successful import and defaults to `false`; it is separate from `source_cleaner.enabled`, which only controls junk/advertisement/empty-directory cleanup.
+- `source_cleaner` 只在 `source_policy.mode=preserve_media` 时有效，作为该模式的从属策略；LLM 也只在此模式按需启用。
+- `recycle_source_unit` 不运行垃圾分类，而是在来源单元全部任务成功后整组移入本地回收目录。
 
 ## Tests
 

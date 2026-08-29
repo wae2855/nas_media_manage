@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from media_importer.features.configuration import ConfigView
+from media_importer.features.configuration.library_paths import resolve_library_template
 
 from .classification_rules import classify, render_template
 from .paths import resolve_project_path
@@ -42,7 +43,12 @@ class ClassificationService:
                     rules_description=self._format_rules(path_rules),
                 )
 
-        import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
+        if self.config.paths.library_root:
+            import_path = resolve_library_template(
+                self.config.paths.library_root, import_path, {}
+            )
+        else:
+            import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
         return ClassificationResult(
             import_path=import_path,
             classify_result=import_path,
@@ -98,7 +104,12 @@ class ClassificationService:
                     "dimensions_text": dimensions_text,
                 }
 
-        import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
+        if self.config.paths.library_root:
+            import_path = resolve_library_template(
+                self.config.paths.library_root, import_path, {}
+            )
+        else:
+            import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
 
         final_filename = override_filename or task.get("final_filename", "") or task.get("source_filename", "")
         full_path = os.path.join(import_path, final_filename) if import_path and final_filename else ""

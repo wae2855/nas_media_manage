@@ -9,13 +9,28 @@
     }
 
     function removeAppModal() {
-        document.querySelector(".cinema-modal-overlay")?.remove();
+        const overlay = document.querySelector(".cinema-modal-overlay");
+        if (!overlay) return;
+        if (typeof overlay._onClose === "function") {
+            const callback = overlay._onClose;
+            overlay._onClose = null;
+            callback();
+        }
+        overlay.remove();
     }
 
-    function showAppModal({ title, body, actions = [], tone = "default" }) {
+    function showAppModal({
+        title,
+        body,
+        actions = [],
+        tone = "default",
+        dismissOnBackdrop = true,
+        onClose = null,
+    }) {
         removeAppModal();
         const overlay = document.createElement("div");
         overlay.className = "cinema-modal-overlay";
+        overlay._onClose = onClose;
         overlay.innerHTML = `
             <div class="cinema-modal cinema-modal-${tone}">
                 <div class="cinema-modal-header">
@@ -27,7 +42,7 @@
             </div>
         `;
         overlay.addEventListener("click", (event) => {
-            if (event.target === overlay) removeAppModal();
+            if (dismissOnBackdrop && event.target === overlay) removeAppModal();
         });
         overlay.querySelector(".cinema-modal-close")?.addEventListener("click", removeAppModal);
         const footer = overlay.querySelector(".cinema-modal-footer");

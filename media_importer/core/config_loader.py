@@ -156,9 +156,20 @@ def load_config(config_path: Optional[str] = None) -> dict:
         config["source_policy"] = {}
     source_policy = config["source_policy"]
     source_policy.setdefault("cleanup_source_after_done", False)
+    source_policy.setdefault(
+        "mode",
+        "recycle_source_unit" if source_policy.get("cleanup_source_after_done") is True
+        else "preserve_media" if (config.get("source_cleaner") or {}).get("enabled") is True
+        else "preserve_all",
+    )
     source_policy.setdefault("recycle_retention_days", 30)
     source_policy.setdefault("scan_recursive", True)
     source_policy.setdefault("scan_max_depth", 5)
+    source_policy.setdefault("unit_settle_seconds", 120)
+    source_policy.setdefault(
+        "unit_incomplete_patterns",
+        ["*.part", "*.partial", "*.aria2", "*.!qB", "*.crdownload"],
+    )
 
     recycle_dir = source_policy.get("recycle_dir", "")
     if recycle_dir and not os.path.isabs(recycle_dir):
@@ -197,6 +208,13 @@ def load_config(config_path: Optional[str] = None) -> dict:
         config["manual_review"] = {"enabled": False}
 
     config.setdefault("fallback_dir", "")
+
+    # 旧版绝对路径规则只在能证明同属一个片库根目录时自动归一化。
+    try:
+        from media_importer.features.configuration.library_paths import canonicalize_library_config
+        config = canonicalize_library_config(config)
+    except ValueError as exc:
+        config["_library_migration_error"] = str(exc)
 
     errors = validate_config(config)
     if errors:

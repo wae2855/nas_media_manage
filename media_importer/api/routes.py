@@ -43,6 +43,7 @@ API_ROUTES = [
     _route("GET", "/api/metrics", "_metrics"),
     _route("GET", "/api/config", "_config"),
     _route("GET", "/api/config/validate", "_config_validate"),
+    _route("GET", "/api/config/startup-readiness", "_config_startup_readiness"),
     _route("GET", "/api/watcher/status", "_watcher_status"),
     _route("GET", "/api/tasks", "_list_tasks"),
     _route("GET", "/api/tasks/stats", "_task_stats"),

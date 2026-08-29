@@ -58,8 +58,27 @@ async function saveRecycleConfig() {
 
 async function saveRulesConfig() {
   const payload = buildRulesConfigPayload();
+  if (!payload.library_root) {
+    showToast("请先选择片库根目录");
+    return;
+  }
   if (!Array.isArray(payload.path_rules) || payload.path_rules.length === 0) {
     showToast("当前还没有可保存的入库规则，请先新增至少一条规则");
+    return;
+  }
+  const invalidRule = payload.path_rules.find((rule) => {
+    const value = String(rule?.template || "").trim();
+    return value.startsWith("/") || value.split(/[\\/]+/).includes("..");
+  });
+  if (invalidRule) {
+    showToast("入库规则只能填写片库根目录下的相对子目录");
+    return;
+  }
+  if (
+    payload.fallback_dir.startsWith("/") ||
+    payload.fallback_dir.split(/[\\/]+/).includes("..")
+  ) {
+    showToast("兜底目录只能填写片库根目录下的相对子目录");
     return;
   }
   await saveConfigPayload(payload, "入库规则配置已保存");
@@ -97,16 +116,21 @@ async function saveAutomationConfig() {
   const watcher = currentConfigSnapshot?.file_watcher || {};
   const enabled = !!document.getElementById("cfg-auto-watcher-enabled")
     ?.checked;
+  const pollInterval = Number(
+    document.getElementById("cfg-auto-watcher-poll-interval")?.value || 60,
+  );
   const result = await requestApi("POST", "/config", {
     _revision: currentConfigRevision,
     file_watcher: {
       ...watcher,
       enabled,
+      poll_interval: pollInterval,
       stability_window_seconds: Number(watcher.stability_window_seconds || 120),
     },
   });
   showToast(
-    result.message || (enabled ? "自动运行已启用" : "自动运行保持关闭"),
+    result.message ||
+      (enabled ? "后台自动整理已开启" : "后台自动整理已关闭"),
   );
   if (result.code === 200) await loadDirectoryConfig();
 }
@@ -159,16 +183,20 @@ async function testConfigPath(kind) {
     source: {
       label: "源目录",
       path: paths.source_dir,
-      need_write: !!document.getElementById("cfg-source-cleaner-enabled-inline")
-        ?.checked,
+      need_write:
+        document.querySelector('input[name="cfg-source-after-done"]:checked')
+          ?.value !== "preserve_all",
     },
     temp: { label: "中转目录", path: paths.temp_dir, need_write: true },
     recycle: { label: "回收目录", path: paths.recycle_dir, need_write: true },
     fallback: {
       label: "兜底入库目录",
-      path: paths.fallback_dir,
+      path: paths.library_root && paths.fallback_dir
+        ? `${paths.library_root.replace(/\/$/, "")}/${paths.fallback_dir}`
+        : paths.library_root,
       need_write: true,
     },
+    library: { label: "片库根目录", path: paths.library_root, need_write: true },
     log: {
       label: "日志目录",
       path: normalizePathValue(
@@ -206,22 +234,7 @@ async function testAllRulePermissions() {
     showToast("当前还没有可测试的入库规则");
     return;
   }
-  showToast("正在检查全部入库规则目录权限...");
-  const result = await requestApi("POST", "/config/check-permission", {
-    source_dir: "",
-    temp_dir: "",
-    log_dir: "",
-    path_rules: pathRules,
-  });
-  if (result.code !== 200 || !result.data) {
-    showToast(result.message || "入库规则目录权限检查失败");
-    return;
-  }
-  if (Array.isArray(result.data.issues) && result.data.issues.length > 0) {
-    buildPermissionIssueDialog(result.data.issues, "入库规则目录权限不足");
-    return;
-  }
-  showToast("所有入库规则目录权限正常");
+  await testConfigPath("library");
 }
 
 async function testProviderConnection(providerType) {

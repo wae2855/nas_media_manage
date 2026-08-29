@@ -12,7 +12,7 @@ status: accepted
 ## 1. 技术边界
 
 - 零依赖原生 HTML/CSS/JS，**禁止引入**框架、构建工具、npm 依赖、i18n 库。
-- 文件只放 `webui/`：`index.html`（主视图+配置面板）+ `partials/advanced-pages.html`（高级页）+ `js/` + `css/` + `assets/`。
+- 文件只放 `webui/`：`index.html`（主视图+配置阶段）+ `partials/advanced-pages.html`（进阶字段片段，由胶卷阶段原位挂载）+ `js/` + `css/` + `assets/`。
 - 入口加载序固定（index.html 底部 script 顺序即依赖顺序，无模块系统）：
 
 ```text
@@ -46,6 +46,8 @@ status: accepted
 
 - 页面切换：`data-view`（目标 section）+ `data-nav`（导航按钮）+ `data-view-target`（跨视图跳转）。
 - 配置页二级面板：`data-config-stage`（顶部阶段卡）↔ `data-config-panel`（面板）。
+- 进阶设置必须作为普通 `data-config-stage` 留在胶卷轨道中；禁止新增独立高级配置首页和“进入后再返回”的第二套导航。
+- 含多字段编辑的弹窗默认不得点击遮罩关闭；必须提供明确关闭、取消或保存动作。
 - 新页面 = index.html 或 partials 加 `<section class="page-view" data-view="xxx">` + 底部导航按钮；不改 JS 路由逻辑（app-events 事件委托自动生效）。
 
 ## 4. JS 规范
@@ -68,6 +70,9 @@ status: accepted
   `三级匹配`、`AI上下文`、`AI辅助匹配`、`AI联网/联网搜索`、`AI 判定`、`Hermes`、`飞书`、`MCP 联网`。
 - 产品名统一「**影音库智能整理**」（包名 nas-media-importer 不变）。
 - LLM 只描述为「源目录清理器的可选辅助」，不得暗示参与刮削/匹配/维度判断。
+- 弹窗内发起的连通性测试必须在弹窗内展示进行中与最终结果，不能只依赖弹窗外 Toast。
+- 面向普通用户的开关用行为结果命名，例如「后台自动整理」；说明必须同时交代开启和关闭分别会发生什么。
+- 后端状态枚举可保留英文合同，但配置检查等用户界面必须映射为中文状态说明。
 - 状态术语 7 个枚举（与后端 status/stage 对应）：`排队中`、`处理中`、`待确认`、`成功入库`、`失败`、`已跳过`、`已取消`。
 - 重试文案必须体现断点续跑语义（"中转文件仍存在时将从断点继续"）。
 - 批量重试只针对 FAILED；SKIPPED/CANCELLED 是用户终态决策，不进批量复活范围。

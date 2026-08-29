@@ -8,7 +8,7 @@ from .storage_readiness import inspect_storage_readiness
 
 SECTION_FIELD_MAP = {
     "basic": ["source_dir", "temp_dir", "source_policy"],
-    "path_rules": ["path_rules", "fallback_dir"],
+    "path_rules": ["library_root", "path_rules", "fallback_dir"],
     "import_options": ["manual_review", "duplicate_handling", "filename_templates"],
     "metadata.providers": ["metadata"],
     "llm": ["llm"],
@@ -38,12 +38,15 @@ def config_revision(config: dict) -> str:
 def build_config_ui_payload(config: dict) -> dict:
     masked = mask_sensitive(config) if config else {}
     source_policy = masked.get("source_policy", {})
-    if "cleanup_mode" not in source_policy:
-        cleanup_after_done = source_policy.get("cleanup_source_after_done")
-        if cleanup_after_done is False:
-            source_policy["cleanup_mode"] = "read_only"
-        elif cleanup_after_done is True:
-            source_policy["cleanup_mode"] = "full_cleanup"
+    if "mode" not in source_policy:
+        source_policy["mode"] = (
+            "recycle_source_unit"
+            if source_policy.get("cleanup_source_after_done") is True
+            else "preserve_all"
+        )
+    source_policy["cleanup_mode"] = (
+        "full_cleanup" if source_policy["mode"] == "recycle_source_unit" else "read_only"
+    )
     if "delete_source_after_import" not in source_policy:
         source_policy["delete_source_after_import"] = source_policy.get(
             "cleanup_source_after_done", False

@@ -10,7 +10,7 @@
 # ------------------------------------------------------------
 file_watcher:
   enabled: true                   # 是否启用文件监控（轮询扫描源目录）
-  poll_interval: 60               # 轮询间隔（秒），建议不低于30秒
+  poll_interval: 60               # 轮询间隔（秒）；界面预设30/60/120/300/600，合法范围10-3600
   stability_window_seconds: 120   # 文件大小和修改时间保持不变后再处理（高级项：30-1800秒）
   ignore_patterns:                # 监控忽略的文件名模式
     - "*.tmp"
@@ -38,12 +38,21 @@ temp_dir: "/vol1/tmp/media_import"
 log_dir: "/vol1/logs/media_import"
 
 source_policy:
+  mode: "preserve_all"             # preserve_all / preserve_media / recycle_source_unit
+  cleanup_source_after_done: false  # 旧版兼容投影；新逻辑以 mode 为准
   recycle_dir: "/vol1/@appdata/nas-media-importer/data/recycle"
                                   # 回收站路径，重复文件和失败超限文件将被移入此目录
                                   # ⚠️ 不能与源目录或中转目录相同
   max_auto_retries: 3             # 同一文件失败超过此次数后移入回收站
   scan_recursive: true            # 是否递归扫描源目录子目录
   scan_max_depth: 5               # 源目录递归扫描最大深度
+  unit_settle_seconds: 120        # 整组回收前的最短稳定等待
+  unit_incomplete_patterns:       # 命中时视为下载未完成，整组不回收
+    - "*.part"
+    - "*.partial"
+    - "*.aria2"
+    - "*.!qB"
+    - "*.crdownload"
 
 video_extensions:                 # 支持的视频格式（仅这些后缀的文件会被处理）
   - ".mkv"
@@ -70,6 +79,9 @@ subtitle_extensions:              # 支持的字幕格式
 # 可添加维度：是否动漫(animation)、地区(region)、原始语言(origin_lang)、分辨率等级(resolution_tier)、类型(broad_genre)
 
 # 路径规则：按条件从上到下匹配，第一个匹配的规则生效
+# [必须] 已在 fnOS 授权并通过存储检查的唯一片库根目录
+library_root: "/vol1/影视"
+# template 与 fallback_dir 只能填写 library_root 下的相对路径，禁止绝对路径和 ..
 # 支持变量: {title_cn} {title_en} {year} {season} {episode} {resolution} {quality} {ext}
 # ⚠️ 重要说明：规则从上到下匹配，命中即停止。请将精确规则放前面，通用规则放后面。
 # ⚠️ restricted_level 支持多选，多个值用 | 分隔（如：0-6|7-12|13-15）
@@ -78,53 +90,53 @@ path_rules:
       media_type: tv
       animation: "true"
       restricted_level: "0-6|7-12"
-    template: "/vol1/影视/动漫/家庭向/{title_cn} ({year})/Season {season}/"
+    template: "动漫/家庭向/{title_cn} ({year})/Season {season}/"
 
   - conditions:
       media_type: tv
       animation: "true"
       restricted_level: "13-15|17+"
-    template: "/vol1/影视/动漫/青少年向/{title_cn} ({year})/Season {season}/"
+    template: "动漫/青少年向/{title_cn} ({year})/Season {season}/"
 
   - conditions:
       media_type: tv
       animation: "true"
-    template: "/vol1/影视/动漫/{title_cn} ({year})/Season {season}/"
+    template: "动漫/{title_cn} ({year})/Season {season}/"
 
   - conditions:
       media_type: movie
       animation: "true"
-    template: "/vol1/影视/动漫电影/{title_cn} ({year})/"
+    template: "动漫电影/{title_cn} ({year})/"
 
   - conditions:
       media_type: tv
       restricted_level: "17+"
-    template: "/vol1/影视/TV-R/{title_cn} ({year})/Season {season}/"
+    template: "TV-R/{title_cn} ({year})/Season {season}/"
 
   - conditions:
       media_type: tv
-    template: "/vol1/影视/电视剧/{title_cn} ({year})/Season {season}/"
+    template: "电视剧/{title_cn} ({year})/Season {season}/"
 
   - conditions:
       media_type: movie
       documentary: "true"
-    template: "/vol1/影视/纪录片/{title_cn} ({year})/"
+    template: "纪录片/{title_cn} ({year})/"
 
   - conditions:
       media_type: movie
       restricted_level: "17+"
-    template: "/vol1/影视/电影-R/{year}/{title_cn} ({year})/"
+    template: "电影-R/{year}/{title_cn} ({year})/"
 
   - conditions:
       media_type: movie
-    template: "/vol1/影视/电影/{year}/{title_cn} ({year})/"
+    template: "电影/{year}/{title_cn} ({year})/"
 
   - conditions: {}
-    template: "/vol1/影视/其他/{title_cn} ({year})/"
+    template: "其他/{title_cn} ({year})/"
 
 # 兜底入库目录：所有规则都不匹配时，文件将存入此目录
 # 不设置时，无匹配的文件在分类阶段报错中断
-fallback_dir: "/vol1/影视/未分类/"
+fallback_dir: "未分类/"
 
 # 特殊处理规则
 rules:

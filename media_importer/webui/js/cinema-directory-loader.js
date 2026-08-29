@@ -58,18 +58,102 @@ function renderStorageReadiness(readiness) {
     overall.innerHTML = `<span class="setup-state-light" aria-hidden="true"></span><div><b>${ready ? "基础配置已就绪" : `还有 ${(readiness?.blocking || []).length} 项需要处理`}</b><small>${ready ? (readiness?.automatic_allowed ? "可以模拟或开启自动运行" : "可人工运行，自动运行暂缓") : "打开“存储检查”查看原因"}</small></div>`;
   }
 
+  resetStartupReadinessView();
+}
+
+function resetStartupReadinessView() {
   const finale = document.getElementById("setup-finale");
-  if (finale) {
-    const ready = readiness?.state === "READY";
-    finale.classList.toggle("is-ready", ready);
-    const mark = finale.querySelector(".setup-finale-mark");
-    if (mark) mark.innerHTML = `<span>${ready ? "READY" : "HOLD"}</span><b>${ready ? "可以开始" : "暂不运行"}</b>`;
-    const title = finale.querySelector("h3");
-    const copy = finale.querySelector("p");
-    if (title) title.textContent = ready ? "片库已经准备好开场" : "先解决阻塞项，再开始任务";
-    if (copy) copy.textContent = ready
-      ? "默认配置可以直接使用。建议先模拟一部影片，熟悉后再进入高级配置。"
-      : "系统不会在目录离线、权限不足或空间不足时执行文件移动。";
+  const list = document.getElementById("startup-readiness-list");
+  if (list) list.innerHTML = "";
+  if (!finale) return;
+  finale.classList.remove("is-ready", "is-blocked");
+  const mark = finale.querySelector(".setup-finale-mark");
+  if (mark) mark.innerHTML = "<span>CHECK</span><b>等待开场检查</b>";
+}
+
+function renderStartupReadiness(result) {
+  const checks = Array.isArray(result?.checks) ? result.checks : [];
+  const list = document.getElementById("startup-readiness-list");
+  const finale = document.getElementById("setup-finale");
+  if (list) {
+    const statusPresentation = {
+      PASS: { label: "正常", tone: "pass" },
+      SKIPPED: { label: "无需检查", tone: "skipped" },
+      WARN: { label: "需要留意", tone: "warn" },
+      WARNING: { label: "需要留意", tone: "warn" },
+      BLOCKED: { label: "需要处理", tone: "blocked" },
+      FAIL: { label: "检查失败", tone: "blocked" },
+      ERROR: { label: "检查失败", tone: "blocked" },
+    };
+    list.innerHTML = checks
+      .map(
+        (item) => {
+          const status = String(item.status || "BLOCKED").toUpperCase();
+          const presentation = statusPresentation[status] || {
+            label: "尚未完成",
+            tone: "blocked",
+          };
+          return `<article class="startup-check is-${presentation.tone}"><span>${presentation.label}</span><div><b>${escapeHtml(item.label || "检查项")}</b><p>${escapeHtml(item.message || "")}</p></div>${item.fix_target ? `<button class="btn btn-secondary btn-sm" type="button" data-readiness-fix="${escapeHtml(item.fix_target)}">去处理</button>` : ""}</article>`;
+        },
+      )
+      .join("");
+  }
+  if (!finale) return;
+  const passed = result?.state === "PASS";
+  finale.classList.toggle("is-ready", passed);
+  finale.classList.toggle("is-blocked", !passed);
+  const mark = finale.querySelector(".setup-finale-mark");
+  if (mark) mark.innerHTML = `<span>${passed ? "READY" : "HOLD"}</span><b>${passed ? "可以开始" : "暂不运行"}</b>`;
+  const title = finale.querySelector("h3");
+  const copy = finale.querySelector("p");
+  if (title) title.textContent = passed ? "整套配置已通过开场检查" : "仍有阻塞项需要处理";
+  if (copy) copy.textContent = passed
+    ? "目录、外部能力与运行条件已确认；可以返回首页开始任务。"
+    : "系统会保留现有文件，不会在关键条件不满足时开始自动文件操作。";
+}
+
+function renderStartupReadinessFailure(message) {
+  const list = document.getElementById("startup-readiness-list");
+  const finale = document.getElementById("setup-finale");
+  const detail = String(message || "无法连接本地服务，请确认服务仍在运行后重试。");
+  if (list) {
+    list.innerHTML = `<article class="startup-check is-blocked"><span>检查失败</span><div><b>开场检查未完成</b><p>${escapeHtml(detail)}</p></div><button class="btn btn-secondary btn-sm" type="button" data-startup-readiness>重新检查</button></article>`;
+  }
+  if (!finale) return;
+  finale.classList.remove("is-ready");
+  finale.classList.add("is-blocked");
+  const mark = finale.querySelector(".setup-finale-mark");
+  if (mark) mark.innerHTML = "<span>失败</span><b>请重新检查</b>";
+  const title = finale.querySelector("h3");
+  const copy = finale.querySelector("p");
+  if (title) title.textContent = "开场检查没有完成";
+  if (copy) copy.textContent = "尚未执行任何自动文件操作；请确认本地服务正常后重新检查。";
+}
+
+async function runStartupReadiness() {
+  const buttons = document.querySelectorAll("[data-startup-readiness]");
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.dataset.originalLabel = button.textContent;
+    button.textContent = "正在检查...";
+  });
+  showToast("正在检查目录、网络与外部能力...");
+  try {
+    const result = await requestApi("GET", "/config/startup-readiness");
+    if (result.code !== 200 || !result.data) {
+      const message = result.message || "开场检查失败，请稍后重试。";
+      renderStartupReadinessFailure(message);
+      showToast(message);
+      return;
+    }
+    renderStartupReadiness(result.data);
+    showToast(result.data.state === "PASS" ? "开场检查通过" : "开场检查发现阻塞项");
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+      button.textContent = button.dataset.originalLabel || "运行开场检查";
+      delete button.dataset.originalLabel;
+    });
   }
 }
 
@@ -103,16 +187,27 @@ async function loadDirectoryConfig() {
     .forEach((radio) => {
       radio.checked =
         radio.value ===
-        (sourcePolicy.cleanup_source_after_done === true ? "recycle" : "keep");
+        (sourcePolicy.mode ||
+          (sourcePolicy.cleanup_source_after_done === true
+            ? "recycle_source_unit"
+            : "preserve_all"));
     });
   document.getElementById("cfg-source-recursive-toggle-inline").checked =
     sourcePolicy.scan_recursive ?? true;
   setFieldValue("cfg-source-depth-inline", sourcePolicy.scan_max_depth || 5);
+  setFieldValue("cfg-source-unit-settle", sourcePolicy.unit_settle_seconds || 120);
+  setFieldValue(
+    "cfg-source-unit-incomplete-patterns",
+    (sourcePolicy.unit_incomplete_patterns || [
+      "*.part", "*.partial", "*.aria2", "*.!qB", "*.crdownload",
+    ]).join("\n"),
+  );
   setFieldValue(
     "cfg-recycle-retention-inline",
     sourcePolicy.recycle_retention_days || 30,
   );
   setFieldValue("cfg-fallback-inline", rawConfig.fallback_dir || "");
+  setFieldValue("cfg-library-root-inline", rawConfig.library_root || "");
   setFieldValue(
     "cfg-filename_templates-movie-inline",
     (rawConfig.filename_templates || {}).movie || "",
@@ -147,15 +242,13 @@ async function loadDirectoryConfig() {
     (rawConfig.task_queue || {}).max_concurrent || 1,
   );
   const watcherCfg = rawConfig.file_watcher || {};
-  document.getElementById("cfg-file_watcher-enabled-inline").checked =
-    !!watcherCfg.enabled;
   const automationToggle = document.getElementById("cfg-auto-watcher-enabled");
   if (automationToggle) automationToggle.checked = !!watcherCfg.enabled;
+  syncAutomationToggleCopy();
   setFieldValue(
-    "cfg-file_watcher-poll_interval-inline",
+    "cfg-auto-watcher-poll-interval",
     watcherCfg.poll_interval || 60,
   );
-  toggleFileWatcherPollGroup();
   setFieldValue(
     "cfg-video_extensions-inline",
     (rawConfig.video_extensions || []).join("\n"),
@@ -175,14 +268,16 @@ async function loadDirectoryConfig() {
   if (llmSsl) llmSsl.checked = llm.verify_ssl !== false;
   updateLlmConfigStatus();
   document.getElementById("cfg-source-cleaner-enabled-inline").checked =
-    !!sourceCleaner.enabled;
+    (sourcePolicy.mode || "preserve_all") === "preserve_media";
   document
     .querySelectorAll('input[name="cfg-source_cleaner-cleanup_mode_inline"]')
     .forEach((radio) => {
       radio.checked =
-        radio.value === (sourceCleaner.cleanup_mode || "media_only");
+        radio.value === (sourceCleaner.cleanup_mode || "media_and_related");
     });
   document.getElementById("cfg-source_cleaner-ai_enabled-inline").checked =
+    (sourcePolicy.mode || "preserve_all") === "preserve_media" &&
+    !!sourceCleaner.enabled &&
     !!sourceCleaner.ai_enabled;
   setFieldValue(
     "cfg-source_cleaner-merge_strategy-inline",
@@ -226,6 +321,8 @@ async function loadDirectoryConfig() {
     console.warn("loadInlineProviderConfigs 失败,继续同步 UI 状态", err);
   }
   toggleSourceDepthField();
+  placeLlmSettingsUnderSourcePolicy();
+  toggleSourceModeUi();
   toggleSourceCleanerUi();
   if (typeof loadDimensions === "function") {
     try {

@@ -45,4 +45,10 @@ config.yaml.example
 
 新增配置项时，loader/migration/validator 仍负责配置文件生命周期；业务代码优先通过 `ConfigView` 读取，避免散落深层 `config.get(...)`。
 
+规范字段：
+
+- `source_policy.mode`: `preserve_all | preserve_media | recycle_source_unit`；旧 `cleanup_source_after_done` 只作迁移输入和兼容投影。
+- `library_root`: 唯一、已授权并通过存储检查的片库根目录。
+- `path_rules[].template`、`fallback_dir`: `library_root` 下的相对模板；保存与运行时均做 containment 校验。
+
 当前 `config_handlers.py` 中的 UI 配置投影、分区保存拆分、权限检查请求组装、路径测试结果组装和 watcher 状态投影已下沉到 configuration feature application service；配置重载后的 pipeline/notifier/watcher 刷新已下沉到 runtime service。API handler 仍保留全局对象引用赋值，后续如新增 application state 容器再继续收口。

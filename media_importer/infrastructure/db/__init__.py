@@ -50,6 +50,13 @@ from media_importer.core.db.subtitle_repo import (
     update_subtitle,
     update_subtitles_by_task,
 )
+from media_importer.core.db.source_unit_repo import (
+    get_source_unit,
+    list_pending_source_unit_ids,
+    list_tasks_for_source_unit,
+    update_source_unit,
+    upsert_source_unit,
+)
 from media_importer.core.db.task_repo import (
     claim_next_pending,
     clear_tasks,

@@ -155,6 +155,7 @@ async function loadReelWheelFromTasks() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadHtmlPartial("advanced-pages-slot", "partials/advanced-pages.html");
+  mountAdvancedSettingsInTrack();
   bindEvents();
   renderStaticLists();
   initReelWheel();

@@ -98,6 +98,9 @@
 | 保存整段配置 | 配置页 | `POST /api/config` | `api/config_save.py` | `test_config_view.py`, `test_config_api_no_legacy_prompts.py` | — |
 | 保存分区配置 | 各分区卡片 | `POST /api/config/section` | `api/config_handlers.py`, `api/config_save.py` | `test_feature_configuration_application.py` | — |
 | 路径测试（模板渲染） | 路径规则页 | `POST /api/path/test` | `api/config_handlers.py` | `test_feature_configuration_application.py:test_build_path_test_payload_*`, `test_path_rules.py` | — |
+| 开场检查 | 配置完成页 | `GET /api/config/startup-readiness` | `features/configuration/startup_readiness.py` | `test_startup_readiness.py`, `test_configuration_realistic_scenarios.py`, `test_api_routes.py` | — |
+| SQLite 并发保护 | 多线程 HTTP repository 访问 | 共享连接 + `_sqlite_conn_lock` | `core/db/connection.py`, `core/db/cleaner_repo.py` | `test_db_concurrency.py` | — |
+| 来源单元整组回收 | 文件来源 | 内部协调器 | `features/source_files/source_units.py` | `test_source_unit_lifecycle.py`, `test_configuration_realistic_scenarios.py` | — |
 | 权限检查（读写路径） | 路径规则 | `POST /api/config/check-permission` | `api/config_handlers.py` | `test_config_consumers.py:test_permission_checker*` | — |
 | Watcher 配置/状态/启停 | 监控/路径区 | `/api/watcher/status`, `/api/watcher/control` | `features/configuration/runtime` | `test_config_consumers.py:test_file_watcher_config`, `test_feature_configuration_runtime.py` | — |
 | Hermes 通知配置/测试 | 系统通知区 | `POST /api/config/test-hermes` | `features/configuration` | `test_config_consumers.py:test_hermes_config` | — |
@@ -143,8 +146,8 @@
 
 | 功能点 | 前台节点 | 后端 API | 后端实现入口 | 已覆盖测试 | 缺口 |
 |--------|----------|----------|--------------|------------|------|
-| 清理策略预览 | 源目录清理页 | `GET /api/source-cleaner/preview` | `features/source_cleaning` | `test_feature_source_cleaning.py`（间接）, `test_source_cleaner_comprehensive.py`（gated/历史） | preview payload 字段单测 |
-| 执行清理 | 源目录清理页 | `POST /api/source-cleaner/execute` | `features/source_cleaning` | `test_feature_source_cleaning.py`, `test_architecture_guards.py:test_source_cleaner_api_handler_uses_*` | — |
+| 清理策略预览 | 源目录清理页 | `GET /api/source-cleaner/preview` | `features/source_cleaning` | `test_feature_source_cleaning.py`（间接）, `test_source_cleaner_comprehensive.py` | preview payload 字段单测 |
+| 执行清理 | 源目录清理页 | `POST /api/source-cleaner/execute` | `features/source_cleaning` | `test_feature_source_cleaning.py`, `test_configuration_realistic_scenarios.py`, `test_architecture_guards.py:test_source_cleaner_api_handler_uses_*` | — |
 | 执行记录 | 源目录清理页 | `GET /api/source-cleaner/records` | `features/source_cleaning` | `test_api_routes.py` | records 字段单测 |
 | 服务状态 | 源目录清理页 | `GET /api/source-cleaner/status` | `features/source_cleaning` | `test_api_routes.py` | — |
 | AI 辅助清理预览 | 源目录清理页 | `GET /api/source-cleaner/ai-preview` | `features/source_cleaning` | — | 缺回归脚本（建议 `test_source_cleaner_ai_preview.py`） |

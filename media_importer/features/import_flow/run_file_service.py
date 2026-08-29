@@ -63,12 +63,21 @@ def run_file_for_api(
 
     def run_one():
         video_file = os.path.basename(file_path)
-        task = task_manager.create_task(
+        source_unit_id = ""
+        if (config.get("source_policy", {}) or {}).get("mode") == "recycle_source_unit":
+            from media_importer.features.source_files import register_source_unit
+            source_unit_id = register_source_unit(
+                task_manager.conn, source_dir, file_path
+            ).unit_id
+        task_kwargs = dict(
             video_path=file_path,
             video_file=video_file,
             subtitle_files=[],
             file_size_mb=os.path.getsize(file_path) / (1024 * 1024),
         )
+        if source_unit_id:
+            task_kwargs["source_unit_id"] = source_unit_id
+        task = task_manager.create_task(**task_kwargs)
         pipeline.process_one(task)
 
     thread = thread_factory(target=run_one, daemon=True)

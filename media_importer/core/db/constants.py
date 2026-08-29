@@ -56,8 +56,30 @@ CREATE TABLE IF NOT EXISTS tasks (
     confirmed_override INTEGER DEFAULT 0,
     confirmed_title TEXT DEFAULT '',
     override_source TEXT DEFAULT ''
+    ,source_unit_id TEXT DEFAULT ''
+    ,source_cleanup_status TEXT DEFAULT ''
 )
 """
+
+CREATE_SOURCE_UNITS_TABLE = """
+CREATE TABLE IF NOT EXISTS source_units (
+    unit_id TEXT PRIMARY KEY,
+    source_root TEXT NOT NULL,
+    unit_path TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('folder', 'loose_root')),
+    snapshot_json TEXT NOT NULL DEFAULT '[]',
+    state TEXT NOT NULL DEFAULT 'DISCOVERED',
+    cleanup_status TEXT NOT NULL DEFAULT 'WAITING',
+    last_error TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
+
+CREATE_SOURCE_UNITS_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_source_units_state ON source_units(state)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_source_unit_id ON tasks(source_unit_id)",
+]
 
 CREATE_SUBTITLES_TABLE = """
 CREATE TABLE IF NOT EXISTS task_subtitles (

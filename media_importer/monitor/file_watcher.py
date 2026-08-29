@@ -11,7 +11,14 @@ class FileWatcher:
     def __init__(self, config: dict, on_new_files=None, logger=None):
         watcher_cfg = config.get("file_watcher", {})
         self.enabled = watcher_cfg.get("enabled", False)
-        self.poll_interval = watcher_cfg.get("poll_interval", 10)
+        try:
+            poll_interval = int(watcher_cfg.get("poll_interval", 60))
+        except (TypeError, ValueError):
+            poll_interval = 60
+        self.poll_interval = max(
+            10,
+            min(3600, poll_interval),
+        )
         self.stability_window_seconds = max(
             30,
             min(1800, int(watcher_cfg.get("stability_window_seconds", 120))),

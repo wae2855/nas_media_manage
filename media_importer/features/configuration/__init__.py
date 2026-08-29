@@ -30,6 +30,7 @@ from .runtime_service import (
     restart_watcher,
 )
 from .storage_readiness import inspect_mount, inspect_storage_readiness
+from .startup_readiness import inspect_startup_readiness
 
 __all__ = [
     "ConfigView",
@@ -45,6 +46,7 @@ __all__ = [
     "build_notifier",
     "inspect_mount",
     "inspect_storage_readiness",
+    "inspect_startup_readiness",
     "restart_watcher",
     "check_path",
     "copy_config_template",

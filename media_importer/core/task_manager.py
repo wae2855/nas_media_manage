@@ -75,12 +75,14 @@ class TaskManager:
     def create_task(self, video_path: str, video_file: str,
                     subtitle_files: Optional[list] = None,
                     file_size_mb: float = 0,
-                    initial_status: Optional[str] = None) -> dict:
+                    initial_status: Optional[str] = None,
+                    source_unit_id: str = "") -> dict:
         task = db_create_task(
             self.conn,
             source_path=video_path,
             source_filename=video_file,
             file_size_mb=file_size_mb,
+            source_unit_id=source_unit_id,
         )
         if initial_status and initial_status in VALID_STATUSES:
             db_update_task(self.conn, task["task_id"], status=initial_status)

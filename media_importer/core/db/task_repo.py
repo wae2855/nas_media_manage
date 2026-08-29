@@ -10,16 +10,17 @@ from .subtitle_repo import get_subtitles_by_task
 
 
 def create_task(conn: sqlite3.Connection, source_path: str, source_filename: str,
-                file_size_mb: float = 0, task_id: Optional[str] = None) -> dict:
+                file_size_mb: float = 0, task_id: Optional[str] = None,
+                source_unit_id: str = "") -> dict:
     tid = task_id or uuid.uuid4().hex[:12]
     now = datetime.now().isoformat()
     with _sqlite_conn_lock:
         conn.execute(
             """INSERT INTO tasks
                (task_id, source_path, source_filename, file_size_mb, status,
-                created_at, last_seen_at, total_steps)
-               VALUES (?, ?, ?, ?, 'PENDING', ?, ?, 10)""",
-            (tid, source_path, source_filename, file_size_mb, now, now)
+                created_at, last_seen_at, total_steps, source_unit_id)
+               VALUES (?, ?, ?, ?, 'PENDING', ?, ?, 10, ?)""",
+            (tid, source_path, source_filename, file_size_mb, now, now, source_unit_id)
         )
         conn.commit()
     return get_task(conn, tid)  # type: ignore[return-value]
@@ -191,6 +192,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "source_fingerprint", "source_file_size", "source_mtime",
         "thumbnail_path",
         "confirmed_override", "confirmed_title", "override_source",
+        "source_unit_id", "source_cleanup_status",
     }
     update_fields = {}
     for k, v in fields.items():
@@ -259,6 +261,7 @@ def _coerce_fields(fields: dict) -> dict:
         "source_fingerprint", "source_file_size", "source_mtime",
         "thumbnail_path",
         "confirmed_override", "confirmed_title", "override_source",
+        "source_unit_id", "source_cleanup_status",
     }
     update_fields = {}
     for k, v in fields.items():

@@ -14,7 +14,9 @@
 | match_level | 匹配级别，AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM |
 | match_concern | 匹配疑虑原因，说明为何任务需要人工确认 |
 | path_rules | 维度到目标路径的规则 |
-| cleanup_source_after_done | 任务完成后是否把源文件移入回收站 |
+| source_policy.mode | 来源处理三态：完整保留、保留媒体清垃圾、整组成功后回收 |
+| source unit | 一次下载/投放的安全清理边界；通常是源根下第一层文件夹 |
+| library_root | 已授权并通过存储检查的唯一片库根目录 |
 | feature | 按业务能力划分的后端入口和文档单元 |
 | infrastructure | 多个 feature 复用的底层适配层，如 SQLite、文件系统、日志 |
 | pending acceptance | 已完成但尚未由用户确认验收的事项 |

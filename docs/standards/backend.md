@@ -32,6 +32,7 @@ notify/          # 仅 hooks.py（高级脚本钩子）
   - 转换表 `TRANSITIONS` 定义 13 个动作的合法源→目标；非法转换抛 `TransitionError`。
   - 负向全组合测试自动生成（`tests/test_task_transitions.py`）——新增动作必须同步转换表，否则测试失败。
 - 并发守护：confirm/retry/cancel 用 `task_repo.compare_and_update_task`（CAS）。并发操作只成功一次。
+- 共享 SQLite 连接的所有 repository 访问必须使用同一个 `_sqlite_conn_lock`；连接禁用 `cached_statements`，避免 ThreadingHTTPServer 并发请求破坏语句缓存。
 - retry 语义：`resume=True` 默认开——temp checkpoint 文件存在则保留（`_step_copy` 跳过复制从刮削续跑），不存在自动降级从头。
 - `retry_all_failed` 默认仅 FAILED；SKIPPED/CANCELLED 需显式参数（用户终态决策不可批量推翻）。
 - import 幂等：目标已存在且指纹相同 → 幂等成功；不同 → 报冲突。

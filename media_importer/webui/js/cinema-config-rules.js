@@ -399,6 +399,7 @@ function openRuleEditor(index = -1) {
   const ruleName = target.name || "";
   const overlay = showAppModal({
     title: index >= 0 ? `编辑规则 ${ruleName || index + 1}` : "新增入库规则",
+    dismissOnBackdrop: false,
     body: `
             <div class="cinema-modal-stack">
                 <label class="cinema-modal-field">
@@ -408,8 +409,8 @@ function openRuleEditor(index = -1) {
                 </label>
                 <label class="cinema-modal-field">
                     <span>入库路径模板</span>
-                    <input type="text" id="rule-template-input" value="${escapeHtml(target.template || "")}" placeholder="/vol1/影视/电影/{year}/{title_cn}/" />
-                    <small>命中后写入的目标目录模板。</small>
+                    <input type="text" id="rule-template-input" value="${escapeHtml(target.template || "")}" placeholder="电影/{year}/{title_cn}/" />
+                    <small>填写片库根目录下的相对子目录模板，不能使用绝对路径或 ..。</small>
                 </label>
                 ${fields || '<div class="cinema-modal-hint">当前还没有启用的分类维度，先去"影视分类维度"启用后再补充条件。</div>'}
             </div>`,
@@ -425,6 +426,10 @@ function openRuleEditor(index = -1) {
           ).trim();
           if (!template) {
             showToast("入库路径模板不能为空");
+            return;
+          }
+          if (template.startsWith("/") || template.split(/[\\/]+/).includes("..")) {
+            showToast("规则路径必须是片库根目录下的相对子目录");
             return;
           }
           const name = String(

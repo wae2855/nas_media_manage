@@ -24,7 +24,8 @@
 - Import flow: runner, dedup, and import services use `SourceCleanupService`.
 - Recycle: destructive source/library file handling goes through `features/recycle`.
 - Filesystem infrastructure: direct path validation, permission checks, safe move/delete, and fingerprint helpers live in `infrastructure/filesystem`.
-- Config: `paths.source_dir`, `paths.temp_dir`, `paths.path_rules`, `source_policy.recycle_dir`, `source_policy.cleanup_source_after_done`.
+- Config: `paths.source_dir`, `paths.temp_dir`, `paths.library_root`, `paths.path_rules`, `source_policy.recycle_dir`, `source_policy.mode`.
+- `source_units.py` 以源根第一层文件夹或“根直属文件集合”建立快照；聚合门禁只在所有媒体任务成功后回收，失败/跳过/变化均等待。
 
 ## Tests
 

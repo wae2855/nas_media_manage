@@ -53,15 +53,15 @@
 <section class="page-view" data-view="config-simulator">
     <div class="page-hero">
         <div>
-            <div class="eyebrow">高级配置工具</div>
-            <h2>配置模拟测试</h2>
+            <div class="eyebrow">片库搭建验证</div>
+            <h2>模拟识别与分类</h2>
             <div class="path-breadcrumb" aria-label="当前路径">
-                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>模拟测试</strong>
+                <span>片库搭建</span><i>/</i><strong>模拟识别与分类</strong>
             </div>
             <p>输入文件名，测试两级匹配、维度映射和入库决策。</p>
         </div>
         <div class="hero-action-group">
-            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
+            <button class="btn btn-secondary" data-nav="config" data-view-target="config">返回片库搭建</button>
         </div>
     </div>
     <section class="config-panel advanced-host-panel match-preview-page">
@@ -370,19 +370,6 @@
                 <input type="number" id="cfg-task_queue-max_concurrent-inline" min="1" max="5" value="1" />
                 <p>同时处理的最大任务数量，建议 1-2。</p>
             </label>
-            <article class="form-card form-card-full">
-                <span>轮询监控</span>
-                <label class="toggle-row-inline">
-                    <input id="cfg-file_watcher-enabled-inline" type="checkbox" />
-                    <b>启用轮询监控</b>
-                </label>
-                <p>启用后系统将按设定间隔自动扫描源目录，发现新文件时自动创建入库任务。</p>
-                <div class="nested-form-field" id="cfg-file_watcher-poll-group-inline">
-                    <span>轮询间隔（秒）</span>
-                    <input type="number" id="cfg-file_watcher-poll_interval-inline" min="10" max="600" value="60" />
-                    <small>建议不低于 30 秒，间隔过短会增加系统负载。</small>
-                </div>
-            </article>
             <label class="form-card form-card-full">
                 <span>视频识别后缀名</span>
                 <textarea id="cfg-video_extensions-inline" rows="4" placeholder="每行一个后缀名，如 .mkv"></textarea>

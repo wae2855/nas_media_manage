@@ -16,8 +16,8 @@
 | 刮削预览/Provider 契约 | `tests/test_scrape_preview_api.py`, `tests/test_scrape_preview_job.py`, `tests/test_scrape_provider_first_e2e.py` (gated), `tests/test_scrape_result_contract.py`, `tests/test_feature_providers.py` |
 | LLM / AI 注入 | `tests/test_ai_config_runtime.py`, `tests/test_llm_web_search.py`, `tests/test_prompt_runtime.py`, `tests/test_prompt_resolver_integration.py` |
 | 维度 | `tests/test_dimension_resolution.py`, `tests/test_dimension_enabled_filter.py`, `tests/test_dimension_trace_data_link.py`, `tests/test_feature_dimensions_service.py` |
-| 配置 | `tests/test_config_view.py`, `tests/test_config_consumers.py`, `tests/test_feature_configuration_application.py`, `tests/test_feature_configuration_runtime.py`, `tests/test_config_api_no_legacy_prompts.py` |
-| 源目录清理 | `tests/test_feature_source_cleaning.py`, `tests/test_source_cleaner_comprehensive.py` (legacy), `tests/test_architecture_guards.py` |
+| 配置 | `tests/test_config_view.py`, `tests/test_config_consumers.py`, `tests/test_feature_configuration_application.py`, `tests/test_feature_configuration_runtime.py`, `tests/test_config_api_no_legacy_prompts.py`, `tests/test_configuration_realistic_scenarios.py` |
+| 源目录清理 | `tests/test_feature_source_cleaning.py`, `tests/test_source_cleaner_comprehensive.py`, `tests/test_configuration_realistic_scenarios.py`, `tests/test_architecture_guards.py` |
 | 任务域 | `tests/test_task_context_lifecycle.py`, `tests/test_stage_lifecycle.py`, `tests/test_feature_task_list.py`, `tests/test_feature_task_detail.py`, `tests/test_feature_task_queue.py`, `tests/test_feature_task_review.py`, `tests/test_feature_task_file_lifecycle.py` |
 | 任务取消/CANCELLED | `tests/test_feature_task_cancel.py`, `tests/test_api_routes.py`, task workbench 手动验证 |
 | 任务工作台交互/详情编辑布局/孤儿任务 FAILED | `tests/test_cleanup_orphaned_state.py`, task workbench 手动验证（卡片点击、详情文件名/维度修改保存） |

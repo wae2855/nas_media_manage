@@ -120,16 +120,30 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
     def scan_and_create_tasks(self) -> list:
         source_dir = self.config.get('source_dir', '')
+        source_mode = (self.config.get("source_policy", {}) or {}).get("mode")
+        if source_mode == "recycle_source_unit":
+            from media_importer.features.source_files import SourceUnitCoordinator
+            for cleanup in SourceUnitCoordinator(
+                self.task_manager.conn, self.config
+            ).retry_pending():
+                self._log("info", cleanup.message, None, "cleanup")
         scanner = FileScanner(self.config, task_manager=self.task_manager)
         groups = scanner.scan_and_filter(source_dir)
 
         tasks = []
         for group in groups:
+            source_unit_id = ""
+            if source_mode == "recycle_source_unit":
+                from media_importer.features.source_files import register_source_unit
+                source_unit_id = register_source_unit(
+                    self.task_manager.conn, source_dir, group["video_path"]
+                ).unit_id
             task = self.task_manager.create_task(
                 video_path=group["video_path"],
                 video_file=group["video_file"],
                 subtitle_files=group["subtitle_files"],
                 file_size_mb=group["file_size_mb"],
+                source_unit_id=source_unit_id,
             )
             tasks.append(task)
 
@@ -245,6 +259,12 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
             db_update_task(self.task_manager.conn, tid,
                            **mark_imported(ctx))
+            if task.get("source_unit_id"):
+                from media_importer.features.source_files import SourceUnitCoordinator
+                cleanup = SourceUnitCoordinator(
+                    self.task_manager.conn, self.config
+                ).try_recycle(task["source_unit_id"])
+                self._log("info", cleanup.message, task, "cleanup")
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")

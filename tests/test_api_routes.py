@@ -27,6 +27,9 @@ class TestAPIRoutes(unittest.TestCase):
         self.assert_route("GET", "/api/metrics", "_metrics")
         self.assert_route("GET", "/api/config", "_config")
         self.assert_route("GET", "/api/config/validate", "_config_validate")
+        self.assert_route(
+            "GET", "/api/config/startup-readiness", "_config_startup_readiness"
+        )
         self.assert_route("GET", "/api/tasks", "_list_tasks")
         self.assert_route("GET", "/api/tasks/stats", "_task_stats")
         self.assert_route("GET", "/api/queue/status", "_queue_status")

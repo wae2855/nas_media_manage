@@ -2,18 +2,24 @@
 // 从 cinema-config.js 提取的 payload 构建逻辑
 
 function buildSourceConfigPayload() {
+  const currentSourcePolicy = currentConfigSnapshot?.source_policy || {};
+  const sourceMode =
+    document.querySelector('input[name="cfg-source-after-done"]:checked')
+      ?.value || "preserve_all";
   const sourceCleanerMode =
     document.querySelector(
       'input[name="cfg-source_cleaner-cleanup_mode_inline"]:checked',
-    )?.value || "media_only";
+    )?.value || "media_and_related";
+  const unitPatternField = document.getElementById(
+    "cfg-source-unit-incomplete-patterns",
+  );
   return {
     source_dir: normalizePathValue(
       document.getElementById("cfg-source-inline")?.value,
     ),
     source_policy: {
-      cleanup_source_after_done:
-        document.querySelector('input[name="cfg-source-after-done"]:checked')
-          ?.value === "recycle",
+      mode: sourceMode,
+      cleanup_source_after_done: sourceMode === "recycle_source_unit",
       scan_recursive: !!document.getElementById(
         "cfg-source-recursive-toggle-inline",
       )?.checked,
@@ -21,12 +27,26 @@ function buildSourceConfigPayload() {
         Number(
           document.getElementById("cfg-source-depth-inline")?.value || 5,
         ) || 5,
+      unit_settle_seconds:
+        Number(
+          document.getElementById("cfg-source-unit-settle")?.value ||
+            currentSourcePolicy.unit_settle_seconds ||
+            120,
+        ) || 120,
+      unit_incomplete_patterns: unitPatternField
+        ? parseMultilineValue("cfg-source-unit-incomplete-patterns")
+        : currentSourcePolicy.unit_incomplete_patterns || [
+            "*.part",
+            "*.partial",
+            "*.aria2",
+            "*.!qB",
+            "*.crdownload",
+          ],
     },
     source_cleaner: {
-      enabled: !!document.getElementById("cfg-source-cleaner-enabled-inline")
-        ?.checked,
+      enabled: sourceMode === "preserve_media",
       cleanup_mode: sourceCleanerMode,
-      ai_enabled: !!document.getElementById(
+      ai_enabled: sourceMode === "preserve_media" && !!document.getElementById(
         "cfg-source_cleaner-ai_enabled-inline",
       )?.checked,
       merge_strategy:
@@ -82,6 +102,9 @@ function buildRecycleConfigPayload() {
 
 function buildRulesConfigPayload() {
   return {
+    library_root: normalizePathValue(
+      document.getElementById("cfg-library-root-inline")?.value,
+    ),
     path_rules: Array.isArray(currentConfigSnapshot?.path_rules)
       ? currentConfigSnapshot.path_rules
       : [],
@@ -271,15 +294,6 @@ function buildAdvancedSystemPayload() {
           document.getElementById("cfg-task_queue-max_concurrent-inline")
             ?.value || 1,
         ) || 1,
-    },
-    file_watcher: {
-      enabled: !!document.getElementById("cfg-file_watcher-enabled-inline")
-        ?.checked,
-      poll_interval:
-        Number(
-          document.getElementById("cfg-file_watcher-poll_interval-inline")
-            ?.value || 60,
-        ) || 60,
     },
     video_extensions: parseMultilineValue("cfg-video_extensions-inline").map(
       (item) => (item.startsWith(".") ? item : `.${item}`),

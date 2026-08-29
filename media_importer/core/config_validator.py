@@ -98,10 +98,23 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
             results["overall"] = "degraded"
 
     source_dir = config.get("source_dir", "")
+    source_policy_pre = config.get("source_policy", {}) or {}
+    source_cleaner_pre = config.get("source_cleaner", {}) or {}
+    source_mode_pre = source_policy_pre.get("mode")
+    if source_mode_pre not in {"preserve_all", "preserve_media", "recycle_source_unit"}:
+        if source_policy_pre.get("cleanup_source_after_done") is True:
+            source_mode_pre = "recycle_source_unit"
+        elif source_cleaner_pre.get("enabled") is True:
+            source_mode_pre = "preserve_media"
+        else:
+            source_mode_pre = "preserve_all"
+    source_requires_write = source_mode_pre == "recycle_source_unit" or (
+        source_mode_pre == "preserve_media" and source_cleaner_pre.get("enabled") is True
+    )
     if not source_dir:
         add_check("source_dir", "error", "源目录未配置")
     else:
-        ok, msg = check_path(source_dir, require_write=False)
+        ok, msg = check_path(source_dir, require_write=source_requires_write)
         add_check("source_dir", "ok" if ok else "error", msg)
 
     temp_dir = config.get("temp_dir", "")
@@ -214,6 +227,15 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
                     "source_cleaner.junk_video_max_size_mb", "ok", "垃圾视频大小阈值: " + str(sc_junk_size) + " MB"
                 )
 
+    watcher = config.get("file_watcher", {}) or {}
+    poll_interval = watcher.get("poll_interval", 60)
+    if isinstance(poll_interval, bool) or not isinstance(poll_interval, int):
+        add_check("file_watcher.poll_interval", "error", "自动运行轮询周期必须为整数秒")
+    elif not 10 <= poll_interval <= 3600:
+        add_check("file_watcher.poll_interval", "error", "自动运行轮询周期必须在 10 到 3600 秒之间")
+    else:
+        add_check("file_watcher.poll_interval", "ok", f"自动运行每 {poll_interval} 秒检查一次")
+
     if norm_source and norm_temp and norm_source == norm_temp:
         add_check("dir_conflict", "error", "源目录与中转目录不能相同，否则会导致数据丢失")
     if norm_source and norm_recycle and norm_source == norm_recycle:
@@ -280,6 +302,40 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
             )
             add_check("llm_api", "ok" if llm_ok else "error", llm_msg)
 
+    library_root = str(config.get("library_root", "") or "").strip()
+    migration_error = config.get("_library_migration_error", "")
+    if migration_error:
+        add_check("library_root", "error", f"旧入库规则迁移失败: {migration_error}")
+    elif not library_root:
+        try:
+            from media_importer.features.configuration.library_paths import canonicalize_library_config
+            inferred = canonicalize_library_config(config).get("library_root", "")
+        except ValueError as exc:
+            add_check("library_root", "error", f"旧入库规则无法安全迁移: {exc}")
+        else:
+            add_check(
+                "library_root", "warning",
+                "旧入库规则将在保存时归入片库根目录" if inferred else "片库根目录尚未配置",
+            )
+    elif not os.path.isabs(library_root):
+        add_check("library_root", "error", "片库根目录必须是绝对路径")
+    else:
+        ok, msg = check_path(library_root, require_write=True)
+        add_check("library_root", "ok" if ok else "error", msg)
+
+    source_policy = config.get("source_policy", {}) or {}
+    source_mode = source_policy.get("mode")
+    if source_mode not in {"preserve_all", "preserve_media", "recycle_source_unit"}:
+        if "mode" in source_policy:
+            add_check("source_policy.mode", "error", "源文件处理模式无效")
+        else:
+            add_check("source_policy.mode", "warning", "旧版源文件策略将在保存时迁移")
+    source_cleaner = config.get("source_cleaner", {}) or {}
+    if source_cleaner.get("enabled") is True and source_mode not in {None, "preserve_media"}:
+        add_check("source_cleaner.enabled", "error", "智能清理仅能用于保留媒体模式")
+    if source_cleaner.get("ai_enabled") is True and source_mode != "preserve_media":
+        add_check("source_cleaner.ai_enabled", "error", "LLM 辅助清理仅能用于保留媒体模式")
+
     path_rules = config.get("path_rules", [])
     if not path_rules:
         add_check("path_rules", "warning", "入库规则未配置，将使用默认路径")
@@ -289,6 +345,10 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
             template = rule.get("template", "")
             if not template:
                 rule_errors.append("规则 " + str(i + 1) + " 缺少 template")
+            elif library_root and os.path.isabs(template):
+                rule_errors.append("规则 " + str(i + 1) + " 必须使用片库根目录下的相对子目录")
+            elif library_root and (os.path.normpath(template) == ".." or os.path.normpath(template).startswith(".." + os.sep)):
+                rule_errors.append("规则 " + str(i + 1) + " 超出片库根目录")
             elif "{" in template and "}" not in template:
                 rule_errors.append("规则 " + str(i + 1) + " template 变量格式不完整")
             conditions = rule.get("conditions", {})

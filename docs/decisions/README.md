@@ -37,6 +37,8 @@ Status: Proposed | Accepted | Superseded | Deprecated
 | [0011](0011-fnos-install-runtime-config-ownership.md) | Accepted | fnOS install/runtime config ownership |
 | [0012](0012-storage-role-topology.md) | Accepted | Storage role topology and directory boundaries |
 | [0013](0013-verified-transfer-recovery.md) | Accepted | Verified transfer, recycle and recovery |
+| [0014](0014-source-unit-lifecycle.md) | Accepted | Three-mode source policy and source unit lifecycle |
+| [0015](0015-library-root-relative-rules.md) | Accepted | Validated library root and relative import rules |
 
 ## Numbering Note
 

@@ -20,10 +20,13 @@
 
 ## Source Cleanup
 
-源文件清理必须受配置控制，并明确区分：
+源文件处理由三种互斥模式控制：
 
-- 主任务完成后的源视频/字幕清理；
-- 源目录清理器处理的垃圾文件清理。
+- `preserve_all`: 不写入源目录；
+- `preserve_media`: 保留媒体，仅由源目录清理器回收规则/LLM 判定的垃圾；
+- `recycle_source_unit`: 同一来源单元全部媒体任务成功且快照未变化后整组回收。
+
+失败、跳过、待确认、存在未建任务媒体、快照变化或挂载/回收目录异常时，来源单元必须保持不变。源目录根本身永远不得作为文件夹来源单元移动。
 
 主任务完成、跳过或临时文件场景的源文件策略位于 `media_importer/features/source_files/`。源目录清理器仍位于 `media_importer/features/source_cleaning/`。
 

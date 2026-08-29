@@ -29,6 +29,7 @@ class PathConfig:
     source_dir: str = ""
     temp_dir: str = ""
     log_dir: str = "logs"
+    library_root: str = ""
     fallback_dir: str = ""
     config_path: str = ""
     data_dir: str = ""
@@ -47,9 +48,12 @@ class PathConfig:
 class SourcePolicyConfig:
     recycle_dir: str = ""
     cleanup_source_after_done: bool = False
+    mode: str = "preserve_all"
     recycle_retention_days: int = 30
     scan_recursive: bool = True
     scan_max_depth: int = 5
+    unit_settle_seconds: int = 120
+    unit_incomplete_patterns: tuple = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -121,11 +125,20 @@ class ConfigView:
         filename_templates = _dict(config.get("filename_templates"))
         metadata = _dict(config.get("metadata"))
         source_cleaner = _dict(config.get("source_cleaner"))
+        source_mode = source_policy.get("mode")
+        if source_mode not in {"preserve_all", "preserve_media", "recycle_source_unit"}:
+            if source_policy.get("cleanup_source_after_done") is True:
+                source_mode = "recycle_source_unit"
+            elif source_cleaner.get("enabled") is True:
+                source_mode = "preserve_media"
+            else:
+                source_mode = "preserve_all"
 
         paths = PathConfig(
             source_dir=config.get("source_dir", ""),
             temp_dir=config.get("temp_dir", ""),
             log_dir=config.get("log_dir", "logs"),
+            library_root=config.get("library_root", ""),
             fallback_dir=config.get("fallback_dir", ""),
             config_path=config.get("_config_path", ""),
             data_dir=config.get("_data_dir", ""),
@@ -139,11 +152,17 @@ class ConfigView:
             source_policy=SourcePolicyConfig(
                 recycle_dir=source_policy.get("recycle_dir", ""),
                 cleanup_source_after_done=(
-                    source_policy.get("cleanup_source_after_done", False) is True
+                    source_mode == "recycle_source_unit"
                 ),
+                mode=source_mode,
                 recycle_retention_days=source_policy.get("recycle_retention_days", 30),
                 scan_recursive=source_policy.get("scan_recursive", True),
                 scan_max_depth=source_policy.get("scan_max_depth", 5),
+                unit_settle_seconds=max(0, int(source_policy.get("unit_settle_seconds", 120))),
+                unit_incomplete_patterns=tuple(_list(
+                    source_policy.get("unit_incomplete_patterns"),
+                    ["*.part", "*.partial", "*.aria2", "*.!qB", "*.crdownload"],
+                )),
             ),
             dedup=DedupConfig(
                 enabled=duplicate_handling.get("enabled", True),
@@ -170,9 +189,10 @@ class ConfigView:
                 group_delay_sec=config.get("group_delay_sec", 0),
             ),
             source_cleaner=SourceCleanerConfig(
-                enabled=source_cleaner.get("enabled", False),
+                enabled=(source_mode == "preserve_media" and source_cleaner.get("enabled", False)),
                 cleanup_mode=source_cleaner.get("cleanup_mode", "media_only"),
-                ai_enabled=source_cleaner.get("ai_enabled", False),
+                ai_enabled=(source_mode == "preserve_media" and source_cleaner.get("enabled", False)
+                            and source_cleaner.get("ai_enabled", False)),
                 merge_strategy=source_cleaner.get("merge_strategy", "intersection"),
                 junk_video_max_size_mb=source_cleaner.get("junk_video_max_size_mb", 50),
                 delete_extensions=_extensions(_list(source_cleaner.get("delete_extensions"), [".url", ".log", ".txt"])),

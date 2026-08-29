@@ -163,6 +163,9 @@ function currentPathSnapshot() {
     recycle_dir: normalizePathValue(
       document.getElementById("cfg-recycle-inline")?.value,
     ),
+    library_root: normalizePathValue(
+      document.getElementById("cfg-library-root-inline")?.value,
+    ),
     fallback_dir: normalizePathValue(
       document.getElementById("cfg-fallback-inline")?.value,
     ),
@@ -260,6 +263,79 @@ async function loadHtmlPartial(targetId, url) {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error(`加载片段失败: ${url}`);
   host.innerHTML = await response.text();
+}
+
+function attachAdvancedFilmNavigation() {
+  const source = document.getElementById("config-stage-strip");
+  if (!source) return;
+  document
+    .querySelectorAll("#advanced-pages-slot > .page-view[data-view]")
+    .forEach((page) => {
+      if (page.querySelector(".advanced-film-context")) return;
+      const context = document.createElement("section");
+      context.className = "advanced-film-context";
+      context.innerHTML = '<div><b>仍在片库搭建流程中</b><span>选择胶片返回对应的基础配置步骤</span></div>';
+      const strip = source.cloneNode(true);
+      strip.removeAttribute("id");
+      strip.querySelectorAll("[data-config-stage]").forEach((button) => {
+        button.dataset.advancedReturnStage = button.dataset.configStage;
+        button.removeAttribute("data-config-stage");
+        button.classList.remove("active");
+      });
+      context.appendChild(strip);
+      page.prepend(context);
+    });
+}
+
+function mountAdvancedSettingsInTrack() {
+  const host = document.getElementById("advanced-track-host");
+  if (!host) return;
+  const groups = [
+    {
+      view: "naming-config",
+      title: "入库名称规范",
+      copy: "电影、剧集、字幕和重名文件的命名方式。",
+      save: "naming",
+    },
+    {
+      view: "dimensions-config",
+      title: "影视分类维度",
+      copy: "参与分类判断、目录变量和映射的维度。",
+    },
+    {
+      view: "security-config",
+      title: "访问与安全",
+      copy: "API 认证和服务端口，低频但影响较大。",
+      save: "security",
+    },
+    {
+      view: "system-settings",
+      title: "系统设置",
+      copy: "日志、资源、并发数和文件识别范围。",
+      save: "system",
+    },
+  ];
+  host.innerHTML = "";
+  groups.forEach((group) => {
+    const page = document.querySelector(`[data-view="${group.view}"]`);
+    const panel = page?.querySelector(".config-panel");
+    if (!page || !panel) return;
+    const details = document.createElement("details");
+    details.className = "advanced-track-group";
+    details.innerHTML = `<summary><div><b>${escapeHtml(group.title)}</b><span>${escapeHtml(group.copy)}</span></div><i aria-hidden="true">+</i></summary>`;
+    panel.classList.add("advanced-track-panel");
+    details.appendChild(panel);
+    if (group.save) {
+      const actions = document.createElement("div");
+      actions.className = "advanced-track-actions";
+      actions.innerHTML = `<button class="btn btn-primary" type="button" data-config-save="${group.save}">保存${escapeHtml(group.title)}</button>`;
+      details.appendChild(actions);
+    }
+    host.appendChild(details);
+    page.hidden = true;
+  });
+  const legacyHome = document.querySelector('[data-view="advanced-config"]');
+  if (legacyHome) legacyHome.hidden = true;
 }
 
 async function runAction(action, trigger) {
@@ -398,6 +474,89 @@ function toggleSourceCleanerUi() {
   if (mergeCard) mergeCard.classList.toggle("active", aiEnabled);
 }
 
+function placeLlmSettingsUnderSourcePolicy() {
+  const card = document.getElementById("llm-connection-card");
+  const oldDisclosure = document.getElementById("automation-llm-disclosure");
+  if (oldDisclosure) oldDisclosure.hidden = true;
+  // Saving LLM settings reloads configuration while the modal is still open.
+  // Keep the card inside that modal until its close callback restores it.
+  if (card?.closest(".cinema-modal-overlay")) return;
+  let host = document.getElementById("llm-settings-host");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "llm-settings-host";
+    host.hidden = true;
+    document.getElementById("source-cleaner-block")?.appendChild(host);
+  }
+  if (card && host && card.parentElement !== host) host.appendChild(card);
+}
+
+function placeSourceCleanerUnderModeChoice() {
+  const child = document.getElementById("source-cleaner-mode-child");
+  const block = document.getElementById("source-cleaner-block");
+  if (child && block && block.parentElement !== child) child.appendChild(block);
+}
+
+function toggleSourceModeUi() {
+  const mode =
+    document.querySelector('input[name="cfg-source-after-done"]:checked')
+      ?.value || "preserve_all";
+  const cleanerBlock = document.getElementById("source-cleaner-block");
+  const cleanerChild = document.getElementById("source-cleaner-mode-child");
+  const cleanerToggle = document.getElementById(
+    "cfg-source-cleaner-enabled-inline",
+  );
+  if (cleanerBlock) cleanerBlock.hidden = mode !== "preserve_media";
+  if (cleanerChild) cleanerChild.hidden = mode !== "preserve_media";
+  document.querySelectorAll("[data-source-mode-card]").forEach((card) => {
+    card.classList.toggle("is-selected", card.dataset.sourceModeCard === mode);
+  });
+  if (cleanerToggle) cleanerToggle.checked = mode === "preserve_media";
+  toggleSourceCleanerUi();
+}
+
+function openSourceCleanerRulesModal() {
+  const fields = document.getElementById("source-cleaner-rules-fields");
+  const home = document.getElementById("source-cleaner-panel");
+  if (!fields || !home) return;
+  fields.hidden = false;
+  const overlay = showAppModal({
+    title: "详细删除规则",
+    tone: "wide",
+    dismissOnBackdrop: false,
+    body: '<div id="source-cleaner-rules-modal-host"></div>',
+    actions: [{ label: "完成", className: "btn btn-primary" }],
+    onClose: () => {
+      fields.hidden = true;
+      home.appendChild(fields);
+    },
+  });
+  overlay.querySelector("#source-cleaner-rules-modal-host")?.appendChild(fields);
+}
+
+function openLlmConfigModal() {
+  const card = document.getElementById("llm-connection-card");
+  const home = document.getElementById("llm-settings-host");
+  if (!card || !home) return;
+  card.classList.add("open");
+  const previousResult = document.getElementById("llm-test-result");
+  if (previousResult) previousResult.hidden = true;
+  const overlay = showAppModal({
+    title: "配置 LLM 辅助清理",
+    tone: "wide",
+    dismissOnBackdrop: false,
+    body: '<div class="cinema-modal-hint">LLM 只用于判断规则无法确定的垃圾文件，不参与影视识别。</div><div id="llm-settings-modal-host"></div>',
+    actions: [{ label: "完成", className: "btn btn-primary" }],
+    onClose: () => home.appendChild(card),
+  });
+  overlay.querySelector("#llm-settings-modal-host")?.appendChild(card);
+  setTimeout(() => document.getElementById("cfg-llm-base_url")?.focus(), 50);
+}
+
+function promptLlmSetup() {
+  openLlmConfigModal();
+}
+
 function toggleSourceDepthField() {
   const enabled = document.getElementById(
     "cfg-source-recursive-toggle-inline",
@@ -408,11 +567,20 @@ function toggleSourceDepthField() {
 }
 
 function toggleFileWatcherPollGroup() {
-  const enabled = document.getElementById(
-    "cfg-file_watcher-enabled-inline",
-  ).checked;
+  const toggle = document.getElementById("cfg-file_watcher-enabled-inline");
+  if (!toggle) return;
+  const enabled = toggle.checked;
   const group = document.getElementById("cfg-file_watcher-poll-group-inline");
   if (group) group.classList.toggle("active", enabled);
+}
+
+function syncAutomationToggleCopy() {
+  const toggle = document.getElementById("cfg-auto-watcher-enabled");
+  const label = document.getElementById("cfg-auto-watcher-label");
+  if (!toggle || !label) return;
+  label.textContent = toggle.checked
+    ? "后台自动整理已开启"
+    : "后台自动整理已关闭";
 }
 
 function updateStickyHeroState() {

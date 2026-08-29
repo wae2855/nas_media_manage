@@ -7,6 +7,13 @@ from .operations import (
     find_companion_files,
     remove_empty_parent_dir,
 )
+from .source_units import (
+    SourceUnit,
+    SourceUnitCoordinator,
+    SourceUnitRecycleResult,
+    register_source_unit,
+    resolve_source_unit,
+)
 
 __all__ = [
     "SourceCleanupResult",
@@ -18,4 +25,9 @@ __all__ = [
     "find_companion_files",
     "import_roots_from_config",
     "remove_empty_parent_dir",
+    "SourceUnit",
+    "SourceUnitCoordinator",
+    "SourceUnitRecycleResult",
+    "register_source_unit",
+    "resolve_source_unit",
 ]

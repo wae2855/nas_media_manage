@@ -33,6 +33,10 @@
 
 API handlers should parse requests, call feature services/public APIs, and return HTTP responses. Complex business rules should move into feature modules.
 
+### GET /api/config/startup-readiness
+
+正式运行前的只读聚合检查。handler 只调用 `features.configuration.inspect_startup_readiness`；返回配置 revision、总状态 `PASS|BLOCKED`，以及目录/磁盘、TMDB、按需 LLM、自动运行分项。分项状态为 `PASS|WARN|BLOCKED|SKIPPED`，前端不得自行推断 READY。
+
 Phase 4 dependency inventory is tracked in [api-dependency-audit.md](api-dependency-audit.md).
 
 ## Route Table

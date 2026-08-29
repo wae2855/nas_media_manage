@@ -8,6 +8,8 @@ from .constants import (
     CREATE_DIMENSIONS_TABLE,
     CREATE_RECYCLE_ITEMS_INDEXES,
     CREATE_RECYCLE_ITEMS_TABLE,
+    CREATE_SOURCE_UNITS_INDEXES,
+    CREATE_SOURCE_UNITS_TABLE,
     CREATE_SUBTITLES_INDEXES,
     CREATE_SUBTITLES_TABLE,
     CREATE_TASKS_INDEXES,
@@ -22,7 +24,14 @@ def init_db(db_path: str) -> sqlite3.Connection:
     db_dir = os.path.dirname(db_path)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    # ThreadingHTTPServer shares this connection across request threads. Repository
+    # calls are serialized with _sqlite_conn_lock; disabling sqlite3's per-connection
+    # statement cache also prevents concurrent cache corruption at the C boundary.
+    conn = sqlite3.connect(
+        db_path,
+        check_same_thread=False,
+        cached_statements=0,
+    )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -30,12 +39,15 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.execute(CREATE_SUBTITLES_TABLE)
     conn.execute(CREATE_DIMENSIONS_TABLE)
     conn.execute(CREATE_RECYCLE_ITEMS_TABLE)
+    conn.execute(CREATE_SOURCE_UNITS_TABLE)
     _migrate_schema(conn)
     for idx_sql in CREATE_TASKS_INDEXES:
         conn.execute(idx_sql)
     for idx_sql in CREATE_SUBTITLES_INDEXES:
         conn.execute(idx_sql)
     for idx_sql in CREATE_RECYCLE_ITEMS_INDEXES:
+        conn.execute(idx_sql)
+    for idx_sql in CREATE_SOURCE_UNITS_INDEXES:
         conn.execute(idx_sql)
     from .migrations import _seed_dimensions
     _seed_dimensions(conn)
@@ -60,6 +72,8 @@ def _migrate_schema(conn: sqlite3.Connection):
         "ALTER TABLE tasks ADD COLUMN confirmed_override INTEGER DEFAULT 0",
         "ALTER TABLE tasks ADD COLUMN confirmed_title TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN override_source TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN source_unit_id TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN source_cleanup_status TEXT DEFAULT ''",
     ]:
         try:
             conn.execute(col_ddl)

@@ -7,9 +7,10 @@ from .constants import DEFAULT_DIMENSIONS
 
 
 def get_all_dimensions(conn: sqlite3.Connection) -> list:
-    rows = conn.execute(
-        "SELECT * FROM dimensions ORDER BY sort_order ASC"
-    ).fetchall()
+    with _sqlite_conn_lock:
+        rows = conn.execute(
+            "SELECT * FROM dimensions ORDER BY sort_order ASC"
+        ).fetchall()
     result = []
     for row in rows:
         d = dict(row)
@@ -23,9 +24,10 @@ def get_all_dimensions(conn: sqlite3.Connection) -> list:
 
 
 def get_enabled_dimensions(conn: sqlite3.Connection) -> list:
-    rows = conn.execute(
-        "SELECT * FROM dimensions WHERE is_enabled=1 ORDER BY sort_order ASC"
-    ).fetchall()
+    with _sqlite_conn_lock:
+        rows = conn.execute(
+            "SELECT * FROM dimensions WHERE is_enabled=1 ORDER BY sort_order ASC"
+        ).fetchall()
     result = []
     for row in rows:
         d = dict(row)
@@ -39,8 +41,9 @@ def get_enabled_dimensions(conn: sqlite3.Connection) -> list:
 
 
 def get_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
-    cur = conn.execute("SELECT * FROM dimensions WHERE name=?", (name,))
-    row = cur.fetchone()
+    with _sqlite_conn_lock:
+        cur = conn.execute("SELECT * FROM dimensions WHERE name=?", (name,))
+        row = cur.fetchone()
     if row is None:
         return None
     d = dict(row)
@@ -89,10 +92,12 @@ def disable_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
 
 
 def reset_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
-    row = conn.execute(
-        "SELECT default_value_list, ai_prompt, description FROM dimensions WHERE name=?",
-        (name,)
-    ).fetchone()
+    with _sqlite_conn_lock:
+        row = conn.execute(
+            "SELECT default_value_list, ai_prompt, description "
+            "FROM dimensions WHERE name=?",
+            (name,)
+        ).fetchone()
     if row is None:
         return None
     default_vl = row['default_value_list']

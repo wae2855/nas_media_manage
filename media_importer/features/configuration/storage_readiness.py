@@ -82,6 +82,9 @@ def inspect_mount(path: str) -> MountIdentity:
 
 
 def _target_roots(config: dict) -> list[str]:
+    library_root = str(config.get("library_root", "") or "").strip()
+    if library_root:
+        return [library_root]
     candidates = []
     for rule in config.get("path_rules", []) or []:
         template = rule.get("template", "") if isinstance(rule, dict) else ""
@@ -114,9 +117,11 @@ def _target_roots(config: dict) -> list[str]:
 def _location_specs(config: dict) -> list[tuple[str, str, bool]]:
     source_policy = config.get("source_policy", {}) or {}
     source_cleaner = config.get("source_cleaner", {}) or {}
-    source_write = (
-        source_policy.get("cleanup_source_after_done") is True
-        or source_cleaner.get("enabled") is True
+    mode = source_policy.get("mode")
+    if mode not in {"preserve_all", "preserve_media", "recycle_source_unit"}:
+        mode = "recycle_source_unit" if source_policy.get("cleanup_source_after_done") is True else "preserve_all"
+    source_write = mode == "recycle_source_unit" or (
+        mode == "preserve_media" and source_cleaner.get("enabled") is True
     )
     specs = [
         ("source", config.get("source_dir", ""), source_write),

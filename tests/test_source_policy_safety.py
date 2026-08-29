@@ -1,5 +1,4 @@
 from pathlib import Path
-from unittest.mock import patch
 
 import yaml
 
@@ -59,36 +58,23 @@ def test_post_import_missing_or_false_policy_keeps_source():
             _config(cleanup_source_after_done=configured_value)
         )
 
-        with patch(
-            "media_importer.features.source_files.cleanup_service.move_to_recycle_with_companions"
-        ) as move_to_recycle:
-            result = service.cleanup_source_after_import(
-                {"task_id": "task-1"}, "/source/Movie.mkv", []
-            )
-
-        move_to_recycle.assert_not_called()
-        assert result.moved_count == 0
-        assert "源文件保留" in result.message
-
-
-def test_post_import_explicit_true_allows_recycle():
-    service = SourceCleanupService(_config(cleanup_source_after_done=True))
-
-    with (
-        patch(
-            "media_importer.features.source_files.cleanup_service.move_to_recycle_with_companions",
-            return_value=1,
-        ) as move_to_recycle,
-        patch(
-            "media_importer.features.source_files.cleanup_service.remove_empty_parent_dir"
-        ),
-    ):
         result = service.cleanup_source_after_import(
             {"task_id": "task-1"}, "/source/Movie.mkv", []
         )
 
-    move_to_recycle.assert_called_once()
-    assert result.moved_count == 1
+        assert result.moved_count == 0
+        assert "源文件保留" in result.message
+
+
+def test_post_import_legacy_true_waits_for_source_unit_coordinator():
+    service = SourceCleanupService(_config(cleanup_source_after_done=True))
+
+    result = service.cleanup_source_after_import(
+        {"task_id": "task-1"}, "/source/Movie.mkv", []
+    )
+
+    assert result.moved_count == 0
+    assert "源单元" in result.message
 
 
 def test_skip_missing_or_false_policy_keeps_source():
@@ -97,33 +83,20 @@ def test_skip_missing_or_false_policy_keeps_source():
             _config(cleanup_source_after_done=configured_value)
         )
 
-        with patch(
-            "media_importer.features.source_files.cleanup_service.move_to_recycle_with_companions"
-        ) as move_to_recycle:
-            result = service.recycle_source_after_skip(
-                {"task_id": "task-1"}, "/source/Movie.mkv", []
-            )
-
-        move_to_recycle.assert_not_called()
-        assert result.moved_count == 0
-        assert "源文件保留" in result.message
-
-
-def test_skip_explicit_true_allows_recycle():
-    service = SourceCleanupService(_config(cleanup_source_after_done=True))
-
-    with (
-        patch(
-            "media_importer.features.source_files.cleanup_service.move_to_recycle_with_companions",
-            return_value=1,
-        ) as move_to_recycle,
-        patch(
-            "media_importer.features.source_files.cleanup_service.remove_empty_parent_dir"
-        ),
-    ):
         result = service.recycle_source_after_skip(
             {"task_id": "task-1"}, "/source/Movie.mkv", []
         )
 
-    move_to_recycle.assert_called_once()
-    assert result.moved_count == 1
+        assert result.moved_count == 0
+        assert "源文件保留" in result.message
+
+
+def test_skip_legacy_true_never_recycles_failed_source():
+    service = SourceCleanupService(_config(cleanup_source_after_done=True))
+
+    result = service.recycle_source_after_skip(
+        {"task_id": "task-1"}, "/source/Movie.mkv", []
+    )
+
+    assert result.moved_count == 0
+    assert "保持不变" in result.message

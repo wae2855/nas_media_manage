@@ -40,6 +40,10 @@
 
 API 路由集中在 `media_importer/api/routes.py`。
 
+- `GET /api/config/startup-readiness` 必须只读，并绑定当前配置 revision。
+- 外部能力仅在业务模式需要时探测；未启用的 LLM 返回 `SKIPPED`，不能误报失败。
+- 任一关键目录、TMDB 或必需 LLM 为 `BLOCKED` 时，总状态必须为 `BLOCKED`。
+
 新增端点流程：
 
 1. 在对应 `api/*_handlers.py` 增加 handler 方法。

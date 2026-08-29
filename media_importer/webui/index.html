@@ -218,7 +218,6 @@
                     <div><h2>片库搭建</h2><p>安装已经替你准备了大部分配置，只处理需要注意的项目。</p></div>
                     <div class="hero-actions">
                         <button class="btn btn-secondary" data-nav="config" data-view-target="config-simulator">运行模拟</button>
-                        <button class="btn btn-primary" data-nav="config" data-view-target="advanced-config">高级配置</button>
                     </div>
                 </div>
                 <section class="config-stage-strip" id="config-stage-strip">
@@ -245,6 +244,10 @@
                     <button class="config-stage-card" data-config-stage="ai">
                         <span class="config-stage-img"><img src="assets/config-stage/ai.jpeg" alt="" /></span>
                         <span class="config-stage-label">自动运行</span>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="advanced">
+                        <span class="config-stage-img"><img src="assets/config-stage/start.jpeg" alt="" /></span>
+                        <span class="config-stage-label">进阶设置</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="recycle">
                         <span class="config-stage-img"><img src="assets/config-stage/recycle.jpeg" alt="" /></span>
@@ -362,10 +365,14 @@
                             </p>
                         </label>
                         <article class="form-card form-card-full source-policy-choice">
-                            <span>入库成功后，源视频怎么处理？</span>
+                            <span>入库成功后，来源内容怎么处理？</span>
                             <div class="mode-stack">
-                                <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source-after-done" value="keep" checked /><strong>保留源视频（推荐）</strong></div><small>适合 BT 保种或先观察运行结果；这是安全默认值。</small></label>
-                                <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source-after-done" value="recycle" /><strong>移入本地回收目录</strong></div><small>用于释放本机或网盘来源空间；远程挂载离线时不会执行。</small></label>
+                                <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source-after-done" value="preserve_all" checked /><strong>完整保留（推荐）</strong></div><small>不写入源目录，适合 BT 保种或先观察运行结果。</small></label>
+                                <article class="radio-card source-mode-card" data-source-mode-card="preserve_media">
+                                    <label class="source-mode-label"><div class="radio-card-head"><input type="radio" name="cfg-source-after-done" value="preserve_media" /><strong>保留影片，只清理垃圾</strong></div><small>影片和字幕保持原位；广告、说明和样片按清理策略处理。</small></label>
+                                    <div class="source-mode-child" id="source-cleaner-mode-child" hidden></div>
+                                </article>
+                                <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source-after-done" value="recycle_source_unit" /><strong>入库后清空来源</strong></div><small>同一下载文件夹内全部影片成功后自动清空；任一失败、待确认或仍在下载都会完整保留。</small></label>
                             </div>
                         </article>
                         <article class="form-card form-card-full">
@@ -381,20 +388,15 @@
                             </div>
                         </article>
                     </div>
-                    <section class="source-cleaner-block">
-                        <div class="section-title source-cleaner-head">
-                            <div class="section-title-stack">
-                                <h2>源目录智能清理 <label class="toggle-pill toggle-pill-inline"><input id="cfg-source-cleaner-enabled-inline" type="checkbox" /><span class="toggle-pill-ui"></span></label></h2>
-                                <p class="section-subnote">独立清理广告、说明文件和样片；不会改变上方“源视频保留/回收”的选择</p>
-                            </div>
-                        </div>
+                    <section class="source-cleaner-block" id="source-cleaner-block" hidden>
+                        <input id="cfg-source-cleaner-enabled-inline" type="checkbox" hidden />
                         <div class="source-cleaner-panel" id="source-cleaner-panel">
                             <div class="cleaner-stack">
                                 <article class="cleaner-card cleaner-card-full">
-                                    <span>清理模式</span>
+                                    <span>清理方式</span>
                                     <div class="mode-stack">
-                                        <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source_cleaner-cleanup_mode_inline" value="media_only" checked /><strong>仅保留影视+字幕</strong></div><small>删除其他所有文件</small></label>
-                                        <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source_cleaner-cleanup_mode_inline" value="media_and_related" /><strong>保留影视+字幕+相关文件</strong></div><small>仅删除垃圾文件</small></label>
+                                        <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source_cleaner-cleanup_mode_inline" value="media_and_related" checked /><strong>保守清理（推荐）</strong></div><small>保留影视、字幕和关联文件，只处理明确垃圾。</small></label>
+                                        <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source_cleaner-cleanup_mode_inline" value="media_only" /><strong>只保留影视和字幕</strong></div><small>其他文件都按清理策略处理。</small></label>
                                     </div>
                                 </article>
                                 <article class="cleaner-card cleaner-card-full cleaner-card-ai-note">
@@ -404,17 +406,21 @@
                                         <b>启用 LLM 辅助清理</b>
                                     </label>
                                     <p>让 LLM 为规则无法确定的文件给出保守建议；未配置 LLM 时仍使用规则模式。</p>
-                                    <p class="cleaner-hint-text">清理建议使用内置保守规则。LLM 配置只影响此处，不影响影视刮削。</p>
+                                    <div class="inline-action-row source-cleaner-actions">
+                                        <button class="btn btn-secondary btn-sm" type="button" data-source-cleaner-rules>详细删除规则</button>
+                                        <button class="btn btn-secondary btn-sm" type="button" data-source-llm-config>配置 LLM</button>
+                                    </div>
                                 </article>
                             </div>
+                            <div id="source-cleaner-rules-fields" hidden>
                             <div class="cleaner-grid">
                                 <article class="cleaner-card cleaner-card-full" id="sc-merge-inline-card">
-                                    <span>合并策略</span>
+                                    <span>固定规则和 LLM 意见不同时，怎么处理？</span>
                                     <select id="cfg-source_cleaner-merge_strategy-inline">
-                                        <option value="intersection">保守/交集（推荐）— 规则和 LLM 都判定为垃圾才删除</option>
-                                        <option value="union">激进/并集 — 规则或 LLM 任一判定为垃圾即删除</option>
+                                        <option value="intersection">双方都判定为垃圾才处理（交集，推荐）</option>
+                                        <option value="union">任意一方判定为垃圾就处理（并集）</option>
                                     </select>
-                                    <p>交集更安全，并集更激进。</p>
+                                    <p>“双方”指固定删除规则和 LLM 判断。推荐第一种：只要有一方认为文件应该保留，就不会处理；第二种范围更大，任意一方认为是垃圾就会移入回收区。</p>
                                 </article>
                             </div>
                             <div class="cleaner-tabs">
@@ -444,6 +450,7 @@
                                 </article>
                                 <label class="cleaner-card"><span>定时执行</span><input id="cfg-source_cleaner-schedule-inline" type="text" placeholder="0 3 * * *" /></label>
                             </div>
+                            </div>
                         </div>
                     </section>
                 </section>
@@ -469,12 +476,13 @@
                     </details>
                 </section>
                 <section class="config-stage-panel" data-config-panel="recycle">
-                    <div class="section-title"><h2>完成</h2><button class="btn btn-secondary btn-sm" type="button" data-storage-refresh>重新检查</button></div>
+                    <div class="section-title"><div><h2>完成</h2><p class="section-subnote">最后同时检查目录、权限、空间、TMDB、按需 LLM 与自动运行条件。</p></div><button class="btn btn-primary btn-sm" type="button" data-startup-readiness>运行开场检查</button></div>
                     <section class="setup-finale" id="setup-finale">
-                        <div class="setup-finale-mark"><span>READY</span><b>配置检查中</b></div>
-                        <div><h3>确认无阻塞项后再开场</h3><p>系统只会在目录存在、权限正确、挂载身份一致并有安全余量时运行。建议先模拟一部影片。</p></div>
-                        <div class="hero-actions"><button class="btn btn-secondary" data-nav="config" data-view-target="config-simulator">运行模拟</button><button class="btn btn-primary" data-nav="dashboard" data-view-target="dashboard">返回首页</button></div>
+                        <div class="setup-finale-mark"><span>CHECK</span><b>等待开场检查</b></div>
+                        <div><h3>确认整套配置能正式运行</h3><p>“运行模拟”仍只验证识别和分类，不代替这里的正式运行检查。</p></div>
+                        <div class="hero-actions"><button class="btn btn-primary" type="button" data-startup-readiness>运行开场检查</button><button class="btn btn-secondary" data-nav="config" data-view-target="config-simulator">仅模拟识别与分类</button></div>
                     </section>
+                    <div class="startup-readiness-list" id="startup-readiness-list" aria-live="polite"></div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="scrape">
                     <div class="section-title"><div><h2>作品识别</h2><p class="section-subnote">默认使用 TMDB。只需确认它已启用且连接正常。</p></div></div>
@@ -534,12 +542,16 @@
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="ai">
-                    <div class="section-title"><div><h2>自动运行</h2><p class="section-subnote">默认关闭；确认目录健康和模拟结果后再开启。</p></div><button class="btn btn-primary btn-sm" type="button" data-config-save="automation">保存</button></div>
+                    <div class="section-title"><div><h2>后台自动整理</h2><p class="section-subnote">决定是否让系统在后台定时查看源目录并自动入库。</p></div><button class="btn btn-primary btn-sm" type="button" data-config-save="automation">保存设置</button></div>
                     <article class="automation-choice-card">
-                        <div><span class="setup-kicker">可选 · 随时可以再开</span><h3>自动发现并整理新文件</h3><p>启用后仅处理连续稳定至少 120 秒的文件；来源挂载离线或存储变红时自动暂停。</p></div>
-                        <label class="toggle-pill toggle-pill-inline"><input id="cfg-auto-watcher-enabled" type="checkbox" /><span class="toggle-pill-ui"></span><span>启用自动运行</span></label>
+                        <div><span class="setup-kicker">后台整理开关</span><h3>自动处理新放入的文件</h3><p>打开后，系统会定时查看源目录；发现下载完成的新文件就自动识别并入库。关闭后仍可手动扫描和处理。</p></div>
+                        <label class="toggle-pill toggle-pill-inline"><input id="cfg-auto-watcher-enabled" type="checkbox" /><span class="toggle-pill-ui"></span><span id="cfg-auto-watcher-label">后台自动整理已关闭</span></label>
                     </article>
-                    <details class="setup-edit-disclosure setup-advanced-disclosure">
+                    <article class="automation-interval-card" id="automation-poll-card">
+                        <div><span class="setup-kicker">扫描频率</span><h3>每隔多久检查一次源目录？</h3><p>云盘刷新较慢或 NAS 性能有限时，建议选择 2–5 分钟。</p></div>
+                        <label><span>轮询周期</span><select id="cfg-auto-watcher-poll-interval"><option value="30">30 秒</option><option value="60">1 分钟</option><option value="120">2 分钟</option><option value="300">5 分钟</option><option value="600">10 分钟</option></select></label>
+                    </article>
+                    <details class="setup-edit-disclosure setup-advanced-disclosure" id="automation-llm-disclosure">
                         <summary><span>源目录清理需要 LLM 辅助？</span><small>高级可选项，影视识别不需要</small></summary>
                     <div class="config-form-grid">
 
@@ -583,6 +595,7 @@
                                         <button class="btn btn-primary btn-sm" type="button" data-config-save="llm">保存</button>
                                         <button class="btn btn-secondary btn-sm" type="button" data-llm-test="inline">测试连通性</button>
                                     </div>
+                                    <div class="llm-test-result" id="llm-test-result" role="status" aria-live="polite" hidden></div>
                                 </div>
                             </div>
                         </article>
@@ -593,6 +606,11 @@
 <section class="config-stage-panel" data-config-panel="rules">
                     <div class="section-title"><div><h2>片库整理</h2><p class="section-subnote">已有合理预设时不用逐条调整；这里只决定最终落点。</p></div><button class="btn btn-primary" type="button" data-config-save="rules">保存变更</button></div>
                     <div class="config-form-grid">
+                        <label class="form-card form-card-full">
+                            <span>片库根目录 <b class="required-mark">*</b></span>
+                            <div class="input-with-inline-action"><input id="cfg-library-root-inline" type="text" placeholder="/volume1/影视" /><button class="btn secondary small" type="button" data-path-test="library">测试权限</button></div>
+                            <p>规则只能填写这个目录下的子目录。根目录必须先通过“存储检查”，规则不能越界保存。</p>
+                        </label>
                         <div class="info-intro form-card-full">
                             <span class="info-label">操作指引</span>
                             <h4>这一页先做什么</h4>
@@ -672,11 +690,17 @@
                         <label class="form-card form-card-full">
                             <span>兜底入库目录</span>
                             <div class="input-with-inline-action">
-                                <input id="cfg-fallback-inline" type="text" placeholder="/volume1/import/fallback" />
+                                <input id="cfg-fallback-inline" type="text" placeholder="其他" />
                                 <button class="btn secondary small" type="button" data-path-test="fallback">测试权限</button>
                             </div>
-                            <p>当所有规则都不匹配时，文件会进入这里；不设置时，匹配不到默认记为失败。</p>
+                            <p>填写片库根目录下的相对子目录，例如“其他”；不设置时，匹配不到默认记为失败。</p>
                         </label>
+                    </div>
+                </section>
+                <section class="config-stage-panel" data-config-panel="advanced">
+                    <div class="section-title"><div><h2>进阶设置</h2><p class="section-subnote">这些配置与其他步骤处于同一条胶卷轨道；熟悉主流程后再展开。</p></div></div>
+                    <div class="advanced-track-stack" id="advanced-track-host">
+                        <article class="storage-skeleton">正在装载进阶设置...</article>
                     </div>
                 </section>
             </section>

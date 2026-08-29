@@ -1,6 +1,12 @@
 // cinema-app-events.js - bindEvents
 function bindEvents() {
   document.addEventListener("click", (event) => {
+    const advancedReturn = event.target.closest("[data-advanced-return-stage]");
+    if (advancedReturn) {
+      setView("config", "config");
+      setConfigStage(advancedReturn.dataset.advancedReturnStage || "start");
+      return;
+    }
     const nav = event.target.closest("[data-nav]");
     if (nav) {
       setView(nav.dataset.viewTarget || nav.dataset.nav, nav.dataset.nav);
@@ -12,6 +18,14 @@ function bindEvents() {
     if (configStage) setConfigStage(configStage.dataset.configStage);
     const stageJump = event.target.closest("[data-config-stage-jump]");
     if (stageJump) setConfigStage(stageJump.dataset.configStageJump);
+    if (event.target.closest("[data-source-cleaner-rules]")) {
+      openSourceCleanerRulesModal();
+      return;
+    }
+    if (event.target.closest("[data-source-llm-config]")) {
+      openLlmConfigModal();
+      return;
+    }
     const cleanerTab = event.target.closest("[data-cleaner-tab]");
     if (cleanerTab) setCleanerTab(cleanerTab.dataset.cleanerTab);
     const varGroup = event.target.closest("[data-var-group]");
@@ -126,6 +140,22 @@ function bindEvents() {
       showToast("正在重新检查目录与空间...");
       return;
     }
+    if (event.target.closest("[data-startup-readiness]")) {
+      runStartupReadiness();
+      return;
+    }
+    const readinessFix = event.target.closest("[data-readiness-fix]");
+    if (readinessFix) {
+      const target = readinessFix.dataset.readinessFix || "";
+      if (target === "storage") setConfigStage("temp");
+      else if (target === "scraping") setConfigStage("scrape");
+      else if (target === "automation") setConfigStage("ai");
+      else {
+        setConfigStage("source");
+        document.getElementById("llm-connection-card")?.scrollIntoView({ behavior: "smooth" });
+      }
+      return;
+    }
     const pathTest = event.target.closest("[data-path-test]");
     if (pathTest) {
       testConfigPath(pathTest.dataset.pathTest);
@@ -208,7 +238,13 @@ function bindEvents() {
     .addEventListener("change", toggleSourceCleanerUi);
   document
     .getElementById("cfg-source_cleaner-ai_enabled-inline")
-    .addEventListener("change", toggleSourceCleanerUi);
+    .addEventListener("change", (event) => {
+      toggleSourceCleanerUi();
+      if (event.target.checked) promptLlmSetup();
+    });
+  document
+    .querySelectorAll('input[name="cfg-source-after-done"]')
+    .forEach((radio) => radio.addEventListener("change", toggleSourceModeUi));
   document
     .getElementById("cfg-source-recursive-toggle-inline")
     .addEventListener("change", toggleSourceDepthField);
@@ -217,8 +253,13 @@ function bindEvents() {
   );
   if (watcherToggle)
     watcherToggle.addEventListener("change", toggleFileWatcherPollGroup);
+  const automationToggle = document.getElementById("cfg-auto-watcher-enabled");
+  if (automationToggle)
+    automationToggle.addEventListener("change", syncAutomationToggleCopy);
   window.addEventListener("scroll", updateStickyHeroState, { passive: true });
   window.addEventListener("resize", updateStickyHeroState);
   toggleSourceCleanerUi();
   toggleSourceDepthField();
+  placeSourceCleanerUnderModeChoice();
+  syncAutomationToggleCopy();
 }

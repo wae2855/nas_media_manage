@@ -8,6 +8,7 @@ from media_importer.features.configuration import (
     build_path_test_payload,
     build_section_config_update,
     build_watcher_status_payload,
+    inspect_startup_readiness,
     load_config,
     restart_watcher,
     validate_config,
@@ -46,6 +47,13 @@ class ConfigHandlersMixin:
             json_response(self, 200, data=results, message="配置验证完成: " + results['overall'])
         except Exception as e:
             json_response(self, 500, message="配置验证失败: " + str(e))
+
+    def _config_startup_readiness(self, *, body: dict, params: dict, query: dict):
+        try:
+            result = inspect_startup_readiness(globals._config or {})  # type: ignore[arg-type]
+            json_response(self, 200, data=result, message="开场检查完成")
+        except Exception as e:
+            json_response(self, 500, message="开场检查失败: " + str(e))
 
     def _config_reload(self, *, body: dict, params: dict, query: dict):
 

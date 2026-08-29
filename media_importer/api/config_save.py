@@ -22,6 +22,10 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
             inspect_storage_readiness,
             validate_config,
         )
+        from media_importer.features.configuration.library_paths import (
+            LibraryPathError,
+            canonicalize_library_config,
+        )
 
         requested_revision = body.get("_revision")
         if requested_revision and requested_revision != config_revision(state._config or {}):
@@ -134,6 +138,15 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
                     target[key] = value
 
         update_nested(config_doc, config_to_save)
+
+        try:
+            canonical = canonicalize_library_config(dict(config_doc))
+        except LibraryPathError as exc:
+            write_response(handler, 400, message=f"配置未保存：{exc}")
+            return
+        for key in ("library_root", "path_rules", "fallback_dir"):
+            if key in canonical:
+                update_nested(config_doc, {key: canonical[key]})
 
         def _normalize_quotes(doc):
             if isinstance(doc, (dict, CommentedMap)):
