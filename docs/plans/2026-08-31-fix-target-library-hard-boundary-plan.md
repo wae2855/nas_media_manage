@@ -162,7 +162,7 @@ Exit: 本地证据全部通过，没有已知 P0/P1 片库旁路；真机状态�
 - `LOCAL_AUTOMATION PASS_WITH_ENV_GAP`：完整测试运行 818 通过；2 个目录按钮 Playwright 用例因 Chromium MachPort 沙箱权限无法启动，标记 `UI_ENV_BLOCKED`，无业务断言失败。
 - `SAFETY_REGRESSION PASS`：覆盖长复制后目标变化、发布时并发目标、回收恢复并发目标、`.copying`/日志/回收 sidecar/缩略图链接、挂载身份变化等真实临时目录场景。
 - `STATIC PASS`：本轮 Python 文件 Ruff、全仓 compileall、`git diff --check`、`bash -n deploy/build_fpk.sh`、111 个活跃文档检查通过。
-- `LOCAL_BUILD PASS`：fnOS FPK `0.3.10`，SHA-256 `bf76dd639501fb47190f34f52c716d2696f3eb6df36c574b77721b5ca66ece45`，包内 246 项通过发布合同校验；启动只监听 `127.0.0.1:14591`。
+- `LOCAL_BUILD PASS`：fnOS FPK `0.3.11`，SHA-256 `576d5c47856e9fae991ffe1a739162b5d040b77aac98cced36cebcc26a1c2c9c`，包内 246 项通过发布合同校验；启动只监听 `127.0.0.1:14591`。
 - `INDEPENDENT_REVIEW PASS`：包内 `media_importer` 195/195 文件与工作树逐文件 SHA-256 一致，目标片库/传输/回收/任务/配置/fnOS 定向复核 122 通过，未发现阻断项。
 - `FNOS_UAT NOT_RUN`：真实 fnOS 安装、桌面入口、目录重新授权和真实媒体库验收由用户执行。
 

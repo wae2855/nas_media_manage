@@ -4,8 +4,8 @@
 
 | Item | Completed at | Commit | Scope | Verification | User confirmation needed |
 |------|--------------|--------|-------|--------------|--------------------------|
-| 目标片库不可删除硬边界返工（REQ-20260831-004019） | 2026-08-31 | 未提交 | 目录拓扑/挂载身份、启动恢复、任务删除/重命名、来源清理、确认替换与回收恢复 no-replace、链接写入门禁、fnOS 回环监听 | LOCAL：818 passed；2 个 Playwright 因 macOS 沙箱浏览器权限 `UI_ENV_BLOCKED`；Ruff/compileall/架构/文档/包内合同 PASS；0.3.10 FPK SHA256 `bf76dd639501fb47190f34f52c716d2696f3eb6df36c574b77721b5ca66ece45`；FNOS_UAT NOT_RUN | 在备份/隔离的真实 fnOS 上安装，确认桌面入口、目录重新授权、挂载掉线阻断、同名保留/保留两份/替换和回收恢复 |
-| fnOS 动态目录清单与首次配置验收（REQ-20260830-180954） | 2026-08-31 | 未提交 | 首次空白、0～N 片库、全部目录统一入口、逐目录 ACL/readiness、中转切换门禁；补齐多片库暂存后的最终确认与原位失败反馈 | LOCAL PASS：完整非 UI 822 + 181 subtests、真实浏览器 4、专项 69；JS/Ruff/文档/diff 检查通过；0.3.8 为旧包，本轮 FPK 未重建；FNOS_UAT NOT_RUN | 在真实 fnOS 确认暂存多个片库后无需重新选择即可关联；失败能看到具体未覆盖规则，成功后弹窗关闭并刷新存储检查；继续验证其他目录与开场检查 |
+| 目标片库不可删除硬边界返工（REQ-20260831-004019） | 2026-08-31 | `ea8cfcf` | 目录拓扑/挂载身份、启动恢复、任务删除/重命名、来源清理、确认替换与回收恢复 no-replace、链接写入门禁、fnOS 回环监听 | LOCAL：822 passed + 181 subtests；Ruff/compileall/JS/架构/文档/包内合同 PASS；0.3.11 FPK SHA256 `576d5c47856e9fae991ffe1a739162b5d040b77aac98cced36cebcc26a1c2c9c`；FNOS_UAT NOT_RUN | 在备份/隔离的真实 fnOS 上安装，确认桌面入口、目录重新授权、挂载掉线阻断、同名保留/保留两份/替换和回收恢复 |
+| fnOS 动态目录清单与首次配置验收（REQ-20260830-180954） | 2026-08-31 | `ea8cfcf` | 首次空白、0～N 片库、全部目录统一入口、逐目录 ACL/readiness、中转切换门禁；补齐多片库暂存后的最终确认与原位失败反馈 | LOCAL PASS：822 + 181 subtests、真实浏览器 4、专项 69；JS/Ruff/文档/diff 检查通过；0.3.11 FPK SHA256 `576d5c47856e9fae991ffe1a739162b5d040b77aac98cced36cebcc26a1c2c9c`；FNOS_UAT NOT_RUN | 在真实 fnOS 确认暂存多个片库后无需重新选择即可关联；失败能看到具体未覆盖规则，成功后弹窗关闭并刷新存储检查；继续验证其他目录与开场检查 |
 
 （2026-08-22 停摆恢复后，用户授权：工程验收由 AI 以测试/回归结果自行判定，仅业务级决策需用户确认。历史 5 项停摆前待验收事项已批量豁免并转入 completed-items.md；其中前端全流程验收项并入前端方向重估，见 [backlog-reevaluation.md](backlog-reevaluation.md)。）
 

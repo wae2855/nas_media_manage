@@ -32,6 +32,7 @@ requirement: REQ-20260830-180954
 - `TARGETED PASS`：多片库、原子配置、fnOS ACL、目录健康和打包合同 69 项通过。
 - `STATIC PASS`：改动 JS 的 `node --check`、改动测试 Ruff、112 个活跃文档检查和 `git diff --check` 通过。
 - 组合测试中的 Chromium 曾被 macOS MachPort 沙箱阻止启动；独立沙箱外重跑 4/4 通过，属于环境启动限制而非业务断言失败。
+- `LOCAL_BUILD PASS`：fnOS FPK `0.3.11`，SHA-256 `576d5c47856e9fae991ffe1a739162b5d040b77aac98cced36cebcc26a1c2c9c`，真实包内 246 项通过校验。
 - `FNOS_UAT NOT_RUN`：用户需要在真实 fnOS 上继续验证原生目录选择、失败反馈和成功关联。
 
 ## 验收标准
