@@ -1,126 +1,124 @@
-// cinema-dashboard.js - dashboard metrics, queue, activity, help
-async function loadDashboardMetrics() {
-  const result = await requestApi("GET", "/metrics");
-  if (result.code === 401) {
-    setDashboardQueueStrip("请先完成 API Key 认证后查看当前队列", 0);
-    return;
-  }
-  if (result.code !== 200 || !result.data) {
-    setDashboardQueueStrip("暂时无法读取首页状态，请稍后重试", 0);
-    return;
-  }
-  const queue = result.data.queue_by_status || {};
-  const byStage = queue._by_stage || {};
-  const pendingStage = byStage.PENDING || {};
-
-  /* 排队中：PENDING + QUEUED（与任务工作台"排队中"筛选一致） */
-  document.getElementById("metric-pending").textContent =
-    pendingStage.QUEUED || 0;
-
-  /* 需要确认：PENDING + AWAIT_REVIEW（与任务工作台"待确认"筛选一致） */
-  document.getElementById("metric-confirm").textContent =
-    pendingStage.AWAIT_REVIEW || 0;
-
-  /* 今日入库：SUCCESS + SKIPPED（与任务工作台"已完成"筛选一致） */
-  const success = queue.SUCCESS || queue.success || 0;
-  const skipped = queue.SKIPPED || queue.skipped || 0;
-  document.getElementById("metric-success").textContent = success + skipped;
+// cinema-dashboard.js - business summary for the dashboard
+function dashboardCount(data, key) {
+  return Number((data && data.counts && data.counts[key]) || 0);
 }
 
-async function loadDashboardQueueStatus() {
-  const result = await requestApi("GET", "/queue/status");
-  if (result.code === 401) {
-    setDashboardQueueStrip("请先完成 API Key 认证后查看当前队列", 0);
-    return;
-  }
-  if (result.code !== 200 || !result.data) {
-    setDashboardQueueStrip("暂时无法读取当前队列", 0);
-    return;
-  }
-  const byStatus = result.data.by_status || {};
-  const pending = statusCount(byStatus, "PENDING", "pending");
-  const failed = statusCount(byStatus, "FAILED", "failed");
-  const totalOpen = pending + failed;
-  if (result.data.paused) {
-    setDashboardQueueStrip(
-      `队列已暂停，仍有 ${totalOpen} 项待继续处理`,
-      totalOpen > 0 ? 0.28 : 0,
-    );
-    return;
-  }
-  if (pending > 0) {
-    setDashboardQueueStrip(
-      `当前有 ${pending} 项等待处理或确认`,
-      totalOpen > 0 ? pending / totalOpen : 0.52,
-    );
-    return;
-  }
-  if (failed > 0) {
-    setDashboardQueueStrip(
-      `当前有 ${failed} 项处理失败，可直接发起重试`,
-      totalOpen > 0 ? failed / totalOpen : 0.24,
-    );
-    return;
-  }
-  setDashboardQueueStrip("等待新影片进入队列", 0);
+function setDashboardActionState(data) {
+  const running = dashboardCount(data, "running");
+  const failed = dashboardCount(data, "failed");
+  document.querySelectorAll('[data-action="pause"]').forEach((button) => {
+    button.disabled = running === 0 || !!data.paused;
+    button.title = button.disabled
+      ? data.paused
+        ? "后台整理已经暂停"
+        : "当前没有正在处理的任务"
+      : "暂停当前后台处理";
+  });
+  document.querySelectorAll('[data-action="retry"]').forEach((button) => {
+    button.disabled = failed === 0;
+    button.title = failed === 0 ? "当前没有失败任务" : `重试 ${failed} 个失败任务`;
+  });
 }
 
-async function loadDashboardActivity() {
-  const result = await requestApi("GET", "/logs?limit=6");
-  if (result.code === 401) {
-    renderActivityRows([
-      {
-        title: "需要先完成认证",
-        copy: "输入 API Key 后，这里会显示真实扫描、识别和入库过程。",
-        level: "WARNING",
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    return;
+function renderDashboardState(data) {
+  const queued = dashboardCount(data, "queued");
+  const running = dashboardCount(data, "running");
+  const review = dashboardCount(data, "await_review");
+  const failed = dashboardCount(data, "failed");
+  const runtime = document.getElementById("runtime-status");
+  const extras = [
+    queued ? `${queued} 项排队` : "",
+    review ? `${review} 项待确认` : "",
+    failed ? `${failed} 项失败` : "",
+  ].filter(Boolean);
+
+  if (data.paused) {
+    if (runtime) runtime.textContent = "后台整理已暂停";
+    setDashboardQueueStrip("后台整理已暂停", {
+      state: "paused",
+      detail: extras.length ? extras.join(" · ") : "恢复后才会继续处理新任务。",
+      actionLabel: review ? "去确认" : failed ? "查看失败项" : "查看任务",
+      filter: review ? "review" : failed ? "failed" : "all",
+    });
+  } else if (running > 0) {
+    if (runtime) runtime.textContent = "后台整理中";
+    setDashboardQueueStrip(`正在处理 ${running} 项影片`, {
+      state: "running",
+      detail: extras.length ? extras.join(" · ") : "处理完成后会自动写入片库。",
+      progress: Number(data.running_progress || 0),
+    });
+  } else if (review > 0) {
+    if (runtime) runtime.textContent = "服务正常";
+    setDashboardQueueStrip(`有 ${review} 项需要你确认`, {
+      state: "review",
+      detail: failed
+        ? `另有 ${failed} 项处理失败；确认前不会继续入库。`
+        : "识别或分类结果需要人工核对，确认前不会继续入库。",
+      actionLabel: "去处理",
+      filter: "review",
+    });
+  } else if (failed > 0) {
+    if (runtime) runtime.textContent = "服务正常";
+    setDashboardQueueStrip(`有 ${failed} 项处理失败`, {
+      state: "failed",
+      detail: "查看失败原因后可以重新尝试。",
+      actionLabel: "查看失败项",
+      filter: "failed",
+    });
+  } else if (queued > 0) {
+    if (runtime) runtime.textContent = "服务正常";
+    setDashboardQueueStrip(`${queued} 项已经排队`, {
+      state: "queued",
+      detail: "后台整理空闲后会依次开始处理。",
+      actionLabel: "查看队列",
+      filter: "queued",
+    });
+  } else {
+    if (runtime) runtime.textContent = "服务正常";
+    setDashboardQueueStrip("等待新影片进入队列", {
+      state: "idle",
+      detail: "服务正常，发现新影片后会自动更新。",
+    });
   }
-  if (result.code !== 200 || !result.data) {
-    renderActivityRows([
-      {
-        title: "暂时无法读取最近活动",
-        copy: result.message || "请稍后重试，或检查服务连接状态。",
-        level: "ERROR",
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    return;
-  }
-  const logs = Array.isArray(result.data.logs) ? result.data.logs : [];
-  const items = logs
-    .slice()
-    .reverse()
-    .map((log) => ({
-      title: log.message || "最新活动",
-      copy:
-        [
-          log.task_id ? `任务 ${log.task_id}` : "",
-          log.step ? `步骤 ${log.step}` : "",
-        ]
-          .filter(Boolean)
-          .join(" · ") || "系统正在持续记录处理过程。",
-      level: log.level || "INFO",
-      timestamp: log.timestamp || log.time,
-    }));
-  renderActivityRows(items);
+  setDashboardActionState(data);
+}
+
+function renderDashboardSummary(data) {
+  document.getElementById("metric-pending").textContent = dashboardCount(data, "queued");
+  document.getElementById("metric-confirm").textContent = dashboardCount(data, "await_review");
+  document.getElementById("metric-success").textContent = Number(data.today_success || 0);
+  renderDashboardState(data);
+  renderActivityRows(
+    (Array.isArray(data.activities) ? data.activities : []).map((item) => ({
+      ...item,
+      level: item.tone || "success",
+    })),
+  );
+  if (typeof setReelMovies === "function") setReelMovies(data.recent_movies || []);
 }
 
 async function loadDashboardOverview() {
-  await Promise.all([
-    loadDashboardMetrics(),
-    loadDashboardQueueStatus(),
-    loadDashboardActivity(),
-  ]);
+  const result = await requestApi("GET", "/dashboard/summary");
+  if (result.code === 401) {
+    setDashboardQueueStrip("请先完成 API Key 认证", {
+      state: "warning",
+      detail: "认证后才能读取片库和后台任务状态。",
+    });
+    return;
+  }
+  if (result.code !== 200 || !result.data) {
+    setDashboardQueueStrip("暂时无法读取首页状态", {
+      state: "failed",
+      detail: result.message || "请稍后重试，或检查服务连接。",
+    });
+    return;
+  }
+  renderDashboardSummary(result.data);
 }
 
 function startDashboardAutoRefresh() {
   if (dashboardRefreshTimer) window.clearInterval(dashboardRefreshTimer);
-  dashboardRefreshTimer = window.setInterval(() => {
-    loadDashboardOverview();
-  }, DASHBOARD_REFRESH_MS);
+  dashboardRefreshTimer = window.setInterval(loadDashboardOverview, DASHBOARD_REFRESH_MS);
 }
 
 function collectHelpItemsForGrid(grid) {
@@ -128,9 +126,7 @@ function collectHelpItemsForGrid(grid) {
   let current = null;
   const HELP_CLASSES = ["info-intro", "info-rows", "info-callout"];
   for (const el of Array.from(grid.children)) {
-    const cls = HELP_CLASSES.find(
-      (c) => el.classList && el.classList.contains(c),
-    );
+    const cls = HELP_CLASSES.find((candidate) => el.classList && el.classList.contains(candidate));
     if (!cls) {
       if (current) {
         items.push(current);
@@ -166,56 +162,37 @@ function buildHelpAccordion(items) {
   title.className = "help-accordion-title";
   title.textContent = "使用说明";
   container.appendChild(title);
-
   items.forEach((item) => {
     const wrap = document.createElement("div");
     wrap.className = "help-accordion-item";
-
     const header = document.createElement("button");
     header.type = "button";
     header.className = "help-accordion-header";
-    const labelEl = document.createElement("span");
-    labelEl.className = "help-accordion-label";
-    labelEl.textContent = item.label;
-    const chevron = document.createElement("span");
-    chevron.className = "help-accordion-chevron";
-    chevron.textContent = "▸";
-    header.appendChild(labelEl);
-    header.appendChild(chevron);
-
+    header.innerHTML = `<span class="help-accordion-label">${escapeHtml(item.label)}</span><span class="help-accordion-chevron">▸</span>`;
     const body = document.createElement("div");
     body.className = "help-accordion-body";
-    item.elements.forEach((el) => body.appendChild(el));
-
+    item.elements.forEach((element) => body.appendChild(element));
     header.addEventListener("click", () => {
       const willOpen = !wrap.classList.contains("open");
-      container
-        .querySelectorAll(".help-accordion-item.open")
-        .forEach((other) => {
-          if (other !== wrap) other.classList.remove("open");
-        });
-      if (willOpen) wrap.classList.add("open");
-      else wrap.classList.remove("open");
+      container.querySelectorAll(".help-accordion-item.open").forEach((other) => {
+        if (other !== wrap) other.classList.remove("open");
+      });
+      wrap.classList.toggle("open", willOpen);
     });
-
     wrap.appendChild(header);
     wrap.appendChild(body);
     container.appendChild(wrap);
   });
-
   return container;
 }
 
 function initHelpAccordions() {
-  const panels = document.querySelectorAll(".config-stage-panel");
-  panels.forEach((panel) => {
+  document.querySelectorAll(".config-stage-panel").forEach((panel) => {
     const grid = panel.querySelector(".config-form-grid");
     if (!grid) return;
     const items = collectHelpItemsForGrid(grid);
     if (items.length === 0) return;
-    items.forEach((item) => item.elements.forEach((el) => el.remove()));
-    const accordion = buildHelpAccordion(items);
-    grid.appendChild(accordion);
+    items.forEach((item) => item.elements.forEach((element) => element.remove()));
+    grid.appendChild(buildHelpAccordion(items));
   });
 }
-

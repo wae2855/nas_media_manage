@@ -49,6 +49,7 @@ from .task_repo import (
     find_by_source_filename,
     find_by_source_path,
     find_failed_too_many,
+    get_dashboard_task_snapshot,
     get_next_pending,
     get_task,
     has_running_tasks,

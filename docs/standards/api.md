@@ -41,8 +41,13 @@
 API 路由集中在 `media_importer/api/routes.py`。
 
 - `GET /api/config/startup-readiness` 必须只读，并绑定当前配置 revision。
+- `GET /api/config/fnos-folders` 只返回授权目录能力和路径；禁止返回、记录或持久化 `TRIM_API_TOKEN`。非 fnOS 环境用 `available=false` 表达降级，不用 500 冒充应用故障。
 - 外部能力仅在业务模式需要时探测；未启用的 LLM 返回 `SKIPPED`，不能误报失败。
 - 任一关键目录、TMDB 或必需 LLM 为 `BLOCKED` 时，总状态必须为 `BLOCKED`。
+- `GET /api/dashboard/summary` 必须从任务业务事实聚合状态、今日入库、最近活动和最近影片；不得用原始日志或图片文件时间替代业务时间。
+- 首页摘要不得返回服务器绝对路径；最近活动最多 5 条，最近影片最多 12 部。
+- 目标片库冲突必须以结构化 `dedup_result` 返回；`POST /tasks/{id}/confirm` 只接受受限 `conflict_action`，未决冲突不得由普通确认或 `confirm-all` 绕过。
+- 通用任务删除和重命名不得操作 `file_location=import`；客户端即使提交文件动作也必须由服务端返回 400，不能只依赖前端隐藏按钮。
 
 新增端点流程：
 

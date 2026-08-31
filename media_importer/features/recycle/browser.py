@@ -2,10 +2,11 @@ import json
 import os
 import shutil
 import sqlite3
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from media_importer.infrastructure.filesystem.safety import verified_copy
+from media_importer.infrastructure.filesystem.safety import safe_move, verified_copy
 
 from .ledger import (
     get_active_item,
@@ -20,9 +21,9 @@ def _verified_cross_device_move(source: str, target: str, *, is_dir: bool) -> tu
     if not is_dir:
         return verified_copy(source, target, remove_source=True)
 
-    staging = target + ".copying"
+    staging = target + f".{uuid.uuid4().hex}.copying"
     try:
-        os.makedirs(staging, exist_ok=True)
+        os.mkdir(staging)
         for current_dir, dir_names, file_names in os.walk(source):
             relative = os.path.relpath(current_dir, source)
             target_dir = staging if relative == "." else os.path.join(staging, relative)
@@ -37,18 +38,26 @@ def _verified_cross_device_move(source: str, target: str, *, is_dir: bool) -> tu
                 copied, message = verified_copy(source_file, target_file)
                 if not copied:
                     return False, message
-        os.replace(staging, target)
+        if os.path.lexists(target):
+            return False, "恢复目标在复制期间出现，已保留回收项"
+        os.rename(staging, target)
         shutil.rmtree(source)
         return True, "目录已校验恢复"
     except (OSError, shutil.Error) as exc:
         return False, str(exc)
 
 
-def recycle_cleanup(recycle_dir: str, retention_days: int) -> list:
+def recycle_cleanup(recycle_dir: str, retention_days: int, *,
+                    protected_roots: Optional[list[str]] = None) -> list:
     if not recycle_dir or not os.path.isdir(recycle_dir):
         return []
     if retention_days <= 0:
         return []
+    if protected_roots:
+        from media_importer.features.configuration.storage_topology import paths_overlap
+
+        if any(paths_overlap(recycle_dir, root) for root in protected_roots if root):
+            return []
 
     now = datetime.now()
     deleted = []
@@ -329,7 +338,7 @@ def restore_from_recycle(items: list, conflict_mode: str = "skip", *,
             failed.append({"recycle_path": recycle_path, "status": "no_write", "message": f"原位置无写入权限: {parent_dir}"})
             continue
 
-        if os.path.exists(original_path):
+        if os.path.lexists(original_path):
             if conflict_mode == "skip":
                 failed.append({"recycle_path": recycle_path, "status": "conflict", "message": f"原位置已存在同名文件: {original_path}"})
                 continue
@@ -340,15 +349,15 @@ def restore_from_recycle(items: list, conflict_mode: str = "skip", *,
                 name, ext = os.path.splitext(original_path)
                 original_path = f"{name}_restored{ext}"
 
-        try:
-            os.rename(recycle_path, original_path)
-        except OSError:
+        if is_dir:
             moved, message = _verified_cross_device_move(
                 recycle_path, original_path, is_dir=is_dir,
             )
-            if not moved:
-                failed.append({"recycle_path": recycle_path, "status": "move_failed", "message": message})
-                continue
+        else:
+            moved, message = safe_move(recycle_path, original_path)
+        if not moved:
+            failed.append({"recycle_path": recycle_path, "status": "move_failed", "message": message})
+            continue
 
         if os.path.exists(meta_path):
             try:
@@ -390,7 +399,7 @@ def _restore_ledger_items(conn: sqlite3.Connection, recycle_dir: str,
         if not os.access(parent_dir, os.W_OK):
             failed.append({"id": item_id, "status": "no_write", "message": f"原位置无写入权限: {parent_dir}"})
             continue
-        if os.path.exists(original_path):
+        if os.path.lexists(original_path):
             if conflict_mode == "overwrite":
                 failed.append({
                     "id": item_id,
@@ -411,15 +420,15 @@ def _restore_ledger_items(conn: sqlite3.Connection, recycle_dir: str,
                 continue
 
         is_dir = bool(row.get("is_dir", 0))
-        try:
-            os.rename(recycle_path, original_path)
-        except OSError:
+        if is_dir:
             moved, message = _verified_cross_device_move(
                 recycle_path, original_path, is_dir=is_dir,
             )
-            if not moved:
-                failed.append({"id": item_id, "status": "move_failed", "message": message})
-                continue
+        else:
+            moved, message = safe_move(recycle_path, original_path)
+        if not moved:
+            failed.append({"id": item_id, "status": "move_failed", "message": message})
+            continue
 
         if os.path.exists(meta_path):
             try:

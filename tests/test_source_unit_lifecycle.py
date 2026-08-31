@@ -142,8 +142,8 @@ def test_loose_root_partial_failure_can_resume_without_touching_source_root(
         update_task(conn, task["task_id"], status="SUCCESS", stage="DONE", import_success=1)
     config = {
         "source_dir": str(source),
-        "temp_dir": str(tmp_path),
-        "library_root": str(tmp_path),
+        "temp_dir": str(tmp_path / "temp"),
+        "library_root": str(tmp_path / "library"),
         "video_extensions": [".mkv"],
         "source_policy": {"mode": "recycle_source_unit", "recycle_dir": str(recycle), "unit_settle_seconds": 0},
     }
@@ -201,3 +201,66 @@ def test_incomplete_download_marker_keeps_entire_folder(tmp_path: Path):
     assert result.state == "WAITING"
     assert "未完成下载" in result.message
     assert movie.exists()
+
+
+# Requirement: REQ-20260831-004019
+def test_source_unit_never_recycles_when_source_overlaps_library(tmp_path: Path):
+    library = tmp_path / "library"
+    recycle = tmp_path / "recycle"
+    movie = library / "Movie"
+    movie.mkdir(parents=True)
+    recycle.mkdir()
+    video = movie / "movie.mkv"
+    video.write_bytes(b"library-must-survive")
+    conn = init_db(str(tmp_path / "app.db"))
+    unit = register_source_unit(conn, str(library), str(video))
+    task = create_task(conn, str(video), video.name, source_unit_id=unit.unit_id)
+    update_task(conn, task["task_id"], status="SUCCESS", stage="DONE", import_success=1)
+
+    result = SourceUnitCoordinator(conn, {
+        "source_dir": str(library),
+        "library_roots": [{"id": "movies", "path": str(library), "enabled": True}],
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "recycle_dir": str(recycle),
+            "unit_settle_seconds": 0,
+        },
+    }).try_recycle(unit.unit_id)
+
+    assert result.state == "BLOCKED"
+    assert "片库" in result.message
+    assert video.read_bytes() == b"library-must-survive"
+
+
+# Requirement: REQ-20260831-004019
+def test_historical_source_unit_cannot_recycle_after_old_source_becomes_library(tmp_path: Path):
+    old_source = tmp_path / "old-source"
+    new_source = tmp_path / "new-source"
+    recycle = tmp_path / "recycle"
+    movie = old_source / "Movie"
+    movie.mkdir(parents=True)
+    new_source.mkdir()
+    recycle.mkdir()
+    video = movie / "movie.mkv"
+    video.write_bytes(b"library-must-survive")
+    conn = init_db(str(tmp_path / "app.db"))
+    unit = register_source_unit(conn, str(old_source), str(video))
+    task = create_task(conn, str(video), video.name, source_unit_id=unit.unit_id)
+    update_task(conn, task["task_id"], status="SUCCESS", stage="DONE", import_success=1)
+
+    result = SourceUnitCoordinator(conn, {
+        "source_dir": str(new_source),
+        "library_roots": [
+            {"id": "movies", "path": str(old_source), "enabled": True}
+        ],
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "recycle_dir": str(recycle),
+            "unit_settle_seconds": 0,
+        },
+    }).try_recycle(unit.unit_id)
+
+    assert result.state == "BLOCKED"
+    assert "目标片库" in result.message
+    assert video.read_bytes() == b"library-must-survive"
+    assert list(recycle.iterdir()) == []

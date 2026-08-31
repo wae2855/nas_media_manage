@@ -1,10 +1,60 @@
 import json
 import os
 import shutil
+import stat
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from media_importer.infrastructure.filesystem.safety import verified_copy
+from media_importer.infrastructure.filesystem.safety import safe_move, verified_copy
+
+
+def _write_json_exclusive(path: str, payload: dict) -> tuple[int, int]:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+            raise OSError(f"回收记录不是独立普通文件: {path}")
+        with os.fdopen(descriptor, "w", encoding="utf-8", closefd=False) as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        return file_stat.st_dev, file_stat.st_ino
+    finally:
+        os.close(descriptor)
+
+
+def _remove_owned_file(path: str, identity: tuple[int, int]) -> None:
+    try:
+        file_stat = os.lstat(path)
+        if (
+            stat.S_ISREG(file_stat.st_mode)
+            and (file_stat.st_dev, file_stat.st_ino) == identity
+        ):
+            os.unlink(path)
+    except OSError:
+        pass
+
+
+def _path_in_roots(path: str, roots: list) -> bool:
+    real = os.path.realpath(path)
+    for root in roots or []:
+        if not root:
+            continue
+        root_real = os.path.realpath(root)
+        try:
+            if os.path.commonpath((real, root_real)) == root_real:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _protected_target_error(path: str, import_roots: list, reason: str) -> str:
+    if _path_in_roots(path, import_roots) and reason != "confirmed_target_replace":
+        return "目标片库受保护：只有用户逐项确认替换时，现有片库文件才能移入回收区"
+    return ""
 
 
 def _validate_no_path_traversal(path: str) -> tuple:
@@ -54,6 +104,13 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
     if not os.path.exists(dir_path):
         return True, "", ""
 
+    if os.path.islink(dir_path):
+        return False, "", "拒绝回收符号链接目录"
+
+    protected_error = _protected_target_error(dir_path, import_roots or [], reason)
+    if protected_error:
+        return False, "", protected_error
+
     if not recycle_dir:
         return False, "", "回收站目录未配置"
     if not os.path.isdir(recycle_dir):
@@ -69,21 +126,52 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
 
     try:
         date_str = datetime.now().strftime("%Y-%m-%d")
-        sub_path = _recycle_subpath(dir_path, source_dir, import_roots or [], reason=reason)
+        original_path = str((extra_meta or {}).get("original_path") or dir_path)
+        sub_path = _recycle_subpath(original_path, source_dir, import_roots or [], reason=reason)
         dest_dir = os.path.join(recycle_dir, date_str, sub_path)
         os.makedirs(os.path.dirname(dest_dir), exist_ok=True)
 
-        base_name = os.path.basename(dir_path.rstrip(os.sep))
+        base_name = os.path.basename(original_path.rstrip(os.sep))
         dest_path = os.path.join(os.path.dirname(dest_dir), base_name)
         counter = 1
-        while os.path.exists(dest_path):
+        while os.path.lexists(dest_path) or os.path.lexists(dest_path + ".dir.meta"):
             dest_path = os.path.join(os.path.dirname(dest_dir), f"{base_name}_{counter}")
             counter += 1
+
+        source_zone = _determine_source_zone(original_path, source_dir, import_roots or [])
+        total_size = 0
+        file_count = 0
+        for dp, _dn, fns in os.walk(real):
+            for fn in fns:
+                try:
+                    total_size += os.path.getsize(os.path.join(dp, fn))
+                    file_count += 1
+                except OSError:
+                    pass
+        meta = {
+            "original_path": os.path.abspath(original_path),
+            "source_zone": source_zone,
+            "reason": reason,
+            "task_id": task_id,
+            "moved_at": datetime.now().isoformat(),
+            "is_dir": True,
+            "file_count": file_count,
+            "total_size_mb": round(total_size / (1024 * 1024), 1),
+        }
+        if extra_meta:
+            meta.update(extra_meta)
+        meta_path = dest_path + ".dir.meta"
+        try:
+            meta_identity = _write_json_exclusive(meta_path, meta)
+        except FileExistsError:
+            return False, "", "回收记录位置发生冲突，原目录已保留"
+        except OSError as exc:
+            return False, "", f"无法安全创建回收记录，原目录已保留: {exc}"
 
         try:
             os.rename(real, dest_path)
         except OSError:
-            staging_path = dest_path + ".copying"
+            staging_path = dest_path + f".{uuid.uuid4().hex}.copying"
             os.makedirs(staging_path, exist_ok=True)
             for current_dir, dir_names, file_names in os.walk(real):
                 relative = os.path.relpath(current_dir, real)
@@ -98,40 +186,13 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
                         continue
                     copied, copy_message = verified_copy(source_file, target_file)
                     if not copied:
+                        _remove_owned_file(meta_path, meta_identity)
                         return False, "", f"跨盘回收校验失败，原目录已保留: {copy_message}"
-            os.replace(staging_path, dest_path)
+            if os.path.lexists(dest_path):
+                _remove_owned_file(meta_path, meta_identity)
+                return False, "", "回收目标在复制期间出现，原目录已保留"
+            os.rename(staging_path, dest_path)
             shutil.rmtree(real)
-
-        source_zone = _determine_source_zone(dir_path, source_dir, import_roots or [])
-        total_size = 0
-        file_count = 0
-        for dp, _dn, fns in os.walk(dest_path):
-            for fn in fns:
-                try:
-                    total_size += os.path.getsize(os.path.join(dp, fn))
-                    file_count += 1
-                except OSError:
-                    pass
-
-        meta = {
-            "original_path": os.path.abspath(dir_path),
-            "source_zone": source_zone,
-            "reason": reason,
-            "task_id": task_id,
-            "moved_at": datetime.now().isoformat(),
-            "is_dir": True,
-            "file_count": file_count,
-            "total_size_mb": round(total_size / (1024 * 1024), 1),
-        }
-        if extra_meta:
-            meta.update(extra_meta)
-
-        meta_path = dest_path + ".dir.meta"
-        try:
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta, f, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
 
         return True, dest_path, f"已移入回收站(目录): {os.path.basename(dir_path)}"
 
@@ -147,6 +208,13 @@ def move_to_recycle(src_path: str, recycle_dir: str,
                         extra_meta: Optional[dict] = None) -> tuple:
     if not os.path.exists(src_path):
         return True, "", ""
+
+    if os.path.islink(src_path):
+        return False, "", "拒绝回收符号链接文件"
+
+    protected_error = _protected_target_error(src_path, import_roots or [], reason)
+    if protected_error:
+        return False, "", protected_error
 
     if not recycle_dir:
         return False, "", "回收站目录未配置"
@@ -166,43 +234,43 @@ def move_to_recycle(src_path: str, recycle_dir: str,
 
     try:
         date_str = datetime.now().strftime("%Y-%m-%d")
-        sub_path = _recycle_subpath(src_path, source_dir, import_roots or [], reason=reason)
+        original_path = str((extra_meta or {}).get("original_path") or src_path)
+        sub_path = _recycle_subpath(original_path, source_dir, import_roots or [], reason=reason)
         dest_dir = os.path.join(recycle_dir, date_str, os.path.dirname(sub_path))
         os.makedirs(dest_dir, exist_ok=True)
 
-        base_name = os.path.basename(src_path)
+        base_name = os.path.basename(original_path)
         dest_path = os.path.join(dest_dir, base_name)
         counter = 1
-        while os.path.exists(dest_path):
+        while os.path.lexists(dest_path) or os.path.lexists(dest_path + ".meta"):
             name, ext = os.path.splitext(base_name)
             dest_path = os.path.join(dest_dir, f"{name}_{counter}{ext}")
             counter += 1
 
-        try:
-            os.rename(real, dest_path)
-        except OSError:
-            copied, copy_message = verified_copy(real, dest_path, remove_source=True)
-            if not copied:
-                return False, "", f"跨盘回收校验失败，源文件已保留: {copy_message}"
-
-        source_zone = _determine_source_zone(src_path, source_dir, import_roots or [])
+        source_zone = _determine_source_zone(original_path, source_dir, import_roots or [])
         meta = {
-            "original_path": os.path.abspath(src_path),
+            "original_path": os.path.abspath(original_path),
             "source_zone": source_zone,
             "reason": reason,
             "task_id": task_id,
             "moved_at": datetime.now().isoformat(),
-            "file_size_mb": round(os.path.getsize(dest_path) / (1024 * 1024), 1),
+            "file_size_mb": round(os.path.getsize(real) / (1024 * 1024), 1),
         }
         if extra_meta:
             meta.update(extra_meta)
 
         meta_path = dest_path + ".meta"
         try:
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta, f, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
+            meta_identity = _write_json_exclusive(meta_path, meta)
+        except FileExistsError:
+            return False, "", "回收记录位置发生冲突，源文件已保留"
+        except OSError as exc:
+            return False, "", f"无法安全创建回收记录，源文件已保留: {exc}"
+
+        moved, move_message = safe_move(real, dest_path)
+        if not moved:
+            _remove_owned_file(meta_path, meta_identity)
+            return False, "", f"移入回收站失败，源文件已保留: {move_message}"
 
         return True, dest_path, f"已移入回收站: {os.path.basename(src_path)}"
 

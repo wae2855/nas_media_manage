@@ -60,11 +60,14 @@
 |--------|----------|----------|--------------|------------|------|
 | 健康检查 | 顶栏状态指示 | `GET /api/health` | `api/handler.py:_health` | `test_api_routes.py` | — |
 | 运行指标 | 顶栏运行中/暂停/异常 | `GET /api/metrics` | `api/handler.py:_metrics` | `test_api_routes.py` | 指标字段契约单测 |
+| 首页业务摘要 | 状态提示/今日入库/最近活动/最近影片 | `GET /api/dashboard/summary` | `features/tasks/dashboard_service.py` | `test_dashboard_summary.py`, `test_dashboard_responsive_ui.py`, `test_api_routes.py` | 真实 fnOS 设备视觉验收 |
 | Watcher 状态/启停 | 顶栏 watcher 开关 | `GET /api/watcher/status`, `POST /api/watcher/control` | `api/handler.py` | `test_config_consumers.py`（间接）、`test_feature_configuration_runtime.py` | 显式 watcher 状态 API smoke |
 | 队列状态（暂停/恢复/重试全部） | 顶栏/批处理入口 | `GET /api/queue/status`, `POST /api/queue/pause|resume|retry-all` | `api/handler.py`, `features/tasks` | `test_feature_task_queue.py`（暂停/恢复/retry_all） | 队列状态 payload 字段单测 |
 | 立即扫描（批处理入口） | 仪表盘 CTA | `POST /api/run` | `features/import_flow/services` | `test_feature_import_flow_run_file.py`（run_batch 间接） | run_batch 端到端 |
 | 重启服务 | 仪表盘高级菜单 | `POST /api/restart` | `api/handler.py` | — | 缺回归脚本（建议 `test_dashboard_service_lifecycle.py`） |
 | 首次配置引导 | 仪表盘空态 | `/api/config/validate` 等 | `features/configuration` | `test_config_view.py`, `test_api_routes.py` | 空态 UI 引导（待重做） |
+| 开始页四步流程海报 | 配置开始页上半区 | 静态 UI | `webui/index.html`, `webui/css/cinema-config.css` | `test_configuration_refinement_ui.py:test_start_page_explains_the_four_step_media_journey` | 真实设备视觉验收 |
+| 开始页开发者支持卡 | 配置开始页末尾 | 静态 UI | `webui/index.html`, `webui/css/cinema-config.css` | `test_configuration_refinement_ui.py:test_start_page_support_card_is_optional_and_has_stable_qr_asset_path` | 等待替换真实收款码并人工确认 |
 | 日志查看 | 仪表盘抽屉 | `GET /api/logs` | `api/handler.py:_logs` | — | 缺回归脚本 |
 | Skills 自检 | 仪表盘/系统页 | `GET /api/skill`, `GET /api/skills` | `api/handler.py` | — | 缺回归脚本 |
 
@@ -76,16 +79,16 @@
 | 任务状态统计 | 顶部状态卡 | `GET /api/tasks/stats` | `features/tasks` | `test_feature_task_detail.py:test_get_task_stats_*` | — |
 | 任务详情 | 右侧详情抽屉/二级页 | `GET /api/tasks/{id}` | `features/tasks` | `test_feature_task_detail.py:test_get_task_*` | — |
 | 字幕查询 | 详情内字幕 Tab | `GET /api/tasks/{id}/subtitles` | `features/tasks` | `test_feature_task_detail.py:test_get_task_subtitles_*` | — |
-| 缩略图（详情/卡片） | 卡片/详情 | `GET /api/thumbnails`, `GET /api/thumbnails/{file}` | `api/thumbnail_handlers.py` | — | 缺回归脚本（建议 `test_thumbnails_api.py`） |
+| 缩略图（详情/卡片/最近影片） | 卡片/详情/首页轮播 | `GET /api/thumbnails`, `GET /api/thumbnails/{file}` | `api/thumbnail_handlers.py`, `features/scraping/thumbnail_cache.py` | `test_dashboard_summary.py`（路径边界、去重、双阈值治理） | 缩略图 HTTP 响应端到端 |
 | 启动单文件 | 任务空态/文件拖拽 | `POST /api/run/file` | `features/import_flow` | `test_feature_import_flow_run_file.py`（run_file 全部分支） | — |
 | 重试任务 | 卡片操作 | `POST /api/tasks/{id}/retry` | `features/tasks` | `test_feature_task_queue.py:test_retry_task_*` | — |
 | 重试所有失败 | 批处理菜单 | `POST /api/queue/retry-all` | `features/tasks` | `test_feature_task_queue.py:test_retry_all_failed_*` | — |
 | 确认/批量确认 | 卡片操作 | `POST /api/tasks/{id}/confirm`, `POST /api/tasks/confirm-all` | `features/import_flow/services:review` | `test_feature_task_review.py`, `test_task_confirm_reason.py` | — |
-| 重命名（源/临时/入库） | 详情操作 | `POST /api/tasks/{id}/rename` | `features/tasks/services:file_lifecycle` | `test_feature_task_file_lifecycle.py:test_rename_*` | — |
+| 重命名（源/临时） | 详情操作 | `POST /api/tasks/{id}/rename` | `features/tasks/services:file_lifecycle` | `test_feature_task_file_lifecycle.py:test_rename_*` | 已入库文件固定拒绝，避免修改片库 |
 | 重分类 | 详情操作 | `POST /api/tasks/{id}/classify-preview` + 详情保存 | `features/import_flow/services:classification` | `test_classify_preview.py`, `test_feature_task_review.py:test_reclassify_task_*` | — |
 | 忽略任务 | 详情操作 | `POST /api/tasks/{id}/ignore` | `features/tasks/services:file_lifecycle` | `test_feature_task_file_lifecycle.py:test_ignore_*` | — |
 | 取消任务（队列/处理中） | 卡片操作 | `POST /api/tasks/{id}/cancel` | `features/tasks` | `test_feature_task_cancel.py` | — |
-| 删除任务 | 卡片操作 | `POST /api/tasks/{id}/delete` / `DELETE /api/tasks/{id}` | `features/tasks` | `test_feature_task_delete.py` | — |
+| 删除任务 | 卡片操作 | `POST /api/tasks/{id}/delete` / `DELETE /api/tasks/{id}` | `features/tasks` | `test_feature_task_delete.py` | 已入库任务只删记录；文件动作固定拒绝 |
 | 清空任务（按状态） | 列表顶栏 | `POST /api/tasks/clear` | `features/tasks` | `test_feature_task_queue.py:test_clear_tasks_*` | — |
 | 任务上下文/状态机迁移 | 引擎内部 | 内部方法 | `features/tasks`, `features/import_flow/context` | `test_task_context_lifecycle.py`, `test_stage_lifecycle.py` | — |
 | 孤儿 RUNNING 收敛 | 启动/扫描时 | 内部 cron | `features/tasks` | `test_cleanup_orphaned_state.py` | — |
@@ -183,6 +186,8 @@
 | 入口直接调用 feature 公共 API | 内部 | 内部 | — | `test_feature_entrypoints.py` | — |
 
 ## 10. 缺口汇总与建议脚本
+
+多片库与 fnOS 首次启动专项覆盖：`test_library_root_boundary.py`（显式多根迁移、未覆盖回滚、引用、停用、越界）、`test_multiple_library_roots.py`（0/2/10 根、分类、资源目录和 readiness）、`test_multiple_library_roots_ui.py`（统一目录台账、唯一目录入口、无 opener 回调合同）、`test_storage_directory_buttons_ui.py`（来源/中转/回收/日志/资源/片库六类按钮的真实点击、fnOS 选择器路由与角色载荷；多片库暂存后直接确认、提交中禁用、失败原位反馈、草稿保留和成功刷新）、`test_fnos_directory_access.py`（Unix socket/token、全部用户选择目录的授权根 containment 与失败关闭）、`test_location_health.py`（ACL、本地回收、远程来源/片库）、`test_config_atomic_save.py`（旧片库待迁移时五类非片库目录仍可独立保存、非空/可恢复中转切换拒绝和原子门禁）、`test_fnos_packaging.py`（首次启动空目录、应用私有中转/日志/资源目录、授权入口与离线 wheelhouse）。本地 Playwright 实际点击验证统一目录动作、中转本地盘提示、来源页无重复字段，以及 1440/390 无横向溢出；真实 fnOS 原生弹窗和安装时长仍属于 FNOS_UAT，不由本地测试替代。
 
 按上面表格累计，主要缺口（按优先级）。**已补齐** 标记 ✅：
 

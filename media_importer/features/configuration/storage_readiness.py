@@ -5,14 +5,21 @@ from __future__ import annotations
 import os
 import platform
 import shutil
-import tempfile
 from dataclasses import asdict, dataclass
+
+from media_importer.infrastructure.filesystem import check_write_permission
+
+from .fnos_directory_access import (
+    authorized_root_for_path,
+    build_fnos_directory_capability,
+)
+from .storage_topology import validate_directory_topology
 
 REMOTE_FILESYSTEMS = frozenset({
     "9p", "cifs", "davfs", "davfs2", "fuse.rclone", "fuse.sshfs",
     "nfs", "nfs4", "smb3", "sshfs",
 })
-LOCAL_ONLY_ROLES = frozenset({"temp", "recycle", "log"})
+LOCAL_ONLY_ROLES = frozenset({"temp", "recycle", "log", "resource"})
 
 
 @dataclass(frozen=True)
@@ -82,39 +89,42 @@ def inspect_mount(path: str) -> MountIdentity:
 
 
 def _target_roots(config: dict) -> list[str]:
+    configured_roots = config.get("library_roots")
+    if isinstance(configured_roots, list) and configured_roots:
+        return [
+            str(root.get("path", "") or "")
+            for root in configured_roots
+            if isinstance(root, dict) and root.get("enabled", True) is not False
+        ]
     library_root = str(config.get("library_root", "") or "").strip()
     if library_root:
         return [library_root]
-    candidates = []
-    for rule in config.get("path_rules", []) or []:
-        template = rule.get("template", "") if isinstance(rule, dict) else ""
-        prefix = template.split("{", 1)[0].rstrip(os.sep)
-        if prefix:
-            candidates.append(os.path.dirname(prefix) if os.path.splitext(prefix)[1] else prefix)
-    fallback = config.get("fallback_dir", "")
-    if fallback:
-        candidates.append(fallback)
-
-    groups = {}
-    for candidate in dict.fromkeys(candidates):
-        parts = os.path.abspath(candidate).split(os.sep)
-        volume_anchor = parts[1] if len(parts) > 1 else ""
-        groups.setdefault(volume_anchor, []).append(candidate)
-    roots = []
-    for paths in groups.values():
-        try:
-            common = os.path.commonpath(paths)
-        except ValueError:
-            common = ""
-        volume_root = os.sep + os.path.abspath(paths[0]).split(os.sep)[1]
-        if common and common not in {os.sep, volume_root}:
-            roots.append(common)
-        else:
-            roots.extend(paths)
-    return roots
+    # Fresh installs have no target roots. Legacy absolute rules are migrated
+    # only after the user explicitly chooses their physical library roots.
+    return []
 
 
-def _location_specs(config: dict) -> list[tuple[str, str, bool]]:
+def _target_root_specs(config: dict) -> list[tuple[str, str, str]]:
+    configured_roots = config.get("library_roots")
+    if isinstance(configured_roots, list) and configured_roots:
+        return [
+            (
+                str(root.get("id", "") or index),
+                str(root.get("name", "") or f"目标片库 {index + 1}"),
+                str(root.get("path", "") or ""),
+            )
+            for index, root in enumerate(configured_roots)
+            if isinstance(root, dict) and root.get("enabled", True) is not False
+        ]
+    root_id = "default" if config.get("library_root") else "0"
+    roots = _target_roots(config)
+    return [
+        (root_id if len(roots) == 1 else str(index), "目标片库", root)
+        for index, root in enumerate(roots)
+    ]
+
+
+def _location_specs(config: dict) -> list[tuple[str, str, bool, str, str]]:
     source_policy = config.get("source_policy", {}) or {}
     source_cleaner = config.get("source_cleaner", {}) or {}
     mode = source_policy.get("mode")
@@ -124,24 +134,25 @@ def _location_specs(config: dict) -> list[tuple[str, str, bool]]:
         mode == "preserve_media" and source_cleaner.get("enabled") is True
     )
     specs = [
-        ("source", config.get("source_dir", ""), source_write),
-        ("temp", config.get("temp_dir", ""), True),
-        ("recycle", source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", ""), True),
+        ("source", config.get("source_dir", ""), source_write, "source", "文件来源"),
+        ("temp", config.get("temp_dir", ""), True, "temp", "本地中转"),
+        ("recycle", source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", ""), True, "recycle", "本地回收"),
     ]
     log_dir = config.get("log_dir", "")
     if log_dir:
-        specs.append(("log", log_dir, True))
-    specs.extend(("target", root, True) for root in _target_roots(config))
+        specs.append(("log", log_dir, True, "log", "运行日志"))
+    resource_dir = config.get("resource_dir", "") or config.get("resources_dir", "")
+    if resource_dir:
+        specs.append(("resource", resource_dir, True, "resource", "海报与缓存"))
+    specs.extend(
+        ("target", root, True, f"target:{root_id}", name)
+        for root_id, name, root in _target_root_specs(config)
+    )
     return specs
 
 
 def _check_write(path: str) -> tuple[bool, str]:
-    try:
-        with tempfile.NamedTemporaryFile(dir=path, prefix=".storage_check_", delete=True):
-            pass
-        return True, ""
-    except OSError as exc:
-        return False, str(exc)
+    return check_write_permission(path)
 
 
 def _capacity(path: str, write_bytes: int, reserved_bytes: int) -> dict:
@@ -161,17 +172,40 @@ def _capacity(path: str, write_bytes: int, reserved_bytes: int) -> dict:
 
 
 def inspect_storage_readiness(config: dict, *, write_bytes: int = 0,
-                              reserved_bytes: int = 0) -> dict:
+                              reserved_bytes: int = 0,
+                              authorization_capability: dict | None = None) -> dict:
     locations = []
     blocking = []
     warnings = []
     identities = config.get("storage_identities", {}) or {}
+    authorization = (
+        authorization_capability
+        if authorization_capability is not None
+        else build_fnos_directory_capability()
+    )
+    authorization_enforced = bool(authorization.get("enforced"))
+    authorization_available = bool(authorization.get("available"))
+    authorized_folders = authorization.get("folders") or []
 
-    for index, (role, path, need_write) in enumerate(_location_specs(config)):
-        location_id = role if role != "target" else f"target:{index}"
+    for index, conflict in enumerate(validate_directory_topology(config)):
+        location_id = f"topology:{index}"
+        locations.append({
+            "id": location_id,
+            "role": "topology",
+            "label": "目录边界",
+            "path": "",
+            "status": "OFFLINE",
+            "level": "error",
+            "message": conflict.message,
+            "capabilities": {"read": False, "write": False, "automatic": False},
+        })
+        blocking.append(location_id)
+
+    for role, path, need_write, location_id, label in _location_specs(config):
         item = {
             "id": location_id,
             "role": role,
+            "label": label,
             "path": path,
             "status": "ONLINE",
             "level": "ok",
@@ -183,6 +217,32 @@ def inspect_storage_readiness(config: dict, *, write_bytes: int = 0,
             blocking.append(location_id)
             locations.append(item)
             continue
+        if role in {"source", "target", "recycle"} and authorization_enforced:
+            authorized_root = (
+                authorized_root_for_path(path, authorized_folders)
+                if authorization_available else ""
+            )
+            item["authorization"] = {
+                "required": True,
+                "authorized": bool(authorized_root),
+                "root": authorized_root,
+            }
+            if not authorization_available:
+                item.update(
+                    status="OFFLINE", level="error",
+                    message="无法确认 fnOS 目录授权，请刷新授权状态后重试",
+                )
+                blocking.append(location_id)
+                locations.append(item)
+                continue
+            if not authorized_root:
+                item.update(
+                    status="OFFLINE", level="error",
+                    message="目录尚未授权给本应用，请先通过 fnOS 目录选择器授权",
+                )
+                blocking.append(location_id)
+                locations.append(item)
+                continue
         if not os.path.isdir(path):
             item.update(status="OFFLINE", level="error", message="目录不存在；可能尚未授权或挂载已失效")
             blocking.append(location_id)

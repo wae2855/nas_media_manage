@@ -31,9 +31,17 @@ class FakePipeline:
         self.confirmed = []
         self.reclassified = []
         self.confirm_exceptions = {}
+        self.confirm_calls = []
 
-    def confirm_task(self, task_id, confirmed_title=None, override_source=None):
+    def confirm_task(self, task_id, confirmed_title=None, override_source=None,
+                     conflict_action=None):
         self.confirmed.append(task_id)
+        self.confirm_calls.append({
+            "task_id": task_id,
+            "confirmed_title": confirmed_title,
+            "override_source": override_source,
+            "conflict_action": conflict_action,
+        })
         if task_id in self.confirm_exceptions:
             raise RuntimeError(self.confirm_exceptions[task_id])
         return self.confirm_results.get(task_id, True)
@@ -48,6 +56,20 @@ def test_confirm_task_returns_success_message():
 
     assert result.code == 200
     assert result.message == "任务确认入库成功"
+
+
+def test_confirm_task_passes_explicit_conflict_action():
+    pipeline = FakePipeline()
+
+    result = confirm_task_for_api(
+        pipeline,
+        FakeTaskManager(),
+        "task-1",
+        conflict_action="keep_both",
+    )
+
+    assert result.code == 200
+    assert pipeline.confirm_calls[-1]["conflict_action"] == "keep_both"
 
 
 def test_confirm_task_includes_task_error_when_pipeline_returns_false():
@@ -120,8 +142,9 @@ def test_confirm_all_tasks_returns_success_and_failure_counts():
         "total": 3,
         "success": 1,
         "failed": 2,
+        "conflict_skipped": 0,
     }
-    assert result.message == "批量确认完成: 成功 1, 失败 2"
+    assert result.message == "批量确认完成: 成功 1, 未处理片库冲突 0, 其他失败 2"
     assert task_manager.list_args == {"status": "PENDING", "stage": "AWAIT_REVIEW", "limit": 1000}
 
 
@@ -130,3 +153,21 @@ def test_confirm_all_tasks_requires_task_manager():
 
     assert result.code == 500
     assert result.message == "TaskManager not initialized"
+
+
+def test_confirm_all_excludes_target_library_conflicts():
+    pipeline = FakePipeline()
+    manager = FakeTaskManager()
+    manager.confirming_tasks = [
+        {
+            "task_id": "conflict-1",
+            "dedup_result": {"is_duplicate": True, "status": "awaiting_user"},
+        },
+        {"task_id": "normal-1", "dedup_result": {}},
+    ]
+
+    result = confirm_all_tasks_for_api(pipeline, manager)
+
+    assert pipeline.confirmed == ["normal-1"]
+    assert result.data["conflict_skipped"] == 1
+    assert result.data["success"] == 1

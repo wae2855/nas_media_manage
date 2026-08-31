@@ -24,6 +24,15 @@ def _query_first(query, key, default=""):
 class RecycleHandlers:
 
     @staticmethod
+    def _topology_error(config: dict) -> str:
+        from media_importer.features.configuration.storage_topology import (
+            topology_error_messages,
+        )
+
+        conflicts = topology_error_messages(config)
+        return conflicts[0] if conflicts else ""
+
+    @staticmethod
     def _recycle_db():
         manager = globals._global_task_manager
         return manager.conn if manager and hasattr(manager, "conn") else None
@@ -74,6 +83,12 @@ class RecycleHandlers:
         if not items:
             return json_response(self, 400, {"restored": [], "failed": []}, "未指定有效的回收项 ID")
         config = globals._config or {}
+        topology_error = self._topology_error(config)
+        if topology_error:
+            return json_response(
+                self, 400, {"restored": [], "failed": []},
+                "目录边界不安全，已阻止回收恢复：" + topology_error,
+            )
         recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
         conn = self._recycle_db()
         if conn is None:
@@ -99,6 +114,12 @@ class RecycleHandlers:
         if not items:
             return json_response(self, 400, {"deleted": [], "failed": []}, "未指定有效的回收项 ID")
         config = globals._config or {}
+        topology_error = self._topology_error(config)
+        if topology_error:
+            return json_response(
+                self, 400, {"deleted": [], "failed": []},
+                "目录边界不安全，已阻止永久删除：" + topology_error,
+            )
         recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
         conn = self._recycle_db()
         if conn is None:

@@ -10,6 +10,12 @@ from dataclasses import dataclass
 from fnmatch import fnmatch
 
 from media_importer.features.configuration.storage_readiness import inspect_storage_readiness
+from media_importer.features.configuration.storage_topology import (
+    canonical_path,
+    configured_library_roots,
+    path_in_library,
+    path_within,
+)
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
 from media_importer.infrastructure.db import (
     get_source_unit,
@@ -115,9 +121,31 @@ class SourceUnitCoordinator:
         policy = self.config.get("source_policy", {}) or {}
         if policy.get("mode") != "recycle_source_unit":
             return SourceUnitRecycleResult("SKIPPED", "当前模式不回收源单元")
+        from media_importer.features.configuration.storage_topology import (
+            topology_error_messages,
+        )
+
+        conflicts = topology_error_messages(self.config)
+        if conflicts:
+            return SourceUnitRecycleResult(
+                "BLOCKED",
+                "目录边界不安全，已阻止来源单元回收：" + conflicts[0],
+            )
         unit = get_source_unit(self.conn, unit_id)
         if not unit:
             return SourceUnitRecycleResult("BLOCKED", "源单元记录不存在")
+        current_source = str(self.config.get("source_dir", "") or "")
+        if (
+            not current_source
+            or canonical_path(unit["source_root"]) != canonical_path(current_source)
+            or not path_within(unit["unit_path"], current_source)
+            or path_in_library(self.config, unit["source_root"])
+            or path_in_library(self.config, unit["unit_path"])
+        ):
+            return SourceUnitRecycleResult(
+                "BLOCKED",
+                "来源单元已不属于当前来源目录，或现已属于目标片库；已保留全部文件",
+            )
         tasks = list_tasks_for_source_unit(self.conn, unit_id)
         patterns = policy.get("unit_incomplete_patterns") or [
             "*.part", "*.partial", "*.aria2", "*.!qB", "*.crdownload"
@@ -180,7 +208,9 @@ class SourceUnitCoordinator:
         if unit["kind"] == "folder":
             ok, _target, message = move_dir_to_recycle(
                 unit["unit_path"], recycle_dir, reason="source_unit_cleanup",
-                source_dir=unit["source_root"], extra_meta={"source_unit_id": unit_id},
+                source_dir=unit["source_root"],
+                import_roots=configured_library_roots(self.config),
+                extra_meta={"source_unit_id": unit_id},
             )
         else:
             ok, message = self._move_loose_files(unit, recycle_dir)
@@ -205,7 +235,9 @@ class SourceUnitCoordinator:
             path = os.path.join(unit["unit_path"], item["relative_path"])
             ok, _target, message = move_to_recycle(
                 path, recycle_dir, reason="source_unit_cleanup",
-                source_dir=unit["source_root"], extra_meta={"source_unit_id": unit["unit_id"]},
+                source_dir=unit["source_root"],
+                import_roots=configured_library_roots(self.config),
+                extra_meta={"source_unit_id": unit["unit_id"]},
             )
             if not ok:
                 return False, message

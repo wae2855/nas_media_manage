@@ -24,6 +24,9 @@ def resolve_project_path(path: str, config: dict) -> str:
 
 def import_roots_from_config(config: dict) -> list:
     view = _view(config)
+    if view.paths.library_roots:
+        return [root.get("path", "") for root in view.paths.library_roots
+                if root.get("enabled", True) is not False and root.get("path")]
     if view.paths.library_root:
         return [view.paths.library_root]
     templates = [
@@ -52,6 +55,12 @@ def allowed_dirs_from_config(config: dict) -> list:
         view.paths.source_dir,
         view.paths.temp_dir,
     ]
+    if view.paths.library_roots:
+        allowed_dirs.extend(
+            root.get("path", "") for root in view.paths.library_roots
+            if root.get("enabled", True) is not False
+        )
+        return [path for path in allowed_dirs if path]
     if view.paths.library_root:
         allowed_dirs.append(view.paths.library_root)
         return [path for path in allowed_dirs if path]

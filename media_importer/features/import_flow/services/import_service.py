@@ -13,7 +13,7 @@ from media_importer.infrastructure.db import (
 )
 
 from .file_operations import move_to_import
-from .paths import allowed_dirs_from_config
+from .paths import allowed_dirs_from_config, import_roots_from_config
 
 
 @dataclass
@@ -34,7 +34,8 @@ class ImportService:
     def import_task(self, task: dict, original_source_video: str,
                     original_source_subtitles: list, *,
                     restore_confirm_temp_name: bool = False,
-                    overwrite: bool = False) -> ImportResult:
+                    overwrite: bool = False,
+                    conflict_snapshot: Optional[dict] = None) -> ImportResult:
         if restore_confirm_temp_name:
             self.restore_confirm_temp_name(task)
 
@@ -47,6 +48,11 @@ class ImportService:
             self.config.filename_template_dict(),
             allowed_base_dirs=allowed_dirs_from_config(self.config),  # type: ignore[arg-type]
             overwrite=overwrite,
+            final_filename=task.get("final_filename", ""),
+            recycle_dir=self.config.source_policy.recycle_dir,
+            task_id=task.get("task_id", ""),
+            expected_conflict=conflict_snapshot,
+            import_roots=import_roots_from_config(self.config),  # type: ignore[arg-type]
         )
 
         task["video_path"] = move_result.get("video", temp_video_path)

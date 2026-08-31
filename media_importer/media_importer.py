@@ -40,7 +40,7 @@ def _build_components(config):
 def cmd_serve(args):
     config = _load_config(args)
     host = args.host or config.get("server", {}).get("host", "0.0.0.0")
-    port = args.port or config.get("server", {}).get("port", 9855)
+    port = args.port or config.get("server", {}).get("port", 14591)
     from media_importer.api.handler import start_server
     start_server(host, port, config)
 

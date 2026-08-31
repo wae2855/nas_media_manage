@@ -14,8 +14,8 @@ async function saveConfigPayload(payload, successText) {
 async function saveSourceConfig() {
   const payload = buildSourceConfigPayload();
   const paths = currentPathSnapshot();
-  if (!payload.source_dir) {
-    showToast("源目录路径为必填项");
+  if (!paths.source_dir) {
+    showToast("请先到“存储检查”选择文件来源目录");
     return;
   }
   const conflicts = validateDirectoryConflicts(paths);
@@ -56,10 +56,21 @@ async function saveRecycleConfig() {
   await saveConfigPayload(payload, "回收目录配置已保存");
 }
 
+async function saveLibraryRootsConfig({ migrateLegacy = false } = {}) {
+  const roots = normalizedLibraryRoots();
+  const defaultId = defaultLibraryRootId();
+  return saveConfigPayload({
+    _migrate_legacy_library_rules: migrateLegacy,
+    library_roots: roots,
+    default_library_root_id: defaultId,
+    library_root: libraryRootById(defaultId)?.path || "",
+  }, migrateLegacy ? "旧片库规则已迁移并保存" : "目标片库已保存");
+}
+
 async function saveRulesConfig() {
   const payload = buildRulesConfigPayload();
-  if (!payload.library_root) {
-    showToast("请先选择片库根目录");
+  if (!Array.isArray(payload.library_roots) || payload.library_roots.length === 0) {
+    showToast("请先添加至少一个目标片库");
     return;
   }
   if (!Array.isArray(payload.path_rules) || payload.path_rules.length === 0) {
@@ -148,25 +159,8 @@ async function saveImportOptionsConfig() {
   }
 }
 
-async function saveSecurityConfig() {
-  const payload = buildServerConfigPayload();
-  const result = await requestApi("POST", "/config/section", {
-    section: "server",
-    data: payload,
-    revision: currentConfigRevision,
-  });
-  showToast(result.message || "安全配置已保存");
-  if (result.code === 200) {
-    await loadDirectoryConfig();
-  }
-}
-
 async function saveAdvancedSystemConfig() {
   const payload = buildAdvancedSystemPayload();
-  if (!payload.log_dir) {
-    showToast("日志目录不能为空");
-    return;
-  }
   const result = await requestApi("POST", "/config", {
     ...payload,
     _revision: currentConfigRevision,
@@ -196,21 +190,7 @@ async function testConfigPath(kind) {
         : paths.library_root,
       need_write: true,
     },
-    library: { label: "片库根目录", path: paths.library_root, need_write: true },
-    log: {
-      label: "日志目录",
-      path: normalizePathValue(
-        document.getElementById("cfg-log_dir-inline")?.value,
-      ),
-      need_write: true,
-    },
-    resource: {
-      label: "资源目录",
-      path: normalizePathValue(
-        document.getElementById("cfg-resource_dir-inline")?.value,
-      ),
-      need_write: true,
-    },
+    library: { label: "默认片库", path: paths.library_root, need_write: true },
   };
   const target = mapping[kind];
   if (!target) return;
@@ -234,7 +214,25 @@ async function testAllRulePermissions() {
     showToast("当前还没有可测试的入库规则");
     return;
   }
-  await testConfigPath("library");
+  const rootIds = Array.from(new Set(
+    pathRules.map((rule) => rule.library_root_id || defaultLibraryRootId()),
+  ));
+  for (const rootId of rootIds) {
+    const root = libraryRootById(rootId);
+    if (!root) {
+      showToast(`有规则引用了不存在的片库：${rootId}`);
+      return;
+    }
+    const result = await requestApi("POST", "/path/test", {
+      path: root.path,
+      need_write: true,
+    });
+    if (result.code !== 200 || !result.data?.ok) {
+      showPathTestFeedback(result, root.name);
+      return;
+    }
+  }
+  showToast(`已检查 ${rootIds.length} 个规则目标片库，权限正常`);
 }
 
 async function testProviderConnection(providerType) {

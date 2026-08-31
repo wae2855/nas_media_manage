@@ -20,7 +20,7 @@ status: accepted
 应用壳:    cinema-app-state → app-events → app → reel/dashboard
 任务域:    task-utils → task-list → task-detail(-open) → task-batch → tasks
 维度域:    dimension-core → genre(-picker) → edit → ops → dimensions
-配置域:    config-payloads → save → provider → ai → rules → simulator(-extra) → dim-ops → config → directory-loader
+配置域:    fnos-directories → config-payloads → save → provider → ai → rules → simulator(-extra) → dim-ops → config → directory-loader
 ```
 
 ## 2. CSS 规范
@@ -48,6 +48,8 @@ status: accepted
 - 配置页二级面板：`data-config-stage`（顶部阶段卡）↔ `data-config-panel`（面板）。
 - 进阶设置必须作为普通 `data-config-stage` 留在胶卷轨道中；禁止新增独立高级配置首页和“进入后再返回”的第二套导航。
 - 含多字段编辑的弹窗默认不得点击遮罩关闭；必须提供明确关闭、取消或保存动作。
+- 多片库用根卡片表达 `名称 + 路径 + 默认/停用状态`；规则弹窗必须明确选择目标片库，不允许恢复任意绝对入库路径。
+- fnOS 目录选择不可用时必须显示原因和手动输入，不得把“已填写”表述为“已授权”。回收目录继续以服务端本地性校验为最终边界。
 - 新页面 = index.html 或 partials 加 `<section class="page-view" data-view="xxx">` + 底部导航按钮；不改 JS 路由逻辑（app-events 事件委托自动生效）。
 
 ## 4. JS 规范

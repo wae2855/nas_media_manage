@@ -113,18 +113,24 @@ def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Opt
 
 
 def classify(scraped_info: dict, path_rules: list, enabled_dims: Optional[set] = None) -> str:
+    rendered, _rule = classify_with_rule(scraped_info, path_rules, enabled_dims)
+    return rendered
+
+
+def classify_with_rule(scraped_info: dict, path_rules: list,
+                       enabled_dims: Optional[set] = None) -> tuple[str, Optional[dict]]:
     dimensions = scraped_info.get('dimensions', {})
 
     for rule in path_rules:
         conditions = rule.get('conditions', {})
         if match_conditions(dimensions, conditions, enabled_dims):
             template = rule.get('template', '')
-            return render_template(template, scraped_info)
+            return render_template(template, scraped_info), rule
 
     for rule in path_rules:
         conditions = rule.get('conditions', {})
         if conditions == {}:
             template = rule.get('template', '')
-            return render_template(template, scraped_info)
+            return render_template(template, scraped_info), rule
 
-    return ''
+    return '', None

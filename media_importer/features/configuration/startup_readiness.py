@@ -66,7 +66,7 @@ def inspect_startup_readiness(config: dict, *, provider_probe: Probe | None = No
         ))
     else:
         checks.append(_check(
-            "library", "片库边界", "PASS", "全部规则均位于片库根目录内"
+            "library", "片库边界", "PASS", "全部规则均位于各自绑定的片库根目录内"
         ))
 
     providers = [

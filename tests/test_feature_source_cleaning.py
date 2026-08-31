@@ -123,7 +123,10 @@ class TestSourceCleaningFeatureCompatibility(unittest.TestCase):
         )
 
     def test_execute_source_cleaning_returns_permission_error_before_running_cleaner(self):
-        config = {"source_policy": {"recycle_dir": "/recycle"}}
+        config = {
+            "source_policy": {"mode": "preserve_media", "recycle_dir": "/recycle"},
+            "source_cleaner": {"enabled": True},
+        }
 
         result = execute_source_cleaning(
             config=config,
@@ -134,6 +137,59 @@ class TestSourceCleaningFeatureCompatibility(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("回收站目录权限不足", result.message)
         self.assertIsNone(result.record)
+
+    # Requirement: REQ-20260831-004019
+    def test_execute_source_cleaning_disabled_never_runs_cleaner(self):
+        with patch(
+            "media_importer.features.source_cleaning.application_service.SourceCleaner"
+        ) as cleaner:
+            result = execute_source_cleaning(
+                config={
+                    "source_dir": "/source",
+                    "source_policy": {"mode": "preserve_all", "recycle_dir": "/recycle"},
+                    "source_cleaner": {"enabled": False},
+                },
+                conn=object(),
+            )
+
+        self.assertFalse(result.ok)
+        self.assertIn("未启用", result.message)
+        cleaner.assert_not_called()
+
+    # Requirement: REQ-20260831-004019
+    def test_execute_source_cleaning_blocks_mount_identity_change(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = {}
+            for name in ("source", "temp", "recycle", "library"):
+                path = os.path.join(tmpdir, name)
+                os.makedirs(path)
+                paths[name] = path
+            config = {
+                "source_dir": paths["source"],
+                "temp_dir": paths["temp"],
+                "source_policy": {"mode": "preserve_media", "recycle_dir": paths["recycle"]},
+                "source_cleaner": {"enabled": True},
+                "library_roots": [
+                    {"id": "main", "name": "主片库", "path": paths["library"], "enabled": True},
+                ],
+                "default_library_root_id": "main",
+                "library_root": paths["library"],
+                "storage_identities": {
+                    "source": {
+                        "realpath": paths["source"],
+                        "device": -1,
+                        "mount_source": "stale-mount",
+                    },
+                },
+            }
+            with patch(
+                "media_importer.features.source_cleaning.application_service.SourceCleaner"
+            ) as cleaner:
+                result = execute_source_cleaning(config, conn=object())
+
+        self.assertFalse(result.ok)
+        self.assertIn("挂载身份", result.message)
+        cleaner.assert_not_called()
 
 
 if __name__ == "__main__":

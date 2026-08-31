@@ -20,6 +20,7 @@
 | `media_importer/features/tasks/__init__.py` | Feature public API for `TaskManager`, lifecycle transitions, and task constants. |
 | `media_importer/features/tasks/cancel_service.py` | API-facing cancel action for queued tasks, mapping TaskManager results to API responses. |
 | `media_importer/features/tasks/detail_service.py` | API-facing task detail, subtitles, and status-count query payloads. |
+| `media_importer/features/tasks/dashboard_service.py` | Read-only dashboard business summary, recent activities/movies, and thumbnail-cache maintenance orchestration. |
 | `media_importer/features/tasks/file_lifecycle_service.py` | API-facing file lifecycle actions; currently owns same-directory task file rename and ignore flow cleanup/recycle decisions. |
 | `media_importer/features/tasks/list_service.py` | API-facing task list pagination, status validation, and status-count payload assembly. |
 | `media_importer/features/tasks/queue_service.py` | API-facing queue clear/retry/retry-all/pause/resume/status orchestration. |
@@ -43,7 +44,10 @@
 - Queue operations from `api/task_handlers.py` are delegated to `media_importer.features.tasks.queue_service`.
 - Cancel actions from `api/task_handlers.py` are delegated to `media_importer.features.tasks.cancel_service`; V1 only allows `PENDING/QUEUED` tasks to become `CANCELLED/DONE`.
 - Manual review actions from `api/task_handlers.py` are delegated to `media_importer.features.tasks.review_service`.
-- Task rename and ignore are delegated to `media_importer.features.tasks.file_lifecycle_service`, including path-traversal filename rejection, temp cleanup boundaries, recycle handoff, and DB field updates.
+- `PENDING/AWAIT_REVIEW` 中 `dedup_result.status=awaiting_user` 表示目标片库冲突。该任务必须逐项处理；批量确认返回排除数量，不能代替用户做覆盖决定。
+- Task rename and ignore are delegated to `media_importer.features.tasks.file_lifecycle_service`, including path-traversal filename rejection, temp cleanup boundaries, recycle handoff, and DB field updates。已入库文件受保护，通用任务重命名拒绝 `file_location=import`。
+- 任务删除默认只删除记录；即使请求 `delete_files=true`，`file_location=import` 也返回拒绝，不能把片库文件删除或移入回收区。
+- 首页状态、今日入库、最近业务活动和最近影片由 `media_importer.features.tasks.dashboard_service` 聚合；前端不得从原始日志或图片 mtime 推断这些口径。
 
 ## Tests
 
@@ -60,6 +64,8 @@
 - `tests/test_feature_task_file_lifecycle.py` covers task file rename behavior, filename safety checks, ignore cleanup, recycle handoff, and invalid status handling.
 - `tests/test_feature_task_list.py` covers pagination, status validation, and active-count assembly.
 - `tests/test_cleanup_orphaned_state.py` covers startup orphan RUNNING -> FAILED transition and AWAIT_REVIEW protection.
+- `tests/test_dashboard_summary.py` covers dashboard status counts, real running progress, local-day success count, activity bounds, recent-movie dedupe and thumbnail-cache safety limits.
+- `tests/test_target_library_conflict_safety.py` / `tests/test_target_library_conflict_ui.py` 覆盖冲突零写入、三种决策、安全替换、配置收敛和桌面/手机合同。
 
 ## Migration Notes
 

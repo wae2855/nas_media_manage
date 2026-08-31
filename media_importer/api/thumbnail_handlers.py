@@ -1,6 +1,9 @@
 import mimetypes
 import os
+import stat
 from urllib.parse import quote, unquote
+
+from media_importer.features.configuration import configured_library_roots
 
 from . import globals
 from .utils import json_response
@@ -15,18 +18,24 @@ def _find_thumbnail_dir_in(parent_dir: str) -> str:
         return ""
 
     # 尝试常见的几种拼写
-    common_names = ["Thumbnail", "thumbnail", "THUMBNAIL", "Thumbnails", "thumbnails"]
+    # 下载器固定写入小写 thumbnail；在 macOS 等大小写不敏感文件系统上也
+    # 必须优先返回同一拼写，否则 realpath 边界校验会把合法任务图片误判为越界。
+    common_names = ["thumbnail", "Thumbnail", "THUMBNAIL", "thumbnails", "Thumbnails"]
 
     for name in common_names:
         thumb_dir = os.path.join(parent_dir, name)
-        if os.path.isdir(thumb_dir):
+        if os.path.isdir(thumb_dir) and not os.path.islink(thumb_dir):
             return thumb_dir
 
     # 如果常见拼写都不匹配，尝试在目录中搜索不区分大小写的匹配
     try:
         for item in os.listdir(parent_dir):
             item_path = os.path.join(parent_dir, item)
-            if os.path.isdir(item_path) and item.lower() == "thumbnail":
+            if (
+                os.path.isdir(item_path)
+                and not os.path.islink(item_path)
+                and item.lower() == "thumbnail"
+            ):
                 return item_path
     except OSError:
         pass
@@ -43,16 +52,28 @@ def _get_thumbnail_dir() -> str:
     # 优先在 resource_dir 下查找
     resource_dir = config.get("resource_dir", "")
     thumb_dir = _find_thumbnail_dir_in(resource_dir)
-    if thumb_dir:
+    if thumb_dir and not _thumbnail_root_overlaps_library(thumb_dir, config):
         return thumb_dir
 
     # 如果找不到，再在 source_dir 下查找
     source_dir = config.get("source_dir", "")
     thumb_dir = _find_thumbnail_dir_in(source_dir)
-    if thumb_dir:
+    if thumb_dir and not _thumbnail_root_overlaps_library(thumb_dir, config):
         return thumb_dir
 
     return ""
+
+
+def _thumbnail_root_overlaps_library(thumb_dir: str, config: dict) -> bool:
+    real_thumb = os.path.realpath(thumb_dir)
+    for root in configured_library_roots(config):
+        real_library = os.path.realpath(root)
+        try:
+            if os.path.commonpath((real_thumb, real_library)) in {real_thumb, real_library}:
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 class ThumbnailHandlersMixin:
@@ -72,7 +93,9 @@ class ThumbnailHandlersMixin:
                 if ext in _IMAGE_EXTENSIONS:
                     full_path = os.path.join(thumb_dir, f)
                     try:
-                        st = os.stat(full_path)
+                        st = os.lstat(full_path)
+                        if not stat.S_ISREG(st.st_mode):
+                            continue
                         size = st.st_size
                         mtime = st.st_mtime
                     except OSError:
@@ -105,11 +128,15 @@ class ThumbnailHandlersMixin:
         real_thumb_dir = os.path.realpath(thumb_dir)
 
         # 安全检查：防止路径穿越
-        if not real_path.startswith(real_thumb_dir):
+        try:
+            contained = os.path.commonpath((real_path, real_thumb_dir)) == real_thumb_dir
+        except ValueError:
+            contained = False
+        if not contained:
             json_response(self, 403, message="访问被拒绝")
             return
 
-        if not os.path.isfile(file_path):
+        if os.path.islink(file_path) or not os.path.isfile(file_path):
             json_response(self, 404, message=f"文件不存在: {filename}")
             return
 
@@ -123,7 +150,11 @@ class ThumbnailHandlersMixin:
             content_type = "application/octet-stream"
 
         try:
-            with open(file_path, "rb") as f:
+            descriptor = os.open(
+                file_path,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            )
+            with os.fdopen(descriptor, "rb") as f:
                 content = f.read()
             self.send_response(200)
             self.send_header("Content-Type", content_type)

@@ -23,6 +23,7 @@
 
 | API area | Handler | Feature owner |
 |----------|---------|---------------|
+| Dashboard business summary | `task_handlers.py` | `features/tasks`, `features/scraping` |
 | Tasks, retry, queue, confirm, reclassify, preview, scrape-search | `task_handlers.py` | `features/tasks`, `features/import_flow` |
 | Config load/save/validate/check | `config_handlers.py`, `connectivity_handlers.py` | `features/configuration` |
 | Provider list/test/search/details/prompts | `provider_handlers.py`, `tmdb_handlers.py` | `features/providers`, `features/scraping`, `features/prompts` |
@@ -37,7 +38,26 @@ API handlers should parse requests, call feature services/public APIs, and retur
 
 正式运行前的只读聚合检查。handler 只调用 `features.configuration.inspect_startup_readiness`；返回配置 revision、总状态 `PASS|BLOCKED`，以及目录/磁盘、TMDB、按需 LLM、自动运行分项。分项状态为 `PASS|WARN|BLOCKED|SKIPPED`，前端不得自行推断 READY。
 
+### GET /api/config/fnos-folders
+
+返回 fnOS 目录授权能力：`enforced` 表示当前运行时必须使用系统 ACL，`available` 表示本次查询成功，`folders` 是当前应用已授权根目录。`GET /api/config` 同步返回同一份 `directory_authorization`，并把来源、片库和回收的 containment 结果纳入 `readiness.locations[].authorization`。token 永不进入响应。
+
+服务端通过 Unix socket 调用 `trim.file.getSharedAccessibleFolders`；`TRIM_API_TOKEN` 仅从当前进程环境读取，响应永不包含 token。非 fnOS 环境返回 HTTP 200 + `enforced=false, available=false`，前端明确降级为开发手填；已检测到 fnOS 宿主但查询失败时返回 `enforced=true, available=false`，保存和运行失败关闭。
+
 Phase 4 dependency inventory is tracked in [api-dependency-audit.md](api-dependency-audit.md).
+
+### GET /api/dashboard/summary
+
+首页只读业务摘要。handler 调用 `features.tasks.get_dashboard_summary_for_api`，返回：
+
+- `queued`、`running`、`await_review`、`failed`：按任务 `status + stage` 聚合的当前数量；
+- `running_progress`：真实运行任务进度的平均值，仅 `running > 0` 时供前端展示；
+- `today_success`：服务器本地自然日内成功完成入库的任务数；
+- `activities`：最近最多 5 条面向用户的任务事件，不返回原始技术日志；
+- `recent_movies`：按成功完成时间倒序、作品去重后的最近最多 12 部影片；
+- `thumbnail_cache`：可再生成 Thumbnail 缓存的数量、容量和本次治理结果。
+
+缩略图只允许来自应用 Thumbnail 根目录的普通图片文件；响应使用 `/api/thumbnails/{file}`，不得泄露服务器绝对路径。队列暂停状态由现有 queue service 提供。
 
 ## Route Table
 
@@ -227,16 +247,19 @@ PENDING/QUEUED
 
 ### POST /api/tasks/{task_id}/confirm
 
-确认入库。新增可选参数 `confirmed_title` 和 `override_source`，入库时记录是否换过元数据。
+确认入库。普通人工核对继续使用可选参数 `confirmed_title` 和 `override_source`。当任务含未决目标片库冲突时，必须额外提交 `conflict_action`，且只能逐项调用。
 
 请求体：
 
 ```json
 {
   "confirmed_title": "阿凡达",
-  "override_source": "manual"
+  "override_source": "manual",
+  "conflict_action": "keep_both"
 }
 ```
+
+`conflict_action` 允许值：`keep_existing`（目标与来源保持不变，任务跳过）、`keep_both`（只新增带编号文件）、`replace_existing`（指纹重检后把旧文件移入本地回收，再发布新文件）。未提供动作的冲突确认返回 400；`confirm-all` 会排除冲突任务并返回 `conflict_skipped`。
 
 响应体：
 
@@ -246,6 +269,14 @@ PENDING/QUEUED
   "message": "确认入库成功"
 }
 ```
+
+### POST /api/tasks/{task_id}/delete
+
+删除任务记录。`delete_files=false` 不触发文件动作；当任务已经位于 `file_location=import` 时，`delete_files=true` 固定返回 400，不能删除或移走目标片库文件。
+
+### POST /api/tasks/{task_id}/rename
+
+只允许重命名来源或本地中转文件。已入库任务固定返回 400；目标片库命名变化只能通过新的入库任务或明确的冲突替换协议完成。
 
 入库后 task 新增字段：
 

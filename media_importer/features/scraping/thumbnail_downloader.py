@@ -1,8 +1,11 @@
 import logging
 import os
 import re
+import stat
 import urllib.error
 import urllib.request
+
+from media_importer.features.configuration import configured_library_roots
 
 _log = logging.getLogger(__name__)
 
@@ -24,13 +27,31 @@ def _get_thumbnail_dir(config: dict) -> str:
     if resource_dir:
         thumb_dir = os.path.join(resource_dir, "thumbnail")
         os.makedirs(thumb_dir, exist_ok=True)
-        return thumb_dir
+        if _safe_thumbnail_dir(thumb_dir, config):
+            return thumb_dir
+        return ""
     source_dir = config.get("source_dir", "")
     if source_dir:
         thumb_dir = os.path.join(source_dir, "thumbnail")
         os.makedirs(thumb_dir, exist_ok=True)
-        return thumb_dir
+        if _safe_thumbnail_dir(thumb_dir, config):
+            return thumb_dir
     return ""
+
+
+def _safe_thumbnail_dir(thumb_dir: str, config: dict) -> bool:
+    try:
+        info = os.lstat(thumb_dir)
+        if os.path.islink(thumb_dir) or not stat.S_ISDIR(info.st_mode):
+            return False
+        real_thumb = os.path.realpath(thumb_dir)
+        for root in configured_library_roots(config):
+            real_library = os.path.realpath(root)
+            if os.path.commonpath((real_thumb, real_library)) in {real_thumb, real_library}:
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def download_thumbnail(poster_url: str, config: dict,
@@ -56,9 +77,16 @@ def download_thumbnail(poster_url: str, config: dict,
     dest_path = os.path.join(thumb_dir, filename)
 
     # 已存在同名文件则跳过
-    if os.path.isfile(dest_path):
-        _log.debug(f"[thumbnail] 已存在: {dest_path}")
-        return dest_path
+    if os.path.lexists(dest_path):
+        try:
+            existing = os.lstat(dest_path)
+        except OSError:
+            return ""
+        if stat.S_ISREG(existing.st_mode) and existing.st_nlink == 1:
+            _log.debug(f"[thumbnail] 已存在: {dest_path}")
+            return dest_path
+        _log.warning("[thumbnail] 目标不是独立普通文件，拒绝写入: %s", dest_path)
+        return ""
 
     try:
         req = urllib.request.Request(poster_url, headers={
@@ -69,8 +97,15 @@ def download_thumbnail(poster_url: str, config: dict,
         if len(data) < 500:
             _log.warning(f"[thumbnail] 图片过小({len(data)}B)，跳过: {poster_url}")
             return ""
-        with open(dest_path, "wb") as f:
+        descriptor = os.open(
+            dest_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        with os.fdopen(descriptor, "wb") as f:
             f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
         _log.info(f"[thumbnail] 已保存: {dest_path} ({len(data)}B)")
         return dest_path
     except (urllib.error.URLError, OSError) as e:

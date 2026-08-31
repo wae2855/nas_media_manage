@@ -51,27 +51,25 @@ def _wait_for_server(host, port, timeout=10):
 class TestAiConfigApiStructure(unittest.TestCase):
     """验证 AI 配置 API 响应结构（不需浏览器）。"""
 
-    def test_config_section_fields(self):
-        """ai_assist section 字段结构正确。"""
+    def test_config_llm_section_remains_available_in_raw_view(self):
+        """LLM 仅服务源目录清理，配置保留在唯一 llm 块。"""
         from media_importer.features.configuration import ConfigView
         cfg = {
-            "ai_assist": {"base_url": "https://a.com", "model": "m", "api_key": "k"},
+            "llm": {"base_url": "https://a.com", "model": "m", "api_key": "k"},
         }
         view = ConfigView.from_dict(cfg)
-        self.assertEqual(view.ai_assist.base_url, "https://a.com")
-        self.assertEqual(view.ai_assist.model, "m")
-        self.assertEqual(view.ai_assist.api_key, "k")
+        self.assertEqual(view.raw["llm"]["base_url"], "https://a.com")
+        self.assertEqual(view.raw["llm"]["model"], "m")
+        self.assertEqual(view.raw["llm"]["api_key"], "k")
 
     def test_config_apikey_masked_in_config_view(self):
         """ConfigView 保留原始 api_key（脱敏在 API 层处理）。"""
         from media_importer.features.configuration import mask_sensitive
         cfg = {
-            "ai_assist": {"api_key": "my-secret-key"},
-            "ai_search": {"api_key": "my-search-key"},
+            "llm": {"api_key": "my-secret-key"},
         }
         masked = mask_sensitive(cfg)
-        self.assertIn("***", masked["ai_assist"]["api_key"])
-        self.assertIn("***", masked["ai_search"]["api_key"])
+        self.assertIn("***", masked["llm"]["api_key"])
 
 # ========================================================================
 # Playwright 浏览器交互测试（仅当 Playwright 可用时运行）
@@ -99,19 +97,12 @@ temp_dir: {cls.temp_dir}
 log_dir: {cls.log_dir}
 source_policy:
   recycle_dir: {cls.recycle_dir}
-ai_assist:
+llm:
   api_key: test-key
   model: test-model
   base_url: https://api.test.example/v1
   max_retries: 1
   retry_delay: 0
-ai_search:
-  enabled: true
-  api_key: search-key
-  model: search-model
-  base_url: https://search.test.example/v1
-  provider: zhipu
-  search_type: search_std
 """
         cls.config_path = os.path.join(cls.tmpdir, 'config.yaml')
         with open(cls.config_path, 'w') as f:
@@ -145,62 +136,56 @@ ai_search:
         return browser, page
 
     def _navigate_to_ai_config(self, page):
-        page.locator("#tab-config").click()
+        page.locator(".bottom-nav [data-nav='config']").click()
         time.sleep(0.5)
-        page.locator("#cfg-subtab-ai").click()
+        page.evaluate("setConfigStage('ai')")
         time.sleep(0.5)
 
-    def test_three_accordion_default_collapsed(self):
-        """进入 AI 配置页，3 个区域默认折叠。"""
+    def test_llm_advanced_disclosure_default_collapsed(self):
+        """LLM 是后台整理中的高级可选项，默认不制造配置负担。"""
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_ai_config(page)
-                for card_id in ["ai-apikey-card", "ai-prompts-card", "ai-scene-strategy-card"]:
-                    body = page.locator(f"#{card_id} > .config-collapse-body")
-                    is_visible = body.is_visible()
-                    self.assertFalse(is_visible, f"{card_id} body 应默认折叠")
+                disclosure = page.locator("#automation-llm-disclosure")
+                self.assertFalse(disclosure.get_attribute("open") is not None)
+                self.assertFalse(page.locator("#cfg-llm-base_url").is_visible())
             finally:
                 browser.close()
 
-    def test_apikey_tab_switch(self):
-        """API Key 区两个 tab 切换正常。"""
+    def test_llm_connection_fields_are_available_after_expanding(self):
+        """展开高级项后可配置唯一 LLM 连接。"""
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_ai_config(page)
-                page.locator("#ai-apikey-card .config-collapse-header").click()
-                time.sleep(0.3)
-                page.locator("#ai-apikey-card .tab-btn[data-tab='ai_search']").click()
-                time.sleep(0.2)
-                search_panel = page.locator("#ai-apikey-card .tab-panel[data-tab='ai_search']")
-                self.assertTrue(search_panel.is_visible())
+                page.locator("#automation-llm-disclosure").evaluate("element => { element.open = true; }")
+                for field_id in ["cfg-llm-base_url", "cfg-llm-model", "cfg-llm-api_key"]:
+                    self.assertEqual(page.locator(f"#{field_id}").count(), 1)
             finally:
                 browser.close()
 
-    def test_prompts_five_tabs(self):
-        """提示词区 5 个 tab 显示。"""
+    def test_llm_connectivity_feedback_stays_inside_the_disclosure(self):
+        """连接测试结果在当前配置区域内就地反馈。"""
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_ai_config(page)
-                page.locator("#ai-prompts-card .config-collapse-header").click()
-                time.sleep(0.3)
-                count = page.locator("#ai-prompts-card .tab-bar .tab-btn").count()
-                self.assertEqual(count, 5, "提示词区应有 5 个 tab")
+                self.assertEqual(page.locator("[data-llm-test]").count(), 1)
+                feedback = page.locator("#llm-test-result")
+                self.assertEqual(feedback.get_attribute("role"), "status")
+                self.assertEqual(feedback.get_attribute("aria-live"), "polite")
             finally:
                 browser.close()
 
-    def test_scene_strategy_five_rows(self):
-        """场景区 5 行配置完整显示。"""
+    def test_background_polling_controls_remain_primary(self):
+        """后台运行开关和轮询周期是本阶段的基础设置。"""
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_ai_config(page)
-                page.locator("#ai-scene-strategy-card .config-collapse-header").click()
-                time.sleep(0.3)
-                count = page.locator("#ai-scene-strategy-card .strategy-row").count()
-                self.assertEqual(count, 5, "场景区应有 5 行")
+                self.assertEqual(page.locator("#cfg-auto-watcher-enabled").count(), 1)
+                self.assertEqual(page.locator("#cfg-auto-watcher-poll-interval").count(), 1)
             finally:
                 browser.close()
 

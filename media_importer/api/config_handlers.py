@@ -55,6 +55,14 @@ class ConfigHandlersMixin:
         except Exception as e:
             json_response(self, 500, message="开场检查失败: " + str(e))
 
+    def _config_fnos_folders(self, *, body: dict, params: dict, query: dict):
+        from media_importer.features.configuration.fnos_directory_access import (
+            build_fnos_directory_capability,
+        )
+
+        result = build_fnos_directory_capability()
+        json_response(self, 200, data=result, message=result["message"])
+
     def _config_reload(self, *, body: dict, params: dict, query: dict):
 
         try:

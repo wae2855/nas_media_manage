@@ -343,10 +343,17 @@ class TaskManager:
 
     def move_to_recycle_bin(self, task_id: str, source_path: str,
                             subtitle_paths: list, recycle_dir: str):
-        os.makedirs(recycle_dir, exist_ok=True)
         task = db_get_task(self.conn, task_id)
         if not task:
-            return
+            return False
+        from media_importer.features.configuration.storage_topology import path_in_library
+
+        protected_paths = [source_path, *(str(path) for path in subtitle_paths if path)]
+        if task.get("file_location") == "import" or any(
+            path_in_library(self.config, path) for path in protected_paths
+        ):
+            return False
+        os.makedirs(recycle_dir, exist_ok=True)
         video_filename = os.path.basename(source_path)
         source_abs = os.path.abspath(source_path)
         recycle_abs = os.path.abspath(recycle_dir)
@@ -389,6 +396,7 @@ class TaskManager:
             recycle_dir,
         ]
         self._cleanup_empty_dirs(source_path, protected_dirs=protected)
+        return True
 
     def _cleanup_empty_dirs(self, file_path: str, protected_dirs: Optional[list] = None):
         protected = set()

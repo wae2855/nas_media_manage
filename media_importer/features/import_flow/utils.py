@@ -34,3 +34,11 @@ class PipelineError(Exception):
 
 class PipelineSkipError(Exception):
     pass
+
+
+class PipelineReviewRequired(Exception):
+    """流水线发现需要用户逐项处理的结构化冲突。"""
+
+    def __init__(self, message: str, result: dict | None = None):
+        super().__init__(message)
+        self.result = result or {}

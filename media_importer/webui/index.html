@@ -95,9 +95,13 @@
                             <button class="btn btn-secondary" data-action="pause"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"></use></svg>暂停处理</button>
                             <button class="btn btn-secondary" data-action="retry"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg>重试失败项</button>
                         </div>
-                        <div class="now-strip">
-                            <strong id="current-job">等待新影片进入队列</strong>
-                            <div class="progress"><span></span></div>
+                        <div class="now-strip" id="dashboard-state-strip" data-state="idle">
+                            <div class="now-strip-copy">
+                                <strong id="current-job">等待新影片进入队列</strong>
+                                <small id="current-job-detail">服务正常，发现新影片后会自动更新。</small>
+                            </div>
+                            <button class="now-strip-action" id="dashboard-state-action" type="button" data-nav="tasks" data-view-target="tasks" hidden>去处理</button>
+                            <div class="progress" id="dashboard-progress" role="progressbar" aria-label="当前处理进度" aria-valuemin="0" aria-valuemax="100" hidden><span></span></div>
                         </div>
                     </div>
                     <div class="hero-right" id="hero-reel-right">
@@ -222,50 +226,85 @@
                 </div>
                 <section class="config-stage-strip" id="config-stage-strip">
                     <button class="config-stage-card active" data-config-stage="start">
-                        <span class="config-stage-img"><img src="assets/config-stage/start.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/01.jpeg" alt="" /></span>
                         <span class="config-stage-label">开始</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="source">
-                        <span class="config-stage-img"><img src="assets/config-stage/source.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/02.jpeg" alt="" /></span>
                         <span class="config-stage-label">文件来源</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="temp">
-                        <span class="config-stage-img"><img src="assets/config-stage/temp.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/03.jpeg" alt="" /></span>
                         <span class="config-stage-label">存储检查</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="scrape">
-                        <span class="config-stage-img"><img src="assets/config-stage/scrape.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/04.jpeg" alt="" /></span>
                         <span class="config-stage-label">作品识别</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="rules">
-                        <span class="config-stage-img"><img src="assets/config-stage/rules.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/05.jpeg" alt="" /></span>
                         <span class="config-stage-label">片库整理</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="ai">
-                        <span class="config-stage-img"><img src="assets/config-stage/ai.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/06.jpeg" alt="" /></span>
                         <span class="config-stage-label">自动运行</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="advanced">
-                        <span class="config-stage-img"><img src="assets/config-stage/start.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/07.jpeg" alt="" /></span>
                         <span class="config-stage-label">进阶设置</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="recycle">
-                        <span class="config-stage-img"><img src="assets/config-stage/recycle.jpeg" alt="" /></span>
+                        <span class="config-stage-img"><img src="assets/config-stage/08.jpeg" alt="" /></span>
                         <span class="config-stage-label">完成</span>
                     </button>
                 </section>
+                <div class="config-stage-mobile-status" id="config-stage-mobile-status" aria-live="polite"><span>1 / 8 · 开始</span><small>左右滑动胶卷查看更多步骤</small></div>
                 <section class="config-stage-panel active" data-config-panel="start">
                     <div class="section-title"><h2>开始</h2><button class="btn btn-primary btn-sm" type="button" data-config-stage-jump="source">检查需要处理的项目</button></div>
                     <section class="setup-opening" id="setup-opening-summary">
                         <div class="setup-opening-copy">
-                            <span class="setup-kicker">FIRST RUN · 片库开场</span>
+                            <span class="setup-kicker">FIRST RUN · 四步完成自动整理</span>
                             <h3>不必从零配置</h3>
-                            <p>fnOS 安装时选择的目录会直接带入。绿色项目保持默认即可，只有黄色或红色项目需要你决定。</p>
+                            <p>确认目录和规则后，程序会沿着下面四步，把来源中的电影整理成可直接浏览的片库。</p>
                         </div>
                         <div class="setup-opening-state" id="setup-overall-state">
                             <span class="setup-state-light" aria-hidden="true"></span>
                             <div><b>正在检查配置</b><small>读取目录、权限、挂载与空间</small></div>
                         </div>
+                        <ol class="setup-process-timeline" aria-label="影音整理四步流程">
+                            <li class="setup-process-step">
+                                <span class="setup-process-number" aria-hidden="true">01</span>
+                                <div class="setup-process-copy">
+                                    <span>发现来源</span>
+                                    <b>获取电影文件</b>
+                                    <small>从来源文件夹发现电影、字幕和同组文件。</small>
+                                </div>
+                            </li>
+                            <li class="setup-process-step">
+                                <span class="setup-process-number" aria-hidden="true">02</span>
+                                <div class="setup-process-copy">
+                                    <span>识别作品</span>
+                                    <b>刮削电影资料</b>
+                                    <small>获取片名、年份、海报和作品资料。</small>
+                                </div>
+                            </li>
+                            <li class="setup-process-step">
+                                <span class="setup-process-number" aria-hidden="true">03</span>
+                                <div class="setup-process-copy">
+                                    <span>匹配规则</span>
+                                    <b>分拣归类</b>
+                                    <small>判断电影应该进入哪个片库文件夹。</small>
+                                </div>
+                            </li>
+                            <li class="setup-process-step">
+                                <span class="setup-process-number" aria-hidden="true">04</span>
+                                <div class="setup-process-copy">
+                                    <span>安全收尾</span>
+                                    <b>写入片库</b>
+                                    <small>转移写入后，按选择保留或处理来源文件。</small>
+                                </div>
+                            </li>
+                        </ol>
                     </section>
                     <div class="setup-defaults-strip">
                         <span>默认保留源视频</span><span>文件稳定 120 秒后处理</span><span>中转与回收只用本地磁盘</span><span>高级参数稍后再调</span>
@@ -348,22 +387,35 @@
                                 <div class="info-value"><b>验证配置预期</b><span>开始真实任务前，先确认识别、判断和入库结果是否符合预期。</span></div>
                             </div>
                         </div>
+
                     </div>
+                    <article class="developer-support-card" aria-labelledby="developer-support-title">
+                        <div class="developer-support-copy">
+                            <span class="developer-support-kicker">END CREDITS · 支持独立开发</span>
+                            <h3 id="developer-support-title">如果它帮你省下了整理时间</h3>
+                            <p>可以请开发者喝杯咖啡，支持这个小项目继续维护和改进。使用中遇到问题，或有功能建议，也欢迎加我微信交流。</p>
+                            <small>打赏完全自愿，不打赏也不影响任何功能、更新与问题反馈；问题反馈和建议不以打赏为前提。谢谢你愿意使用它。</small>
+                        </div>
+                        <div class="developer-support-codes" aria-label="支持与联系二维码">
+                            <figure class="developer-support-code">
+                                <div class="developer-support-code-frame developer-support-code-frame--reward">
+                                    <img src="assets/support/developer-reward-qr.png" alt="支持独立开发者的收款码" />
+                                </div>
+                                <figcaption><b>请开发者喝杯咖啡</b><span>扫码支持 · 完全自愿</span></figcaption>
+                            </figure>
+                            <figure class="developer-support-code">
+                                <div class="developer-support-code-frame developer-support-code-frame--wechat">
+                                    <img src="assets/support/developer-wechat-qr.png" alt="添加开发者微信的二维码" />
+                                </div>
+                                <figcaption><b>使用交流与建议</b><span>扫码加微信 · 欢迎联系</span></figcaption>
+                            </figure>
+                        </div>
+                    </article>
                 </section>
                 <section class="config-stage-panel" data-config-panel="source">
-                    <div class="section-title"><div><h2>文件来源</h2><p class="section-subnote">安装时已选择，通常无需修改。云盘挂载失效时会暂停任务，不会把空目录当作新来源。</p></div><button class="btn btn-primary btn-sm" type="button" data-config-save="source">保存变更</button></div>
+                    <div class="section-title"><div><h2>文件来源</h2><p class="section-subnote">来源目录统一在“存储检查”选择和授权；这里配置扫描与入库后的处理方式。云盘挂载失效时会暂停任务。</p></div><button class="btn btn-primary btn-sm" type="button" data-config-save="source">保存变更</button></div>
                     <div class="config-form-grid">
-                        <label class="form-card form-card-full">
-                            <span>源目录路径 <b class="required-mark">*</b></span>
-                            <div class="input-with-inline-action">
-                                <input id="cfg-source-inline" type="text" placeholder="/volume1/source" />
-                                <button class="btn btn-secondary btn-sm" type="button" data-path-test="source">测试权限</button>
-                            </div>
-                            <p>
-                                待整理的媒体文件源目录。如果使用 /vol1/、/vol2/ 等共享盘下的目录，必须在 fnOS 应用中心 → nas-media-importer → 设置 → 授权目录 中添加并赋予【读】权限。<br />
-                                注意：如果源目录是飞牛挂载的网盘目录，文件刷新时间可能较久，建议改用 Alist 网盘来实现短时刷新。
-                            </p>
-                        </label>
+                        <div class="info-callout form-card-full"><b>来源目录在哪里修改？</b><span>所有目录统一在【存储检查】选择、授权和测试；这一页只决定如何扫描，以及入库完成后如何处理来源内容。</span></div>
                         <article class="form-card form-card-full source-policy-choice">
                             <span>入库成功后，来源内容怎么处理？</span>
                             <div class="mode-stack">
@@ -459,21 +511,6 @@
                     <div class="storage-readiness-grid" id="storage-readiness-grid" aria-live="polite">
                         <article class="storage-skeleton">正在读取安装目录...</article>
                     </div>
-                    <details class="setup-edit-disclosure">
-                        <summary><span>目录有问题或确实需要修改？</span><small>展开目录编辑</small></summary>
-                        <div class="config-form-grid setup-edit-fields">
-                            <label class="form-card form-card-full">
-                                <span>中转目录（必须是本地磁盘）</span>
-                                <div class="input-with-inline-action"><input id="cfg-temp-inline" type="text" placeholder="/volume1/temp" /><button class="btn secondary small" type="button" data-path-test="temp">测试权限</button></div>
-                            </label>
-                            <label class="form-card form-card-full">
-                                <span>回收目录（必须是本地磁盘）</span>
-                                <div class="input-with-inline-action"><input id="cfg-recycle-inline" type="text" placeholder="/volume1/recycle" /><button class="btn secondary small" type="button" data-path-test="recycle">测试权限</button></div>
-                            </label>
-                            <label class="form-card form-card-full"><span>回收保留天数</span><input id="cfg-recycle-retention-inline" type="number" min="0" max="365" value="30" /><p>默认 30 天；0 表示不自动过期。</p></label>
-                            <div class="inline-action-row"><button class="btn btn-primary" type="button" data-config-save="temp">保存中转目录</button><button class="btn btn-primary" type="button" data-config-save="recycle">保存回收目录</button></div>
-                        </div>
-                    </details>
                 </section>
                 <section class="config-stage-panel" data-config-panel="recycle">
                     <div class="section-title"><div><h2>完成</h2><p class="section-subnote">最后同时检查目录、权限、空间、TMDB、按需 LLM 与自动运行条件。</p></div><button class="btn btn-primary btn-sm" type="button" data-startup-readiness>运行开场检查</button></div>
@@ -606,11 +643,10 @@
 <section class="config-stage-panel" data-config-panel="rules">
                     <div class="section-title"><div><h2>片库整理</h2><p class="section-subnote">已有合理预设时不用逐条调整；这里只决定最终落点。</p></div><button class="btn btn-primary" type="button" data-config-save="rules">保存变更</button></div>
                     <div class="config-form-grid">
-                        <label class="form-card form-card-full">
-                            <span>片库根目录 <b class="required-mark">*</b></span>
-                            <div class="input-with-inline-action"><input id="cfg-library-root-inline" type="text" placeholder="/volume1/影视" /><button class="btn secondary small" type="button" data-path-test="library">测试权限</button></div>
-                            <p>规则只能填写这个目录下的子目录。根目录必须先通过“存储检查”，规则不能越界保存。</p>
-                        </label>
+                        <article class="form-card form-card-full library-roots-card">
+                            <div class="library-roots-heading"><div><span>目标片库 <b class="required-mark">*</b></span><p>可以添加多块硬盘或挂载目录。规则只会写入它明确选择的片库。</p></div><button class="btn btn-secondary btn-sm" type="button" data-library-root-action="add">添加片库</button></div>
+                            <div class="library-roots-list" id="library-roots-list"><div class="storage-skeleton">正在读取片库...</div></div>
+                        </article>
                         <div class="info-intro form-card-full">
                             <span class="info-label">操作指引</span>
                             <h4>这一页先做什么</h4>
@@ -689,11 +725,12 @@
                         </article>
                         <label class="form-card form-card-full">
                             <span>兜底入库目录</span>
+                            <select id="cfg-fallback-root-inline" aria-label="兜底目标片库"></select>
                             <div class="input-with-inline-action">
                                 <input id="cfg-fallback-inline" type="text" placeholder="其他" />
                                 <button class="btn secondary small" type="button" data-path-test="fallback">测试权限</button>
                             </div>
-                            <p>填写片库根目录下的相对子目录，例如“其他”；不设置时，匹配不到默认记为失败。</p>
+                            <p>先选兜底片库，再填写该片库下的相对子目录，例如“其他”。</p>
                         </label>
                     </div>
                 </section>
@@ -747,6 +784,7 @@
     <script src="js/cinema-section.js"></script>
 
     <!-- 6. Config: payloads → save → provider → ai → rules → simulator → dim-ops → entry -->
+    <script src="js/cinema-fnos-directories.js"></script>
     <script src="js/cinema-config-payloads.js"></script>
     <script src="js/cinema-config-save.js"></script>
     <script src="js/cinema-config-provider.js"></script>

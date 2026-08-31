@@ -194,16 +194,17 @@ class TestImportIdempotent(unittest.TestCase):
             stat = os.stat(src)
             os.utime(dest, (stat.st_atime, stat.st_mtime))  # 对齐 mtime
 
-            result = move_to_import(
-                src, [], dest_dir,
-                {"media_type": "movie", "title_cn": "src", "title_en": "src",
-                 "year": 2020, "resolution": "1080p", "quality": "bluray"},
-                {"movie": "{title_cn}.{ext}", "tv": "{title_cn}.{ext}",
-                 "subtitle": "{title_cn}.{ext}", "raw": {}},
-                allowed_base_dirs=[os.path.join(d, "media")],
-            )
-            self.assertTrue(result.get("idempotent"))
-            self.assertEqual(result["video"], dest)
+            with self.assertRaisesRegex(IOError, "冲突尚未确认"):
+                move_to_import(
+                    src, [], dest_dir,
+                    {"media_type": "movie", "title_cn": "src", "title_en": "src",
+                     "year": 2020, "resolution": "1080p", "quality": "bluray"},
+                    {"movie": "{title_cn}.{ext}", "tv": "{title_cn}.{ext}",
+                     "subtitle": "{title_cn}.{ext}", "raw": {}},
+                    allowed_base_dirs=[os.path.join(d, "media")],
+                )
+            self.assertTrue(os.path.exists(src))
+            self.assertTrue(os.path.exists(dest))
         finally:
             shutil.rmtree(d, ignore_errors=True)
 

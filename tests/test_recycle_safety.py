@@ -2,11 +2,14 @@
 import json
 import os
 import tempfile
+from datetime import datetime, timedelta
 
 from media_importer.features.recycle import (
     list_recycle_dir,
+    move_dir_to_recycle,
     move_to_recycle,
     move_to_recycle_with_companions,
+    recycle_cleanup,
 )
 from media_importer.infrastructure.filesystem import (
     make_fingerprint,
@@ -100,8 +103,93 @@ def test_safe_delete_rejects_paths_outside_allowed_dirs():
         assert os.path.exists(blocked)
 
 
+def test_safe_delete_rejects_symlink_without_touching_target(tmp_path):
+    library = tmp_path / "library"
+    temp = tmp_path / "temp"
+    library.mkdir()
+    temp.mkdir()
+    video = library / "Movie.mkv"
+    video.write_bytes(b"library-must-survive")
+    linked = temp / "Movie.mkv"
+    linked.symlink_to(video)
+
+    ok, message = safe_delete(str(linked), allowed_base_dirs=[str(temp)])
+
+    assert ok is False
+    assert "符号链接" in message
+    assert linked.is_symlink()
+    assert video.read_bytes() == b"library-must-survive"
+
+
+# Requirement: REQ-20260831-004019
+def test_move_to_recycle_rejects_library_file_without_confirmed_replace(tmp_path):
+    library = tmp_path / "library"
+    recycle = tmp_path / "recycle"
+    library.mkdir()
+    recycle.mkdir()
+    video = library / "Movie.mkv"
+    video.write_bytes(b"library-must-survive")
+
+    ok, destination, message = move_to_recycle(
+        str(video),
+        str(recycle),
+        reason="task_delete",
+        import_roots=[str(library)],
+    )
+
+    assert ok is False
+    assert destination == ""
+    assert "逐项确认替换" in message
+    assert video.read_bytes() == b"library-must-survive"
+    assert list(recycle.iterdir()) == []
+
+
+# Requirement: REQ-20260831-004019
+def test_move_directory_to_recycle_rejects_library_tree(tmp_path):
+    library = tmp_path / "library"
+    recycle = tmp_path / "recycle"
+    movie = library / "Movie"
+    movie.mkdir(parents=True)
+    recycle.mkdir()
+    video = movie / "Movie.mkv"
+    video.write_bytes(b"library-must-survive")
+
+    ok, destination, message = move_dir_to_recycle(
+        str(movie),
+        str(recycle),
+        reason="source_unit_cleanup",
+        import_roots=[str(library)],
+    )
+
+    assert ok is False
+    assert destination == ""
+    assert "逐项确认替换" in message
+    assert video.read_bytes() == b"library-must-survive"
+    assert list(recycle.iterdir()) == []
+
+
 def test_validate_path_safety_rejects_traversal():
     ok, msg = validate_path_safety("../movie.mkv")
 
     assert ok is False
     assert "穿越" in msg
+
+
+# Requirement: REQ-20260831-004019
+def test_recycle_cleanup_never_deletes_when_recycle_overlaps_library(tmp_path):
+    library = tmp_path / "library"
+    recycle = library / "recycle"
+    recycle.mkdir(parents=True)
+    video = recycle / "Movie.mkv"
+    video.write_bytes(b"library-must-survive")
+    meta = {
+        "moved_at": (datetime.now() - timedelta(days=60)).isoformat(),
+        "original_path": str(tmp_path / "source" / "Movie.mkv"),
+    }
+    (recycle / "Movie.mkv.meta").write_text(json.dumps(meta), encoding="utf-8")
+
+    deleted = recycle_cleanup(str(recycle), 1, protected_roots=[str(library)])
+
+    assert deleted == []
+    assert video.read_bytes() == b"library-must-survive"
+    assert (recycle / "Movie.mkv.meta").exists()

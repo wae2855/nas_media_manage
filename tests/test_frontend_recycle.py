@@ -93,41 +93,40 @@ metadata:
         time.sleep(1)
         return browser, page
 
+    def _navigate_to_config_stage(self, page, stage):
+        page.locator(".bottom-nav [data-nav='config']").click()
+        time.sleep(0.5)
+        page.locator(f"[data-config-stage='{stage}']").click()
+        time.sleep(0.5)
+
     def _navigate_to_config_import(self, page):
-        page.locator("#tab-config").click()
-        time.sleep(0.5)
-        page.locator("#cfg-subtab-import").click()
-        time.sleep(0.5)
+        self._navigate_to_config_stage(page, "source")
 
     def _navigate_to_tasks(self, page):
-        page.locator("#tab-tasks").click()
+        page.locator(".bottom-nav [data-nav='tasks']").click()
         time.sleep(0.5)
 
-    def test_config_recycle_dir_input_exists(self):
+    def test_config_recycle_dir_is_a_storage_ledger_row(self):
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
-                self._navigate_to_config_import(page)
-                recycle_input = page.locator("#cfg-source_policy-recycle_dir")
-                self.assertEqual(recycle_input.count(), 1, "recycle_dir input not found")
-                value = recycle_input.input_value()
-                self.assertIn(self.recycle_dir, value, f"recycle_dir should contain {self.recycle_dir}, got {value}")
+                self._navigate_to_config_stage(page, "temp")
+                recycle_row = page.locator(".storage-readiness-card", has_text="本地回收")
+                self.assertEqual(recycle_row.count(), 1, "recycle storage row not found")
+                self.assertIn(self.recycle_dir, recycle_row.inner_text())
             finally:
                 browser.close()
 
-    def test_config_cleanup_mode_selector_exists(self):
+    def test_config_cleanup_mode_options_exist_when_enabled(self):
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_config_import(page)
-                cleanup_select = page.locator("#cfg-source_policy-cleanup_mode")
-                self.assertGreaterEqual(cleanup_select.count(), 1, "cleanup_mode selector not found")
-                options = cleanup_select.locator("option")
-                option_values = []
-                for i in range(options.count()):
-                    option_values.append(options.nth(i).get_attribute("value"))
-                for expected in ["read_only", "smart_cleanup", "full_cleanup"]:
-                    self.assertIn(expected, option_values, f"cleanup_mode missing option: {expected}")
+                page.locator('input[name="cfg-source-after-done"][value="preserve_media"]').check()
+                cleanup_modes = page.locator('input[name="cfg-source_cleaner-cleanup_mode_inline"]')
+                self.assertEqual(cleanup_modes.count(), 2, "cleanup mode options not found")
+                option_values = [cleanup_modes.nth(i).get_attribute("value") for i in range(cleanup_modes.count())]
+                self.assertEqual(option_values, ["media_and_related", "media_only"])
             finally:
                 browser.close()
 
@@ -146,68 +145,54 @@ metadata:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_tasks(page)
-                tasks_panel = page.locator("#tasks-panel")
+                tasks_panel = page.locator('.page-view[data-view="tasks"]')
                 self.assertTrue(tasks_panel.is_visible(), "Tasks panel should be visible")
-                table = page.locator("#tasks-table")
-                self.assertTrue(table.is_visible(), "Tasks table should be visible")
+                task_list = page.locator("#task-list")
+                self.assertTrue(task_list.is_visible(), "Task list should be visible")
             finally:
                 browser.close()
 
-    def test_tasks_file_location_labels(self):
+    def test_task_cards_show_current_status_and_filename(self):
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_tasks(page)
                 page.evaluate("""() => {
-                    const tbody = document.getElementById('tasks-table-body');
-                    if (!tbody) return;
-                    const mockTasks = [
-                        { task_id: 'test-1', source_filename: 'movie1.mkv', status: 'PENDING', file_location: 'source', source_path: '/vol1/source/movie1.mkv' },
-                        { task_id: 'test-2', source_filename: 'movie2.mkv', status: 'FAILED', file_location: 'recycle', source_path: '/vol1/recycle/movie2.mkv' },
-                        { task_id: 'test-3', source_filename: 'movie3.mkv', status: 'SUCCESS', file_location: 'import', import_video_path: '/vol1/movies/movie3.mkv' },
+                    currentTaskRecords = [
+                        { task_id: 'test-1', source_filename: 'movie1.mkv', status: 'PENDING', stage: 'QUEUED', source_path: '/vol1/source/movie1.mkv' },
+                        { task_id: 'test-2', source_filename: 'movie2.mkv', status: 'FAILED', stage: 'DONE', source_path: '/vol1/recycle/movie2.mkv' },
+                        { task_id: 'test-3', source_filename: 'movie3.mkv', status: 'SUCCESS', stage: 'DONE', import_video_path: '/vol1/movies/movie3.mkv' },
                     ];
-                    if (typeof renderTaskTable === 'function') {
-                        renderTaskTable(mockTasks);
-                    }
+                    renderTaskList();
                 }""")
                 time.sleep(0.5)
 
-                source_tag = page.locator(".location-tag-source")
-                self.assertGreater(source_tag.count(), 0, "location-tag-source not found")
-                self.assertEqual(source_tag.first.inner_text(), "源目录")
-
-                recycle_tag = page.locator(".location-tag-recycle")
-                self.assertGreater(recycle_tag.count(), 0, "location-tag-recycle not found")
-                self.assertEqual(recycle_tag.first.inner_text(), "回收站")
-
-                import_tag = page.locator(".location-tag-import")
-                self.assertGreater(import_tag.count(), 0, "location-tag-import not found")
-                self.assertEqual(import_tag.first.inner_text(), "已入库")
+                cards = page.locator(".task-card")
+                self.assertEqual(cards.count(), 3)
+                self.assertIn("排队中", cards.nth(0).inner_text())
+                self.assertIn("失败", cards.nth(1).inner_text())
+                self.assertIn("已完成", cards.nth(2).inner_text())
+                self.assertIn("movie1.mkv", cards.nth(0).inner_text())
             finally:
                 browser.close()
 
-    def test_tasks_recycle_css_class(self):
+    def test_failed_task_card_has_recovery_actions(self):
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
                 self._navigate_to_tasks(page)
                 page.evaluate("""() => {
-                    const tbody = document.getElementById('tasks-table-body');
-                    if (!tbody) return;
-                    const mockTasks = [
-                        { task_id: 'test-r', source_filename: 'recycled.mkv', status: 'FAILED', file_location: 'recycle', source_path: '/vol1/recycle/recycled.mkv' },
+                    currentTaskRecords = [
+                        { task_id: 'test-r', source_filename: 'recycled.mkv', status: 'FAILED', stage: 'DONE', source_path: '/vol1/recycle/recycled.mkv' },
                     ];
-                    if (typeof renderTaskTable === 'function') {
-                        renderTaskTable(mockTasks);
-                    }
+                    renderTaskList();
                 }""")
                 time.sleep(0.5)
 
-                recycle_tag = page.locator(".location-tag-recycle")
-                self.assertGreater(recycle_tag.count(), 0, ".location-tag-recycle class not found")
-                recycle_el = recycle_tag.first
-                class_attr = recycle_el.get_attribute("class") or ""
-                self.assertIn("location-tag-recycle", class_attr, "Element should have location-tag-recycle CSS class")
+                card = page.locator(".task-card").first
+                self.assertIn("失败", card.inner_text())
+                self.assertEqual(card.locator('[data-task-action="retry-task"]').count(), 1)
+                self.assertEqual(card.locator('[data-task-action="view-task"]').count(), 1)
             finally:
                 browser.close()
 
@@ -226,9 +211,9 @@ metadata:
         with sync_playwright() as p:
             browser, page = self._open_page(p)
             try:
-                self._navigate_to_config_import(page)
+                self._navigate_to_config_stage(page, "temp")
                 body_text = page.locator("body").inner_text()
-                self.assertIn("回收站", body_text, "Page should contain '回收站' text in config section")
+                self.assertIn("本地回收", body_text, "Page should identify the recycle directory in storage checks")
             finally:
                 browser.close()
 

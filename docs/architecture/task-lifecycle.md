@@ -59,11 +59,11 @@
 | `start_processing()` | `PENDING` | `RUNNING` | 保持原值 | runner 开始处理任务 |
 | `mark_processing_step()` | `PENDING` | `RUNNING` | 保持原值 | step 进度更新 |
 | `mark_temp_ready()` | 保持原值 | 保持原值 | `temp` | copy 完成后 |
-| `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 三级匹配进入用户确认 |
+| `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 刮削核对或目标片库冲突进入用户确认 |
 | `mark_confirmed()` | 保持原值 | 保持原值 | 保持原值 | 用户确认任务 |
 | `mark_needs_review()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 匹配疑虑需要人工确认 |
 | `mark_failed()` | `FAILED` | `DONE` | 默认 `source` | import-flow/API 失败分支 |
-| `mark_skipped()` | `SKIPPED` | `DONE` | 默认 `source` | 去重跳过或用户忽略 |
+| `mark_skipped()` | `SKIPPED` | `DONE` | 默认 `source` | 用户保留片库现有文件或忽略任务 |
 | `mark_cancelled()` | `CANCELLED` | `DONE` | 默认 `source` | 用户取消排队任务 |
 | `mark_imported()` | `SUCCESS` | `DONE` | `import` | 入库成功 |
 | `reset_for_retry()` | `PENDING` | `QUEUED` | `source` | 重试失败、跳过或已取消任务 |
@@ -72,7 +72,7 @@
 
 服务启动时调用 `_cleanup_orphaned_state` 清理两类异常状态：
 
-1. 旧 `PROCESSING` 或当前 `PENDING/RUNNING` 任务被识别为孤儿（服务中断/重启遗留），清理 temp 目录下的临时视频和字幕后，通过 `mark_failed()` 标记为 `FAILED/DONE`：
+1. 旧 `PROCESSING` 或当前 `PENDING/RUNNING` 任务被识别为孤儿（服务中断/重启遗留）。只有经真实路径证明位于 `temp_dir`、不是符号链接且不属于任一片库根的普通处理副本可以直接清理，再通过 `mark_failed()` 标记为 `FAILED/DONE`：
 
    ```text
    status=FAILED
@@ -86,6 +86,8 @@
 
    任务在“失败”筛选中可见，用户可手动重试。
 
+   若任务已经记录 `import_success=1` 且 `import_video_path` 是当前片库中的现存文件，说明中断发生在文件发布后、状态完成前；启动恢复只把任务修复为 `SUCCESS/DONE/import`，绝不删除或搬动该片库文件。
+
 2. `PENDING/AWAIT_REVIEW` 任务的 temp 文件被登记为活跃文件，清理时保留，避免误删等待人工确认的视频。
 
 孤儿任务不应自动重置为 `PENDING/QUEUED`，因为自动恢复会掩盖服务中断事实，并可能在反复崩溃时形成隐性循环。
@@ -93,6 +95,8 @@
 ## Frontend Modal Edit Permission Matrix
 
 任务详情模态框中文件名和分类维度的可编辑性、保存按钮的可见性、错误反馈位置都按状态严格区分，保证用户只能在合理窗口内变更任务输入、且失败原因能精准定位到对应字段：
+
+目标片库冲突是 `AWAIT_REVIEW` 的受限子状态：详情不展示普通“确认入库”，而是展示现有/待入库文件对比以及保留现有、保留两份、替换现有三个动作。替换必须二次确认；冲突任务不进入批量确认。
 
 | Status / Stage | 文件名输入框可编辑 | 分类维度输入框可编辑 | "保存文件名"按钮 | "保存分类"按钮 | 错误反馈区 | 状态提示 |
 |----------------|-------------------|---------------------|-----------------|----------------|-----------|---------|

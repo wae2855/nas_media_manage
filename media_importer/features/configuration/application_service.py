@@ -4,11 +4,15 @@ from typing import Callable
 
 from media_importer.core.config_loader import mask_sensitive
 
+from .fnos_directory_access import build_fnos_directory_capability
 from .storage_readiness import inspect_storage_readiness
 
 SECTION_FIELD_MAP = {
     "basic": ["source_dir", "temp_dir", "source_policy"],
-    "path_rules": ["library_root", "path_rules", "fallback_dir"],
+    "path_rules": [
+        "library_roots", "default_library_root_id", "library_root",
+        "path_rules", "fallback_library_root_id", "fallback_dir",
+    ],
     "import_options": ["manual_review", "duplicate_handling", "filename_templates"],
     "metadata.providers": ["metadata"],
     "llm": ["llm"],
@@ -51,10 +55,14 @@ def build_config_ui_payload(config: dict) -> dict:
         source_policy["delete_source_after_import"] = source_policy.get(
             "cleanup_source_after_done", False
         ) is True
+    directory_authorization = build_fnos_directory_capability()
     return {
         "config": masked,
         "revision": config_revision(config or {}),
-        "readiness": inspect_storage_readiness(config or {}),
+        "directory_authorization": directory_authorization,
+        "readiness": inspect_storage_readiness(
+            config or {}, authorization_capability=directory_authorization,
+        ),
     }
 
 
@@ -71,6 +79,12 @@ def build_section_config_update(section: str, data: dict, current_config: dict) 
 
     if section == "metadata.providers":
         _merge_provider_sensitive_fields(section_body, current_config)
+    if section == "import_options" and "duplicate_handling" in section_body:
+        section_body["duplicate_handling"] = {
+            **(section_body.get("duplicate_handling") or {}),
+            "enabled": True,
+            "strategy": "confirm",
+        }
     return section_body
 
 

@@ -11,7 +11,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-TOP_LEVEL_KEYS = {"source_dir", "temp_dir", "log_dir", "library_root"}
+TOP_LEVEL_KEYS = {
+    "source_dir", "temp_dir", "log_dir", "resource_dir", "library_root", "library_roots",
+    "default_library_root_id", "fallback_library_root_id",
+}
 SECTION_KEYS = {
     ("server", "port"),
     ("server", "api_key"),
@@ -63,6 +66,39 @@ def _replace_values(template: str, replacements: dict[tuple[str | None, str], st
     return "".join(lines)
 
 
+def _replace_top_level_block(content: str, key: str, replacement: str) -> str:
+    lines = content.splitlines(keepends=True)
+    start = next((index for index, line in enumerate(lines) if line.startswith(f"{key}:")), None)
+    if start is None:
+        raise ConfigError(f"配置模板缺少字段: {key}")
+    end = start + 1
+    while end < len(lines):
+        line = lines[end]
+        if line.strip() and not line[0].isspace() and not line.lstrip().startswith("#"):
+            break
+        if line.lstrip().startswith("#") and not line[0].isspace():
+            break
+        end += 1
+    newline = "\r\n" if lines[start].endswith("\r\n") else "\n"
+    lines[start:end] = [f"{key}: {replacement}{newline}"]
+    return "".join(lines)
+
+
+def _ensure_top_level_scalar(content: str, key: str, value: str, after_key: str) -> str:
+    """Add one fnOS-owned path to legacy configs without replacing user values."""
+    if re.search(rf"(?m)^{re.escape(key)}\s*:", content):
+        return content
+
+    lines = content.splitlines(keepends=True)
+    insert_at = next(
+        (index + 1 for index, line in enumerate(lines) if re.match(rf"^{re.escape(after_key)}\s*:", line)),
+        len(lines),
+    )
+    newline = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
+    lines.insert(insert_at, f"{key}: {_yaml_scalar(value)}{newline}")
+    return "".join(lines)
+
+
 def _atomic_write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -98,6 +134,12 @@ def _absolute_path(value: str, label: str) -> str:
     return str(path)
 
 
+def _optional_absolute_path(value: str | None, label: str) -> str:
+    if value in {None, ""}:
+        return ""
+    return _absolute_path(value, label)
+
+
 def _port(value: str | int) -> int:
     try:
         port = int(value)
@@ -112,22 +154,30 @@ def initialize(args: argparse.Namespace) -> str:
     config_path = Path(args.config)
     if config_path.exists():
         return "existing"
-    api_key_value = sys.stdin.read() if getattr(args, "api_key_stdin", False) else args.api_key
-    api_key = (api_key_value or "").strip()
-    if not api_key or any(character in api_key for character in "\r\n\x00"):
-        raise ConfigError("初始 API Key 不能为空或包含换行")
 
     replacements: dict[tuple[str | None, str], str | int] = {
-        (None, "source_dir"): _absolute_path(args.source_dir, "来源目录"),
+        (None, "source_dir"): _optional_absolute_path(getattr(args, "source_dir", ""), "来源目录"),
         (None, "temp_dir"): _absolute_path(args.temp_dir, "中转目录"),
         (None, "log_dir"): _absolute_path(args.log_dir, "日志目录"),
-        (None, "library_root"): _absolute_path(args.library_root, "片库根目录"),
-        ("source_policy", "recycle_dir"): _absolute_path(args.recycle_dir, "回收目录"),
-        ("server", "port"): _port(args.port),
-        ("server", "api_key"): api_key,
+        (None, "resource_dir"): _absolute_path(args.resource_dir, "海报与缓存目录"),
+        (None, "library_root"): _optional_absolute_path(getattr(args, "library_root", ""), "片库根目录"),
+        ("source_policy", "recycle_dir"): _optional_absolute_path(getattr(args, "recycle_dir", ""), "回收目录"),
+        ("file_watcher", "enabled"): False,
+        ("server", "port"): 14591,
+        ("server", "api_key"): "",
     }
     template = Path(args.template).read_text(encoding="utf-8")
     rendered = _replace_values(template, replacements)
+    if not getattr(args, "library_root", ""):
+        rendered = _replace_top_level_block(rendered, "library_roots", "[]")
+        rendered = _replace_values(rendered, {
+            (None, "default_library_root_id"): "",
+            (None, "fallback_library_root_id"): "",
+        })
+        # Fresh installations do not have a target root yet. Template rules
+        # must follow the first user-selected default instead of referencing
+        # the template-only "default" root.
+        rendered = re.sub(r"(?m)^\s+library_root_id:\s*.*(?:\n|$)", "", rendered)
     _atomic_write(config_path, rendered)
     return "created"
 
@@ -142,22 +192,45 @@ def update_port(args: argparse.Namespace) -> str:
     return "updated"
 
 
+def migrate_managed_service(args: argparse.Namespace) -> str:
+    """Align fnOS-owned service settings without touching user configuration."""
+    path = Path(args.config)
+    if not path.is_file():
+        raise ConfigError("运行配置不存在，无法完成 fnOS 托管配置迁移")
+    current = path.read_text(encoding="utf-8")
+    rendered = _replace_values(current, {
+        ("server", "port"): 14591,
+        ("server", "api_key"): "",
+    })
+    resource_dir = _optional_absolute_path(getattr(args, "resource_dir", ""), "海报与缓存目录")
+    if resource_dir:
+        rendered = _ensure_top_level_scalar(rendered, "resource_dir", resource_dir, "log_dir")
+    if rendered == current:
+        return "unchanged"
+    _atomic_write(path, rendered)
+    return "updated"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("initialize")
-    for name in ("config", "template", "source-dir", "library-root", "recycle-dir", "temp-dir", "log-dir", "port"):
+    for name in ("config", "template", "temp-dir", "log-dir", "resource-dir"):
         init_parser.add_argument(f"--{name}", required=True)
-    key_group = init_parser.add_mutually_exclusive_group(required=True)
-    key_group.add_argument("--api-key")
-    key_group.add_argument("--api-key-stdin", action="store_true")
+    for name in ("source-dir", "library-root", "recycle-dir"):
+        init_parser.add_argument(f"--{name}", default="")
     init_parser.set_defaults(handler=initialize)
 
     port_parser = subparsers.add_parser("update-port")
     port_parser.add_argument("--config", required=True)
     port_parser.add_argument("--port", required=True)
     port_parser.set_defaults(handler=update_port)
+
+    managed_parser = subparsers.add_parser("migrate-managed-service")
+    managed_parser.add_argument("--config", required=True)
+    managed_parser.add_argument("--resource-dir", default="")
+    managed_parser.set_defaults(handler=migrate_managed_service)
     return parser
 
 

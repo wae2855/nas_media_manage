@@ -21,17 +21,24 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
             config_revision,
             inspect_storage_readiness,
             validate_config,
+            validate_fnos_directory_paths,
+            validate_temp_directory_change,
         )
         from media_importer.features.configuration.library_paths import (
             LibraryPathError,
             canonicalize_library_config,
+            migrate_legacy_library_rules,
         )
 
         requested_revision = body.get("_revision")
         if requested_revision and requested_revision != config_revision(state._config or {}):
             write_response(handler, 409, message="配置已被其他页面更新，请刷新后重试")
             return
-        body = {key: value for key, value in body.items() if key != "_revision"}
+        migrate_legacy = body.get("_migrate_legacy_library_rules") is True
+        body = {
+            key: value for key, value in body.items()
+            if key not in {"_revision", "_migrate_legacy_library_rules"}
+        }
 
         config_path = state._config.get("_config_path") if state._config else None
         if not config_path:
@@ -48,8 +55,34 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
 
         with open(config_path, "r", encoding="utf-8") as f:
             config_doc = yaml.load(f)
+        baseline_validation = validate_config(dict(config_doc), test_llm=False)
+        baseline_error_signatures = {
+            (str(detail.get("item", "")), str(detail.get("message", "")))
+            for detail in baseline_validation.get("details", [])
+            if detail.get("status") == "error"
+        }
 
         config_to_save = handler._filter_sensitive_fields(body, config_doc)
+        old_temp_dir = str(config_doc.get("temp_dir", "") or "")
+
+        def changed_leaf_paths(patch, current, prefix=""):
+            changed = set()
+            for key, value in (patch or {}).items():
+                path = f"{prefix}.{key}" if prefix else str(key)
+                old_value = current.get(key) if isinstance(current, (dict, CommentedMap)) else None
+                if isinstance(value, dict) and isinstance(old_value, (dict, CommentedMap)):
+                    changed.update(changed_leaf_paths(value, old_value, path))
+                elif value != old_value:
+                    changed.add(path)
+            return changed
+
+        changed_paths = changed_leaf_paths(config_to_save, config_doc)
+
+        def validation_item_changed(item):
+            return any(
+                path == item or path.startswith(f"{item}.") or item.startswith(f"{path}.")
+                for path in changed_paths
+            )
 
         yaml_reserved_words = {"true", "false", "yes", "no", "on", "off", "null", "~"}
         yaml_special_chars = set("{}:#&*!|>'\"'")
@@ -139,14 +172,106 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
 
         update_nested(config_doc, config_to_save)
 
-        try:
-            canonical = canonicalize_library_config(dict(config_doc))
-        except LibraryPathError as exc:
-            write_response(handler, 400, message=f"配置未保存：{exc}")
-            return
-        for key in ("library_root", "path_rules", "fallback_dir"):
-            if key in canonical:
-                update_nested(config_doc, {key: canonical[key]})
+        library_fields = {
+            "library_roots", "default_library_root_id", "library_root",
+            "path_rules", "fallback_library_root_id", "fallback_dir",
+        }
+        library_change_requested = migrate_legacy or bool(library_fields.intersection(body))
+        canonical = None
+        if library_change_requested:
+            try:
+                if migrate_legacy:
+                    canonical = migrate_legacy_library_rules(
+                        dict(config_doc),
+                        list(config_doc.get("library_roots") or []),
+                        str(config_doc.get("default_library_root_id") or ""),
+                    )
+                else:
+                    canonical = canonicalize_library_config(dict(config_doc))
+            except LibraryPathError as exc:
+                write_response(handler, 400, message=f"配置未保存：{exc}")
+                return
+            for key in library_fields:
+                if key in canonical:
+                    update_nested(config_doc, {key: canonical[key]})
+
+        touched_roles = set()
+        captured_storage_identities = None
+        if "source_dir" in body:
+            touched_roles.add("source")
+        if "temp_dir" in body:
+            touched_roles.add("temp")
+        if "log_dir" in body:
+            touched_roles.add("log")
+        if "resource_dir" in body or "resources_dir" in body:
+            touched_roles.add("resource")
+        if "library_roots" in body or "library_root" in body:
+            touched_roles.add("target")
+        if isinstance(body.get("source_policy"), dict) and (
+            "recycle_dir" in body["source_policy"]
+            or "quarantine_dir" in body["source_policy"]
+        ):
+            touched_roles.add("recycle")
+        if touched_roles:
+            if "temp" in touched_roles:
+                temp_change_errors = validate_temp_directory_change(
+                    old_temp_dir,
+                    str(config_doc.get("temp_dir", "") or ""),
+                    getattr(state, "_global_task_manager", None),
+                )
+                if temp_change_errors:
+                    write_response(
+                        handler, 400,
+                        message="配置未保存：" + "；".join(temp_change_errors),
+                    )
+                    return
+            authorization_errors = validate_fnos_directory_paths(
+                dict(config_doc), touched_roles,
+            )
+            if authorization_errors:
+                write_response(
+                    handler, 400,
+                    message="配置未保存：" + "；".join(authorization_errors[:4]),
+                )
+                return
+            readiness_config = dict(config_doc)
+            current_identities = dict(readiness_config.get("storage_identities", {}) or {})
+
+            def identity_role_touched(location_id):
+                return (
+                    location_id in touched_roles
+                    or ("target" in touched_roles and str(location_id).startswith("target:"))
+                )
+
+            readiness_config["storage_identities"] = {
+                key: value for key, value in current_identities.items()
+                if not identity_role_touched(key)
+            }
+            role_readiness = inspect_storage_readiness(readiness_config)
+            role_errors = [
+                item.get("message", "目录不可用")
+                for item in role_readiness.get("locations", [])
+                if item.get("level") == "error"
+                and item.get("role") in (touched_roles | {"topology"})
+            ]
+            if role_errors:
+                write_response(
+                    handler, 400,
+                    message="配置未保存：" + "；".join(role_errors[:4]),
+                )
+                return
+            captured_storage_identities = current_identities
+            for item in role_readiness.get("locations", []):
+                location_id = str(item.get("id", ""))
+                identity = item.get("identity")
+                if not location_id or not isinstance(identity, dict):
+                    continue
+                if identity_role_touched(location_id) or location_id not in captured_storage_identities:
+                    captured_storage_identities[location_id] = identity
+            update_nested(
+                config_doc,
+                {"storage_identities": captured_storage_identities},
+            )
 
         def _normalize_quotes(doc):
             if isinstance(doc, (dict, CommentedMap)):
@@ -176,15 +301,25 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         _normalize_quotes(config_doc)
 
         validation = validate_config(dict(config_doc), test_llm=False)
-        if validation.get("overall") != "ok":
-            errors = [
-                detail.get("message", "配置无效")
-                for detail in validation.get("details", [])
-                if detail.get("status") == "error"
-            ]
+        errors = [
+            detail.get("message", "配置无效")
+            for detail in validation.get("details", [])
+            if detail.get("status") == "error"
+            and (
+                str(detail.get("item", "")) == "dir_conflict"
+                or
+                (
+                    str(detail.get("item", "")),
+                    str(detail.get("message", "")),
+                ) not in baseline_error_signatures
+                or validation_item_changed(str(detail.get("item", "")))
+            )
+        ]
+        if errors:
             write_response(handler, 400, message="配置未保存：" + "；".join(errors[:4]))
             return
-        if (config_doc.get("file_watcher") or {}).get("enabled") is True:
+        watcher_update = body.get("file_watcher")
+        if isinstance(watcher_update, dict) and watcher_update.get("enabled") is True:
             readiness = inspect_storage_readiness(dict(config_doc))
             if not readiness["automatic_allowed"]:
                 write_response(
@@ -241,7 +376,32 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
             )
         else:
             if isinstance(state._config, dict):
-                handler._update_config_safely(state._config, body)
+                applied_update = dict(body)
+                for key in (
+                    "library_roots", "default_library_root_id", "library_root",
+                    "path_rules", "fallback_library_root_id", "fallback_dir",
+                ):
+                    if canonical is not None and key in canonical:
+                        applied_update[key] = canonical[key]
+                if captured_storage_identities is not None:
+                    applied_update["storage_identities"] = captured_storage_identities
+                handler._update_config_safely(state._config, applied_update)
+                if migrate_legacy:
+                    state._config.pop("_library_migration_error", None)
+            if "temp_dir" in body:
+                pipeline = getattr(state, "_global_pipeline", None)
+                if pipeline and getattr(pipeline, "copier", None) is not None:
+                    extensions = set(
+                        str(ext).lower() if str(ext).startswith(".") else f".{str(ext).lower()}"
+                        for ext in (
+                            list(state._config.get("video_extensions", []) or [])
+                            + list(state._config.get("subtitle_extensions", []) or [])
+                        )
+                    )
+                    pipeline.config = state._config
+                    pipeline.copier = type(pipeline.copier)(
+                        state._config.get("temp_dir", ""), extensions,
+                    )
             if "file_watcher" in body:
                 try:
                     handler._reload_watcher()
@@ -250,7 +410,13 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
                 except Exception as e:
                     (state._global_logger or logging.getLogger(__name__)).error(f"文件监控配置更新后重启失败: {e}")
 
-            write_response(handler, 200, message="配置已保存并生效")
+            if "log_dir" in body:
+                write_response(
+                    handler, 200,
+                    message="日志目录已保存；新位置将在下次服务启动后生效，旧日志不会移动或删除",
+                )
+            else:
+                write_response(handler, 200, message="配置已保存并生效")
     except Exception as e:
         error_msg = f"保存配置失败: {e}\n{traceback.format_exc()}"
         write_response(handler, 500, message=error_msg)

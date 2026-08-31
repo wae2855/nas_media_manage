@@ -6,11 +6,16 @@ from media_importer.features.import_flow.services import (
     ClassificationService,
     apply_filename_template,
 )
-from media_importer.features.import_flow.utils import PipelineError, PipelineSkipError
+from media_importer.features.import_flow.utils import (
+    PipelineError,
+    PipelineReviewRequired,
+    PipelineSkipError,
+)
 from media_importer.features.source_files import SourceCleanupService
 from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
+    mark_confirming,
     mark_failed,
     mark_imported,
     mark_processing_step,
@@ -23,7 +28,8 @@ from media_importer.infrastructure.db import update_task as db_update_task
 
 class ConfirmMixin:  # type: ignore[misc]
     def confirm_task(self, task_id: str, confirmed_title: Optional[str] = None,
-                     override_source: Optional[str] = None) -> bool:
+                     override_source: Optional[str] = None,
+                     conflict_action: Optional[str] = None) -> bool:
         task = self.task_manager.get_task(task_id)
         if not task or task.get("stage") != "AWAIT_REVIEW":
             raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN') if task else 'NOT_FOUND'}/{task.get('stage', '') if task else ''}")
@@ -33,6 +39,26 @@ class ConfirmMixin:  # type: ignore[misc]
         subtitle_source_files = task.get("subtitle_source_files", [])
         original_source_subs = subtitle_source_files or task.get("subtitle_files", [])
         temp_video_path_for_cleanup = task.get("video_path", "")
+        conflict = task.get("dedup_result") or {}
+        has_conflict = bool(
+            conflict.get("is_duplicate")
+            and conflict.get("status") == "awaiting_user"
+        )
+        allowed_actions = {"keep_existing", "keep_both", "replace_existing"}
+        if has_conflict and conflict_action not in allowed_actions:
+            raise PipelineError("片库冲突必须逐项选择：保留片库文件、两个都保留或替换片库文件")
+        if not has_conflict and conflict_action:
+            raise PipelineError("当前任务没有待处理的片库冲突，请刷新任务")
+
+        if has_conflict:
+            existing_path = os.path.realpath(str(conflict.get("existing_path", "")))
+            import_path = os.path.realpath(str(task.get("import_path", "")))
+            try:
+                within_target = os.path.commonpath((existing_path, import_path)) == import_path
+            except ValueError:
+                within_target = False
+            if not within_target:
+                raise PipelineError("冲突文件不在本任务实际目标目录内，已拒绝操作")
 
         # S3 CAS：AWAIT_REVIEW → RUNNING 一次性占用（并发双 confirm 只成功一次）
         from media_importer.features.tasks.transitions import apply as _apply_transition
@@ -45,6 +71,31 @@ class ConfirmMixin:  # type: ignore[misc]
         )
         if claimed is None:
             raise PipelineError("任务状态已变更（可能已被并发确认），请刷新后重试")
+
+        if has_conflict and conflict_action == "keep_existing":
+            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup or "")
+            conflict.update({"status": "resolved", "resolved_action": "keep_existing"})
+            fields = mark_skipped(
+                ctx,
+                "用户选择保留片库现有文件；来源文件保持不变",
+                file_location=FILE_LOCATION_SOURCE,
+            )
+            fields["dedup_result"] = conflict
+            db_update_task(self.task_manager.conn, tid, **fields)
+            self._log("info", "用户选择保留片库现有文件，未改动目标和来源", task, "dedup")
+            return True
+
+        if has_conflict:
+            conflict.update({"status": "resolved", "resolved_action": conflict_action})
+            if conflict_action == "keep_both":
+                task["final_filename"] = str(conflict.get("suggested_filename", ""))
+            task["dedup_result"] = conflict
+            db_update_task(
+                self.task_manager.conn,
+                tid,
+                dedup_result=conflict,
+                final_filename=task.get("final_filename", ""),
+            )
 
         confirmed_override = 1 if override_source else 0
         db_update_task(self.task_manager.conn, tid,
@@ -80,6 +131,18 @@ class ConfirmMixin:  # type: ignore[misc]
             if self.metrics:
                 self.metrics.record_task_complete("success")
             self._log("info", f"确认入库完成: {task.get('source_filename', '')}", task)
+            return True
+        except PipelineReviewRequired as e:
+            review_result = e.result or task.get("dedup_result") or {}
+            fields = mark_confirming(ctx, str(e))
+            fields.update({
+                "dedup_result": review_result,
+                "dedup_existing_file": review_result.get("existing_file", ""),
+                "final_filename": task.get("final_filename", ""),
+                "import_path": task.get("import_path", ""),
+            })
+            db_update_task(self.task_manager.conn, tid, **fields)
+            self._log("info", "片库冲突待用户逐项确认，现有文件未改动", task, "dedup")
             return True
         except PipelineSkipError as e:
             # 去重判重等跳过场景：标 SKIPPED 而非 FAILED（与正常流程 runner 行为一致）

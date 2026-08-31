@@ -86,6 +86,19 @@ function renderReviewReasonRow(task) {
   const status = String(task.status || "").toUpperCase();
   const stage = String(task.stage || "").toUpperCase();
   if (!(status === "PENDING" && stage === "AWAIT_REVIEW")) return "";
+  const targetConflict = targetLibraryConflictOf(task);
+  if (targetConflict) {
+    const conflictLabel =
+      targetConflict.conflict_type === "target_path"
+        ? "目标位置已有同名文件"
+        : "片库中已有同一影片";
+    return `
+      <div class="task-review-reason task-review-reason--library-conflict">
+        <span class="task-review-reason-icon" aria-hidden="true">◆</span>
+        <span class="task-review-reason-text">${escapeHtml(conflictLabel)}</span>
+        <span class="task-review-reason-hint">现有文件未改动，请逐项选择</span>
+      </div>`;
+  }
   const concerns =
     task.match_concerns || (task.scrape_result || {}).match_concerns || [];
   const items = (Array.isArray(concerns) ? concerns : [])
@@ -118,7 +131,8 @@ function renderDimSourcesWithValues(task) {
 
   let html =
     '<div class="task-dim-grid" style="display:flex;flex-wrap:wrap;gap:6px;">';
-  for (const [name, value] of Object.entries(dims)) {
+  const entries = Object.entries(dims);
+  for (const [index, [name, value]] of entries.entries()) {
     const label = dimLabelOf(name);
     // null/undefined 显示为空（代表未取到值），不再显示 "null" 字样
     let valLabel = value == null ? "" : String(value);
@@ -135,12 +149,16 @@ function renderDimSourcesWithValues(task) {
     html +=
       '<span class="task-dim-chip' +
       (missing ? " task-dim-chip--missing" : "") +
+      (index >= 3 ? " task-dim-chip--mobile-extra" : "") +
       '" style="border-left-color:' +
       dimColorOf(name) +
       ';">' +
       escapeHtml(label) +
       (missing ? "" : "：" + escapeHtml(valLabel)) +
       "</span>";
+  }
+  if (entries.length > 3) {
+    html += `<button type="button" class="task-dim-more" data-task-action="view-task" data-task-id="${escapeHtml(task.task_id || "")}">查看全部 ${entries.length} 项判断</button>`;
   }
   html += "</div>";
   return html;
@@ -321,6 +339,9 @@ function setTaskFilter(filter) {
   selectedTaskIds.clear();
   document.querySelectorAll("[data-task-filter-chip]").forEach((chip) => {
     chip.classList.toggle("active", chip.dataset.taskFilterChip === filter);
+    if (chip.dataset.taskFilterChip === filter && window.innerWidth <= 600) {
+      chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
   });
   loadTaskList(false);
 }

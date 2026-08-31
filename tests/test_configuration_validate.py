@@ -162,6 +162,84 @@ class TestValidateConfigDirConflicts(unittest.TestCase):
         conflict = _by_item(results, "dir_conflict")
         self.assertEqual(conflict["status"], "error")
 
+    # Requirement: REQ-20260831-004019
+    def test_library_parent_of_source_is_error(self):
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        library = tmp_path / "library"
+        source = library / "incoming"
+        temp = tmp_path / "temp"
+        recycle = tmp_path / "recycle"
+        logs = tmp_path / "logs"
+        for path in (source, temp, recycle, logs):
+            path.mkdir(parents=True)
+        results = validate_config({
+            "source_dir": str(source),
+            "temp_dir": str(temp),
+            "log_dir": str(logs),
+            "source_policy": {"recycle_dir": str(recycle)},
+            "library_roots": [
+                {"id": "movies", "name": "电影", "path": str(library), "enabled": True}
+            ],
+            "library_root": str(library),
+        })
+
+        conflict = _by_item(results, "dir_conflict")
+        self.assertIsNotNone(conflict)
+        self.assertEqual(conflict["status"], "error")
+
+    def test_disabled_library_root_still_protects_its_files(self):
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        library = tmp_path / "library"
+        source = library / "incoming"
+        temp = tmp_path / "temp"
+        recycle = tmp_path / "recycle"
+        for path in (source, temp, recycle):
+            path.mkdir(parents=True)
+
+        results = validate_config({
+            "source_dir": str(source),
+            "temp_dir": str(temp),
+            "source_policy": {"recycle_dir": str(recycle)},
+            "library_roots": [
+                {"id": "old", "name": "停用片库", "path": str(library), "enabled": False}
+            ],
+        })
+
+        conflict = _by_item(results, "dir_conflict")
+        self.assertIsNotNone(conflict)
+        self.assertEqual(conflict["status"], "error")
+        self.assertIn("片库", conflict["message"])
+        self.assertIn("文件来源", conflict["message"])
+
+    # Requirement: REQ-20260831-004019
+    def test_symlinked_temp_pointing_into_library_is_error(self):
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        library = tmp_path / "library"
+        source = tmp_path / "source"
+        recycle = tmp_path / "recycle"
+        logs = tmp_path / "logs"
+        for path in (library, source, recycle, logs):
+            path.mkdir()
+        temp_link = tmp_path / "temp-link"
+        temp_link.symlink_to(library, target_is_directory=True)
+        results = validate_config({
+            "source_dir": str(source),
+            "temp_dir": str(temp_link),
+            "log_dir": str(logs),
+            "source_policy": {"recycle_dir": str(recycle)},
+            "library_roots": [
+                {"id": "movies", "name": "电影", "path": str(library), "enabled": True}
+            ],
+            "library_root": str(library),
+        })
+
+        conflict = _by_item(results, "dir_conflict")
+        self.assertIsNotNone(conflict)
+        self.assertEqual(conflict["status"], "error")
+
 
 class TestValidateConfigLegacyFields(unittest.TestCase):
     def test_legacy_cleanup_mode_emits_warning(self):

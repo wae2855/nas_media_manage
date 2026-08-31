@@ -62,6 +62,15 @@ class FileWatcher:
             }
         return known
 
+    def _storage_ready_for_automatic_run(self) -> bool:
+        from media_importer.features.configuration import inspect_storage_readiness
+
+        readiness = inspect_storage_readiness(self.config)
+        if readiness.get("automatic_allowed"):
+            return True
+        self._log("error", "存储挂载身份、权限或空间已变化，自动扫描与回收清理已暂停")
+        return False
+
     def _stable_new_files(self, candidates: set, now: float) -> set:
         stable = set()
         for path in candidates:
@@ -92,6 +101,8 @@ class FileWatcher:
 
         if not self.source_dir or not os.path.isdir(self.source_dir):
             self._log("warn", f"源目录不存在，文件监控未启动: {self.source_dir}")
+            return
+        if not self._storage_ready_for_automatic_run():
             return
 
         initial_files = self._scan_known_files()
@@ -127,6 +138,9 @@ class FileWatcher:
 
     def _check_changes(self):
         self._scan_count += 1
+        if not self._storage_ready_for_automatic_run():
+            self._source_online = False
+            return
         current_files = self._scan_known_files()
         if current_files is None:
             if self._source_online:
@@ -165,7 +179,15 @@ class FileWatcher:
         recycle_dir = self.config.get("source_policy", {}).get("recycle_dir", "")
         retention_days = self.config.get("source_policy", {}).get("recycle_retention_days", 0)
         if recycle_dir and retention_days > 0:
-            deleted = recycle_cleanup(recycle_dir, retention_days)
+            from media_importer.features.configuration.storage_topology import (
+                configured_library_roots,
+            )
+
+            deleted = recycle_cleanup(
+                recycle_dir,
+                retention_days,
+                protected_roots=configured_library_roots(self.config),
+            )
             if deleted:
                 self._log("info", f"回收站过期清理: 删除 {len(deleted)} 个文件")
 

@@ -8,6 +8,7 @@ class FakeTaskManager:
         self.task = task
         self.conn = object()
         self.recycle_calls = []
+        self.config = {}
 
     def get_task(self, task_id):
         if self.task and self.task.get("task_id") == task_id:
@@ -16,6 +17,7 @@ class FakeTaskManager:
 
     def move_to_recycle_bin(self, **kwargs):
         self.recycle_calls.append(kwargs)
+        return True
 
 
 def test_rename_source_task_file_updates_source_path(tmp_path, monkeypatch):
@@ -56,7 +58,7 @@ def test_rename_source_task_file_updates_source_path(tmp_path, monkeypatch):
     ]
 
 
-def test_rename_import_task_file_updates_import_fields(tmp_path, monkeypatch):
+def test_rename_import_task_file_is_rejected_without_touching_library(tmp_path, monkeypatch):
     current = tmp_path / "old.mkv"
     current.write_text("video")
     task = {
@@ -79,14 +81,42 @@ def test_rename_import_task_file_updates_import_fields(tmp_path, monkeypatch):
 
     result = rename_task_file_for_api(task_manager, "task-1", "final.mkv")
 
-    assert result.code == 200
-    assert calls == [
-        {
-            "source_filename": "final.mkv",
-            "import_video_path": str(tmp_path / "final.mkv"),
-            "final_filename": "final.mkv",
-        }
-    ]
+    assert result.code == 400
+    assert "片库文件" in result.message
+    assert current.read_text() == "video"
+    assert not (tmp_path / "final.mkv").exists()
+    assert calls == []
+
+
+# Requirement: REQ-20260831-004019
+def test_rename_mislabeled_source_path_inside_library_is_rejected(tmp_path, monkeypatch):
+    library = tmp_path / "library"
+    library.mkdir()
+    current = library / "Movie.mkv"
+    current.write_text("library")
+    task = {
+        "task_id": "legacy",
+        "file_location": "source",
+        "source_path": str(current),
+        "source_filename": "Movie.mkv",
+    }
+    task_manager = FakeTaskManager(task)
+    task_manager.config = {
+        "library_roots": [{"id": "movies", "path": str(library), "enabled": True}]
+    }
+    calls = []
+    monkeypatch.setattr(
+        "media_importer.features.tasks.file_lifecycle_service.update_task_record",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    result = rename_task_file_for_api(task_manager, "legacy", "Renamed.mkv")
+
+    assert result.code == 400
+    assert "片库文件" in result.message
+    assert current.read_text() == "library"
+    assert not (library / "Renamed.mkv").exists()
+    assert calls == []
 
 
 def test_rename_temp_task_file_updates_video_path(tmp_path, monkeypatch):

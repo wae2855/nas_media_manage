@@ -34,3 +34,4 @@ Requirement: REQ-20260828-151346
 - [Brainstorm](../brainstorms/2026-08-28-configuration-dependency-and-readiness-brainstorm.md)
 - [ADR-0012](0012-storage-role-topology.md)
 - [Plan](../plans/2026-08-28-feat-configuration-dependency-and-readiness-plan.md)
+- [ADR-0016](0016-multiple-library-roots.md)（按本决策第 6 条扩展为稳定 root ID 的多片库）

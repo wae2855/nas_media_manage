@@ -137,7 +137,7 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.scrape_title_cn, t.scrape_title_en, t.scrape_year, "
                 "t.scrape_media_type, t.scrape_season, t.scrape_episode, "
                 "t.scrape_trace, t.scrape_result, t.dim_sources, "
-                "t.import_path, t.final_filename, "
+                "t.import_path, t.final_filename, t.dedup_result, t.dedup_existing_file, "
                 "t.skip_reason, t.error_message, t.import_success, "
                 "t.confirm_status, t.video_path, t.file_location, "
                 "t.import_video_path, t.provider_type, t.provider_id, "
@@ -167,6 +167,11 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
         if row.get('dim_sources'):
             try:
                 row['dim_sources'] = json.loads(row['dim_sources'])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if row.get('dedup_result'):
+            try:
+                row['dedup_result'] = json.loads(row['dedup_result'])
             except (json.JSONDecodeError, TypeError):
                 pass
     total_pages = max(1, (total + page_size - 1) // page_size)
@@ -305,6 +310,65 @@ def count_by_status_and_stage(conn: sqlite3.Connection) -> dict:
             stage_counts.setdefault(s, {})[st] = row["cnt"]
     result["_by_stage"] = stage_counts  # type: ignore[assignment]
     return result
+
+
+def get_dashboard_task_snapshot(
+    conn: sqlite3.Connection,
+    *,
+    day_start: str,
+    day_end: str,
+    event_limit: int = 30,
+    movie_limit: int = 100,
+) -> dict:
+    """返回首页所需的有界任务事实，不在 DB 层解释产品文案。"""
+    event_limit = max(1, min(int(event_limit), 100))
+    movie_limit = max(12, min(int(movie_limit), 300))
+    with _sqlite_conn_lock:
+        grouped_rows = conn.execute(
+            "SELECT status, stage, COUNT(*) AS cnt, "
+            "COALESCE(AVG(CASE WHEN status='PENDING' AND stage='RUNNING' "
+            "THEN percentage END), 0) AS avg_progress "
+            "FROM tasks GROUP BY status, stage"
+        ).fetchall()
+        today_success = conn.execute(
+            "SELECT COUNT(*) FROM tasks "
+            "WHERE status='SUCCESS' AND import_success=1 "
+            "AND completed_at>=? AND completed_at<?",
+            (day_start, day_end),
+        ).fetchone()[0]
+        event_rows = _rows_to_dicts(
+            conn.execute(
+                "SELECT task_id, source_filename, status, stage, percentage, "
+                "scrape_title_cn, scrape_title_en, scrape_year, error_message, "
+                "skip_reason, created_at, started_at, completed_at "
+                "FROM tasks ORDER BY COALESCE(completed_at, started_at, created_at) DESC "
+                "LIMIT ?",
+                (event_limit,),
+            ).fetchall()
+        )
+        movie_rows = _rows_to_dicts(
+            conn.execute(
+                "SELECT task_id, source_filename, scrape_title_cn, scrape_title_en, "
+                "scrape_year, provider_type, provider_id, import_video_path, "
+                "thumbnail_path, completed_at "
+                "FROM tasks WHERE status='SUCCESS' AND import_success=1 "
+                "AND completed_at IS NOT NULL AND thumbnail_path<>'' "
+                "ORDER BY completed_at DESC LIMIT ?",
+                (movie_limit,),
+            ).fetchall()
+        )
+        protected_rows = conn.execute(
+            "SELECT thumbnail_path FROM tasks WHERE status='PENDING' "
+            "AND stage IN ('RUNNING', 'AWAIT_REVIEW') AND thumbnail_path<>''"
+        ).fetchall()
+
+    return {
+        "grouped": [dict(row) for row in grouped_rows],
+        "today_success": int(today_success or 0),
+        "events": event_rows,
+        "movies": movie_rows,
+        "protected_thumbnail_paths": [row[0] for row in protected_rows if row[0]],
+    }
 
 
 def delete_task(conn: sqlite3.Connection, task_id: str) -> bool:

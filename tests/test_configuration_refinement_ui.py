@@ -21,6 +21,12 @@ DIRECTORY_LOADER = (
 ADVANCED_PAGES = (
     ROOT / "media_importer/webui/partials/advanced-pages.html"
 ).read_text(encoding="utf-8")
+CSS_PAGES = (ROOT / "media_importer/webui/css/cinema-pages.css").read_text(
+    encoding="utf-8"
+)
+CSS_CONFIG = (ROOT / "media_importer/webui/css/cinema-config.css").read_text(
+    encoding="utf-8"
+)
 
 
 def test_source_cleaner_is_nested_under_selected_mode_and_complex_rules_use_modal():
@@ -85,8 +91,35 @@ def test_advanced_settings_are_a_reel_stage_without_legacy_home_navigation():
     assert 'data-view-target="advanced-config"' not in INDEX
     assert "mountAdvancedSettingsInTrack();" in REEL
     assert "attachAdvancedFilmNavigation();" not in REEL
-    for view in ("naming-config", "dimensions-config", "security-config", "system-settings"):
+    for view in ("naming-config", "dimensions-config", "system-settings"):
         assert f'view: "{view}"' in APP_STATE
+    assert 'view: "security-config"' not in APP_STATE
+    assert 'data-view="security-config"' not in ADVANCED_PAGES
+    assert "cfg-server_api_key-inline" not in ADVANCED_PAGES
+    assert "cfg-server_port-inline" not in ADVANCED_PAGES
+    assert "buildServerConfigPayload" not in CONFIG_PAYLOADS
+    assert "saveSecurityConfig" not in CONFIG_SAVE
+    assert "cfg-server_api_key-inline" not in DIRECTORY_LOADER
+
+
+def test_config_reel_uses_stable_numeric_stage_image_names():
+    for index in range(1, 9):
+        assert f'assets/config-stage/{index:02d}.jpeg' in INDEX
+
+    for legacy_name in ("start", "source", "temp", "scrape", "rules", "ai", "recycle"):
+        assert f'assets/config-stage/{legacy_name}.jpeg' not in INDEX
+
+
+def test_selected_config_reel_frame_shows_the_image_at_full_brightness():
+    assert ".config-stage-card:hover .config-stage-img img" in CSS_CONFIG
+    assert "brightness(0.82)" in CSS_CONFIG
+    active_rule = CSS_CONFIG[CSS_CONFIG.index(".config-stage-card.active .config-stage-img img") :]
+    assert "filter: none;" in active_rule.split("}", 1)[0]
+
+
+def test_recycle_and_config_heroes_share_the_task_background_image():
+    task_image = 'url("../assets/config-stage/task.png")'
+    assert CSS_PAGES.count(task_image) >= 3
 
 
 def test_watcher_configuration_has_one_owner_on_automation_stage():
@@ -154,3 +187,33 @@ def test_startup_readiness_request_failure_is_rendered_inside_final_stage():
     assert "function renderStartupReadinessFailure" in DIRECTORY_LOADER
     assert "开场检查未完成" in DIRECTORY_LOADER
     assert "data-startup-readiness>重新检查" in DIRECTORY_LOADER
+
+
+# Requirement: REQ-20260830-180954
+def test_first_open_guides_missing_required_directories_without_redirecting_ready_users():
+    assert "function requiredDirectorySetupStage" in DIRECTORY_LOADER
+    assert 'setView("config", "config")' in DIRECTORY_LOADER
+    assert "setConfigStage(stage)" in DIRECTORY_LOADER
+    assert "首次使用：请先完成目录选择" in DIRECTORY_LOADER
+    assert "guideSetup: true" in REEL
+
+
+def test_start_page_support_card_is_optional_and_has_stable_qr_asset_path():
+    assert 'class="developer-support-card"' in INDEX
+    assert "END CREDITS · 支持独立开发" in INDEX
+    assert "问题反馈和建议不以打赏为前提" in INDEX
+    assert 'src="assets/support/developer-reward-qr.png"' in INDEX
+    assert 'src="assets/support/developer-wechat-qr.png"' in INDEX
+    assert "<object" not in INDEX[INDEX.index('class="developer-support-card"') : INDEX.index('data-config-panel="source"')]
+    assert "使用中遇到问题，或有功能建议，也欢迎加我微信交流" in INDEX
+    assert "请开发者喝杯咖啡" in INDEX
+    assert "使用交流与建议" in INDEX
+
+
+def test_start_page_explains_the_four_step_media_journey():
+    assert 'class="setup-process-timeline"' in INDEX
+    assert 'aria-label="影音整理四步流程"' in INDEX
+    assert INDEX.count('class="setup-process-step"') == 4
+    for label in ("获取电影文件", "刮削电影资料", "分拣归类", "写入片库"):
+        assert label in INDEX
+    assert "按选择保留或处理来源文件" in INDEX

@@ -9,6 +9,7 @@ import pytest
 from media_importer.api import globals as api_globals
 from media_importer.api.recycle_handlers import RecycleHandlers
 from media_importer.core.db.connection import init_db
+from media_importer.features.recycle import browser as recycle_browser
 from media_importer.features.recycle import (
     delete_from_recycle,
     list_recycle_dir,
@@ -143,6 +144,33 @@ def test_restore_by_server_id_rejects_overwrite_fail_closed(recycle_context):
     assert result["restored"] == []
     assert result["failed"][0]["status"] == "overwrite_not_supported"
     assert original_path.read_bytes() == b"newer-original"
+    assert recycled_path.read_bytes() == b"recycled-content"
+
+
+# Requirement: REQ-20260831-004019
+def test_restore_never_overwrites_file_created_after_conflict_check(
+    recycle_context,
+    monkeypatch,
+):
+    conn, recycle_dir, original_path, recycled_path = recycle_context
+    item_id = list_recycle_dir(str(recycle_dir), conn=conn)["items"][0]["id"]
+    real_safe_move = recycle_browser.safe_move
+
+    def create_competing_target(source, target, allowed_base_dirs=None):
+        original_path.write_bytes(b"NEW-UNCONFIRMED")
+        return real_safe_move(source, target, allowed_base_dirs)
+
+    monkeypatch.setattr(recycle_browser, "safe_move", create_competing_target)
+
+    result = restore_from_recycle(
+        [item_id],
+        recycle_dir=str(recycle_dir),
+        conn=conn,
+    )
+
+    assert result["restored"] == []
+    assert result["failed"][0]["status"] == "move_failed"
+    assert original_path.read_bytes() == b"NEW-UNCONFIRMED"
     assert recycled_path.read_bytes() == b"recycled-content"
 
 

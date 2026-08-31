@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from typing import Optional
@@ -6,7 +7,7 @@ from media_importer.features.import_flow.confirm import ConfirmMixin
 from media_importer.features.import_flow.context import TaskContext
 from media_importer.features.import_flow.scan_service import FileScanner
 from media_importer.features.import_flow.steps import StepsMixin
-from media_importer.features.import_flow.utils import PipelineSkipError
+from media_importer.features.import_flow.utils import PipelineReviewRequired, PipelineSkipError
 from media_importer.features.scraping import MetadataScraper
 from media_importer.features.scraping.match_enums import TierShortReason
 from media_importer.features.source_files import SourceCleanupService, delete_source_files
@@ -251,8 +252,8 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                     self.metrics.record_task_complete("confirming")
                 return True
 
-            self._step_dedup(task)
             self._step_rename(task)
+            self._step_dedup(task)
             self._step_import(task, original_source_video, original_source_subs)
             self._step_notify(task)
             self._step_record(task)
@@ -269,6 +270,20 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             if self.metrics:
                 self.metrics.record_task_complete("success")
             self._log("info", f"任务处理成功: {task.get('source_filename', '')}", task)
+            return True
+
+        except PipelineReviewRequired as e:
+            fields = mark_confirming(ctx, str(e))
+            fields.update({
+                "dedup_result": e.result,
+                "dedup_existing_file": e.result.get("existing_file", ""),
+                "final_filename": task.get("final_filename", ""),
+                "import_path": task.get("import_path", ""),
+            })
+            db_update_task(self.task_manager.conn, tid, **fields)
+            self._log("info", f"目标片库冲突待确认: {task.get('source_filename', '')}", task, "dedup")
+            if self.metrics:
+                self.metrics.record_task_complete("confirming")
             return True
 
         except PipelineSkipError as e:
@@ -311,16 +326,30 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
     def _cleanup_temp_on_failure(self, task: dict, temp_video_path: str):
         temp_dir = self.config.get('temp_dir', '')
-        source_dir = self.config.get('source_dir', '')
-        allowed_dirs = [source_dir, temp_dir]
+        from media_importer.features.configuration.storage_topology import (
+            path_in_library,
+            path_within,
+        )
+
         files_to_delete = []
-        if temp_video_path and temp_dir and str(temp_video_path).startswith(temp_dir):
+        if (
+            temp_video_path
+            and temp_dir
+            and not os.path.islink(temp_video_path)
+            and path_within(temp_video_path, temp_dir, allow_root=False)
+            and not path_in_library(self.config, temp_video_path)
+        ):
             files_to_delete.append(temp_video_path)
             for sub in task.get("subtitle_files", []):
-                if temp_dir in str(sub):
+                if (
+                    sub
+                    and not os.path.islink(str(sub))
+                    and path_within(str(sub), temp_dir, allow_root=False)
+                    and not path_in_library(self.config, str(sub))
+                ):
                     files_to_delete.append(sub)
         if files_to_delete:
-            delete_source_files(files_to_delete, allowed_base_dirs=allowed_dirs)
+            delete_source_files(files_to_delete, allowed_base_dirs=[temp_dir])
             self._log("info", f"已清理 temp 目录失败文件: {len(files_to_delete)} 个", task, "cleanup")
 
     def run_all(self):

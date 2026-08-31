@@ -19,6 +19,7 @@ class SourceCleanupResult:
 
 class SourceCleanupService:
     def __init__(self, config: dict):
+        self.raw_config = config or {}
         self.config = ConfigView.from_dict(config)
 
     def allowed_dirs(self) -> list:
@@ -56,9 +57,18 @@ class SourceCleanupService:
         temp_dir = self.config.paths.temp_dir
         if not temp_video_path or not temp_dir:
             return SourceCleanupResult()
-        if not str(temp_video_path).startswith(temp_dir):
+        from media_importer.features.configuration.storage_topology import (
+            path_in_library,
+            path_within,
+        )
+
+        if (
+            os.path.islink(temp_video_path)
+            or not path_within(temp_video_path, temp_dir, allow_root=False)
+            or path_in_library(self.raw_config, temp_video_path)
+        ):
             return SourceCleanupResult()
-        delete_source_files([temp_video_path], allowed_base_dirs=self.allowed_dirs())
+        delete_source_files([temp_video_path], allowed_base_dirs=[temp_dir])
         return SourceCleanupResult(
             deleted_count=1,
             message=f"已清理临时文件: {os.path.basename(temp_video_path)}",

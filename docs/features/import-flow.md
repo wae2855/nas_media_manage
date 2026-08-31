@@ -42,6 +42,9 @@
 - Scan orchestration belongs to `features/import_flow/scan_service.py`; `storage/file_scanner.py` is only a compatibility alias.
 - Manual run orchestration belongs to `features/import_flow/run_file_service.py`; API handlers should not call `run_all`, perform path/ext validation, or create tasks directly for manual run requests.
 - Filename and subtitle naming rules belong to `features/import_flow/services/naming.py`.
+- 目标片库冲突检测只扫描本任务实际 `import_path`，结构化快照保存在 `dedup_result`，检测时不得回收或移动现有文件。旧 `skip/rename/replace/quality` 运行配置统一按 `confirm` 处理。
+- 未决冲突只能逐项选择 `keep_existing | keep_both | replace_existing`；替换使用 SHA-256 确认快照、长复制后再次复核、旧文件本地回收和 no-replace 发布，普通/批量确认不得绕过。
+- 待入库处理副本不得来自任何目标片库根；回收服务只有内部 `confirmed_target_replace` 协议能接收片库现有文件，其他原因码一律拒绝。
 - Import move mechanics belong to `features/import_flow/services/file_operations.py`; source file cleanup strategy belongs to `features/source_files/`; `storage/file_mover.py` only keeps compatibility exports.
 - File copy, path safety, permission checks, safe move/delete, and fingerprint infrastructure should be imported from `media_importer.infrastructure.filesystem`.
 - Behavior changes must update `docs/architecture/import-pipeline.md` and this file together.

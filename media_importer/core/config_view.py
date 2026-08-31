@@ -30,6 +30,9 @@ class PathConfig:
     temp_dir: str = ""
     log_dir: str = "logs"
     library_root: str = ""
+    library_roots: tuple = field(default_factory=tuple)
+    default_library_root_id: str = ""
+    fallback_library_root_id: str = ""
     fallback_dir: str = ""
     config_path: str = ""
     data_dir: str = ""
@@ -59,7 +62,7 @@ class SourcePolicyConfig:
 @dataclass(frozen=True)
 class DedupConfig:
     enabled: bool = True
-    strategy: str = "skip"
+    strategy: str = "confirm"
 
 
 @dataclass(frozen=True)
@@ -121,7 +124,6 @@ class ConfigView:
             return config
         config = config or {}
         source_policy = _dict(config.get("source_policy"))
-        duplicate_handling = _dict(config.get("duplicate_handling"))
         filename_templates = _dict(config.get("filename_templates"))
         metadata = _dict(config.get("metadata"))
         source_cleaner = _dict(config.get("source_cleaner"))
@@ -139,6 +141,9 @@ class ConfigView:
             temp_dir=config.get("temp_dir", ""),
             log_dir=config.get("log_dir", "logs"),
             library_root=config.get("library_root", ""),
+            library_roots=tuple(_list(config.get("library_roots"))),
+            default_library_root_id=config.get("default_library_root_id", ""),
+            fallback_library_root_id=config.get("fallback_library_root_id", ""),
             fallback_dir=config.get("fallback_dir", ""),
             config_path=config.get("_config_path", ""),
             data_dir=config.get("_data_dir", ""),
@@ -165,8 +170,8 @@ class ConfigView:
                 )),
             ),
             dedup=DedupConfig(
-                enabled=duplicate_handling.get("enabled", True),
-                strategy=duplicate_handling.get("strategy", "skip"),
+                enabled=True,
+                strategy="confirm",
             ),
             filename_templates=FilenameTemplateConfig(
                 movie=filename_templates.get("movie", DEFAULT_MOVIE_TEMPLATE),

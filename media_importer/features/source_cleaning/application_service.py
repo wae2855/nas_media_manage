@@ -64,7 +64,36 @@ def execute_source_cleaning(
     merge_strategy: Optional[str] = None,
     permission_check: Optional[Callable[..., dict]] = None,
 ) -> SourceCleanerExecutionResult:
-    recycle_dir = config.get("source_policy", {}).get("recycle_dir", "")
+    config = config or {}
+    cleaner_config = config.get("source_cleaner", {}) or {}
+    if cleaner_config.get("enabled") is not True:
+        return SourceCleanerExecutionResult(ok=False, message="源目录智能清理未启用，本次未执行任何文件操作")
+
+    source_policy = config.get("source_policy", {}) or {}
+    source_mode = source_policy.get("mode")
+    if source_mode not in {"preserve_all", "preserve_media", "recycle_source_unit"}:
+        if source_policy.get("cleanup_source_after_done") is True:
+            source_mode = "recycle_source_unit"
+        else:
+            source_mode = "preserve_media"
+    if source_mode != "preserve_media":
+        return SourceCleanerExecutionResult(
+            ok=False,
+            message="当前源文件处理模式不允许智能清理，本次未执行任何文件操作",
+        )
+
+    from media_importer.features.configuration.storage_topology import (
+        topology_error_messages,
+    )
+
+    conflicts = topology_error_messages(config)
+    if conflicts:
+        return SourceCleanerExecutionResult(
+            ok=False,
+            message="目录边界不安全，已阻止源目录清理：" + conflicts[0],
+        )
+
+    recycle_dir = source_policy.get("recycle_dir", "")
     if recycle_dir and permission_check is not None:
         result = permission_check(recycle_dir, need_write=True)
         if not result.get("ok"):
@@ -72,6 +101,17 @@ def execute_source_cleaning(
                 ok=False,
                 message=f"回收站目录权限不足: {result.get('message', '')}",
             )
+
+    from media_importer.features.configuration.storage_readiness import (
+        inspect_storage_readiness,
+    )
+
+    readiness = inspect_storage_readiness(config)
+    if set(readiness.get("blocking", [])).intersection({"source", "recycle"}):
+        return SourceCleanerExecutionResult(
+            ok=False,
+            message="源目录或回收目录的挂载身份、权限或空间已变化，本次未执行任何文件操作",
+        )
 
     cleaner = SourceCleaner(config)
     record = cleaner.execute(

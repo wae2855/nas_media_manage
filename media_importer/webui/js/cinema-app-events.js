@@ -58,6 +58,35 @@ function bindEvents() {
       if (ruleAction.dataset.ruleAction === "delete") deleteInlineRule(index);
       return;
     }
+    const libraryRootAction = event.target.closest("[data-library-root-action]");
+    if (libraryRootAction) {
+      handleLibraryRootAction(
+        libraryRootAction.dataset.libraryRootAction,
+        libraryRootAction.dataset.libraryRootId || "",
+      );
+      return;
+    }
+    const libraryMigrationAction = event.target.closest("[data-library-migration-action]");
+    if (libraryMigrationAction) {
+      commitStagedLibraryMigration({
+        button: libraryMigrationAction,
+        feedbackHost: libraryMigrationAction.closest(".directory-migration-callout"),
+      });
+      return;
+    }
+    const directoryPick = event.target.closest("[data-directory-pick]");
+    if (directoryPick) {
+      pickDirectoryForField(directoryPick.dataset.directoryPick);
+      return;
+    }
+    const fnosAuth = event.target.closest("[data-fnos-auth-role]");
+    if (fnosAuth) {
+      openFnosSharedAuthorization({
+        role: fnosAuth.dataset.fnosAuthRole,
+        path: fnosAuth.dataset.fnosAuthPath || "",
+      });
+      return;
+    }
     const taskAction = event.target.closest("[data-task-action]");
     if (taskAction) {
       performTaskAction(
@@ -127,7 +156,6 @@ function bindEvents() {
         ai: saveLlmConfig,
         llm: saveLlmConfig,
         naming: saveImportOptionsConfig,
-        security: saveSecurityConfig,
         system: saveAdvancedSystemConfig,
         automation: saveAutomationConfig,
       };

@@ -37,9 +37,13 @@ hermes/
 .agent-browser/
 .workbuddy/
 tmp/
+.opencode/
 *.png
 *.jpg
 *.jpeg
+!media_importer/webui/assets/config-stage/[0-9][0-9].jpeg
+!media_importer/webui/assets/support/developer-reward-qr.png
+!media_importer/webui/assets/support/developer-wechat-qr.png
 *.gif
 config/config.yaml.backup_*
 deploy/nas-media-importer/app/server/config/*.backup_*

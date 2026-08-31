@@ -131,9 +131,23 @@ function taskMeta(task) {
   return text || "等待处理";
 }
 
+function targetLibraryConflictOf(task) {
+  const conflict = task && task.dedup_result;
+  if (
+    conflict &&
+    conflict.is_duplicate &&
+    conflict.status === "awaiting_user"
+  ) {
+    return conflict;
+  }
+  return null;
+}
+
 function taskPrimaryAction(task) {
   const status = String(task.status || "").toUpperCase();
   const stage = String(task.stage || "").toUpperCase();
+  if (targetLibraryConflictOf(task))
+    return { key: "view-task", label: "处理片库冲突" };
   if (status === "PENDING" && stage === "AWAIT_REVIEW")
     return { key: "confirm", label: "入库" };
   if (status === "FAILED" || status === "SKIPPED")

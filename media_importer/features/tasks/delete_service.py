@@ -26,6 +26,14 @@ def delete_task(task_manager, config: dict, task_id: str, delete_files: bool = F
     missing_files = []
     file_location = task.get("file_location", "source")
 
+    if delete_files and (
+        file_location == "import" or _task_references_library_file(task, config)
+    ):
+        return DeleteTaskResult(
+            400,
+            "片库文件受保护：删除任务只能删除记录，不能删除或移走片库文件",
+        )
+
     deleted_files.extend(_cleanup_temp_files(task, config, file_location, missing_files))
 
     if delete_files:
@@ -67,8 +75,17 @@ def _cleanup_temp_files(task: dict, config: dict, file_location: str, missing_fi
     temp_dir = config.get("temp_dir", "") if config else ""
     for path in temp_files:
         try:
-            path_abs = os.path.abspath(path)
-            if temp_dir and path_abs.startswith(os.path.abspath(temp_dir) + os.sep):
+            from media_importer.features.configuration.storage_topology import (
+                path_in_library,
+                path_within,
+            )
+
+            if (
+                temp_dir
+                and not os.path.islink(path)
+                and path_within(path, temp_dir, allow_root=False)
+                and not path_in_library(config or {}, path)
+            ):
                 if os.path.exists(path):
                     os.remove(path)
                     deleted_files.append(os.path.basename(path))
@@ -83,23 +100,30 @@ def _recycle_task_files(task: dict, config: dict, task_id: str, file_location: s
     source_policy = config.get("source_policy", {}) if config else {}
     recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
     source_dir = config.get("source_dir", "") if config else ""
-    import_dirs = [
-        rule.get("template", "")
-        for rule in (config.get("path_rules", []) if config else [])
-        if rule.get("template", "")
-    ]
+    from media_importer.features.configuration.storage_topology import (
+        configured_library_roots,
+    )
+
+    import_dirs = configured_library_roots(config or {})
 
     if file_location == "source":
         paths = [task.get("source_path", "")]
         paths.extend(str(sub) if sub else "" for sub in (task.get("subtitle_files") or []))
         return _recycle_existing_paths(paths, recycle_dir, task_id, source_dir, import_dirs, missing_files)
 
-    if file_location == "import":
-        paths = [task.get("import_video_path", "")]
-        paths.extend(str(sub) if sub else "" for sub in (task.get("subtitle_files") or []))
-        return _recycle_existing_paths(paths, recycle_dir, task_id, source_dir, import_dirs, missing_files)
-
     return []
+
+
+def _task_references_library_file(task: dict, config: dict) -> bool:
+    from media_importer.features.configuration.storage_topology import path_in_library
+
+    paths = [
+        task.get("source_path", ""),
+        task.get("video_path", ""),
+        task.get("import_video_path", ""),
+    ]
+    paths.extend(str(item) for item in (task.get("subtitle_files") or []) if item)
+    return any(path and path_in_library(config or {}, path) for path in paths)
 
 
 def _recycle_existing_paths(paths: list, recycle_dir: str, task_id: str, source_dir: str,

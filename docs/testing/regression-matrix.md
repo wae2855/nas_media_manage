@@ -10,8 +10,9 @@
 | 修改范围 | 推荐测试 |
 |----------|----------|
 | DB/repo | `tests/test_task_operations.py`, `tests/test_feature_entrypoints.py` |
-| 回收站/安全 | `tests/test_feature_recycle.py`, `tests/test_recycle_safety.py`, `tests/test_integration_recycle.py` (gated) |
+| 回收站/安全 | `tests/test_feature_recycle.py`, `tests/test_recycle_safety.py`, `tests/test_recycle_api_boundary.py`, `tests/test_integration_recycle.py` (gated) |
 | import flow | `tests/test_feature_import_flow.py`, `tests/test_feature_import_flow_run_file.py`, `tests/test_import_flow_services.py`, `tests/test_task_operations.py`, `tests/test_filename_cleaner.py` |
+| 目标片库冲突/覆盖安全 | `tests/test_target_library_conflict_safety.py`, `tests/test_filesystem_symlink_safety.py`, `tests/test_target_library_conflict_ui.py`, `tests/test_cleanup_orphaned_state.py`, `tests/test_feature_task_delete.py`, `tests/test_feature_task_file_lifecycle.py`, `tests/test_source_unit_lifecycle.py`, `tests/test_recycle_safety.py`, `tests/test_dashboard_summary.py`，并用真实临时目录验证检测前后指纹不变、并发目标不被覆盖、链接目标不被写入 |
 | 刮削/匹配（三级） | `tests/test_match_engine.py`, `tests/test_tier2_match_engine.py`, `tests/test_tier2_correct.py`, `tests/test_match_engine_keyword_loop.py`, `tests/test_match_pipeline_integration.py`, `tests/test_review_decision_v2.py`, `tests/test_title_matcher.py` |
 | 刮削预览/Provider 契约 | `tests/test_scrape_preview_api.py`, `tests/test_scrape_preview_job.py`, `tests/test_scrape_provider_first_e2e.py` (gated), `tests/test_scrape_result_contract.py`, `tests/test_feature_providers.py` |
 | LLM / AI 注入 | `tests/test_ai_config_runtime.py`, `tests/test_llm_web_search.py`, `tests/test_prompt_runtime.py`, `tests/test_prompt_resolver_integration.py` |

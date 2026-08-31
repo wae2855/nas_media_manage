@@ -93,94 +93,49 @@ class TestClassificationService(unittest.TestCase):
 
 
 class TestDedupService(unittest.TestCase):
-    def test_skips_cross_directory_scan_when_disabled(self):
+    def test_no_target_directory_returns_clear_when_semantic_scan_disabled(self):
         service = DedupService({"duplicate_handling": {"enabled": False}})
 
         decision = service.check_task({})
 
         self.assertEqual(decision.action, "continue")
         self.assertFalse(decision.result["is_duplicate"])
-        self.assertIn("跳过跨目录扫描", decision.message)
 
-    def test_rename_strategy_returns_final_filename(self):
-        config = {
-            "duplicate_handling": {"strategy": "rename"},
-            "path_rules": [{"template": "/library/movies"}],
-        }
-        duplicate = {
-            "is_duplicate": True,
-            "existing_file": "Movie.mkv",
-            "existing_path": "/library/movies/Movie.mkv",
-            "suggested_filename": "/library/movies/Movie_copy1.mkv",
-        }
-
-        with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
-             patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
-            decision = DedupService(config).check_task({"scrape_result": {}})
-
-        self.assertEqual(decision.action, "rename")
-        self.assertEqual(decision.final_filename, "Movie_copy1.mkv")
-
-    def test_replace_strategy_delegates_recycle_to_cleanup_service(self):
-        with tempfile.NamedTemporaryFile() as existing:
+    def test_legacy_replace_strategy_only_returns_review_and_does_not_recycle(self):
+        with tempfile.TemporaryDirectory() as root:
+            existing_path = os.path.join(root, "Movie.2026.mkv")
+            new_path = os.path.join(root, "new.mkv")
+            with open(existing_path, "wb") as handle:
+                handle.write(b"existing")
+            with open(new_path, "wb") as handle:
+                handle.write(b"new")
             config = {
                 "duplicate_handling": {"strategy": "replace"},
-                "path_rules": [{"template": os.path.dirname(existing.name)}],
+                "path_rules": [{"template": root}],
             }
             duplicate = {
                 "is_duplicate": True,
-                "existing_file": os.path.basename(existing.name),
-                "existing_path": existing.name,
+                "existing_file": os.path.basename(existing_path),
+                "existing_path": existing_path,
             }
             cleanup = FakeCleanupService()
 
-            with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
-                 patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
-                decision = DedupService(config, cleanup).check_task({"task_id": "t1"})
+            with patch(
+                "media_importer.features.import_flow.services.dedup.check_duplicate",
+                return_value=duplicate,
+            ):
+                decision = DedupService(config, cleanup).check_task({
+                    "task_id": "t1",
+                    "import_path": root,
+                    "video_path": new_path,
+                    "final_filename": "Different.mkv",
+                    "scrape_result": {},
+                })
 
-            self.assertEqual(decision.action, "replace")
-            self.assertEqual(cleanup.recycled, [(existing.name, "dedup_replace", "t1")])
-
-    def test_quality_strategy_replaces_lower_quality_duplicate(self):
-        with tempfile.NamedTemporaryFile() as existing:
-            config = {
-                "duplicate_handling": {"strategy": "quality"},
-                "path_rules": [{"template": os.path.dirname(existing.name)}],
-            }
-            duplicate = {
-                "is_duplicate": True,
-                "existing_file": os.path.basename(existing.name),
-                "existing_path": existing.name,
-                "quality_decision": "replace",
-            }
-            cleanup = FakeCleanupService()
-
-            with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
-                 patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
-                decision = DedupService(config, cleanup).check_task({"task_id": "t2"})
-
-            self.assertEqual(decision.action, "replace")
-            self.assertEqual(cleanup.recycled, [(existing.name, "quality_replace", "t2")])
-
-    def test_quality_strategy_skips_when_existing_file_is_preferred(self):
-        config = {
-            "duplicate_handling": {"strategy": "quality"},
-            "path_rules": [{"template": "/library/movies"}],
-        }
-        duplicate = {
-            "is_duplicate": True,
-            "existing_file": "Movie.mkv",
-            "existing_path": "/library/movies/Movie.mkv",
-            "quality_decision": "keep",
-            "skip_message": "质量优先: 保留已有高质量版本",
-        }
-
-        with patch("media_importer.features.import_flow.services.dedup.os.path.isdir", return_value=True), \
-             patch("media_importer.features.import_flow.services.dedup.check_duplicate", return_value=duplicate):
-            decision = DedupService(config).check_task({"task_id": "t3"})
-
-        self.assertEqual(decision.action, "skip")
-        self.assertEqual(decision.message, "质量优先: 保留已有高质量版本")
+            self.assertEqual(decision.action, "review")
+            self.assertEqual(decision.result["status"], "awaiting_user")
+            self.assertEqual(cleanup.recycled, [])
+            self.assertTrue(os.path.exists(existing_path))
 
 
 class TestImportService(unittest.TestCase):
@@ -210,6 +165,7 @@ class TestImportService(unittest.TestCase):
                     "year": "2026",
                     "media_type": "movie",
                 },
+                "final_filename": "测试电影.2026.mkv",
             }
 
             result = ImportService(config).import_task(task, "", [])
@@ -337,7 +293,7 @@ class TestSourceCleanupService(unittest.TestCase):
         self.assertEqual(inside.deleted_count, 1)
         delete_files.assert_called_once_with(
             ["/temp/Movie.mkv"],
-            allowed_base_dirs=["/source", "/temp", "/import"],
+            allowed_base_dirs=["/temp"],
         )
 
 

@@ -10,7 +10,7 @@ from media_importer.features.import_flow.services.paths import (
     allowed_dirs_from_config,
     import_roots_from_config,
 )
-from media_importer.features.import_flow.utils import PipelineError, PipelineSkipError
+from media_importer.features.import_flow.utils import PipelineError
 from media_importer.infrastructure.db import (
     get_subtitles_by_task as db_get_subtitles,
 )
@@ -114,23 +114,10 @@ class FileStepsMixin:
     def _step_dedup(self, task: dict):
         self._update_progress(task, 6, "dedup", 65)
         self._log("info", f"同名检测: {task.get('source_filename', '')}", task, "dedup")
-        try:
-            decision = DedupService(self.config).check_task(task)
-        except OSError as e:
-            self._log("warning", f"移入回收站失败: {e}", task, "dedup")
-            raise PipelineError(f"无法移入回收站: {e}") from e
+        decision = DedupService(self.config).check_task(task)
 
         if decision.message:
             self._log("info", decision.message, task, "dedup")
-        if decision.action == "skip":
-            raise PipelineSkipError(decision.message)
-        if decision.action == "rename":
-            task["final_filename"] = decision.final_filename
-        if decision.action == "replace":
-            existing_file = decision.result.get("existing_file", "")
-            if existing_file:
-                self._log("info", f"已移入回收站: {existing_file}", task, "dedup")
-
         task["dedup_result"] = decision.result
         if decision.result.get('existing_file'):
             task["dedup_existing_file"] = decision.result['existing_file']
@@ -140,6 +127,9 @@ class FileStepsMixin:
             dedup_existing_file=task.get("dedup_existing_file", ""),
         )
         self._update_progress(task, 6, "dedup", 70)
+        if decision.action == "review":
+            from media_importer.features.import_flow.utils import PipelineReviewRequired
+            raise PipelineReviewRequired(decision.message, decision.result)
 
     def _step_rename(self, task: dict):
         self._update_progress(task, 7, "rename", 72)
@@ -192,13 +182,19 @@ class FileStepsMixin:
 
         import_service = ImportService(self.config, self.task_manager.conn)
         import_service.restore_confirm_temp_name(task)
-        self._step_dedup(task)
         self._step_rename(task)
+
+        conflict = task.get("dedup_result") or {}
+        action = str(conflict.get("resolved_action") or "")
+        if not action:
+            self._step_dedup(task)
 
         result = import_service.import_task(
             task,
             original_source_video,
             original_source_subs,
+            overwrite=action == "replace_existing",
+            conflict_snapshot=conflict if action == "replace_existing" else None,
         )
         if result.source_cleanup.message:
             self._log("info", result.source_cleanup.message, task, "import")

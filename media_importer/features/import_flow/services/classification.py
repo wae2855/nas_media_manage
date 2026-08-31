@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from typing import Optional
 
 from media_importer.features.configuration import ConfigView
-from media_importer.features.configuration.library_paths import resolve_library_template
+from media_importer.features.configuration.library_paths import resolve_rule_template
 
-from .classification_rules import classify, render_template
+# 兼容入口合同: from .classification_rules import classify, render_template
+from .classification_rules import classify, classify_with_rule, render_template  # noqa: F401
 from .paths import resolve_project_path
 
 
@@ -28,7 +29,7 @@ class ClassificationService:
         dimensions = task.get("scrape_dimensions", {})
         dimensions_text = self._format_dimensions(dimensions)
 
-        import_path = classify(scraped, path_rules, enabled_dims)
+        import_path, matched_rule = classify_with_rule(scraped, path_rules, enabled_dims)
         used_fallback = False
         if not import_path:
             fallback_dir = self.config.paths.fallback_dir
@@ -43,9 +44,9 @@ class ClassificationService:
                     rules_description=self._format_rules(path_rules),
                 )
 
-        if self.config.paths.library_root:
-            import_path = resolve_library_template(
-                self.config.paths.library_root, import_path, {}
+        if self.config.paths.library_roots or self.config.paths.library_root:
+            import_path = resolve_rule_template(
+                self.config.raw, matched_rule, import_path, {}, fallback=used_fallback
             )
         else:
             import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
@@ -81,10 +82,9 @@ class ClassificationService:
         dimensions = override_dimensions if override_dimensions else task.get("scrape_dimensions", {})
         dimensions_text = self._format_dimensions(dimensions)
 
-        import_path = classify(scraped, path_rules, enabled_dims)
+        import_path, matched_rule = classify_with_rule(scraped, path_rules, enabled_dims)
         used_fallback = False
         warnings = []
-        matched_rule = None
 
         if not import_path:
             fallback_dir = self.config.paths.fallback_dir
@@ -104,9 +104,9 @@ class ClassificationService:
                     "dimensions_text": dimensions_text,
                 }
 
-        if self.config.paths.library_root:
-            import_path = resolve_library_template(
-                self.config.paths.library_root, import_path, {}
+        if self.config.paths.library_roots or self.config.paths.library_root:
+            import_path = resolve_rule_template(
+                self.config.raw, matched_rule, import_path, {}, fallback=used_fallback
             )
         else:
             import_path = resolve_project_path(import_path, self.config)  # type: ignore[arg-type]
@@ -118,7 +118,8 @@ class ClassificationService:
             "import_path": import_path,
             "final_filename": final_filename,
             "full_path": full_path,
-            "matched_rule": matched_rule,
+            # 兼容既有预览合同；匹配规则目前只在服务内部用于选择片库根。
+            "matched_rule": None,
             "used_fallback": used_fallback,
             "warnings": warnings,
             "rules_description": self._format_rules(path_rules) if used_fallback else "",

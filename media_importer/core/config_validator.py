@@ -10,6 +10,8 @@ from typing import Any, Dict, Tuple
 
 import requests
 
+from media_importer.infrastructure.filesystem import check_write_permission
+
 
 def check_path(path: str, require_write: bool = False) -> Tuple[bool, str]:
     if not path:
@@ -22,14 +24,10 @@ def check_path(path: str, require_write: bool = False) -> Tuple[bool, str]:
         return False, f"路径不是目录: {path}"
 
     if require_write:
-        test_file = os.path.join(path, f".test_write_{int(time.time())}")
-        try:
-            with open(test_file, "w") as f:
-                f.write("test")
-            os.remove(test_file)
+        ok, message = check_write_permission(path)
+        if ok:
             return True, f"路径存在且可写: {path}"
-        except Exception as e:
-            return False, f"路径不可写: {path}, 错误: {str(e)}"
+        return False, f"路径不可写: {path}, 错误: {message}"
 
     return True, f"路径存在: {path}"
 
@@ -133,10 +131,6 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
         ok, msg = check_path(recycle_dir, require_write=True)
         add_check("recycle_dir", "ok" if ok else "error", msg)
 
-    norm_source = source_dir.rstrip("/") if source_dir else ""
-    norm_temp = temp_dir.rstrip("/") if temp_dir else ""
-    norm_recycle = recycle_dir.rstrip("/") if recycle_dir else ""
-
     if source_policy.get("cleanup_mode") is not None:
         add_check("source_policy.cleanup_mode", "warning", "cleanup_mode 不再使用，请迁移到 cleanup_source_after_done")
     if source_policy.get("delete_source_after_import") is not None:
@@ -236,12 +230,12 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
     else:
         add_check("file_watcher.poll_interval", "ok", f"自动运行每 {poll_interval} 秒检查一次")
 
-    if norm_source and norm_temp and norm_source == norm_temp:
-        add_check("dir_conflict", "error", "源目录与中转目录不能相同，否则会导致数据丢失")
-    if norm_source and norm_recycle and norm_source == norm_recycle:
-        add_check("dir_conflict", "error", "源目录与回收站目录不能相同，否则会导致数据丢失")
-    if norm_temp and norm_recycle and norm_temp == norm_recycle:
-        add_check("dir_conflict", "error", "中转目录与回收站目录不能相同，否则会导致数据丢失")
+    from media_importer.features.configuration.storage_topology import (
+        topology_error_messages,
+    )
+
+    for message in topology_error_messages(config):
+        add_check("dir_conflict", "error", message)
 
     log_dir = config.get("log_dir", "")
     if not log_dir:

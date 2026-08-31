@@ -13,14 +13,28 @@ class TaskReviewActionResult:
 
 def confirm_task_for_api(pipeline, task_manager, task_id: str,
                          confirmed_title: Optional[str] = None,
-                         override_source: Optional[str] = None) -> TaskReviewActionResult:
+                         override_source: Optional[str] = None,
+                         conflict_action: Optional[str] = None) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
 
     try:
         ok = pipeline.confirm_task(task_id, confirmed_title=confirmed_title,
-                                   override_source=override_source)
+                                   override_source=override_source,
+                                   conflict_action=conflict_action)
         if ok:
+            current = task_manager.get_task(task_id) if task_manager else None
+            conflict = (current or {}).get("dedup_result") or {}
+            if (
+                (current or {}).get("stage") == "AWAIT_REVIEW"
+                and conflict.get("is_duplicate")
+                and conflict.get("status") == "awaiting_user"
+            ):
+                return TaskReviewActionResult(
+                    code=200,
+                    data={"requires_conflict_review": True},
+                    message="发现片库中已有同一影片，现有文件未改动，请逐项选择处理方式",
+                )
             return TaskReviewActionResult(code=200, message="任务确认入库成功")
 
         task = task_manager.get_task(task_id) if task_manager else None
@@ -103,8 +117,19 @@ def confirm_all_tasks_for_api(
 
     confirming_tasks = task_manager.list_tasks(status=status, limit=limit, stage=stage)
     results = []
+    conflict_skipped = 0
     for task in confirming_tasks:
         task_id = task.get("task_id", "")
+        dedup_result = task.get("dedup_result") or {}
+        if dedup_result.get("is_duplicate") and dedup_result.get("status") == "awaiting_user":
+            conflict_skipped += 1
+            results.append({
+                "task_id": task_id,
+                "success": False,
+                "skipped": True,
+                "error": "片库冲突必须逐项确认",
+            })
+            continue
         try:
             ok = pipeline.confirm_task(task_id, confirmed_title="", override_source="")
             results.append({"task_id": task_id, "success": ok})
@@ -120,6 +145,7 @@ def confirm_all_tasks_for_api(
             "total": len(results),
             "success": success_count,
             "failed": failed_count,
+            "conflict_skipped": conflict_skipped,
         },
-        message=f"批量确认完成: 成功 {success_count}, 失败 {failed_count}",
+        message=f"批量确认完成: 成功 {success_count}, 未处理片库冲突 {conflict_skipped}, 其他失败 {failed_count - conflict_skipped}",
     )

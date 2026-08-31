@@ -64,7 +64,6 @@ const STICKY_HERO_VIEWS = new Set([
   "config-simulator",
   "naming-config",
   "dimensions-config",
-  "security-config",
   "system-settings",
 ]);
 
@@ -155,16 +154,16 @@ function showPathTestFeedback(result, label) {
 function currentPathSnapshot() {
   return {
     source_dir: normalizePathValue(
-      document.getElementById("cfg-source-inline")?.value,
+      document.getElementById("cfg-source-inline")?.value || currentConfigSnapshot?.source_dir,
     ),
     temp_dir: normalizePathValue(
-      document.getElementById("cfg-temp-inline")?.value,
+      document.getElementById("cfg-temp-inline")?.value || currentConfigSnapshot?.temp_dir,
     ),
     recycle_dir: normalizePathValue(
-      document.getElementById("cfg-recycle-inline")?.value,
+      document.getElementById("cfg-recycle-inline")?.value || currentConfigSnapshot?.source_policy?.recycle_dir,
     ),
     library_root: normalizePathValue(
-      document.getElementById("cfg-library-root-inline")?.value,
+      libraryRootById(defaultLibraryRootId())?.path || "",
     ),
     fallback_dir: normalizePathValue(
       document.getElementById("cfg-fallback-inline")?.value,
@@ -211,15 +210,17 @@ function formatActivityTime(value) {
 
 function activityIcon(level) {
   const normalized = String(level || "").toUpperCase();
-  if (normalized === "ERROR") return "alert";
-  if (normalized === "WARNING" || normalized === "WARN") return "clock";
+  if (normalized === "ERROR" || normalized === "DANGER") return "alert";
+  if (normalized === "WARNING" || normalized === "WARN" || normalized === "RUNNING") return "clock";
   return "check";
 }
 
 function activityTone(level) {
   const normalized = String(level || "").toUpperCase();
-  if (normalized === "ERROR") return " danger";
+  if (normalized === "ERROR" || normalized === "DANGER") return " danger";
   if (normalized === "WARNING" || normalized === "WARN") return " warning";
+  if (normalized === "RUNNING") return " running";
+  if (normalized === "MUTED" || normalized === "QUEUED") return " muted";
   return "";
 }
 
@@ -231,7 +232,7 @@ function renderActivityRows(items) {
       '<div class="activity-row"><div class="state"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-clock"></use></svg></div><div><b>当前还没有新的活动记录</b><small>系统启动后，这里会滚动显示扫描、识别和入库过程。</small></div><span class="time">刚刚</span></div>';
     return;
   }
-  host.innerHTML = items
+  host.innerHTML = items.slice(0, 5)
     .map(
       (item) => `
         <div class="activity-row">
@@ -244,16 +245,29 @@ function renderActivityRows(items) {
     .join("");
 }
 
-function setDashboardQueueStrip(text, ratio = 0) {
+function setDashboardQueueStrip(text, options = {}) {
   const title = document.getElementById("current-job");
+  const detail = document.getElementById("current-job-detail");
+  const strip = document.getElementById("dashboard-state-strip");
+  const progressWrap = document.getElementById("dashboard-progress");
   const progress = document.querySelector(".now-strip .progress span");
+  const action = document.getElementById("dashboard-state-action");
+  const percent = Number.isFinite(options.progress) ? Math.max(0, Math.min(100, Math.round(options.progress))) : null;
   if (title) title.textContent = text;
+  if (detail) detail.textContent = options.detail || "";
+  if (strip) strip.dataset.state = options.state || "idle";
+  if (progressWrap) {
+    progressWrap.hidden = percent === null;
+    progressWrap.setAttribute("aria-valuenow", String(percent || 0));
+  }
   if (progress) {
-    if (ratio <= 0) {
-      progress.style.width = "0%";
-    } else {
-      progress.style.width = `${Math.max(6, Math.min(100, Math.round(ratio * 100)))}%`;
-    }
+    progress.style.width = percent === null ? "0%" : `${percent}%`;
+  }
+  if (action) {
+    action.hidden = !options.actionLabel;
+    action.textContent = options.actionLabel || "去处理";
+    if (options.filter) action.dataset.taskFilter = options.filter;
+    else delete action.dataset.taskFilter;
   }
 }
 
@@ -301,12 +315,6 @@ function mountAdvancedSettingsInTrack() {
       view: "dimensions-config",
       title: "影视分类维度",
       copy: "参与分类判断、目录变量和映射的维度。",
-    },
-    {
-      view: "security-config",
-      title: "访问与安全",
-      copy: "API 认证和服务端口，低频但影响较大。",
-      save: "security",
     },
     {
       view: "system-settings",
@@ -429,12 +437,24 @@ async function fetchQueueSnapshot() {
 
 function setConfigStage(stage) {
   currentConfigStage = stage;
-  document.querySelectorAll("[data-config-stage]").forEach((card) => {
+  const cards = Array.from(document.querySelectorAll("[data-config-stage]"));
+  cards.forEach((card) => {
     card.classList.toggle("active", card.dataset.configStage === stage);
   });
   document.querySelectorAll("[data-config-panel]").forEach((panel) => {
     panel.classList.toggle("active", panel.dataset.configPanel === stage);
   });
+  const activeIndex = cards.findIndex((card) => card.dataset.configStage === stage);
+  const activeCard = activeIndex >= 0 ? cards[activeIndex] : null;
+  const mobileStatus = document.getElementById("config-stage-mobile-status");
+  if (mobileStatus && activeCard) {
+    const label = activeCard.querySelector(".config-stage-label")?.textContent?.trim() || stage;
+    const current = mobileStatus.querySelector("span");
+    if (current) current.textContent = `${activeIndex + 1} / ${cards.length} · ${label}`;
+  }
+  if (activeCard && window.innerWidth <= 760) {
+    activeCard.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }
 }
 
 function setCleanerTab(tab) {

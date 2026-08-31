@@ -31,10 +31,22 @@ def rename_task_file_for_api(task_manager, task_id: str, new_filename: str) -> T
     file_location = task.get("file_location", "source")
     if file_location == "deleted":
         return TaskFileLifecycleResult(code=400, message="文件已删除，无法重命名")
+    if file_location == "import":
+        return TaskFileLifecycleResult(
+            code=400,
+            message="片库文件受保护：已入库影片不能通过任务重命名",
+        )
 
     current_path = _current_file_path(task, file_location)
     if not current_path or not os.path.exists(current_path):
         return TaskFileLifecycleResult(code=400, message=f"当前文件路径不存在: {current_path}")
+    from media_importer.features.configuration.storage_topology import path_in_library
+
+    if path_in_library(getattr(task_manager, "config", {}) or {}, current_path):
+        return TaskFileLifecycleResult(
+            code=400,
+            message="片库文件受保护：不能通过任务重命名片库文件",
+        )
 
     current_dir = os.path.dirname(current_path)
     new_path = os.path.join(current_dir, normalized_filename)
@@ -117,13 +129,24 @@ def _rename_update_fields(file_location: str, new_filename: str, new_path: str) 
 
 def _cleanup_temp_task_files(task: dict, config: dict):
     temp_dir = config.get("temp_dir", "") if config else ""
-    _remove_temp_path(task.get("video_path", ""), temp_dir)
+    _remove_temp_path(task.get("video_path", ""), temp_dir, config)
     for subtitle in task.get("subtitle_files") or []:
-        _remove_temp_path(str(subtitle) if subtitle else "", temp_dir)
+        _remove_temp_path(str(subtitle) if subtitle else "", temp_dir, config)
 
 
-def _remove_temp_path(path: str, temp_dir: str):
-    if not path or not temp_dir or not _is_path_under_dir(path, temp_dir):
+def _remove_temp_path(path: str, temp_dir: str, config: dict):
+    from media_importer.features.configuration.storage_topology import (
+        path_in_library,
+        path_within,
+    )
+
+    if (
+        not path
+        or not temp_dir
+        or os.path.islink(path)
+        or not path_within(path, temp_dir, allow_root=False)
+        or path_in_library(config or {}, path)
+    ):
         return
     if not os.path.exists(path):
         return
@@ -131,62 +154,62 @@ def _remove_temp_path(path: str, temp_dir: str):
         os.remove(path)
     except OSError:
         pass
-
-
-def _is_path_under_dir(path: str, base_dir: str) -> bool:
-    path_abs = os.path.abspath(path)
-    base_abs = os.path.abspath(base_dir)
-    return path_abs.startswith(base_abs + os.sep)
-
-
 def _ignore_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, recycle_dir: str):
     source_path = task.get("source_path", "")
     subtitle_paths = task.get("subtitle_files", [])
     if cleanup and recycle_dir and source_path and os.path.exists(source_path):
-        _move_task_files_to_recycle(task_manager, task_id, source_path, subtitle_paths, recycle_dir)
-        update_task_record(
-            task_manager.conn,
-            task_id,
-            status="SKIPPED",
-            stage="DONE",
-            skip_reason="用户忽略",
-            file_location="recycle",
-            video_path="",
-            error_message=f"已移入回收站: {recycle_dir}",
+        moved = _move_task_files_to_recycle(
+            task_manager, task_id, source_path, subtitle_paths, recycle_dir
         )
+        if moved:
+            update_task_record(
+                task_manager.conn,
+                task_id,
+                status="SKIPPED",
+                stage="DONE",
+                skip_reason="用户忽略",
+                file_location="recycle",
+                video_path="",
+                error_message=f"已移入回收站: {recycle_dir}",
+            )
+        else:
+            _mark_ignored_at_source(task_manager, task_id, video_path="")
     else:
-        update_task_record(
-            task_manager.conn,
-            task_id,
-            status="SKIPPED",
-            stage="DONE",
-            skip_reason="用户忽略",
-            file_location="source",
-            video_path="",
-        )
+        _mark_ignored_at_source(task_manager, task_id, video_path="")
 
 
 def _ignore_non_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, recycle_dir: str):
     source_path = task.get("source_path", "")
     subtitle_paths = task.get("subtitle_files", [])
     if cleanup and recycle_dir and source_path and os.path.exists(source_path):
-        _move_task_files_to_recycle(task_manager, task_id, source_path, subtitle_paths, recycle_dir)
-        update_task_record(
-            task_manager.conn,
-            task_id,
-            status="SKIPPED",
-            stage="DONE",
-            skip_reason="用户忽略",
-            error_message=f"已移入回收站: {recycle_dir}",
+        moved = _move_task_files_to_recycle(
+            task_manager, task_id, source_path, subtitle_paths, recycle_dir
         )
+        if moved:
+            update_task_record(
+                task_manager.conn,
+                task_id,
+                status="SKIPPED",
+                stage="DONE",
+                skip_reason="用户忽略",
+                error_message=f"已移入回收站: {recycle_dir}",
+            )
+        else:
+            _mark_ignored_at_source(task_manager, task_id)
     else:
-        update_task_record(
-            task_manager.conn,
-            task_id,
-            status="SKIPPED",
-            stage="DONE",
-            skip_reason="用户忽略",
-        )
+        _mark_ignored_at_source(task_manager, task_id)
+
+
+def _mark_ignored_at_source(task_manager, task_id: str, **extra_fields):
+    update_task_record(
+        task_manager.conn,
+        task_id,
+        status="SKIPPED",
+        stage="DONE",
+        skip_reason="用户忽略",
+        file_location="source",
+        **extra_fields,
+    )
 
 
 def _move_task_files_to_recycle(
@@ -196,7 +219,7 @@ def _move_task_files_to_recycle(
     subtitle_paths,
     recycle_dir: str,
 ):
-    task_manager.move_to_recycle_bin(
+    return task_manager.move_to_recycle_bin(
         task_id=task_id,
         source_path=source_path,
         subtitle_paths=subtitle_paths if isinstance(subtitle_paths, list) else [],

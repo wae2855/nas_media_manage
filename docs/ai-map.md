@@ -29,18 +29,18 @@
 | `media_importer/core/` | 配置、任务、DB、日志、指标（legacy facade 迁移期） | [features/configuration.md](features/configuration.md), [features/tasks.md](features/tasks.md) | core 单测 |
 | `media_importer/core/db/` | SQLite 真实实现（推荐 import 入口 `media_importer.infrastructure.db`） | [architecture/data-flow.md](architecture/data-flow.md) | `tests/test_task_operations.py` |
 | `media_importer/infrastructure/` | DB facade、filesystem 基础能力（路径校验/复制/安全删除/指纹） | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_recycle_safety.py`, `tests/test_architecture_guards.py` |
-| `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏、片库根边界、开场检查 | [features/configuration.md](features/configuration.md) | `tests/test_config_view.py`、`tests/test_library_root_boundary.py`、`tests/test_startup_readiness.py` |
+| `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏、多片库根、fnOS 授权目录、开场检查 | [features/configuration.md](features/configuration.md) | `tests/test_config_view.py`、`tests/test_library_root_boundary.py`、`tests/test_multiple_library_roots.py`、`tests/test_fnos_directory_access.py`、`tests/test_startup_readiness.py` |
 | `media_importer/features/source_files/source_units.py` | 来源单元识别、快照与整组回收门禁 | [features/source-files.md](features/source-files.md), [decisions/0014-source-unit-lifecycle.md](decisions/0014-source-unit-lifecycle.md) | `tests/test_source_unit_lifecycle.py` |
-| `media_importer/features/tasks/` | 任务管理、状态、生命周期 | [features/tasks.md](features/tasks.md) | `tests/test_task_*.py` 系列 |
+| `media_importer/features/tasks/` | 任务管理、状态、生命周期、首页业务摘要 | [features/tasks.md](features/tasks.md) | `tests/test_task_*.py`、`tests/test_dashboard_summary.py` |
 | `media_importer/features/recycle/` | 回收站移动/浏览/恢复/清理 | [features/recycle.md](features/recycle.md) | `tests/test_recycle_safety.py`, `tests/test_recycle_list_payload.py` |
 | `media_importer/features/import_flow/` | 入库流程：runner、steps、confirm、services | [features/import-flow.md](features/import-flow.md) | `tests/test_feature_import_flow.py` 等 |
 | `media_importer/features/source_files/` | 源文件处理策略（成功/跳过/伴生清理） | [features/source-files.md](features/source-files.md) | `tests/test_import_flow_services.py` 等 |
 | `media_importer/features/source_cleaning/` | 源目录清理业务域 | [features/source-cleaning.md](features/source-cleaning.md) | `tests/test_feature_source_cleaning.py` |
-| `media_importer/features/scraping/` | 刮削、两级匹配、维度规则映射 | [features/scraping.md](features/scraping.md) | `tests/test_match_engine.py`, `tests/test_scrape_provider_first_e2e.py` 等 |
+| `media_importer/features/scraping/` | 刮削、两级匹配、维度规则映射、可再生成缩略图缓存治理 | [features/scraping.md](features/scraping.md) | `tests/test_match_engine.py`, `tests/test_scrape_provider_first_e2e.py`, `tests/test_dashboard_summary.py` 等 |
 | `media_importer/features/providers/` | 元数据 Provider 注册和工厂 | [features/providers.md](features/providers.md) | Provider/API 测试 |
 | `media_importer/monitor/` | 文件监控、权限检查 | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | 权限/配置测试 |
 | `media_importer/notify/` | Hermes 和 hook 通知 | [architecture/notification-monitoring.md](architecture/notification-monitoring.md) | 通知测试 |
-| `media_importer/webui/` | 原生 HTML/CSS/JS 前端（后续重做，待重估） | [product/frontend-information-architecture.md](product/frontend-information-architecture.md) | Playwright UI 测试 |
+| `media_importer/webui/` | 原生 HTML/CSS/JS 前端（桌面与移动端双密度布局） | [product/frontend-information-architecture.md](product/frontend-information-architecture.md) | Playwright UI 测试、`tests/test_dashboard_responsive_ui.py` |
 
 全量文件清单用命令获取：`find media_importer -name "*.py"`、`ls tests/`。文档只维护职责映射。
 

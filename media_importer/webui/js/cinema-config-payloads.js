@@ -14,9 +14,6 @@ function buildSourceConfigPayload() {
     "cfg-source-unit-incomplete-patterns",
   );
   return {
-    source_dir: normalizePathValue(
-      document.getElementById("cfg-source-inline")?.value,
-    ),
     source_policy: {
       mode: sourceMode,
       cleanup_source_after_done: sourceMode === "recycle_source_unit",
@@ -101,13 +98,17 @@ function buildRecycleConfigPayload() {
 }
 
 function buildRulesConfigPayload() {
+  const roots = normalizedLibraryRoots();
+  const defaultId = defaultLibraryRootId();
   return {
-    library_root: normalizePathValue(
-      document.getElementById("cfg-library-root-inline")?.value,
-    ),
+    library_roots: roots,
+    default_library_root_id: defaultId,
+    library_root: libraryRootById(defaultId)?.path || "",
     path_rules: Array.isArray(currentConfigSnapshot?.path_rules)
       ? currentConfigSnapshot.path_rules
       : [],
+    fallback_library_root_id:
+      document.getElementById("cfg-fallback-root-inline")?.value || defaultId,
     fallback_dir: normalizePathValue(
       document.getElementById("cfg-fallback-inline")?.value,
     ),
@@ -121,9 +122,8 @@ function buildImportOptionsPayload() {
         ?.checked,
     },
     duplicate_handling: {
-      strategy:
-        document.getElementById("cfg-duplicate_handling-strategy-inline")
-          ?.value || "skip",
+      enabled: true,
+      strategy: "confirm",
     },
     filename_templates: {
       movie: String(
@@ -264,30 +264,8 @@ function buildLlmPayload() {
   };
 }
 
-function buildServerConfigPayload() {
-  const currentServer = currentConfigSnapshot?.server || {};
-  const apiKeyValue = String(
-    document.getElementById("cfg-server_api_key-inline")?.value || "",
-  ).trim();
-  return {
-    server: {
-      port:
-        Number(
-          document.getElementById("cfg-server_port-inline")?.value || 9855,
-        ) || 9855,
-      api_key: apiKeyValue || currentServer.api_key || "***",
-    },
-  };
-}
-
 function buildAdvancedSystemPayload() {
   return {
-    log_dir: normalizePathValue(
-      document.getElementById("cfg-log_dir-inline")?.value,
-    ),
-    resource_dir: normalizePathValue(
-      document.getElementById("cfg-resource_dir-inline")?.value,
-    ),
     task_queue: {
       max_concurrent:
         Number(

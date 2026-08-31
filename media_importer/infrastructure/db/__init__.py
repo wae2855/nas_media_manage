@@ -43,19 +43,19 @@ from media_importer.core.db.dimension_repo import (
 from media_importer.core.db.migrations import (
     _seed_dimensions,
 )
-from media_importer.core.db.subtitle_repo import (
-    count_subtitles_by_task,
-    create_subtitles,
-    get_subtitles_by_task,
-    update_subtitle,
-    update_subtitles_by_task,
-)
 from media_importer.core.db.source_unit_repo import (
     get_source_unit,
     list_pending_source_unit_ids,
     list_tasks_for_source_unit,
     update_source_unit,
     upsert_source_unit,
+)
+from media_importer.core.db.subtitle_repo import (
+    count_subtitles_by_task,
+    create_subtitles,
+    get_subtitles_by_task,
+    update_subtitle,
+    update_subtitles_by_task,
 )
 from media_importer.core.db.task_repo import (
     claim_next_pending,
@@ -71,6 +71,7 @@ from media_importer.core.db.task_repo import (
     find_by_source_filename,
     find_by_source_path,
     find_failed_too_many,
+    get_dashboard_task_snapshot,
     get_next_pending,
     get_task,
     has_running_tasks,

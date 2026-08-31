@@ -1,7 +1,7 @@
 # Frontend Information Architecture
 
-> status: frozen-pending-reevaluation（2026-08-22）
-> 项目转向「功能简洁化」，本文档内容需先经 [tracking/backlog-reevaluation.md](../tracking/backlog-reevaluation.md) 重估；重估前仅作为现状参考，不作为执行目标。
+> status: active（2026-08-30）
+> 项目保持 4 个一级空间和配置胶卷轨道，按「功能简洁化」方向持续降低默认配置复杂度；桌面与移动端共享业务语义，采用不同信息密度。
 
 ## Scope
 
@@ -12,7 +12,7 @@
 当前 `media_importer/webui/index.html` 实际承载 4 个一级空间：
 
 1. `overview`
-当前运行状态、健康检查、Watcher 状态、批量执行入口、首次引导。
+当前业务状态、真实运行进度、今日入库、最近最多 5 条业务活动、最近 12 部成功入库影片和批量执行入口。
 
 2. `config`
 配置导航壳，内部又塞入目录配置、路径规则、Provider、LLM、Prompt、Dimensions、Confidence、Source Cleaner、通知、安全和高级设置。
@@ -23,9 +23,13 @@
 4. `recycle`
 回收站列表、筛选、恢复、永久删除、分区统计。
 
-## Recommended Target IA
+## Current Product IA Decision
 
-前端重做时建议拆成 7 个稳定工作区，而不是继续把所有能力塞进 `config`：
+当前保留首页、任务、回收、配置 4 个一级入口。配置内部继续使用用户认可的胶卷轨道承载开始、来源、中转、刮削、规则、自动运行、高级、完成八个阶段；关联配置在所属阶段内递进展开或使用弹窗，不再创建绕行的二级系统入口。
+
+首次与后续目录管理都在胶卷的“存储检查”完成：来源、中转、回收、日志、海报缓存和多个片库各自形成一行，统一展示路径、挂载、容量与唯一修改动作。文件来源页只配置扫描及来源处理策略，进阶系统页只配置运行参数。系统能力不可用时仅非 fnOS 开发环境保留弹窗内手动路径输入。多片库卡片在手机端纵向堆叠，操作按钮折成两列。旧绝对路径规则需要关联多个片库时，用户可以反复“暂存并继续选择”；暂存区始终同时提供“继续添加片库”和“已选齐，确认关联”，确认期间显示检查进度，失败原因留在当前弹窗或暂存区，成功后刷新并退出关联状态。
+
+业务能力仍按以下边界组织，但不要求扩展成 7 个一级导航：
 
 1. 仪表盘
 系统健康、队列状态、最近失败、Watcher 开关、立即扫描/批处理入口。
@@ -34,7 +38,7 @@
 任务列表、状态筛选、批量动作、任务详情抽屉或二级页。
 
 3. 入库规则
-目录配置、路径规则、命名模板、去重策略、源文件处理策略。
+目录配置、路径规则、命名模板、目标片库冲突确认和源文件处理策略。前台不再提供自动覆盖/质量优先策略。
 
 4. 元数据与 AI
 Provider 配置、LLM 配置、Prompt、Dimensions、Matching。
@@ -48,7 +52,7 @@ Provider 配置、LLM 配置、Prompt、Dimensions、Matching。
 7. 系统与通知
 服务端配置、Hermes、Watcher、权限检查、日志/诊断入口。
 
-## Page Split Recommendation
+## Implementation Views
 
 建议至少拆为以下页面或主视图，而不是单一 `index.html` 巨页：
 
@@ -87,9 +91,20 @@ Provider 配置、LLM 配置、Prompt、Dimensions、Matching。
 - `sourceCleanerState`
 清理预览、执行中状态、记录列表、AI 预览结果。
 
-## Redesign Inputs
+## Responsive Experience Contract
 
-当前应视为重做输入、而不是继续局部修补的超 500 行前端文件：
+- 仅真实 `PENDING/RUNNING` 任务展示进度；待确认、失败、暂停和排队使用独立状态和下一步操作。
+- 最近活动最多 5 行；最近影片最多 12 部，以任务成功完成时间排序并按作品去重。
+- 任务卡在手机端优先展示海报、片名、状态、关键判断和主操作；额外判断进入详情，不得横向裁切。
+- 片库冲突任务卡必须写明“现有文件未改动”；详情先展示现有/待入库两份文件，桌面双列、手机单列，替换入口二次确认且不得进入批量确认。
+- 回收站在 768px 及以下改为纵向卡片，恢复入口优先，危险操作保持明确确认。
+- 手机长弹窗使用动态视口高度，头部和底部操作区保持可达，正文内部滚动；弹窗打开时底部导航不遮挡内容。
+- 配置胶卷在手机端可横滑，显示当前步骤计数和滑动提示；形式与桌面端一致。
+- 主要触控热区约 44px；320px 以安全可用为底线，360—430px 保留主要影院视觉。
+
+## Historical Redesign Inputs
+
+以下是 2026-08-22 的历史重做输入；当前已拆分为 `cinema-*` 模块，维护时继续避免重新堆回单体文件：
 
 - `media_importer/webui/index.html` — 2048 行
 - `media_importer/webui/js/config.js` — 2592 行
@@ -104,9 +119,9 @@ Provider 配置、LLM 配置、Prompt、Dimensions、Matching。
 
 这些文件后续应以页面拆分、状态拆分、样式拆分的方式处理，不再继续把新增需求直接压进原文件。
 
-## Pre-Start Gates
+## Change Gates
 
-前端正式开工前需要满足以下条件：
+后续前端中改及以上需要满足以下条件：
 
 1. 页面拆分方案冻结
 至少确认 Dashboard、Task List、Task Detail、Import Rules、Metadata & AI、Recycle 的边界。
@@ -124,7 +139,7 @@ Provider 配置、LLM 配置、Prompt、Dimensions、Matching。
 
 新前端第一阶段至少覆盖：
 
-- 首次配置向导能完成基础配置。
+- 首次配置向导能完成来源、多个目标片库、本地回收和最终检查；fnOS 内优先选择授权目录。
 - 能查看任务列表并执行重试、确认、删除。
 - 能编辑 Provider/LLM/Prompt/Dimensions 关键配置。
 - 能执行源目录清理预览和回收站恢复。

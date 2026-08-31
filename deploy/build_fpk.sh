@@ -59,7 +59,10 @@ maintainer            = wae2855
 distributor           = wae2855
 desktop_uidir         = ui
 desktop_applaunchname = nas-media-importer.main
-service_port          = 9855
+service_port          = 14591
+os_min_version        = 1.2.0401
+micro_app             = true
+disable_authorization_path = false
 checkport             = false
 ctl_stop              = true
 install_dep_apps      = python312
@@ -134,11 +137,11 @@ start_process() {
 
         if "${PYTHON_BIN}" -m venv "${VENV_DIR}" >> "${LOG_FILE}" 2>&1; then
             log_msg "venv created successfully"
-            log_msg "installing pip dependencies..."
-            if "${VENV_DIR}/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" >> "${LOG_FILE}" 2>&1; then
-                log_msg "pip install OK"
+            log_msg "stage 2/3: installing bundled Python dependencies offline..."
+            if "${VENV_DIR}/bin/pip" install --no-index --find-links "${SERVER_DIR}/wheelhouse" -r "${SERVER_DIR}/requirements-fnos.lock" >> "${LOG_FILE}" 2>&1; then
+                log_msg "stage 2/3: offline dependencies installed"
             else
-                fail_visible "Python 依赖安装失败，请检查设备网络或软件源后重试"
+                fail_visible "包内 Python 依赖安装失败，请查看日志确认 wheelhouse 是否完整"
                 return 1
             fi
         else
@@ -154,7 +157,7 @@ start_process() {
 
     log_msg "Starting process ..."
     "${VENV_DIR}/bin/python3" "${SERVER_DIR}/media_importer/media_importer.py" \
-        -c "${CONFIG_FILE}" serve --host 0.0.0.0 >> "${LOG_FILE}" 2>&1 &
+        -c "${CONFIG_FILE}" serve --host 127.0.0.1 >> "${LOG_FILE}" 2>&1 &
     local started_pid=$!
     printf "%s" "${started_pid}" > "${PID_FILE}"
     sleep 2
@@ -261,7 +264,7 @@ fail_visible() {
     exit 1
 }
 
-mkdir -p "${DATA_DIR}/config" "${DATA_DIR}/data" "${DATA_DIR}/logs" "${DATA_DIR}/tmp" || fail_visible "无法创建应用私有数据目录"
+mkdir -p "${DATA_DIR}/config" "${DATA_DIR}/data" "${DATA_DIR}/logs" "${DATA_DIR}/tmp" "${DATA_DIR}/resources" || fail_visible "无法创建应用私有数据目录"
 
 if [ ! -x "${PYTHON_BIN}" ]; then
     fail_visible "未找到 fnOS Python 3.12 运行时，请确认 python312 依赖已安装"
@@ -270,18 +273,21 @@ if [ ! -f "${TEMPLATE_FILE}" ]; then
     fail_visible "安装包缺少配置模板，安装已中止"
 fi
 
-if ! printf "%s" "${wizard_api_key:-}" | "${PYTHON_BIN}" "${APP_DIR}/server/fnos_config.py" initialize \
+if ! "${PYTHON_BIN}" "${APP_DIR}/server/fnos_config.py" initialize \
     --config "${CONFIG_FILE}" \
     --template "${TEMPLATE_FILE}" \
-    --source-dir "${wizard_source_dir:-}" \
-    --library-root "${wizard_library_root:-}" \
-    --recycle-dir "${wizard_recycle_dir:-}" \
     --temp-dir "${DATA_DIR}/tmp" \
     --log-dir "${DATA_DIR}/logs" \
-    --port "${wizard_port:-}" \
-    --api-key-stdin >/dev/null 2>"${DATA_DIR}/install-error.log"; then
+    --resource-dir "${DATA_DIR}/resources" >/dev/null 2>"${DATA_DIR}/install-error.log"; then
     error_message=$(tail -n 1 "${DATA_DIR}/install-error.log" 2>/dev/null || true)
     fail_visible "${error_message:-首次配置写入失败，请检查安装输入}"
+fi
+
+if ! "${PYTHON_BIN}" "${APP_DIR}/server/fnos_config.py" migrate-managed-service \
+    --config "${CONFIG_FILE}" \
+    --resource-dir "${DATA_DIR}/resources" >/dev/null 2>"${DATA_DIR}/install-error.log"; then
+    error_message=$(tail -n 1 "${DATA_DIR}/install-error.log" 2>/dev/null || true)
+    fail_visible "${error_message:-托管服务配置迁移失败，用户目录未被覆盖}"
 fi
 
 rm -f -- "${DATA_DIR}/install-error.log"
@@ -296,11 +302,26 @@ set -eu
 SERVER_DIR="${TRIM_APPDEST}/server"
 VENV_DIR="${TRIM_PKGVAR}/venv"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
+CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
+PYTHON_BIN="/var/apps/python312/target/bin/python3"
+mkdir -p "${TRIM_PKGVAR}/resources"
 if [ -x "${VENV_DIR}/bin/pip" ]; then
-    if ! "${VENV_DIR}/bin/pip" install --no-cache-dir -r "${SERVER_DIR}/requirements.txt" >>"${LOG_FILE}" 2>&1; then
-        echo "升级 Python 依赖失败，原配置已保留。请检查网络后重试" > "${TRIM_TEMP_LOGFILE}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - upgrade: installing bundled dependencies offline" >>"${LOG_FILE}"
+    if ! "${VENV_DIR}/bin/pip" install --no-index --find-links "${SERVER_DIR}/wheelhouse" -r "${SERVER_DIR}/requirements-fnos.lock" >>"${LOG_FILE}" 2>&1; then
+        echo "升级包内 Python 依赖失败，原配置已保留。请查看应用日志" > "${TRIM_TEMP_LOGFILE}"
         exit 1
     fi
+fi
+echo "$(date '+%Y-%m-%d %H:%M:%S') - upgrade: migrating fnOS-managed service settings" >>"${LOG_FILE}"
+if [ ! -x "${PYTHON_BIN}" ]; then
+    echo "升级失败：未找到 fnOS Python 3.12 运行时" > "${TRIM_TEMP_LOGFILE}"
+    exit 1
+fi
+if ! "${PYTHON_BIN}" "${SERVER_DIR}/fnos_config.py" migrate-managed-service \
+    --config "${CONFIG_FILE}" \
+    --resource-dir "${TRIM_PKGVAR}/resources" >>"${LOG_FILE}" 2>&1; then
+    echo "升级托管配置失败，来源、片库和回收目录未被覆盖。请查看应用日志" > "${TRIM_TEMP_LOGFILE}"
+    exit 1
 fi
 SCRIPT
     chmod +x "${PKG_DIR}/cmd/upgrade_callback"
@@ -318,21 +339,7 @@ SCRIPT
 create_config_callback() {
     cat > "${PKG_DIR}/cmd/config_callback" << 'SCRIPT'
 #!/bin/bash
-set -eu
-CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
-PYTHON_BIN="/var/apps/python312/target/bin/python3"
-
-if [ ! -x "${PYTHON_BIN}" ]; then
-    echo "未找到 fnOS Python 3.12 运行时" > "${TRIM_TEMP_LOGFILE}"
-    exit 1
-fi
-if ! "${PYTHON_BIN}" "${TRIM_APPDEST}/server/fnos_config.py" update-port \
-    --config "${CONFIG_FILE}" --port "${wizard_port:-}" >/dev/null 2>"${TRIM_PKGVAR}/config-error.log"; then
-    error_message=$(tail -n 1 "${TRIM_PKGVAR}/config-error.log" 2>/dev/null || true)
-    echo "${error_message:-端口配置失败}" > "${TRIM_TEMP_LOGFILE}"
-    exit 1
-fi
-rm -f -- "${TRIM_PKGVAR}/config-error.log"
+exit 0
 SCRIPT
     chmod +x "${PKG_DIR}/cmd/config_callback"
 }
@@ -345,66 +352,7 @@ create_wizard_install() {
         "items": [
             {
                 "type": "tips",
-                "helpText": "本应用会在安装时记录来源、片库和本地回收目录，但不会自动创建这些外部目录。请先在 fnOS 中创建目录并为应用授权。\n\n• 来源目录：至少读取；若以后启用垃圾清理或整组清理，还需要写入权限\n• 片库根目录：读取和写入\n• 回收目录：读取和写入，建议使用本机磁盘，不要使用云盘挂载\n\n网盘挂载可能暂时离线或能力受限。安装后必须运行“开场检查”，全部关键项通过后再启动后台整理。"
-            }
-        ]
-    },
-    {
-        "stepTitle": "目录配置",
-        "items": [
-            {
-                "type": "text",
-                "field": "wizard_source_dir",
-                "label": "来源目录",
-                "initValue": "/vol1/下载",
-                "rules": [
-                    { "required": true, "message": "请输入来源目录" },
-                    { "pattern": "^/.*", "message": "请输入以 / 开头的绝对路径" }
-                ]
-            },
-            {
-                "type": "text",
-                "field": "wizard_library_root",
-                "label": "片库根目录",
-                "initValue": "/vol1/影视",
-                "rules": [
-                    { "required": true, "message": "请输入片库根目录" },
-                    { "pattern": "^/.*", "message": "请输入以 / 开头的绝对路径" }
-                ]
-            },
-            {
-                "type": "text",
-                "field": "wizard_recycle_dir",
-                "label": "本地回收目录",
-                "initValue": "/vol1/回收站/影音库智能整理",
-                "rules": [
-                    { "required": true, "message": "请输入本地回收目录" },
-                    { "pattern": "^/.*", "message": "请输入以 / 开头的绝对路径" }
-                ]
-            }
-        ]
-    },
-    {
-        "stepTitle": "访问安全与端口",
-        "items": [
-            {
-                "type": "password",
-                "field": "wizard_api_key",
-                "label": "初始 API Key",
-                "rules": [
-                    { "required": true, "message": "请输入用于保护配置接口的 API Key" },
-                    { "pattern": "^.{16,}$", "message": "API Key 至少 16 个字符" }
-                ]
-            },
-            {
-                "type": "text",
-                "field": "wizard_port",
-                "label": "服务端口",
-                "initValue": "9855",
-                "rules": [
-                    { "required": true, "message": "请输入端口号" },
-                    { "pattern": "^[0-9]+$", "message": "端口号必须是数字" }
-                ]
+                "helpText": "安装完成后，首次打开应用会引导你从 fnOS 中选择并授权目录，不需要在这里手填路径。\n\n• 来源目录：可以是本地下载或已挂载网盘\n• 目标片库：可以连续添加多个硬盘或挂载目录\n• 回收目录：必须选择本机磁盘，不允许使用云盘\n\n目录选择完成后，应用会统一检查存在、读写权限、挂载状态和磁盘空间；关键项未通过前不会自动处理文件。首次安装官方 Python 运行时可能需要几分钟。"
             }
         ]
     }
@@ -419,14 +367,8 @@ create_wizard_config() {
         "stepTitle": "应用配置",
         "items": [
             {
-                "type": "text",
-                "field": "wizard_port",
-                "label": "服务端口",
-                "initValue": "9855",
-                "rules": [
-                    { "required": true, "message": "请输入端口号" },
-                    { "pattern": "^[0-9]+$", "message": "端口号必须是数字" }
-                ]
+                "type": "tips",
+                "helpText": "应用访问入口和服务端口由 fnOS 统一管理。目录、刮削和自动运行等设置请进入应用内完成。"
             }
         ]
     }
@@ -452,7 +394,11 @@ EOF
 
 create_config_resource() {
     cat > "${PKG_DIR}/config/resource" << 'EOF'
-{}
+{
+    "api-scope": [
+        "trim.file.sharedAccess"
+    ]
+}
 EOF
 }
 
@@ -490,14 +436,7 @@ create_ui_cgi() {
 #!/bin/bash
 
 BACKEND_HOST="127.0.0.1"
-BACKEND_PORT="${TRIM_SERVICE_PORT:-9855}"
-
-if [ -f "${TRIM_PKGVAR}/config/config.yaml" ]; then
-    PORT_FROM_CONFIG=$(grep -E "^[[:space:]]*port:" "${TRIM_PKGVAR}/config/config.yaml" 2>/dev/null | head -1 | sed 's/.*port:[[:space:]]*//' | tr -d '"' | tr -d "'")
-    if [ -n "${PORT_FROM_CONFIG}" ]; then
-        BACKEND_PORT="${PORT_FROM_CONFIG}"
-    fi
-fi
+BACKEND_PORT="14591"
 
 URI_NO_QUERY="${REQUEST_URI%%\?*}"
 QUERY_STRING_PART=""
@@ -626,10 +565,23 @@ main() {
     cp -r "${PROJECT_DIR}/media_importer" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/config.yaml.example" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/requirements.txt"    "${PKG_DIR}/app/server/"
+    cp "${PROJECT_DIR}/deploy/requirements-fnos.lock" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/deploy/fnos_config.py" "${PKG_DIR}/app/server/"
     find "${PKG_DIR}" -type d -name '__pycache__' -prune -exec rm -rf -- {} +
     find "${PKG_DIR}" -type f \( -name '*.pyc' -o -name '.DS_Store' \) -delete
     log_info "代码复制完成"
+
+    log_step "下载跨架构离线 Python wheel"
+    mkdir -p "${PKG_DIR}/app/server/wheelhouse"
+    "${VALIDATOR_PYTHON}" -m pip download \
+        --dest "${PKG_DIR}/app/server/wheelhouse" \
+        --only-binary=:all: --platform any --implementation py --python-version 3.12 --abi none \
+        -r "${PROJECT_DIR}/deploy/requirements-fnos.lock"
+    if find "${PKG_DIR}/app/server/wheelhouse" -type f ! -name '*-none-any.whl' | grep -q .; then
+        echo "wheelhouse 包含平台相关或非 wheel 文件，拒绝 platform=all 构建" >&2
+        exit 1
+    fi
+    log_info "离线 wheelhouse 已就绪"
 
     log_step "打包 FPK"
     cd "${PKG_DIR}"

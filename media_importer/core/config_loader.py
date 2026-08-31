@@ -5,7 +5,8 @@ import sys
 from copy import deepcopy
 from typing import Optional
 
-import yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 
 BOOL_TRUE_STRINGS = {'true', 'yes', 'on'}
 BOOL_FALSE_STRINGS = {'false', 'no', 'off'}
@@ -139,8 +140,8 @@ def load_config(config_path: Optional[str] = None) -> dict:
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-    except yaml.YAMLError as e:
+            config = YAML(typ="safe").load(f)
+    except YAMLError as e:
         print(f"配置文件 YAML 格式错误: {e}")
         sys.exit(1001)
 

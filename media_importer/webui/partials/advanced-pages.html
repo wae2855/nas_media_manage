@@ -22,12 +22,12 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
                             <b>先处理真正会影响主流程的项</b>
                         </div>
-                        <small>优先看入库名称规范、影视分类维度和安全配置。</small>
+                        <small>优先看入库名称规范、影视分类维度和系统设置。</small>
                     </div>
                     <div>
                         <div class="start-directory-head">
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
-                            <b>再补安全和系统策略</b>
+                            <b>再补系统策略</b>
                         </div>
                         <small>这些通常是低频配置，建议在主流程稳定后再逐项展开。</small>
                     </div>
@@ -45,7 +45,6 @@
     <section class="advanced-card-list">
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="naming-config"><div><h3>入库名称规范</h3><p>决定电影、剧集、字幕和重名文件最后怎样命名。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="dimensions-config"><div><h3>影视分类维度</h3><p>控制哪些维度参与分类判断、变量输出和目录映射。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
-        <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="security-config"><div><h3>安全配置</h3><p>控制 API 认证和监听端口，属于低频但高影响的设置。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
         <button class="setup-card row-card plain-row-card" data-nav="config" data-view-target="system-settings"><div><h3>系统设置</h3><p>管理应用目录、并发数以及视频和字幕识别范围。</p></div><span class="row-tail-icon" aria-hidden="true"><svg class="icon icon-sm" viewBox="0 0 24 24"><use href="#icon-chevron-right"></use></svg></span></button>
     </section>
 </section>
@@ -157,7 +156,7 @@
                             <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-archive"></use></svg></span>
                             <b>最后处理重名策略</b>
                         </div>
-                        <small>提前决定遇到同名文件时如何保留、替换或重命名。</small>
+                        <small>发现同作品或同名文件时先停止入库，由你逐项确认，片库现有文件不会被自动改动。</small>
                     </div>
                 </div>
             </article>
@@ -176,15 +175,12 @@
                 <input id="cfg-filename_templates-subtitle-inline" type="text" placeholder="{video_filename}.{lang}.{ext}" />
                 <p>字幕文件名格式，{video_filename} 为对应视频文件名，{lang} 为语言代码。</p>
             </label>
-            <label class="form-card form-card-full">
-                <span>入库同名文件处理策略</span>
-                <select id="cfg-duplicate_handling-strategy-inline">
-                    <option value="skip">跳过 - 同名文件已存在则跳过</option>
-                    <option value="replace">替换 - 用新文件替换已存在的文件</option>
-                    <option value="rename">重命名 - 两者都保留，新文件添加编号后缀</option>
-                    <option value="quality">质量优先 - 保留高质量版本</option>
-                </select>
-            </label>
+            <article class="form-card form-card-full target-library-safety-card">
+                <input id="cfg-duplicate_handling-strategy-inline" type="hidden" value="confirm" />
+                <span>目标片库保护</span>
+                <b>冲突时等待你确认</b>
+                <p>系统默认只新增。发现同作品或同名目标时，任务会停在“待确认”；只有你明确选择替换，片库现有文件才会先进入本地回收区。</p>
+            </article>
         </div>
     </section>
 </section>
@@ -243,64 +239,6 @@
     </section>
 </section>
 
-<section class="page-view" data-view="security-config">
-    <div class="page-hero">
-        <div>
-            <div class="eyebrow">高级配置</div>
-            <h2>安全配置</h2>
-            <div class="path-breadcrumb" aria-label="当前路径">
-                <span>系统配置</span><i>/</i><span>高级配置</span><i>/</i><strong>安全配置</strong>
-            </div>
-            <p>承接旧“通知安全 / API安全配置”，复用原有字段与提醒文案。</p>
-        </div>
-        <div class="hero-action-group">
-            <button class="btn btn-secondary" data-nav="config" data-view-target="advanced-config">返回高级配置</button>
-            <button class="btn btn-primary" type="button" data-config-save="security">保存</button>
-        </div>
-    </div>
-    <section class="config-panel advanced-host-panel">
-        <div class="config-form-grid">
-            <article class="form-card form-card-full config-guide-card">
-                <span>这一页先做什么</span>
-                <div class="config-guide-list compact">
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-check"></use></svg></span>
-                            <b>先决定是否开启认证</b>
-                        </div>
-                        <small>没有外部访问需求时，可以先保持关闭，降低配置复杂度。</small>
-                    </div>
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-alert"></use></svg></span>
-                            <b>再确认监听端口</b>
-                        </div>
-                        <small>一旦修改端口，浏览器入口、回调地址和部署配置都要一起同步。</small>
-                    </div>
-                    <div>
-                        <div class="start-directory-head">
-                            <span class="start-directory-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"></use></svg></span>
-                            <b>保存后安排重启验证</b>
-                        </div>
-                        <small>涉及端口和认证时，建议保存后立即验证访问和通知链路。</small>
-                    </div>
-                </div>
-            </article>
-            <label class="form-card form-card-full">
-                <span>API 认证密钥</span>
-                <input type="password" id="cfg-server_api_key-inline" placeholder="留空则不启用认证" />
-                <p>设置后所有 API 请求认证需要密码，留空则不启用认证，可以理解它是不需要用户名的密码。</p>
-            </label>
-            <label class="form-card form-card-full">
-                <span>API 监听端口</span>
-                <input type="number" id="cfg-server_port-inline" min="1024" max="65535" placeholder="9855" />
-                <p>⚠️ 修改端口影响面较大：重启服务后生效，浏览器登录地址、fnOS 应用端口配置和防火墙规则都需同步修改。</p>
-            </label>
-        </div>
-    </section>
-</section>
-
-
 <section class="page-view" data-view="system-settings">
     <div class="page-hero">
         <div>
@@ -345,26 +283,8 @@
                 </div>
             </article>
         </div>
-        <div class="system-inline-tip">
-            💡 以下配置已自动设置为应用专属目录，一般用户无需修改。如确需自定义路径，请确保路径已在 fnOS 应用授权目录中。
-        </div>
+        <div class="system-inline-tip">💡 日志、海报与缓存目录统一在【存储检查】管理；这里仅保留运行参数。</div>
         <div class="config-form-grid">
-            <label class="form-card form-card-full">
-                <span>日志目录</span>
-                <div class="input-with-inline-action">
-                    <input type="text" id="cfg-log_dir-inline" placeholder="/vol3/@appdata/nas-media-importer/logs" />
-                    <button class="btn secondary small" type="button" data-path-test="log">测试权限</button>
-                </div>
-                <p>应用运行日志的存储目录。</p>
-            </label>
-            <label class="form-card form-card-full">
-                <span>资源目录</span>
-                <div class="input-with-inline-action">
-                    <input type="text" id="cfg-resource_dir-inline" placeholder="/vol3/@appdata/nas-media-importer/resources" />
-                    <button class="btn secondary small" type="button" data-path-test="resource">测试权限</button>
-                </div>
-                <p>应用使用的图片、声音等资源文件存储目录。</p>
-            </label>
             <label class="form-card form-card-full">
                 <span>最大并发任务数</span>
                 <input type="number" id="cfg-task_queue-max_concurrent-inline" min="1" max="5" value="1" />

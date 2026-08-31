@@ -160,7 +160,7 @@ function updateBatchToolbar() {
   if (!toolbar) return;
   const selectedRecords = getSelectedTaskRecords();
   const count = selectedRecords.length;
-  toolbar.hidden = false;
+  toolbar.hidden = count === 0;
   const counter = document.getElementById("task-batch-count");
   if (counter) counter.textContent = `已选 ${count} 项`;
   const selectAll = document.getElementById("task-select-all");
@@ -181,7 +181,10 @@ function updateBatchToolbar() {
   const deleteBtn = document.getElementById("task-batch-delete");
   const hasFailed = selectedRecords.some((t) => taskStatusOf(t) === "FAILED");
   const hasAwaitReview = selectedRecords.some(
-    (t) => taskStatusOf(t) === "PENDING" && taskStageOf(t) === "AWAIT_REVIEW",
+    (t) =>
+      taskStatusOf(t) === "PENDING" &&
+      taskStageOf(t) === "AWAIT_REVIEW" &&
+      !targetLibraryConflictOf(t),
   );
   const hasProcessable = selectedRecords.some((t) =>
     isBatchableStatus(taskStatusOf(t)),
@@ -238,7 +241,9 @@ function setBatchToolbarVisibility() {
   const toolbar = document.getElementById("task-batch-toolbar");
   if (!toolbar) return;
   toolbar.hidden =
-    !Array.isArray(currentTaskRecords) || currentTaskRecords.length === 0;
+    !Array.isArray(currentTaskRecords) ||
+    currentTaskRecords.length === 0 ||
+    selectedTaskIds.size === 0;
 }
 
 async function performBatchTaskAction(action) {
@@ -258,14 +263,36 @@ async function performBatchTaskAction(action) {
     return;
   }
   if (action === "batch-confirm") {
+    const eligible = records.filter(
+      (task) =>
+        taskStatusOf(task) === "PENDING" &&
+        taskStageOf(task) === "AWAIT_REVIEW" &&
+        !targetLibraryConflictOf(task),
+    );
+    const protectedCount = records.length - eligible.length;
+    if (!eligible.length) {
+      showToast("片库冲突必须打开任务逐项处理，不能批量确认");
+      return;
+    }
     showConfirm(
       "批量入库",
-      `确定将「${records.length}」项任务按当前结果入库吗？`,
+      `确定将「${eligible.length}」项普通待确认任务按当前结果入库吗？${protectedCount ? ` 已排除 ${protectedCount} 项需要逐项处理的片库冲突。` : ""}`,
       async () => {
-        const result = await requestApi("POST", "/tasks/confirm-all");
-        showToast(
-          result.message || `批量确认请求已发送，共 ${records.length} 项`,
+        const settled = await Promise.allSettled(
+          eligible.map((task) =>
+            requestApi(
+              "POST",
+              `/tasks/${encodeURIComponent(task.task_id)}/confirm`,
+            ),
+          ),
         );
+        const ok = settled.filter(
+          (item) =>
+            item.status === "fulfilled" &&
+            item.value &&
+            item.value.code === 200,
+        ).length;
+        showToast(`批量入库完成：成功 ${ok} 项，失败 ${eligible.length - ok} 项`);
         clearTaskSelection();
         await Promise.all([loadTaskList(), loadDashboardOverview()]);
       },

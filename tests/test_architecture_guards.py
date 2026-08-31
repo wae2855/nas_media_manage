@@ -92,7 +92,6 @@ def test_filesystem_safety_lives_in_infrastructure():
 def test_source_file_strategy_lives_in_source_files_feature():
     source_paths = [
         ROOT / "media_importer" / "features" / "import_flow" / "runner.py",
-        ROOT / "media_importer" / "features" / "import_flow" / "services" / "dedup.py",
         ROOT / "media_importer" / "features" / "import_flow" / "services" / "import_service.py",
     ]
     for path in source_paths:

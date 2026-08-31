@@ -210,6 +210,7 @@ function renderRuleList(pathRules) {
         const titleText =
           (rule.name && String(rule.name).trim()) || `规则 ${index + 1}`;
         const template = rule.template || "未设置模板";
+        const root = libraryRootById(rule.library_root_id || defaultLibraryRootId());
         const conditions = rule.conditions || {};
         const entries = Object.entries(conditions);
         const templateChip = `<span class="rule-chip rule-chip--template" title="${escapeHtml(template)}">${escapeHtml(template)}</span>`;
@@ -253,7 +254,7 @@ function renderRuleList(pathRules) {
                         </div>
                         <div class="rule-inline-row">
                             <span class="rule-inline-row-label">入库目录</span>
-                            <div class="rule-inline-chips">${templateChip}</div>
+                            <div class="rule-inline-chips"><span class="rule-chip rule-chip--root">${escapeHtml(root?.name || "未绑定片库")}</span>${templateChip}</div>
                         </div>
                     </div>
                 </div>
@@ -397,11 +398,18 @@ function openRuleEditor(index = -1) {
     })
     .join("");
   const ruleName = target.name || "";
+  const roots = normalizedLibraryRoots().filter((root) => root.enabled);
+  const selectedRootId = target.library_root_id || defaultLibraryRootId();
   const overlay = showAppModal({
     title: index >= 0 ? `编辑规则 ${ruleName || index + 1}` : "新增入库规则",
     dismissOnBackdrop: false,
     body: `
             <div class="cinema-modal-stack">
+                <label class="cinema-modal-field">
+                    <span>目标片库</span>
+                    <select id="rule-library-root-input">${roots.map((root) => `<option value="${escapeHtml(root.id)}"${root.id === selectedRootId ? " selected" : ""}>${escapeHtml(root.name)}</option>`).join("")}</select>
+                    <small>命中这条规则后，文件只会写入所选片库。</small>
+                </label>
                 <label class="cinema-modal-field">
                     <span>规则名称（可选）</span>
                     <input type="text" id="rule-name-input" value="${escapeHtml(ruleName)}" placeholder="如：家庭向动漫剧集" maxlength="40" />
@@ -453,7 +461,9 @@ function openRuleEditor(index = -1) {
               else delete conditions[key];
             }
           });
-          const nextRule = { conditions, template };
+          const libraryRootId = String(document.getElementById("rule-library-root-input")?.value || "");
+          if (!libraryRootId) { showToast("请先添加并选择目标片库"); return; }
+          const nextRule = { conditions, template, library_root_id: libraryRootId };
           if (name) nextRule.name = name;
           if (index >= 0) pathRules[index] = nextRule;
           else pathRules.push(nextRule);

@@ -1,4 +1,5 @@
 from .cancel_service import TaskCancelResult, cancel_task_for_api
+from .dashboard_service import DashboardSummaryResult, get_dashboard_summary_for_api
 from .delete_service import DeleteTaskResult, delete_task
 from .detail_service import (
     TaskDetailResult,
@@ -68,6 +69,7 @@ from .transitions import (
 
 __all__ = [
     "DeleteTaskResult",
+    "DashboardSummaryResult",
     "TaskCancelResult",
     "TaskDetailResult",
     "TaskFileLifecycleResult",
@@ -102,6 +104,7 @@ __all__ = [
     "confirm_task_for_api",
     "preview_task_for_api",
     "get_queue_status_for_api",
+    "get_dashboard_summary_for_api",
     "get_task_for_api",
     "get_task_stats_for_api",
     "get_task_subtitles_for_api",

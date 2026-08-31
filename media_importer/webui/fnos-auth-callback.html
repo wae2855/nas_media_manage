@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>目录授权结果</title>
+  <style>body{margin:0;background:#111;color:#eee;font:15px/1.6 system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}.card{width:min(420px,calc(100% - 40px));padding:28px;border:1px solid #735f32;border-radius:18px;background:#1b1a17;text-align:center}b{display:block;font-size:20px;color:#e8c66a;margin-bottom:8px}a{display:inline-block;margin-top:18px;padding:9px 18px;border-radius:999px;background:#d4aa45;color:#17130a;text-decoration:none;font-weight:700}</style>
+</head>
+<body>
+  <main class="card"><b id="title">正在确认目录授权…</b><p id="message">请稍候，不要重复关闭窗口。</p><a id="return-link" href="./">返回应用</a></main>
+  <script>
+    (() => {
+      const params = new URLSearchParams(location.search);
+      const result = Object.fromEntries(params.entries());
+      const success = String(result.status || "").toLowerCase() === "success";
+      document.getElementById("title").textContent = success ? "目录授权已完成" : "目录授权没有完成";
+      document.getElementById("message").textContent = success ? "应用正在刷新权限状态，这个窗口可以关闭。" : (result.error || "你可以返回应用后重新选择目录。");
+      const base = location.pathname.includes("/index.cgi/") ? location.pathname.split("/index.cgi/")[0] + "/index.cgi/" : "/";
+      document.getElementById("return-link").href = base;
+      try {
+        localStorage.setItem("nmmi-fnos-auth-result", JSON.stringify({ result, receivedAt: Date.now() }));
+      } catch (_error) {}
+      if (window.opener) {
+        window.opener.postMessage({ type: "nmmi:fnos-auth-result", result }, location.origin);
+        if (success) setTimeout(() => window.close(), 500);
+      }
+    })();
+  </script>
+</body>
+</html>

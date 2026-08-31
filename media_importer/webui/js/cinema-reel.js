@@ -6,6 +6,9 @@ function initReelWheel() {
 
   let activeIndex = 0;
   let rotateTimer = null;
+  let interactionPaused = false;
+  let pointerStartX = null;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   function getRelativeSlot(index, total) {
     let slot = index - activeIndex;
@@ -29,12 +32,49 @@ function initReelWheel() {
 
   function scheduleRotation(total) {
     if (rotateTimer) clearInterval(rotateTimer);
-    if (total <= 1) return;
+    if (total <= 1 || interactionPaused || reducedMotion.matches || document.hidden) return;
     rotateTimer = setInterval(() => {
       activeIndex = (activeIndex + 1) % total;
       paintSlots();
-    }, 2800);
+    }, 4500);
   }
+
+  function pauseRotation() {
+    interactionPaused = true;
+    if (rotateTimer) clearInterval(rotateTimer);
+  }
+
+  function resumeRotation() {
+    interactionPaused = false;
+    scheduleRotation(wheel.querySelectorAll(".reel-frame").length);
+  }
+
+  function moveBy(delta) {
+    const total = wheel.querySelectorAll(".reel-frame").length;
+    if (!total) return;
+    activeIndex = (activeIndex + delta + total) % total;
+    paintSlots();
+    scheduleRotation(total);
+  }
+
+  wheel.addEventListener("pointerdown", (event) => {
+    pointerStartX = event.clientX;
+    pauseRotation();
+  });
+  wheel.addEventListener("pointerup", (event) => {
+    if (pointerStartX !== null && Math.abs(event.clientX - pointerStartX) > 28) {
+      moveBy(event.clientX < pointerStartX ? 1 : -1);
+    }
+    pointerStartX = null;
+    resumeRotation();
+  });
+  wheel.addEventListener("pointercancel", () => { pointerStartX = null; resumeRotation(); });
+  wheel.addEventListener("mouseenter", pauseRotation);
+  wheel.addEventListener("mouseleave", resumeRotation);
+  wheel.addEventListener("focusin", pauseRotation);
+  wheel.addEventListener("focusout", resumeRotation);
+  document.addEventListener("visibilitychange", () => scheduleRotation(wheel.querySelectorAll(".reel-frame").length));
+  reducedMotion.addEventListener?.("change", () => scheduleRotation(wheel.querySelectorAll(".reel-frame").length));
 
   window.buildReelWheel = function buildReelWheel(items) {
     wheel.innerHTML = "";
@@ -116,7 +156,7 @@ async function loadReelWheelFromTasks() {
     if (thumbnails && thumbnails.length > 0) {
       const apiBase = typeof getApiBase === "function" ? getApiBase() : "";
       items = thumbnails.map((t, i) => ({
-        title: t.name || `影片 ${i + 1}`,
+        title: [t.title || t.name || `影片 ${i + 1}`, t.year || ""].filter(Boolean).join(" · "),
         tone: "gold",
         image: t.url && t.url.startsWith("/api/") ? apiBase + t.url : t.url,
       }));
@@ -133,14 +173,14 @@ async function loadReelWheelFromTasks() {
 
   /* 从后端获取缩略图列表 */
   try {
-    const result = await requestApi("GET", "/thumbnails");
+    const result = await requestApi("GET", "/dashboard/summary");
     if (
       result &&
       result.code === 200 &&
       result.data &&
-      result.data.thumbnails
+      result.data.recent_movies
     ) {
-      _cachedThumbnails = result.data.thumbnails;
+      _cachedThumbnails = result.data.recent_movies;
       _thumbnailCacheTime = Date.now();
       buildWheel(_cachedThumbnails);
     } else {
@@ -153,9 +193,21 @@ async function loadReelWheelFromTasks() {
   }
 }
 
+function setReelMovies(movies) {
+  _cachedThumbnails = Array.isArray(movies) ? movies : [];
+  _thumbnailCacheTime = Date.now();
+  const apiBase = typeof getApiBase === "function" ? getApiBase() : "";
+  const items = _cachedThumbnails.map((movie, index) => ({
+    title: [movie.title || `影片 ${index + 1}`, movie.year || ""].filter(Boolean).join(" · "),
+    image: movie.url && movie.url.startsWith("/api/") ? apiBase + movie.url : movie.url,
+  }));
+  if (typeof buildReelWheel === "function") buildReelWheel(items);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   await loadHtmlPartial("advanced-pages-slot", "partials/advanced-pages.html");
   mountAdvancedSettingsInTrack();
+  initializeFnosAuthorizationBridge();
   bindEvents();
   renderStaticLists();
   initReelWheel();
@@ -169,7 +221,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadReelWheelFromTasks();
   startDashboardAutoRefresh();
   initHelpAccordions();
-  loadDirectoryConfig();
+  await loadDirectoryConfig({ guideSetup: true });
   if (typeof checkApiKeyRequired === "function") checkApiKeyRequired();
 
   try {

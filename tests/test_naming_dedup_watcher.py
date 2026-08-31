@@ -110,7 +110,9 @@ class TestFileWatcherCore(unittest.TestCase):
         cfg = {"source_dir": self.dir,
                "video_extensions": [".mkv", ".mp4"],
                "file_watcher": {"enabled": True, "poll_interval": 1, **overrides}}
-        return FileWatcher(cfg, on_new_files=lambda files: self.seen.extend(files))
+        watcher = FileWatcher(cfg, on_new_files=lambda files: self.seen.extend(files))
+        watcher._storage_ready_for_automatic_run = lambda: True
+        return watcher
 
     def test_baseline_scan_ignores_existing(self):
         self._mk("old.mkv")

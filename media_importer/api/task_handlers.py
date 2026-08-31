@@ -2,6 +2,7 @@ import os
 import threading
 
 from media_importer.api import globals
+from media_importer.features.configuration import configured_library_roots
 from media_importer.features.import_flow import run_batch_for_api, run_file_for_api
 from media_importer.features.import_flow.services.classification import ClassificationService
 from media_importer.features.tasks import (
@@ -9,6 +10,7 @@ from media_importer.features.tasks import (
     clear_tasks_for_api,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
+    get_dashboard_summary_for_api,
     get_queue_status_for_api,
     get_task_for_api,
     get_task_stats_for_api,
@@ -30,6 +32,18 @@ from .utils import json_response
 
 
 class TaskHandlersMixin:
+    def _dashboard_summary(self, *, body: dict, params: dict, query: dict):
+        from .thumbnail_handlers import _get_thumbnail_dir
+
+        pipeline = globals._global_pipeline
+        result = get_dashboard_summary_for_api(
+            globals._global_task_manager,
+            paused=pipeline.is_paused() if pipeline else False,
+            thumbnail_dir=_get_thumbnail_dir(),
+            protected_roots=configured_library_roots(globals._config or {}),
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
+
     def _get_task(self, *, body: dict, params: dict, query: dict):
         task_id = params.get("task_id", "")
         result = get_task_for_api(globals._global_task_manager, task_id)
@@ -95,6 +109,7 @@ class TaskHandlersMixin:
             task_id,
             confirmed_title=body.get("confirmed_title"),
             override_source=body.get("override_source"),
+            conflict_action=body.get("conflict_action"),
         )
         json_response(self, result.code, data=result.data, message=result.message)
 

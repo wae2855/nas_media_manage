@@ -21,7 +21,7 @@ class TestConfigViewDefaults(unittest.TestCase):
         self.assertEqual(view.source_policy.recycle_retention_days, 30)
         self.assertEqual(view.source_policy.scan_recursive, True)
         self.assertEqual(view.source_policy.scan_max_depth, 5)
-        self.assertEqual(view.dedup.strategy, "skip")
+        self.assertEqual(view.dedup.strategy, "confirm")
         self.assertEqual(view.dedup.enabled, True)
         self.assertEqual(view.manual_review.enabled, False)
         self.assertEqual(view.source_cleaner.cleanup_mode, "media_only")
@@ -75,7 +75,7 @@ class TestConfigViewDefaults(unittest.TestCase):
         self.assertGreater(len(view.paths.path_rules), 0)
         self.assertIn(".mkv", view.paths.video_extensions)
         self.assertIn(".srt", view.paths.subtitle_extensions)
-        self.assertEqual(view.dedup.strategy, "quality")
+        self.assertEqual(view.dedup.strategy, "confirm")
         self.assertEqual(
             view.source_policy.recycle_dir,
             "/vol1/@appdata/nas-media-importer/data/recycle",

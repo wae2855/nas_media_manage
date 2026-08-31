@@ -20,7 +20,7 @@ function renderRecycleCard(item) {
             <input type="checkbox" class="task-select-checkbox" data-recycle-select="${escapeHtml(id)}" ${checked} aria-label="选择回收项" />
             <div class="recycle-row-body">
                 <div class="recycle-row-title">${escapeHtml(title)}</div>
-                <div class="recycle-row-meta">${escapeHtml(item.original_path || item.recycle_path || "回收站")}</div>
+                <div class="recycle-row-meta" title="${escapeHtml(item.original_path || item.recycle_path || "回收站")}">${escapeHtml(item.original_path || item.recycle_path || "回收站")}</div>
                 <div class="recycle-row-info"><span class="${statusClass}">${escapeHtml(status)}</span> · ${escapeHtml(meta)}</div>
             </div>
             <div class="recycle-row-actions">
@@ -186,12 +186,16 @@ function getSelectedRecycleRecords() {
 function setRecycleBatchToolbarVisibility() {
     const toolbar = document.getElementById("recycle-batch-toolbar");
     if (!toolbar) return;
-    toolbar.hidden = !Array.isArray(currentRecycleRecords) || currentRecycleRecords.length === 0;
+    toolbar.hidden = !Array.isArray(currentRecycleRecords)
+        || currentRecycleRecords.length === 0
+        || selectedRecycleIds.size === 0;
 }
 
 function updateRecycleBatchToolbar() {
     const records = getSelectedRecycleRecords();
     const count = records.length;
+    const toolbar = document.getElementById("recycle-batch-toolbar");
+    if (toolbar) toolbar.hidden = count === 0;
     const counter = document.getElementById("recycle-batch-count");
     if (counter) counter.textContent = `已选 ${count} 项`;
     const selectAll = document.getElementById("recycle-select-all");

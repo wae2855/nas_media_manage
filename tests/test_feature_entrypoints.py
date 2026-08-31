@@ -87,7 +87,6 @@ def test_feature_consumers_use_feature_public_apis():
             "from .classification_rules import classify, render_template",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "dedup.py": [
-            "from media_importer.features.source_files import SourceCleanupService",
             "from .dedup_rules import check_duplicate",
         ],
         root / "media_importer" / "features" / "import_flow" / "steps" / "file.py": [

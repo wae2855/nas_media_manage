@@ -3,6 +3,48 @@ function openTaskDetail(taskId) {
   return openTaskDetailImpl(taskId, true);
 }
 
+function formatConflictBytes(value) {
+  const bytes = Number(value || 0);
+  if (!bytes) return "未知";
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+function buildTargetLibraryConflict(task) {
+  const conflict = targetLibraryConflictOf(task);
+  if (!conflict) return "";
+  const reason =
+    conflict.conflict_type === "target_path"
+      ? "准备写入的位置已经有同名文件"
+      : "识别到片库中已有同一影片";
+  const fileCard = (label, file, path, size, resolution, tone) => `
+    <article class="target-conflict-file target-conflict-file--${tone}">
+      <span>${escapeHtml(label)}</span>
+      <b>${escapeHtml(file || "未记录文件名")}</b>
+      <code title="${escapeHtml(path || "")}">${escapeHtml(path || "路径未记录")}</code>
+      <dl>
+        <div><dt>大小</dt><dd>${escapeHtml(formatConflictBytes(size))}</dd></div>
+        <div><dt>清晰度</dt><dd>${escapeHtml(resolution || "未知")}</dd></div>
+      </dl>
+    </article>`;
+  return `<section class="cinema-modal-block target-conflict-block">
+    <div class="target-conflict-assurance">
+      <span aria-hidden="true">✓</span>
+      <div><b>片库现有文件未发生任何改动</b><p>${escapeHtml(reason)}。系统已经暂停本任务，等待你决定。</p></div>
+    </div>
+    <div class="target-conflict-compare">
+      ${fileCard("片库现有文件", conflict.existing_file, conflict.existing_path, conflict.existing_size, conflict.existing_resolution, "existing")}
+      ${fileCard("本次待入库文件", conflict.new_file || task.source_filename, conflict.new_path || task.video_path, conflict.new_size, conflict.new_resolution, "incoming")}
+    </div>
+    <div class="target-conflict-actions" aria-label="选择冲突处理方式">
+      <button id="btn-conflict-keep-existing" type="button" class="btn btn-secondary"><b>保留片库文件</b><small>跳过本次入库，来源文件保持不变</small></button>
+      <button id="btn-conflict-keep-both" type="button" class="btn btn-primary"><b>两个都保留</b><small>新文件将命名为 ${escapeHtml(conflict.suggested_filename || "带编号的新文件")}</small></button>
+      <button id="btn-conflict-replace" type="button" class="btn target-conflict-replace"><b>替换片库文件</b><small>旧文件先进入本地回收区，可恢复</small></button>
+    </div>
+    <div id="import-error-area" class="modal-error-area target-conflict-error" hidden></div>
+  </section>`;
+}
+
 async function openTaskDetailImpl(taskId, refreshListAfter) {
   const detailResult = await requestApi(
     "GET",
@@ -25,12 +67,16 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const status = String(task.status || "").toUpperCase();
   const stage = String(task.stage || "").toUpperCase();
   const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
+  const targetConflict = targetLibraryConflictOf(task);
 
   const perm = getTaskEditPermission(task);
   const taskIdForClosure = taskId;
+  const summaryDescription = targetConflict
+    ? "片库中已有同一影片，系统已暂停入库，请选择处理方式。"
+    : taskDescription(task);
 
   // 分类维度（可编辑，去除预览按钮）
-  const dimSectionHtml = perm.canEditDimensions
+  const dimSectionHtml = perm.canEditDimensions && !targetConflict
     ? `<div class="cinema-modal-block">
                 <h4>分类维度</h4>
                 <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, true, true)}</div>
@@ -40,7 +86,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   // 入库预览区（待确认时显示）
   const importPath = task.import_path || "";
   const finalFilename = task.final_filename || taskFileName(task);
-  const importPreviewHtml = isAwaitReview
+  const importPreviewHtml = isAwaitReview && !targetConflict
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-section-head">
                     <h4>入库预览</h4>
@@ -53,7 +99,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     : "";
 
   // 操作按钮区（待确认时显示）
-  const actionHtml = isAwaitReview
+  const actionHtml = isAwaitReview && !targetConflict
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-save-row" style="flex-wrap:wrap;gap:8px">
                     <button id="btn-scrape-manual" type="button" class="btn" style="background:linear-gradient(135deg,#eabf63,#c4903a);color:#16100a;border-color:transparent;box-shadow:0 4px 16px rgba(234,191,99,0.2)">手动刮削</button>
@@ -64,21 +110,22 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
 
   const stateHintHtml = `<div class="cinema-modal-save-bar">
             <span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${escapeHtml(perm.statusColor)}18;color:${escapeHtml(perm.statusColor)}">${escapeHtml(perm.statusLabel)}</span>
-            <small class="task-permission-hint">${escapeHtml(perm.stateLabel)}</small>
+            <small class="task-permission-hint">${escapeHtml(targetConflict ? "片库冲突待逐项处理，现有文件未改动" : perm.stateLabel)}</small>
        </div>`;
 
   const body = `
         <div class="cinema-modal-stack">
             <div class="cinema-modal-summary">
                 <div><strong>${escapeHtml(taskDisplayTitle(task))}</strong><span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${escapeHtml(perm.statusColor)}18;color:${escapeHtml(perm.statusColor)};white-space:nowrap">${escapeHtml(perm.statusLabel)}</span></div>
-                <p>${escapeHtml(taskDescription(task))}</p>
+                <p>${escapeHtml(summaryDescription)}</p>
                 <small>源文件：${escapeHtml(originalFilename)}</small>
                 ${task.source_path ? `<small>源路径：${escapeHtml(task.source_path)}</small>` : ""}
                 ${task.import_video_path ? `<small>入库路径：${escapeHtml(task.import_video_path)}</small>` : ""}
             </div>
-            ${buildReviewReasonSection(task)}
+            ${buildTargetLibraryConflict(task)}
+            ${targetConflict ? "" : buildReviewReasonSection(task)}
             ${buildFailureSection(task)}
-            ${buildScrapeTraceSection(task)}
+            ${targetConflict ? "" : buildScrapeTraceSection(task)}
             ${dimSectionHtml}
             ${importPreviewHtml}
             ${actionHtml}
@@ -90,7 +137,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
         </div>`;
 
   const actions = [{ label: "关闭", className: "btn btn-secondary" }];
-  if (isAwaitReview) {
+  if (isAwaitReview && !targetConflict) {
     actions.push({
       label: "保存",
       className: "btn btn-primary",
@@ -111,10 +158,57 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     title: "任务详情",
     body,
     actions,
+    dismissOnBackdrop: false,
   });
 
+  async function submitConflictAction(conflictAction) {
+    setImportError("");
+    const result = await requestApi(
+      "POST",
+      `/tasks/${encodeURIComponent(taskIdForClosure)}/confirm`,
+      { conflict_action: conflictAction },
+    );
+    if (result.code === 200) {
+      if (result.data?.requires_conflict_review) {
+        showToast(result.message || "片库文件已发生变化，请重新查看后选择");
+        removeAppModal();
+        await Promise.all([loadTaskList(), loadDashboardOverview()]);
+        await openTaskDetailImpl(taskIdForClosure, true);
+        return;
+      }
+      const messages = {
+        keep_existing: "已保留片库现有文件，来源文件未改动",
+        keep_both: "两份文件均已保留",
+        replace_existing: "替换完成，原片库文件已进入本地回收区",
+      };
+      showToast(messages[conflictAction] || result.message || "处理完成");
+      removeAppModal();
+      await Promise.all([loadTaskList(), loadDashboardOverview()]);
+      return;
+    }
+    setImportError(result.message || "处理失败，现有片库文件未改动");
+  }
+
+  if (targetConflict) {
+    document
+      .getElementById("btn-conflict-keep-existing")
+      ?.addEventListener("click", () => submitConflictAction("keep_existing"));
+    document
+      .getElementById("btn-conflict-keep-both")
+      ?.addEventListener("click", () => submitConflictAction("keep_both"));
+    document
+      .getElementById("btn-conflict-replace")
+      ?.addEventListener("click", () => {
+        showConfirm(
+          "确认替换片库文件",
+          `将把片库现有文件「${targetConflict.existing_file || "未命名文件"}」先移入本地回收区，再写入本次文件。不会永久删除，可以从回收区恢复。确认继续吗？`,
+          () => submitConflictAction("replace_existing"),
+        );
+      });
+  }
+
   // 保存按钮 — 调 /preview 持久化后刷新详情
-  if (isAwaitReview) {
+  if (isAwaitReview && !targetConflict) {
     const saveBtn = modal.querySelector(".cinema-modal-footer .btn-primary");
     if (saveBtn) {
       saveBtn.addEventListener("click", async function () {
@@ -154,7 +248,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
           `/tasks/${encodeURIComponent(taskIdForClosure)}/confirm`,
         );
         if (result.code === 200) {
-          showToast("入库成功");
+          showToast(result.message || "入库成功");
           removeAppModal();
           await Promise.all([loadTaskList(), loadDashboardOverview()]);
         } else {
@@ -177,12 +271,17 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
 
   function setImportError(msg) {
     const errEl = document.getElementById("import-error-area");
-    if (!errEl) return;
+    if (!errEl) {
+      if (msg) showToast(msg);
+      return;
+    }
     if (!msg) {
+      errEl.hidden = true;
       errEl.style.display = "none";
       errEl.textContent = "";
       return;
     }
+    errEl.hidden = false;
     errEl.style.display = "block";
     errEl.textContent = msg;
   }

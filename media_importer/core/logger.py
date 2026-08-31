@@ -2,12 +2,31 @@
 import json
 import logging
 import os
+import stat
 import sys
 import threading
 from collections import deque
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from typing import Optional
+
+
+class SafeRotatingFileHandler(RotatingFileHandler):
+    """Open log files without following links or sharing a hard-linked inode."""
+
+    def _open(self):
+        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(self.baseFilename, flags, 0o600)
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+            os.close(descriptor)
+            raise OSError(f"日志路径不是独立普通文件: {self.baseFilename}")
+        return os.fdopen(
+            descriptor,
+            self.mode,
+            encoding=self.encoding,
+            errors=self.errors,
+        )
 
 
 class Logger:
@@ -37,7 +56,14 @@ class Logger:
         self._buffer_lock = threading.Lock()
 
         if self._file_handler_enabled:
-            self._setup_file_handler()
+            try:
+                self._setup_file_handler()
+            except OSError as exc:
+                print(
+                    f"WARNING: 日志文件安全检查失败: {exc}，将仅输出到控制台",
+                    file=sys.stderr,
+                )
+                self._file_handler_enabled = False
         self._setup_console_handler()
 
     def _parse_level(self, level_str: str) -> int:
@@ -54,7 +80,7 @@ class Logger:
         log_file = os.path.join(self.log_dir, "media_importer.log")
         max_bytes = self.max_size_mb * 1024 * 1024
 
-        handler = RotatingFileHandler(
+        handler = SafeRotatingFileHandler(
             log_file,
             maxBytes=max_bytes,
             backupCount=self.backup_count,

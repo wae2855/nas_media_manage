@@ -262,6 +262,71 @@ class TestTaskOperations(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(recycle_dir, "recycled.mkv")))
         self.assertFalse(os.path.exists(video_path))
 
+    # Requirement: REQ-20260831-004019
+    def test_move_to_recycle_bin_never_moves_library_file(self):
+        library = os.path.join(self.tmpdir, "library_q")
+        recycle_dir = os.path.join(self.tmpdir, "recycle_library_q")
+        os.makedirs(library, exist_ok=True)
+        os.makedirs(recycle_dir, exist_ok=True)
+        video_path = os.path.join(library, "protected.mkv")
+        with open(video_path, "wb") as file_obj:
+            file_obj.write(b"library-must-survive")
+        self.tm.config["library_roots"] = [
+            {"id": "movies", "name": "电影", "path": library, "enabled": True}
+        ]
+        task = self._create_task(
+            status="SUCCESS",
+            source_path=video_path,
+            source_filename="protected.mkv",
+            file_location="import",
+            import_video_path=video_path,
+            import_success=1,
+        )
+
+        self.tm.move_to_recycle_bin(task["task_id"], video_path, [], recycle_dir)
+
+        updated = db_module.get_task(self.conn, task["task_id"])
+        self.assertEqual(updated["file_location"], "import")
+        with open(video_path, "rb") as file_obj:
+            self.assertEqual(file_obj.read(), b"library-must-survive")
+        self.assertEqual(os.listdir(recycle_dir), [])
+
+    # Requirement: REQ-20260831-004019
+    def test_move_to_recycle_bin_never_moves_library_subtitle(self):
+        source = os.path.join(self.tmpdir, "source_with_protected_sub")
+        library = os.path.join(self.tmpdir, "library_sub")
+        recycle_dir = os.path.join(self.tmpdir, "recycle_sub")
+        os.makedirs(source, exist_ok=True)
+        os.makedirs(library, exist_ok=True)
+        os.makedirs(recycle_dir, exist_ok=True)
+        video_path = os.path.join(source, "movie.mkv")
+        subtitle_path = os.path.join(library, "Movie.zh.srt")
+        with open(video_path, "wb") as file_obj:
+            file_obj.write(b"source-video")
+        with open(subtitle_path, "w", encoding="utf-8") as file_obj:
+            file_obj.write("library-subtitle")
+        self.tm.config["library_roots"] = [
+            {"id": "movies", "name": "电影", "path": library, "enabled": True}
+        ]
+        task = self._create_task(
+            status="FAILED",
+            source_path=video_path,
+            source_filename="movie.mkv",
+            subtitle_files=[subtitle_path],
+            file_location="source",
+        )
+
+        moved = self.tm.move_to_recycle_bin(
+            task["task_id"], video_path, [subtitle_path], recycle_dir
+        )
+
+        self.assertFalse(moved)
+        with open(video_path, "rb") as file_obj:
+            self.assertEqual(file_obj.read(), b"source-video")
+        with open(subtitle_path, encoding="utf-8") as file_obj:
+            self.assertEqual(file_obj.read(), "library-subtitle")
+        self.assertEqual(os.listdir(recycle_dir), [])
+
     def test_retry_all_failed(self):
         for i in range(3):
             self._create_task(
