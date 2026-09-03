@@ -19,6 +19,7 @@ class TMDbProvider(MetadataProvider):
             max_retries=int(config.get("max_retries", 3) or 3),
         )
         self._config = config
+        self._alternative_titles_cache: dict[tuple[str, str], tuple[str, ...]] = {}
 
     @property
     def language(self):
@@ -128,18 +129,42 @@ class TMDbProvider(MetadataProvider):
         return SearchResult(items=items, total_results=len(items))
 
     def get_alternative_titles(self, item_id: str, media_type: str) -> List[str]:
+        cache_key = (str(item_id), str(media_type))
+        cached = self._alternative_titles_cache.get(cache_key)
+        if cached is not None:
+            return list(cached)
+        titles = []
         try:
             if media_type == "movie":
                 rows = self._client.get_movie_alternative_titles(int(item_id))
             else:
                 rows = self._client.get_tv_alternative_titles(int(item_id))
         except (TMDbError, TypeError, ValueError):
-            return []
-        return list(dict.fromkeys(
+            rows = []
+        titles.extend(
             str(row.get("title") or "").strip()
             for row in rows
             if str(row.get("title") or "").strip()
-        ))
+        )
+        try:
+            if media_type == "movie":
+                translations = self._client.get_movie_translations(int(item_id))
+            else:
+                translations = self._client.get_tv_translations(int(item_id))
+        except (TMDbError, TypeError, ValueError, AttributeError):
+            translations = []
+        titles.extend(
+            str(
+                (row.get("data") or {}).get("title")
+                or (row.get("data") or {}).get("name")
+                or ""
+            ).strip()
+            for row in translations
+            if isinstance(row, dict)
+        )
+        result = tuple(dict.fromkeys(title for title in titles if title))
+        self._alternative_titles_cache[cache_key] = result
+        return list(result)
 
     def _to_media_details(self, raw: dict, media_type: str) -> MediaDetails:
         date_field = "release_date" if media_type == "movie" else "first_air_date"

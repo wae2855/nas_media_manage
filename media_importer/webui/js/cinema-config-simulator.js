@@ -268,12 +268,16 @@ function renderMatchPathPreview(data) {
   if (selected && selected.why_selected) {
     const whyMap = {
       unique_match: "唯一精确匹配",
+      evidence_converged: "文件名与目录名指向同一作品",
+      folder_rescue: "目录标题补足弱文件名",
+      provider_alias: "命中影视资料官方别名",
       top_rated: "评分最高",
       ai_suggestion: "历史 AI 建议",
       first_candidate: "Provider 排序第一",
       user_pick: "用户选择",
       explicit_provider_id: "文件名身份编号精确命中",
       nfo_provider_id: "相邻 NFO 身份编号精确命中",
+      folder_provider_id: "作品目录身份编号精确命中",
       historical_provider_binding: "历史身份绑定精确命中",
     };
     const whyText = whyMap[selected.why_selected] || selected.why_selected;

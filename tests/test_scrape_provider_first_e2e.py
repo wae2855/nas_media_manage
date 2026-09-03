@@ -151,6 +151,48 @@ class TestScrapeProviderFirstE2E:
         assert result["provider_id"] == "57100"
         assert result["scrape_trace"]["identity_evidence"]["signals"][1]["source"] == "folder"
 
+    def test_preselected_match_carries_structural_path_season_to_scrape_result(self):
+        scraper = _make_scraper(provider_dims_complete=True)
+        mock_conn = MagicMock()
+        match_result = MatchResult(
+            match_level="AUTO_PASS",
+            provider_id="1399",
+            provider_title="Game of Thrones",
+            selected_candidate=SelectedCandidate(
+                provider_type="tmdb",
+                provider_id="1399",
+                title="Game of Thrones",
+                year=2011,
+                media_type="tv",
+                why_selected="evidence_converged",
+            ),
+            identity_evidence={
+                "path_structure": {"season": 2},
+                "signals": [
+                    {"source": "file", "titles": ["Game of Thrones"], "episode": 3},
+                    {"source": "folder", "titles": ["Game of Thrones"], "season": 2},
+                ],
+            },
+        )
+
+        with patch(
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
+            return_value={"media_type"},
+        ):
+            result = _scrape_provider_first(
+                scraper,
+                "Game.of.Thrones.E03.mkv",
+                [],
+                mock_conn,
+                video_path="/source/Game of Thrones/Season 02/Game.of.Thrones.E03.mkv",
+                match_result=match_result,
+            )
+
+        assert result["media_type"] == "tv"
+        assert result["season"] == 2
+        assert result["clean_result"]["season"] == 2
+        assert result["episode"] is None
+
     def test_provider_dims_complete_no_ai_and_trace_has_provider_dimensions(self):
         """Provider 维度完整时，不调 AI，scrape_trace 写入 provider_dimensions。"""
         scraper = _make_scraper(provider_dims_complete=True)

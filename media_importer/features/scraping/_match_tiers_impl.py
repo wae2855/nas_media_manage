@@ -166,10 +166,21 @@ def _tier1_exact_match_impl(
         "episode": episode,
         "weak": False,
     }]
+    primary_file_signal = next(
+        (signal for signal in signals if signal.get("source") == "file"),
+        {},
+    )
+    clean_result = evidence.get("file_clean_result")
+    release_identity = getattr(clean_result, "release_identity", {}) or {}
+    is_date_episode = bool(release_identity.get("release_date"))
     # Only season/episode in the file is strong enough to constrain Provider type.
     # A user-created folder called "TV" or "电影" must not veto an otherwise
     # exact filename match.
-    media_type_hint = "tv" if season is not None or episode is not None else ""
+    media_type_hint = (
+        "tv"
+        if season is not None or episode is not None or is_date_episode
+        else ""
+    )
     search_cache = {}
     alias_cache = {}
     candidate_hits = {}
@@ -244,11 +255,14 @@ def _tier1_exact_match_impl(
     ]
     for provider, signal in work_items:
             source = signal.get("source", "file")
-            if source == "folder" and any(
-                "file" in entry["strong_exact_sources"]
-                for entry in candidate_hits.values()
-            ):
-                continue
+            if source == "folder":
+                strong_file_hits = [
+                    entry
+                    for entry in candidate_hits.values()
+                    if "file" in entry["strong_exact_sources"]
+                ]
+                if len(strong_file_hits) == 1:
+                    continue
             signal_year = signal.get("year")
             signal_season = signal.get("season")
             seen_titles = set()
@@ -287,16 +301,36 @@ def _tier1_exact_match_impl(
                     if not media_type_hint or item.media_type == media_type_hint
                 ]
                 matches = []
-                for item in eligible_items:
+                for item_index, item in enumerate(eligible_items):
                     title_match = self.title_matcher.match_standard(
                         search_title, item, signal_year, signal_season
                     )
                     alias_matched = ""
+                    alias_has_exact_year = (
+                        signal_year is not None and item.year == signal_year
+                    )
+                    alias_has_tv_path_convergence = (
+                        media_type_hint == "tv"
+                        and (season is not None or episode is not None)
+                        and file_folder_title_overlap
+                    )
+                    alias_has_tv_folder_rescue = (
+                        source == "folder"
+                        and media_type_hint == "tv"
+                        and signal_season is not None
+                        and primary_file_signal.get("weak")
+                    )
                     if (
-                        source == "file"
-                        and len(eligible_items) == 1
-                        and signal_year is not None
-                        and item.year == signal_year
+                        (
+                            source == "file"
+                            and (alias_has_exact_year or alias_has_tv_path_convergence)
+                            or source == "folder"
+                            and (alias_has_exact_year or alias_has_tv_folder_rescue)
+                        )
+                        and (
+                            alias_has_exact_year
+                            or item_index < 10
+                        )
                         and title_match.level not in ("L1", "L2", "L3")
                     ):
                         alias_key = (id(provider), item.media_type, str(item.item_id))
@@ -311,16 +345,40 @@ def _tier1_exact_match_impl(
                                     provider.__class__.__name__, exc,
                                 )
                                 alias_cache[alias_key] = []
+                        authoritative_titles = [
+                            item.title,
+                            item.original_title,
+                            *alias_cache[alias_key],
+                        ]
                         alias_matched = next((
-                            alias for alias in alias_cache[alias_key]
+                            alias for alias in authoritative_titles
                             if normalized_title(alias) == normalized_title(search_title)
+                            or (
+                                TitleNormalizer.optional_article_key(alias)
+                                == TitleNormalizer.optional_article_key(search_title)
+                                and bool(TitleNormalizer.optional_article_key(alias))
+                                and (
+                                    TitleNormalizer.has_optional_leading_article(alias)
+                                    or TitleNormalizer.has_optional_leading_article(search_title)
+                                )
+                            )
                         ), "")
                         if alias_matched:
                             title_match.level = "L1"
                             title_match.T = 1.0
                             title_match.similarity = 1.0
-                            title_match.year_match = True
-                            title_match.reason = f"L1: 标题精确命中 Provider 官方别名 {alias_matched} + 年份一致"
+                            title_match.year_match = (
+                                True if alias_has_exact_year else None
+                            )
+                            support = (
+                                "年份一致"
+                                if alias_has_exact_year
+                                else "文件与目录标题一致且有季集结构"
+                            )
+                            title_match.reason = (
+                                f"L1: 标题精确命中 Provider 官方别名 "
+                                f"{alias_matched} + {support}"
+                            )
                     key = (item.provider_type, item.media_type, str(item.item_id))
                     entry = candidate_hits.setdefault(key, {
                         "item": item,
@@ -331,14 +389,18 @@ def _tier1_exact_match_impl(
                         "support_sources": set(),
                         "matches": [],
                         "signal_years": set(),
+                        "years_by_source": {"file": set(), "folder": set()},
                     })
                     entry["sources"].add(source)
                     entry["matches"].append((source, search_title, title_match))
                     if signal_year is not None:
                         entry["signal_years"].add(signal_year)
+                        entry["years_by_source"].setdefault(source, set()).add(signal_year)
                     if title_match.level in ("L1", "L2", "L3"):
                         entry["exact_sources"].add(source)
-                    if title_match.level in ("L1", "L2"):
+                    if title_match.level in ("L1", "L2") or (
+                        is_date_episode and title_match.level == "L3"
+                    ):
                         entry["strong_exact_sources"].add(source)
                         if source == "file":
                             entry["strong_file_titles"].add(normalized_title(search_title))
@@ -389,6 +451,25 @@ def _tier1_exact_match_impl(
         entry for entry in candidate_hits.values()
         if "file" in entry["strong_exact_sources"] and year_compatible(entry)
     ]
+    folder_year_disambiguated = [
+        entry for entry in strong_file_entries
+        if "folder" in entry["strong_exact_sources"]
+        and entry["item"].year in entry["years_by_source"].get("folder", set())
+    ]
+    if len(folder_year_disambiguated) == 1:
+        strong_file_entries = folder_year_disambiguated
+    elif len(strong_file_entries) > 1:
+        title_support = {
+            id(entry): len(entry.get("strong_file_titles") or set())
+            for entry in strong_file_entries
+        }
+        best_support = max(title_support.values(), default=0)
+        best_supported = [
+            entry for entry in strong_file_entries
+            if title_support[id(entry)] == best_support
+        ]
+        if best_support >= 2 and len(best_supported) == 1:
+            strong_file_entries = best_supported
     file_identity_conflict = len(strong_file_entries) > 1
     if file_identity_conflict:
         self._pending_concerns.append(MatchConcern(

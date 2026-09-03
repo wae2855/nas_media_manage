@@ -1,4 +1,4 @@
-"""三级匹配策略的数据模型。"""
+"""两级匹配策略的数据模型。"""
 
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -30,7 +30,7 @@ class SelectedCandidate:
 @dataclass
 class MatchConcern:
     """匹配疑虑原因。"""
-    code: str       # NO_YEAR_MULTI_MATCH / YEAR_MISMATCH / FUZZY_TITLE / NO_PROVIDER_RESULT / NO_TITLE / CONFLICTING_INFO / AI_UNCERTAIN
+    code: str       # NO_TITLE / FUZZY_TITLE / CONFLICTING_INFO / IDENTITY_CONFLICT / IDENTITY_LOOKUP_FAILED / CLOSE_CANDIDATES
     message: str    # 用户可读文案
     detail: str     # 详细技术说明
 
@@ -49,7 +49,7 @@ class MatchTraceStep:
 
 @dataclass
 class MatchResult:
-    """三级匹配引擎的最终结果。"""
+    """两级匹配引擎的最终结果。"""
     match_level: str            # AUTO_PASS / CONTEXT_PASS / NEEDS_CONFIRM / FAILED
     provider_id: Optional[str] = None
     provider_title: str = ""

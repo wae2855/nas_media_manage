@@ -109,7 +109,7 @@ def _run_scrape_preview_job(job_id, filename, config):
                           f"正在搜索：{clean_result.clean_title}")
         _preview_step_delay()
         match_engine = MatchEngine(config)
-        # 手动执行三级匹配，每级之间上报进度
+        # 手动执行两级匹配，每级之间上报进度
         clean_title = clean_result.clean_title or ""
         cjk_title = clean_result.cjk_title or ""
         year = clean_result.year

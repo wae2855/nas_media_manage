@@ -304,6 +304,8 @@ def parse_release_identity(filename: str) -> ReleaseIdentity:
     prepared, pre_evidence, pre_editions, pre_languages, pre_subtitles = _prepare_for_guessit(filename)
     guessed = dict(guessit(prepared))
     legacy = _parse_legacy_release_identity(prepared)
+    guessed_date = guessed.get("date")
+    has_episode_date = isinstance(guessed_date, datetime.date)
 
     guessed_candidates = _guessit_title_candidates(guessed)
     if legacy.episode is not None and str(guessed.get("type") or "") != "episode":
@@ -315,7 +317,10 @@ def parse_release_identity(filename: str) -> ReleaseIdentity:
                 for legacy_title in legacy.title_candidates
             )
         )
-    title_candidates = _merge_title_candidates(guessed_candidates, legacy.title_candidates)
+    title_candidates = _merge_title_candidates(
+        guessed_candidates,
+        () if has_episode_date else legacy.title_candidates,
+    )
 
     guessed_episodes = guessed.get("episode")
     if isinstance(guessed_episodes, list):
@@ -328,6 +333,8 @@ def parse_release_identity(filename: str) -> ReleaseIdentity:
         episodes = (legacy.episode,)
     else:
         episodes = ()
+    if episodes and episodes[0] <= 0 and (legacy.episode or 0) > 0:
+        episodes = legacy.episodes or (legacy.episode,)
 
     guessed_year = _as_int(guessed.get("year"))
     guessed_season = _first_int(guessed.get("season"))
@@ -349,7 +356,11 @@ def parse_release_identity(filename: str) -> ReleaseIdentity:
 
     return ReleaseIdentity(
         title_candidates=title_candidates,
-        year=guessed_year if guessed_year is not None else legacy.year,
+        year=(
+            None
+            if has_episode_date
+            else guessed_year if guessed_year is not None else legacy.year
+        ),
         season=guessed_season if guessed_season is not None else legacy.season,
         episode=guessed_episode if guessed_episode is not None else legacy.episode,
         episodes=episodes,
@@ -367,15 +378,20 @@ def parse_release_identity(filename: str) -> ReleaseIdentity:
         release_group=str(guessed.get("release_group") or legacy.release_group or ""),
         unknown_tags=legacy.unknown_tags,
         evidence=tuple(_dedupe(evidence)),
-        year_suspect=legacy.year_suspect or (
-            guessed_year is not None and legacy.year is not None and guessed_year != legacy.year
+        year_suspect=(
+            False
+            if has_episode_date
+            else legacy.year_suspect or (
+                guessed_year is not None
+                and legacy.year is not None
+                and guessed_year != legacy.year
+            )
         ),
         tmdb_id=_provider_id(guessed, "tmdb_id"),
         imdb_id=_provider_id(guessed, "imdb_id"),
         tvdb_id=_provider_id(guessed, "tvdb_id"),
         release_date=(
-            guessed.get("date").isoformat()
-            if isinstance(guessed.get("date"), datetime.date) else ""
+            guessed_date.isoformat() if has_episode_date else ""
         ),
         part=_first_int(guessed.get("part")),
         disc=_first_int(guessed.get("disc") if guessed.get("disc") is not None else guessed.get("cd")),
@@ -593,7 +609,14 @@ def _select_year(matches: list[re.Match[str]]) -> tuple[int | None, tuple[int, i
     current_year = datetime.datetime.now().year
     plausible = [match for match in matches if int(match.group(1)) <= current_year + 1]
     selected = plausible[-1] if plausible else matches[-1]
-    return int(selected.group(1)), selected.span(), len(matches) > 1 or not plausible
+    leading_numeric_title = (
+        len(matches) == 2
+        and matches[0].start() == 0
+        and selected is matches[1]
+        and int(matches[0].group(1)) != int(selected.group(1))
+    )
+    suspect = (len(matches) > 1 and not leading_numeric_title) or not plausible
+    return int(selected.group(1)), selected.span(), suspect
 
 
 def _remove_phrases(
@@ -670,13 +693,17 @@ def _split_title_candidates(value: str) -> tuple[str, ...]:
     value = re.sub(r"\s+", " ", value).strip()
     if not value:
         return ()
+    east_asian = (
+        r"\u3040-\u30ff\u31f0-\u31ff\u3400-\u9fff"
+        r"\uf900-\ufaff\uff66-\uff9f"
+    )
     cjk_parts = re.findall(
-        r"[\u3400-\u9fff][\u3400-\u9fff0-9\u3000-\u303f：:·\s]*",
+        rf"[{east_asian}][{east_asian}0-9\u3000-\u303f：:·\s]*",
         value,
     )
     cjk = " ".join(part.strip() for part in cjk_parts if part.strip()).strip()
     latin = re.sub(
-        r"[\u3400-\u9fff][\u3400-\u9fff0-9\u3000-\u303f：:·\s]*",
+        rf"[{east_asian}][{east_asian}0-9\u3000-\u303f：:·\s]*",
         " ",
         value,
     )

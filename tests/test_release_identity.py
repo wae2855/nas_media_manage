@@ -103,6 +103,54 @@ def test_episode_range_is_preserved_as_structured_evidence():
 
 
 @pytest.mark.parametrize(
+    ("filename", "title", "release_date"),
+    [
+        ("Grey's.Anatomy.2024-09-26.mkv", "Grey's Anatomy", "2024-09-26"),
+        ("Greys.Anatomy.2024.03.14.mkv", "Greys Anatomy", "2024-03-14"),
+        ("Grey's Anatomy - 26-09-2024.mkv", "Grey's Anatomy", "2024-09-26"),
+        ("Greys Anatomy 14.03.2024.mkv", "Greys Anatomy", "2024-03-14"),
+    ],
+)
+def test_episode_air_date_is_not_treated_as_series_release_year(
+    filename, title, release_date
+):
+    identity = parse_release_identity(filename)
+
+    assert identity.title_candidates == (title,)
+    assert identity.year is None
+    assert identity.release_date == release_date
+    assert identity.media_type_hint == "tv"
+
+
+def test_japanese_kana_remains_part_of_title():
+    identity = parse_release_identity("千と千尋の神隠し.2001.mkv")
+
+    assert identity.title_candidates == ("千と千尋の神隠し",)
+
+
+def test_numeric_title_before_release_year_is_not_ambiguous():
+    identity = parse_release_identity("1917.2019.1080p.BluRay.x264.mkv")
+
+    assert identity.title_candidates == ("1917",)
+    assert identity.year == 2019
+    assert identity.year_suspect is False
+
+
+@pytest.mark.parametrize(
+    ("filename", "episode"),
+    [
+        ("[字幕组] 海贼王 - 100 [720p].mkv", 100),
+        ("One Piece - 1000v2 [WEB-DL].mkv", 1000),
+    ],
+)
+def test_anime_absolute_episode_keeps_all_digits(filename, episode):
+    identity = parse_release_identity(filename)
+
+    assert identity.episode == episode
+    assert identity.episodes[0] == episode
+
+
+@pytest.mark.parametrize(
     ("filename", "titles", "year", "season", "episode", "media_type"),
     [
         (

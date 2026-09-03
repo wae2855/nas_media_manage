@@ -36,6 +36,7 @@ class WhySelected:
     USER_PICK = "user_pick"                 # 用户人工选择（review 后写入）
     EXPLICIT_ID = "explicit_provider_id"     # 文件名显式 Provider ID
     NFO_ID = "nfo_provider_id"               # 相邻 NFO Provider ID
+    FOLDER_ID = "folder_provider_id"         # 作品目录显式 Provider ID
     HISTORICAL_BINDING = "historical_provider_binding"  # 已保存的历史 Provider 绑定
 
 

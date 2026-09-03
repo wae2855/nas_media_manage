@@ -249,6 +249,11 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
     t_start = time.time()
 
     clean_result = scraper._cleaner.clean(video_filename)
+    identity_evidence = getattr(match_result, "identity_evidence", {}) or {}
+    path_structure = identity_evidence.get("path_structure", {})
+    path_season = path_structure.get("season")
+    if clean_result.season is None and path_season is not None:
+        clean_result.season = path_season
     log.info(
         "[metadata_scraper] regex_clean: "
         f"title={clean_result.clean_title}, year={clean_result.year}, "

@@ -455,7 +455,7 @@ PENDING/QUEUED
 | `ai_assist` | ai_assist 配置段 + 脱敏 api_key |
 | `ai_search` | ai_search 配置段 + 脱敏 api_key |
 
-## Scraping: 三级匹配与维度确认
+## Scraping: 两级匹配与维度确认
 
 ### 匹配流程
 

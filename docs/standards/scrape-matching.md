@@ -12,11 +12,11 @@ supersedes: 三级匹配（Tier 2 AI 辅助已按 ADR-0010 移除）
 
 ```text
 输入文件 → 中文发布说明薄层 → GuessIt 固定版本通用解析 → ReleaseIdentity 归一化
-  → 身份证据：文件显式 ID > 相邻 NFO ID > 已存在历史绑定 > 文件标题 > 目录标题
+  → 身份证据：文件显式 ID > 相邻 NFO ID > 作品目录 ID > 已存在历史绑定 > 文件标题 > 目录标题
   → 确定性 ID 查询：Provider 原生 ID 或外部 ID → 类型/明确年份校验
       ├─ 唯一且无冲突 → AUTO_PASS
       ├─ ID 指向多部作品或类型/年份冲突 → NEEDS_CONFIRM
-      └─ ID 无结果/接口异常 → 留痕后降级到标题匹配
+      └─ ID 无结果/接口异常 → NEEDS_CONFIRM（禁止静默降级到标题匹配）
   → Tier 1：分别查询 TMDB，按 Provider ID 合并证据
       ├─ 文件标题+年份/季集唯一精确匹配 → AUTO_PASS
       ├─ 文件标题+年份/类型精确命中 Provider 官方别名 → AUTO_PASS
@@ -29,13 +29,13 @@ supersedes: 三级匹配（Tier 2 AI 辅助已按 ADR-0010 移除）
 
 - 每个查询必须使用自己的标题执行 `TitleMatcher` 复核，禁止用英文主标题复核中文查询。
 - GuessIt 只输出发布名结构；其中的 TMDB/IMDb/TVDB ID 是强身份线索，但必须经过 Provider 查询和类型/明确年份校验后才能自动通过。不得因普通解析结果或 Provider 唯一文本候选直接自动入库。
-- GuessIt 的 `alternative_title` 保留为候选和解释字段，`date` 归一化为 `release_date`，`part`、`episode_title` 直接保留，实际 `cd` 输出统一为 `disc`；这些辅助字段本身不等于 Provider 身份。
+- GuessIt 的 `alternative_title` 保留为候选和解释字段，`date` 归一化为 `release_date` 并作为 TV 类型证据但不污染作品年份，`part`、`episode_title` 直接保留，实际 `cd` 输出统一为 `disc`；这些辅助字段本身不等于 Provider 身份。
 - 中文适配层只处理中文数字季集、全角符号及强证据发布说明；禁止为具体影片增加代码白名单。
 - `.me/.tv` 等字符串只有带协议、`www.` 或明确广告上下文时才作为域名，不能删除正常点分英文片名。
 - 多集目录保留 episode 范围；单文件中的具体 episode 是任务主证据，不得被目录范围首集覆盖。
-- Provider 官方别名只在文件主证据、媒体类型一致、年份精确一致且别名归一化后完全相等时提升为 AUTO_PASS；接口失败按无证据处理。
-- NFO 读取属于独立本地证据模块，只允许读取视频同名、`movie.nfo`、`tvshow.nfo` 及来源根内有限祖先的合理同名 NFO；限制文件大小、拒绝符号链接，核心只采纳 `uniqueid`/legacy ID。`Extras/Trailers/Featurettes/Samples` 等附加内容目录形成 NFO identity inheritance boundary：只允许当前视频同 basename 的 NFO，不继承作品根 NFO。NFO scope 分为 `movie/series/episode/unknown`，episode ID 只留痕，不得作为 series ID 查询。NFO 标题和年份只作校验，不追加为模糊搜索噪声。
-- 标题统一使用严格/宽松两级归一化：严格级统一 Unicode、大小写、撇号、破折号、标点和空白；宽松级只对 Latin 基字符折叠重音，并做保守的 `&/and` 等价，禁止音译、NLP 猜测或改变日文等非 Latin 字符语义。
+- Provider 官方别名合并 alternative titles 与 translations；只在年份/类型或文件与目录等独立证据成立时提升为 `AUTO_PASS`。英语标题允许在官方标题核验阶段忽略开头的 `A/An/The`，不把该规则用于普通模糊匹配。别名接口失败按无证据处理。
+- NFO 读取属于独立本地证据模块，只允许读取视频同名、`movie.nfo`、`tvshow.nfo` 及来源根内有限祖先的合理同名 NFO；限制文件大小、拒绝符号链接，核心只采纳 `uniqueid`/legacy ID。`Extras/Trailers/Featurettes/Samples` 等附加内容目录形成 NFO identity inheritance boundary：只允许当前视频同 basename 的 NFO，不继承作品根 NFO。NFO scope 分为 `movie/series/episode/unknown`，episode ID 只留痕，不得作为 series ID 查询。NFO 标题和年份只作校验，不追加为模糊搜索噪声；NFO 无标题时用可信作品目录校验 ID，明显冲突必须人工确认。
+- 标题统一使用严格/宽松两级归一化：严格级统一 Unicode、大小写、词内撇号、破折号、标点和空白；宽松级只对 Latin 基字符折叠重音，并做保守的 `&/and` 等价，禁止音译、NLP 猜测或改变日文等非 Latin 字符语义。
 - 候选按 `provider_type + media_type + provider_id` 合并，并按标题、年份、媒体类型、季集和文件/目录收敛等身份证据排序；热度只在证据同分时打破平局。第一、第二候选按证据形态及现有模糊匹配边界判断是否过近，不设脱离上下文的单一阈值；差距不足且无强 ID、官方别名或文件/目录收敛时必须人工确认。
 - Tier 2 AI 上下文匹配（原 tier2_correct）、AI 标题清洗（ai_clean）、纯 AI 刮削 fallback、整剧 AI 维度刮削已移除（ADR-0010）。
 - `CONTEXT_PASS` 匹配等级已退役；现存等级：`AUTO_PASS` / `NEEDS_CONFIRM` / `FAILED`。
@@ -62,6 +62,7 @@ supersedes: 三级匹配（Tier 2 AI 辅助已按 ADR-0010 移除）
 - AI 不参与刮削与维度判定（唯一 LLM 消费者是源目录清理器，见 ai-prompt-design.md）。
 - 决策路径（trace）必须逐步可解释：清洗 → 搜索 → 等级 → 维度来源。
 - 解析器依赖必须固定版本；升级 GuessIt 必须作为匹配行为变更运行真实发布名语料回归。
+- 互联网命名回归必须同时满足场景族和展开样本正确 `AUTO_PASS` 率 ≥90%，安全负例误放为 0；执行口径见 [internet-media-name-coverage.md](../testing/internet-media-name-coverage.md)。
 
 ## 变更前置
 

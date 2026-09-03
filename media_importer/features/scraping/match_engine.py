@@ -56,13 +56,22 @@ class MatchEngine:
         year = clean_result.year
         season = clean_result.season
         episode = clean_result.episode
+        release_identity = getattr(clean_result, "release_identity", {}) or {}
+        is_date_episode = bool(release_identity.get("release_date"))
+        path_structure = identity_evidence.get("path_structure") or {}
+        if season is None:
+            season = path_structure.get("season")
 
         self._pending_concerns = []
         self._pending_trace = []
 
         # Only episode structure is a strong type constraint. GuessIt's default
         # movie classification for an otherwise untyped filename is not.
-        media_type_hint = "tv" if season is not None or episode is not None else ""
+        media_type_hint = (
+            "tv"
+            if season is not None or episode is not None or is_date_episode
+            else ""
+        )
         deterministic, id_trace = resolve_deterministic_identity(
             identity_evidence,
             providers,

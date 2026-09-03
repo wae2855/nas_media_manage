@@ -36,7 +36,7 @@
 
 ## 两级匹配策略
 
-发布名解析遵循 ADR-0024；确定性身份遵循 ADR-0025。GuessIt 保留 TMDB/IMDb/TVDB ID，NFO 读取器在受控相邻路径提取 ID，Provider 适配器负责原生/外部 ID 查询。NFO 身份显式区分 `movie/series/episode/unknown`；episode ID 不得作为 series ID 查询。ID 查到后仍须通过明确年份和媒体类型校验；冲突进入人工确认，接口异常留痕后回到标题流程。不确定结果在任何大文件复制前进入人工确认。
+发布名解析遵循 ADR-0024；确定性身份遵循 ADR-0025。GuessIt 保留 TMDB/IMDb/TVDB ID，NFO 读取器在受控相邻路径提取 ID，作品目录中的显式 ID 也作为独立身份来源，Provider 适配器负责原生/外部 ID 查询。NFO 身份显式区分 `movie/series/episode/unknown`；episode ID 不得作为 series ID 查询。ID 查到后仍须通过明确年份、媒体类型和可用标题证据校验；冲突、无结果或接口异常均失败关闭到人工确认，不再静默回到标题流程。不确定结果在任何大文件复制前进入人工确认。
 
 > ADR: [0005-three-tier-matching.md](../decisions/0005-three-tier-matching.md)
 
@@ -46,12 +46,13 @@
 文件名结构清洗 → 显式 ID/NFO ID 确定性查询 → 可选目录结构清洗 → 每条标题证据独立查询 Provider
      │
      ├── 全部文件标题候选收集后唯一精确匹配 + 年份/季集一致 → AUTO_PASS（目录不得否决）
+     ├── TMDB alternative titles/translations 与文件多语言标题收敛 → AUTO_PASS
      ├── 文件与目录命中同一 Provider ID + 年份一致 → AUTO_PASS
      ├── 弱文件名 + 可信目录精确匹配 → AUTO_PASS
      └── 无结果、证据不足或冲突 → 用户确认
 ```
 
-文本候选以标题严格/宽松一致、年份、媒体类型、季集和文件/目录收敛形成可解释分数；热度只作同证据分数的平局裁决。第一、第二名过近且没有强 ID 时必须进入人工确认。
+文本候选以标题严格/宽松一致、年份、媒体类型、日期集、季集和文件/目录收敛形成可解释分数；TMDB alternative titles 与 translations 合并为官方标题证据，英文开头 `A/An/The` 只在官方标题核验时可忽略。热度只作同证据分数的平局裁决。第一、第二名过近且没有强 ID 时必须进入人工确认。
 
 **目录门禁**：目录按 structural、generic、technical、supplementary、meaningful 分类。来源根、通用目录、日期/哈希目录、`1080p/2160p/4K/UHD/BluRay/REMUX/WEB-DL/WEBRip/HDTV/Complete` 等技术目录、`BDMV/STREAM/Season xx/Specials/Disc` 等结构目录及电影型多视频容器本身不作为片名；其中 TV `Specials` 等价于 Season 00。清洗后无可信标题也继续向上。`Extras/Trailers/Featurettes/Samples/Special Features` 等附加内容目录是身份继承边界，不再向作品根借用目录身份或作品级 NFO。
 
@@ -73,6 +74,9 @@ Provider 搜索结果 Top 5 + 匹配疑虑原因 → 用户选择 → 确认入�
 | `NO_PROVIDER_RESULT` | 刮削源未找到匹配作品 |
 | `NO_TITLE` | 无法从文件名提取有效标题 |
 | `CONFLICTING_INFO` | 文件名信息与目录结构信息冲突 |
+| `IDENTITY_CONFLICT` | 身份编号与明确年份、类型或可信作品目录冲突 |
+| `IDENTITY_LOOKUP_FAILED` | 身份编号查询异常或在受约束类型下无结果 |
+| `CLOSE_CANDIDATES` | 前两名候选缺少足够的身份证据差距 |
 | `AI_UNCERTAIN` | 历史兼容字段，新匹配流程不再生成 |
 
 ### 匹配与维度解耦
@@ -113,6 +117,8 @@ Provider 搜索结果 Top 5 + 匹配疑虑原因 → 用户选择 → 确认入�
 - `tests/test_match_result_fields.py`（MatchResult 字段契约）
 - `tests/test_phase_pqr.py`（is_valid / selected_candidate_id / FAILED）
 - `tests/test_formal_flow_field_propagation.py`（正式流程字段传递）
+- `tests/test_internet_media_name_corpus.py`（公开命名语料、双 90% 与安全零误放）
+- `scripts/validate_internet_media_names.py`（可选实时 TMDB + details 验收）
 
 ---
 

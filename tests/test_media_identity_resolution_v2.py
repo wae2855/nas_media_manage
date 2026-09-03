@@ -112,6 +112,9 @@ def test_title_normalizer_strict_and_loose_contract():
     assert TitleNormalizer.loose_key("Léon") == TitleNormalizer.loose_key("Leon")
     assert TitleNormalizer.strict_key("WALL·E") == TitleNormalizer.strict_key("WALL-E")
     assert TitleNormalizer.strict_key("Kiki’s Delivery Service") == TitleNormalizer.strict_key("Kiki's Delivery Service")
+    assert TitleNormalizer.strict_key("Grey's Anatomy") == TitleNormalizer.strict_key("Greys Anatomy")
+    assert TitleNormalizer.optional_article_key("The Matrix") == "matrix"
+    assert TitleNormalizer.optional_article_key("Matrix") == "matrix"
     assert [TitleNormalizer.strict(value) for value in ("1984", "4K", "Se7en", "M", "X")] == [
         "1984", "4k", "se7en", "m", "x"
     ]
@@ -162,6 +165,76 @@ def test_generic_and_structural_directories_are_skipped_continuously(tmp_path):
     )
     assert evidence["signals"][1]["raw_name"] == "权力的游戏"
     assert [item["name"] for item in evidence["ignored_directories"]] == ["Season 01", "downloads"]
+
+
+def test_season_directory_contributes_structural_season(tmp_path):
+    source = tmp_path / "source"
+    season = source / "Planet Earth II (2016)" / "Season 01"
+    season.mkdir(parents=True)
+    video = season / "01.mkv"
+    video.touch()
+    provider = IdentityProvider(searches={
+        "Planet Earth II": [_item("68595", "Planet Earth II", 2016, media_type="tv")]
+    })
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.identity_evidence["path_structure"]["season"] == 1
+    assert provider.calls[-1][-1] == "tv"
+
+
+def test_folder_provider_id_resolves_before_ambiguous_show_title(tmp_path):
+    source = tmp_path / "source"
+    season = source / "The Office (UK) (2001) {tmdb-2996}" / "Season 01"
+    season.mkdir(parents=True)
+    video = season / "The Office UK S01E01.mkv"
+    video.touch()
+    provider = IdentityProvider(native={
+        "2996": [_item("2996", "The Office", 2001, media_type="tv")]
+    })
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "2996"
+    assert result.selected_candidate.why_selected == "folder_provider_id"
+    assert result.identity_evidence["identity_resolution"]["source"] == "folder"
+
+
+def test_tv_alias_can_use_matching_file_and_folder_with_episode_structure(tmp_path):
+    source = tmp_path / "source"
+    season = source / "Frieren" / "Season 01"
+    season.mkdir(parents=True)
+    video = season / "Frieren - 01.mkv"
+    video.touch()
+    item = SearchItem(
+        provider_type="tmdb",
+        item_id="209867",
+        title="葬送的芙莉莲",
+        original_title="葬送のフリーレン",
+        year=2023,
+        media_type="tv",
+        poster_url=None,
+        vote_average=8.0,
+        raw_data={},
+    )
+    provider = IdentityProvider(
+        searches={"Frieren": [item]},
+        alternatives={("209867", "tv"): ["Frieren"]},
+    )
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "209867"
+    assert result.selected_candidate.why_selected == "provider_alias"
 
 
 def test_filename_tmdb_id_resolves_before_title_search(tmp_path):
@@ -241,7 +314,7 @@ def test_explicit_id_year_conflict_requires_confirmation(tmp_path):
     assert "年份冲突" in result.concerns[0].detail
 
 
-def test_id_lookup_error_falls_back_to_title_without_crashing(tmp_path):
+def test_id_lookup_error_fails_closed_without_title_fallback(tmp_path):
     video = tmp_path / "Inception.2010.[tmdbid-27205].mkv"
     video.touch()
     provider = IdentityProvider(
@@ -249,8 +322,32 @@ def test_id_lookup_error_falls_back_to_title_without_crashing(tmp_path):
         searches={"Inception": [_item("27205", "Inception", 2010)]},
     )
     result = MatchEngine({"source_dir": str(tmp_path)}).match(video.name, [provider], video_path=str(video))
-    assert result.match_level == "AUTO_PASS"
+    assert result.match_level == "NEEDS_CONFIRM"
+    assert result.concerns[0].code == "IDENTITY_LOOKUP_FAILED"
+    assert not any(call[0] == "search" for call in provider.calls)
     assert any("保守降级" in step.reason for step in result.trace_steps)
+
+
+def test_nfo_id_conflicting_with_meaningful_series_folder_requires_confirmation(tmp_path):
+    source = tmp_path / "source"
+    season = source / "Wrong Show" / "Season 01"
+    season.mkdir(parents=True)
+    video = season / "S01E01.mkv"
+    video.touch()
+    (source / "Wrong Show" / "tvshow.nfo").write_text(
+        "<tvshow><tmdbid>27205</tmdbid></tvshow>", encoding="utf-8"
+    )
+    provider = IdentityProvider(native={
+        "27205": [_item("27205", "Unrelated Show", 2020, media_type="tv")]
+    })
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "NEEDS_CONFIRM"
+    assert result.concerns[0].code == "IDENTITY_CONFLICT"
+    assert "标题冲突" in result.concerns[0].detail
 
 
 def test_conflicting_filename_ids_require_confirmation(tmp_path):
@@ -608,6 +705,137 @@ def test_exact_and_provider_alias_file_titles_for_same_work_auto_pass(tmp_path):
     assert result.match_level == "AUTO_PASS"
     assert result.provider_id == "1"
     assert result.selected_candidate.why_selected == "provider_alias"
+
+
+def test_folder_year_disambiguates_same_exact_tv_titles(tmp_path):
+    source = tmp_path / "source"
+    season = source / "Chernobyl (2019)" / "Season 01"
+    season.mkdir(parents=True)
+    video = season / "Chernobyl S01E01.mkv"
+    video.touch()
+    expected = _item("87108", "Chernobyl", 2019, media_type="tv")
+    unknown_year = _item("328340", "Chernobyl", None, media_type="tv")
+    provider = IdentityProvider(searches={"Chernobyl": [expected, unknown_year]})
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "87108"
+    assert result.selected_candidate.why_selected == "unique_match"
+
+
+def test_two_file_titles_can_disambiguate_same_localized_title(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "小姐.The.Handmaiden.2016.mkv"
+    video.touch()
+    expected = SearchItem(
+        provider_type="tmdb",
+        item_id="290098",
+        title="小姐",
+        original_title="아가씨",
+        year=2016,
+        media_type="movie",
+        poster_url=None,
+        vote_average=8.0,
+        raw_data={},
+    )
+    making_of = _item("1603305", "小姐", 2016)
+    provider = IdentityProvider(
+        searches={
+            "小姐": [expected, making_of],
+            "The Handmaiden": [making_of, expected],
+        },
+        alternatives={("290098", "movie"): ["The Handmaiden"]},
+    )
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "290098"
+    assert result.selected_candidate.why_selected == "provider_alias"
+
+
+def test_official_alias_can_disambiguate_multiple_same_year_results(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "Amélie.2001.mkv"
+    video.touch()
+    expected = _item("194", "天使爱美丽", 2001)
+    making_of = _item("1602539", "Inside the Making of - Amélie", 2001)
+    provider = IdentityProvider(
+        searches={"Amélie": [expected, making_of]},
+        alternatives={("194", "movie"): ["Amélie"]},
+    )
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "194"
+
+
+def test_yearless_tv_alias_collision_does_not_auto_select_exact_localized_title(tmp_path):
+    source = tmp_path / "source"
+    series = source / "One Piece"
+    series.mkdir(parents=True)
+    video = series / "One Piece - 001.mkv"
+    video.touch()
+    live_action = _item("111110", "ONE PIECE", 2023, media_type="tv")
+    anime = SearchItem(
+        provider_type="tmdb",
+        item_id="37854",
+        title="航海王",
+        original_title="ワンピース",
+        year=1999,
+        media_type="tv",
+        poster_url=None,
+        vote_average=8.0,
+        raw_data={},
+    )
+    provider = IdentityProvider(
+        searches={"One Piece": [live_action, anime]},
+        alternatives={("37854", "tv"): ["One Piece"]},
+    )
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "NEEDS_CONFIRM"
+    assert any(concern.code == "CONFLICTING_INFO" for concern in result.concerns)
+
+
+def test_date_episode_uses_tv_hint_and_exact_title_can_auto_pass(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "Greys.Anatomy.2023 05 18.HDTV.mkv"
+    video.touch()
+    show = SearchItem(
+        provider_type="tmdb",
+        item_id="1416",
+        title="实习医生格蕾",
+        original_title="Grey's Anatomy",
+        year=2005,
+        media_type="tv",
+        poster_url=None,
+        vote_average=8.0,
+        raw_data={},
+    )
+    provider = IdentityProvider(searches={"Greys Anatomy": [show]})
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "1416"
+    assert provider.calls[0][-1] == "tv"
 
 
 def test_loose_accent_folding_only_changes_latin_characters():

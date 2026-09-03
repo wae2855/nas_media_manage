@@ -53,7 +53,7 @@
 | 修改任务状态 | `features/tasks.md`, `architecture/task-lifecycle.md`, `testing/regression-matrix.md` |
 | 修改文件删除/覆盖逻辑 | `features/source-files.md`, `standards/safety.md`, `architecture/storage-filesystem.md`, 回收站测试 |
 | 新增 Provider | `features/providers.md`, `architecture/scraping.md`, Provider 测试 |
-| 修改三级匹配/刮削字段 | `standards/scrape-matching.md`, `standards/info-architecture.md`, `standards/ai-prompt-design.md`, [decisions/0007](decisions/0007-information-responsibility-split.md) |
+| 修改两级匹配/刮削字段 | `standards/scrape-matching.md`, `standards/info-architecture.md`, [decisions/0024](decisions/0024-layered-release-name-recognition.md), [decisions/0025](decisions/0025-deterministic-media-identity-resolution.md) |
 | 修改前端页面 | `product/frontend-information-architecture.md`, UI 测试 |
 | 新增或迁移 feature | 对应 `docs/features/` 文档、feature smoke 测试、ADR/plan 状态 |
 | 大架构重构 | 新增 ADR，更新相关架构文档 |
@@ -63,12 +63,13 @@
 
 | 标准 | 范围 |
 |------|------|
-| [standards/scrape-matching.md](standards/scrape-matching.md) | 三级匹配行为契约（决策树、字段定义、FAILED 状态） |
+| [standards/scrape-matching.md](standards/scrape-matching.md) | 两级匹配行为契约（Provider 自动识别、人工确认、字段定义与失败状态） |
 | [standards/info-architecture.md](standards/info-architecture.md) | 6 层信息职责模型、视图密度分层、前后端字段契约 |
 | [standards/ai-prompt-design.md](standards/ai-prompt-design.md) | Tier 2 AI 输入/输出 JSON 契约、is_valid 判定边界、提示词模板 |
 
 ## 5. Active Plans（活跃计划）
 
+- [互联网媒体命名场景覆盖与真实刮削验收](plans/2026-09-03-test-internet-media-name-coverage-plan.md)
 - [媒体身份解析 v2 收尾加固（已归档）](_archive/2026-09-03-media-identity-resolution-v2-hardening/2026-09-03-fix-media-identity-v2-hardening-plan.md)
 - [媒体身份解析 v2（已归档）](_archive/2026-09-03-media-identity-resolution-v2/2026-09-03-refactor-media-identity-resolution-v2-plan.md)
 - [rclone 来源永久删除与失败安全续做（已归档）](_archive/2026-09-02-rclone-permanent-delete-resume/2026-09-02-fix-rclone-permanent-delete-resume-plan.md)

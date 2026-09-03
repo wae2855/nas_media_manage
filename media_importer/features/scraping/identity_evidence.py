@@ -16,6 +16,7 @@ from .path_roles import (
     is_structural_directory,
     is_supplementary_directory,
     is_technical_directory,
+    structural_season,
 )
 from .title_normalizer import TitleNormalizer
 
@@ -169,6 +170,7 @@ def build_identity_evidence(
 
     chosen_name = ""
     chosen_depth = 0
+    path_season = None
     for depth in range(0, 6):
         if root and _same_path(current, root):
             break
@@ -183,6 +185,8 @@ def build_identity_evidence(
             break
         if is_structural_directory(name):
             evidence["ignored_directories"].append({"name": name, "reason": "结构目录不作为片名"})
+            if path_season is None:
+                path_season = structural_season(name)
             current = os.path.dirname(current)
             continue
         if is_generic_directory(name):
@@ -204,6 +208,8 @@ def build_identity_evidence(
         chosen_clean = clean_result
         break
 
+    if path_season is not None:
+        evidence["path_structure"] = {"season": path_season}
     if not chosen_name:
         return evidence
     context = path_context or {}
@@ -218,7 +224,11 @@ def build_identity_evidence(
 
     folder_signal = _signal("folder", chosen_name, chosen_clean, depth=chosen_depth)
     if folder_signal["season"] is None:
-        folder_signal["season"] = file_signal.get("season")
+        folder_signal["season"] = (
+            file_signal.get("season")
+            if file_signal.get("season") is not None
+            else path_season
+        )
     folder_episodes = folder_signal.get("episodes") or []
     file_episode = file_signal.get("episode")
     if file_episode is not None and len(folder_episodes) > 1:
@@ -228,6 +238,22 @@ def build_identity_evidence(
     elif folder_signal["episode"] is None:
         folder_signal["episode"] = file_signal.get("episode")
     evidence["signals"].append(folder_signal)
+    folder_identity = getattr(chosen_clean, "release_identity", {}) or {}
+    evidence["provider_ids"].extend(
+        {
+            "source": "folder",
+            "id_type": id_type,
+            "value": str(folder_identity.get(key) or ""),
+            "media_type_hint": "tv" if folder_signal.get("season") is not None else "",
+            "year": folder_signal.get("year"),
+        }
+        for id_type, key in (
+            ("tmdb", "tmdb_id"),
+            ("imdb", "imdb_id"),
+            ("tvdb", "tvdb_id"),
+        )
+        if folder_identity.get(key)
+    )
     return evidence
 
 
@@ -242,4 +268,6 @@ def evidence_to_dict(evidence: dict[str, Any]) -> dict[str, Any]:
     }
     if evidence.get("identity_resolution"):
         result["identity_resolution"] = dict(evidence["identity_resolution"])
+    if evidence.get("path_structure"):
+        result["path_structure"] = dict(evidence["path_structure"])
     return result

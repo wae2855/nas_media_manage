@@ -15,6 +15,7 @@ def _identity_source_label(source: str) -> str:
     return {
         "filename": "filename_provider_id",
         "nfo": "nfo_provider_id",
+        "folder": "folder_provider_id",
         "history": "historical_provider_binding",
     }.get(source, source)
 
@@ -23,6 +24,7 @@ def _why_selected(source: str) -> str:
     return {
         "filename": WhySelected.EXPLICIT_ID,
         "nfo": WhySelected.NFO_ID,
+        "folder": WhySelected.FOLDER_ID,
         "history": WhySelected.HISTORICAL_BINDING,
     }.get(source, WhySelected.FIRST_CANDIDATE)
 
@@ -80,7 +82,7 @@ def resolve_deterministic_identity(
         references = [
             ref for ref in references if ref.get("identity_scope") != "episode"
         ]
-    for source in ("filename", "nfo", "history"):
+    for source in ("filename", "nfo", "folder", "history"):
         source_refs = [ref for ref in references if ref.get("source") == source]
         if not source_refs:
             continue
@@ -117,6 +119,11 @@ def resolve_deterministic_identity(
                     resolved[key] = (item, ref)
 
         if not resolved:
+            reason = (
+                "身份编号查询异常，不能安全回退到标题匹配"
+                if had_lookup_error
+                else "身份编号未解析到作品，不能安全回退到标题匹配"
+            )
             trace.append(MatchTraceStep(
                 tier=1,
                 name="确定性身份查询",
@@ -124,9 +131,25 @@ def resolve_deterministic_identity(
                 search_query=", ".join(
                     f"{ref.get('id_type')}:{ref.get('value')}" for ref in source_refs
                 ),
-                reason=("ID 查询异常或无结果，继续按标题识别" if had_lookup_error else "ID 未解析到作品，继续按标题识别"),
+                reason=reason,
             ))
-            continue
+            evidence["identity_resolution"] = {
+                "source": source,
+                "identity_source": _identity_source_label(source),
+                "status": "lookup_failed" if had_lookup_error else "not_found",
+                "reason": reason,
+            }
+            return MatchResult(
+                match_level="NEEDS_CONFIRM",
+                match_tier=3,
+                concerns=[MatchConcern(
+                    code="IDENTITY_LOOKUP_FAILED",
+                    message="身份编号无法验证",
+                    detail=reason,
+                )],
+                trace_steps=trace,
+                tier_short_reason="身份编号无法验证，需确认",
+            ), trace
 
         candidates = [
             _candidate_payload(
@@ -229,11 +252,53 @@ def resolve_deterministic_identity(
         )
         effective_year = year
         effective_type = media_type_hint
+        if source in {"nfo", "folder"}:
+            effective_year = effective_year if effective_year is not None else ref.get("year")
+            effective_type = effective_type or str(ref.get("media_type_hint") or "")
         if source == "nfo":
             nfo = next((entry for entry in evidence.get("nfo_identities", []) if entry.get("path") == ref.get("path")), {})
             effective_year = effective_year if effective_year is not None else nfo.get("year")
             effective_type = effective_type or str(nfo.get("media_type_hint") or "")
         conflicts = _conflict_reason(item, year=effective_year, media_type_hint=effective_type)
+        if source == "nfo":
+            nfo_titles = [str(nfo.get("title") or "").strip()]
+            nfo_titles = [title for title in nfo_titles if title]
+            if not nfo_titles:
+                nfo_titles = [
+                    title
+                    for signal in evidence.get("signals", [])
+                    if signal.get("source") == "folder"
+                    for title in signal.get("titles", [])
+                    if title
+                ]
+            provider_titles = [item.title, item.original_title]
+            title_matches = any(
+                TitleNormalizer.compare(nfo_title, provider_title).strict_exact
+                for nfo_title in nfo_titles
+                for provider_title in provider_titles
+                if provider_title
+            )
+            if nfo_titles and not title_matches:
+                conflicts.append("标题冲突：NFO 所在作品目录与身份编号指向的作品不一致")
+        if source == "folder":
+            file_signal = next(
+                (
+                    signal
+                    for signal in evidence.get("signals", [])
+                    if signal.get("source") == "file"
+                ),
+                {},
+            )
+            file_titles = list(file_signal.get("titles") or [])
+            provider_titles = [item.title, item.original_title]
+            title_matches = any(
+                TitleNormalizer.compare(file_title, provider_title).strict_exact
+                for file_title in file_titles
+                for provider_title in provider_titles
+                if file_title and provider_title
+            )
+            if file_titles and not file_signal.get("weak") and not title_matches:
+                conflicts.append("标题冲突：文件名与目录身份编号指向的作品不一致")
         if conflicts:
             reason = "；".join(conflicts)
             trace.append(MatchTraceStep(
@@ -278,6 +343,7 @@ def resolve_deterministic_identity(
         short_reason = {
             "filename": "文件名身份编号精确命中",
             "nfo": "NFO 身份编号精确命中",
+            "folder": "作品目录身份编号精确命中",
             "history": "历史身份绑定精确命中",
         }.get(source, "身份编号精确命中")
         trace.append(MatchTraceStep(

@@ -151,6 +151,14 @@ class TMDbClient:
         result = self._request(f"/tv/{tv_id}/alternative_titles", {})
         return result.get("results", [])
 
+    def get_movie_translations(self, movie_id: int) -> List[Dict[str, Any]]:
+        result = self._request(f"/movie/{movie_id}/translations", {})
+        return result.get("translations", [])
+
+    def get_tv_translations(self, tv_id: int) -> List[Dict[str, Any]]:
+        result = self._request(f"/tv/{tv_id}/translations", {})
+        return result.get("translations", [])
+
     def get_tv_season(self, tv_id: int, season_num: int) -> Optional[Dict[str, Any]]:
         try:
             return self._request(f"/tv/{tv_id}/season/{season_num}", {"language": self.language})

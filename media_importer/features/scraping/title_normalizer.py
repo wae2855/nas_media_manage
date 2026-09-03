@@ -27,12 +27,26 @@ class TitleNormalizer:
     def strict(value: str) -> str:
         text = unicodedata.normalize("NFKC", str(value or ""))
         text = text.translate(_APOSTROPHES).translate(_DASHES).casefold()
+        text = re.sub(r"(?<=\w)'(?=\w)", "", text)
         text = _NON_WORD.sub(" ", text)
         return _WHITESPACE.sub(" ", text).strip()
 
     @classmethod
     def strict_key(cls, value: str) -> str:
         return cls.strict(value).replace(" ", "")
+
+    @classmethod
+    def optional_article_key(cls, value: str) -> str:
+        """Normalize common omitted English leading articles for alias checks."""
+        tokens = cls.strict(value).split()
+        if len(tokens) > 1 and tokens[0] in {"a", "an", "the"}:
+            tokens = tokens[1:]
+        return "".join(tokens)
+
+    @classmethod
+    def has_optional_leading_article(cls, value: str) -> bool:
+        tokens = cls.strict(value).split()
+        return len(tokens) > 1 and tokens[0] in {"a", "an", "the"}
 
     @classmethod
     def loose(cls, value: str) -> str:

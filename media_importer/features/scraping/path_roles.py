@@ -59,7 +59,8 @@ _GENERIC_NAMES = {
 }
 
 _STRUCTURAL_DIRECTORY = re.compile(
-    r"^(?:bdmv|stream|video ts|specials|season\s*\d{1,2}|第\s*\d+\s*季|s\d{1,2}|"
+    r"^(?:bdmv|stream|video ts|specials|season\s*\d{1,2}|"
+    r"第\s*[零〇一二两三四五六七八九十百\d]+\s*季|s\d{1,2}|"
     r"disc(?:\s*\d+)?|disk(?:\s*\d+)?|cd(?:\s*\d+)?)$",
     re.IGNORECASE,
 )
@@ -95,6 +96,40 @@ def is_supplementary_directory(name: str) -> bool:
 
 def is_structural_directory(name: str) -> bool:
     return bool(_STRUCTURAL_DIRECTORY.fullmatch(_normalized_segment(name)))
+
+
+def _parse_chinese_number(value: str) -> int:
+    if value.isdigit():
+        return int(value)
+    digits = {
+        "零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3,
+        "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+    }
+    if "百" in value:
+        left, right = value.split("百", 1)
+        return digits.get(left, 1) * 100 + (_parse_chinese_number(right) if right else 0)
+    if "十" in value:
+        left, right = value.split("十", 1)
+        return digits.get(left, 1) * 10 + (digits.get(right, 0) if right else 0)
+    result = 0
+    for char in value:
+        result = result * 10 + digits[char]
+    return result
+
+
+def structural_season(name: str) -> int | None:
+    """Return season encoded by a structural directory, including Specials."""
+    normalized = _normalized_segment(name)
+    if normalized == "specials":
+        return 0
+    match = re.fullmatch(r"(?:season\s*|s)(\d{1,2})", normalized, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    match = re.fullmatch(
+        r"第\s*([零〇一二两三四五六七八九十百\d]+)\s*季",
+        normalized,
+    )
+    return _parse_chinese_number(match.group(1)) if match else None
 
 
 def is_technical_directory(name: str) -> bool:

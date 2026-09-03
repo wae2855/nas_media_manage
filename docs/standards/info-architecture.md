@@ -3,7 +3,7 @@
 **事实源**：本文件定义刮削结果信息的职责分层、字段契约、各视图密度规范。代码实现必须遵循。  
 **适用范围**：`media_importer/features/scraping/`、`media_importer/api/`、`media_importer/webui/js/`  
 **相关文档**：
-- 三级匹配：[scrape-matching.md](scrape-matching.md)
+- 两级匹配：[scrape-matching.md](scrape-matching.md)
 - AI 提示词：[ai-prompt-design.md](ai-prompt-design.md)
 - 决策记录：[../decisions/0007-information-responsibility-split.md](../decisions/0007-information-responsibility-split.md)
 
@@ -96,6 +96,11 @@ selected_candidate: Optional[SelectedCandidate]
 | `user_pick` | 用户选择 | Review 后写入 |
 | `explicit_provider_id` | 文件名身份编号 | 文件名中的 TMDB/IMDb/TVDB ID 经 Provider 校验通过 |
 | `nfo_provider_id` | NFO 身份编号 | 相邻受控 NFO 的 ID 经 Provider 校验通过 |
+| `folder_provider_id` | 作品目录身份编号 | 作品目录中的 TMDB/IMDb/TVDB ID 经 Provider 校验通过 |
+| `historical_provider_binding` | 历史身份绑定 | 已保存的 Provider 绑定经当前 Provider 复核通过 |
+| `provider_alias` | 官方标题别名 | alternative titles/translations 与文件标题收敛 |
+| `evidence_converged` | 文件与目录收敛 | 两个独立标题证据指向同一 Provider 作品 |
+| `folder_rescue` | 目录补足 | 弱文件名由可信作品目录和年份/季集补足 |
 
 ### 2.5 L5: 关注点列表
 
@@ -127,6 +132,7 @@ concerns: List[MatchConcern]
 | `NO_PROVIDER_MATCH` | Review 阶段无 provider_id |
 | `CANDIDATES_AVAILABLE` | 已加载候选列表第一项 |
 | `IDENTITY_CONFLICT` | 显式/NFO ID 指向多个作品或与明确年份、类型冲突 |
+| `IDENTITY_LOOKUP_FAILED` | 确定性 ID 查询异常或在受约束类型下无结果，禁止标题降级 |
 | `CLOSE_CANDIDATES` | 第一、第二候选身份证据差距不足 |
 | `DIM_TRUST_DOWNGRADE` | 维度来源不被信任 |
 | `VALIDATE_CONFIRM` | （已废弃，不再使用） |
@@ -229,7 +235,7 @@ escapeHtml(step.result || step.message || "-")
 
 1. **文件名输入** — 原始文件名
 2. **规则清洗（REGEX）** — 清洗方法、移除项、clean_title、year、season/episode
-3. **三级匹配路径（MATCH）** — 每个 Tier 的 name + matched + reason + ai_reason + concerns 标签
+3. **两级匹配路径（MATCH）** — Provider 自动识别与人工确认步骤的 name + matched + reason + concerns 标签；历史 `ai_reason` 仅作兼容展示
 4. **刮削结果（SCRAPE）** — title_cn、title_en、year、类型、provider_type+provider_id
 5. **维度推导（DIMS）** — 每个维度值 + 来源徽章
 6. **最终入库判断（RESULT）** — 最终标题、入库目录、规则/兜底标签

@@ -9,6 +9,8 @@ from media_importer.features.providers import (
 class FakeTMDbClient:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        self.alternative_title_calls = 0
+        self.translation_calls = 0
 
     def search_movie_list(self, query, year=None):
         return {
@@ -48,9 +50,20 @@ class FakeTMDbClient:
         raise AssertionError("TV details should not be called")
 
     def get_movie_alternative_titles(self, item_id):
+        self.alternative_title_calls += 1
         return [{"title": "As Far as My Feet Will Carry Me"}, {"title": ""}]
 
     def get_tv_alternative_titles(self, item_id):
+        return []
+
+    def get_movie_translations(self, item_id):
+        self.translation_calls += 1
+        return [
+            {"data": {"title": "The Dream"}},
+            {"data": {"title": ""}},
+        ]
+
+    def get_tv_translations(self, item_id):
         return []
 
     def get_movie_release_dates(self, item_id):
@@ -132,8 +145,15 @@ def test_tmdb_provider_search_details_and_dimension_mapping(monkeypatch):
     assert details.title == "Inception"
     assert details.genres[0].id == "878"
     assert provider.get_alternative_titles("101", "movie") == [
-        "As Far as My Feet Will Carry Me"
+        "As Far as My Feet Will Carry Me",
+        "The Dream",
     ]
+    assert provider.get_alternative_titles("101", "movie") == [
+        "As Far as My Feet Will Carry Me",
+        "The Dream",
+    ]
+    assert provider._client.alternative_title_calls == 1
+    assert provider._client.translation_calls == 1
 
     mappings = provider.map_dimensions(
         [

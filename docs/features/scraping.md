@@ -8,13 +8,15 @@
 
 刮削负责根据文件名、受控目录证据和 TMDB/Provider 结果生成可入库的媒体元数据；AI 不参与作品身份匹配。
 
+关联需求：[REQ-20260903-234230](../tracking/requirements-board.md)。
+
 ## Current Code Entrypoints
 
 | Path | Role |
 |------|------|
 | `media_importer/features/scraping/__init__.py` | Feature public API for metadata scraper, LLM scraper, match engine, and matcher/model helpers. |
 | `media_importer/features/scraping/metadata_scraper.py` | High-level metadata scraping orchestration. |
-| `media_importer/features/scraping/match_engine.py` | Three-tier matching engine (replaces confidence_engine). |
+| `media_importer/features/scraping/match_engine.py` | Two-level matching engine (replaces confidence_engine). |
 | `media_importer/features/scraping/match_models.py` | Match result dataclasses: MatchResult, MatchConcern (replaces confidence_models). |
 | `media_importer/features/scraping/confidence_models.py` | `DEFAULT_CONFIDENCE_CONFIG` 候选排序阈值配置（TitleMatcher 内部用，不作任务状态判定）。 |
 | `media_importer/features/scraping/dimension_manager.py` | Dimension mapping, tier checks, and category normalization. |
@@ -24,12 +26,13 @@
 | `media_importer/features/scraping/release_identity.py` | 中文发布说明薄层、GuessIt 通用语法和结构化字段归一化。 |
 | `media_importer/features/scraping/identity_evidence.py` | 文件名主证据、目录辅助证据门禁和可序列化识别依据。 |
 | `media_importer/features/scraping/nfo_identity.py` | 受来源根约束的相邻 NFO 身份 ID 读取。 |
-| `media_importer/features/scraping/deterministic_identity.py` | 显式 Provider ID/NFO ID 的优先解析、冲突校验和降级轨迹。 |
+| `media_importer/features/scraping/deterministic_identity.py` | 文件、NFO、作品目录和历史 Provider ID 的优先解析、冲突校验与失败关闭。 |
 | `media_importer/features/scraping/title_normalizer.py` | 标题严格/宽松归一化与相似度事实源。 |
 | `media_importer/features/scraping/errors.py` | LLM exception classes. |
 | `media_importer/features/scraping/metadata_scrape_flow.py` | Metadata scrape flow orchestration. |
 | `media_importer/features/providers/` | External metadata provider registry, interface, and implementations. |
 | `media_importer/features/providers/tmdb_client.py` | TMDB client and error type (migrated from `scraper/tmdb_client.py`). |
+| `scripts/validate_internet_media_names.py` | 用开发配置执行可选的全量实时 TMDB 命名验收，输出脱敏 JSON。 |
 
 ## Current Consumers
 
@@ -49,15 +52,16 @@
 ## Related Areas
 
 - Config: AI provider keys, TMDB keys, matching config (optional), dimension rules.
-- API: scrape config, scrape preview (three-tier path), manual task actions.
+- API: scrape config, scrape preview (two-level path), manual task actions.
 - Database: scrape result JSON, match_level/match_concerns/match_trace fields.
-- Frontend: task card match status labels, match concern display, scrape preview three-tier path.
+- Frontend: task card match status labels, match concern display, scrape preview two-level path.
 
 ## Tests
 
 - `tests/test_match_engine.py`
 - `tests/test_identity_evidence.py`
 - `tests/test_media_identity_resolution_v2.py`
+- `tests/test_internet_media_name_corpus.py`
 - `tests/test_review_decision_v2.py`
 - `tests/test_match_result_fields.py`
 - `tests/test_tier2_match_engine.py`
@@ -65,6 +69,7 @@
 - `tests/test_feature_entrypoints.py`
 - Scrape-related API and import-flow tests.
 - Provider tests when external calls are mocked.
+- [互联网媒体命名覆盖](../testing/internet-media-name-coverage.md) 记录公开来源、双口径门槛、实时结果与保留缺口。
 
 ## Migration Notes
 
@@ -104,7 +109,7 @@
         │
         ├── 每个中文/英文标题分别查询并用自身复核
         ├── 收集全部文件标题候选后，唯一作品+年份/季集精确匹配 → AUTO_PASS
-        ├── 文件标题精确命中 Provider 官方别名且年份/类型一致 → AUTO_PASS
+        ├── 文件标题精确命中 Provider alternative/translation 官方标题且年份/类型一致 → AUTO_PASS
         ├── 文件和目录命中同一 Provider ID → AUTO_PASS
         ├── 弱文件名由可信目录标题+年份/季集补足 → AUTO_PASS
         └── 无结果、无年份歧义或证据冲突 → 第二级用户确认
@@ -122,7 +127,7 @@
 来源根、通用下载目录、日期/哈希目录、技术规格目录和电影型多视频容器不作为片名；未知目录清洗后无可信标题时继续向上。
 BDMV/STREAM/Season xx/Specials/Disc 等结构目录只允许在来源根内有限向上寻找有效标题目录；TV `Specials` 等价于 Season 00。
 Extras/Trailers/Featurettes/Samples/Special Features 等附加内容目录是继承边界：不继承作品根 `movie.nfo/tvshow.nfo`，只读取当前视频同 basename 的 NFO；`Special Features` 不得与 `Specials` 混同。
-NFO 标记 `movie/series/episode/unknown` scope；episode NFO ID 保留为解释证据，但绝不当作 series ID 查询。
+NFO 标记 `movie/series/episode/unknown` scope；episode NFO ID 保留为解释证据，但绝不当作 series ID 查询。确定性 ID 无结果或接口异常时失败关闭为人工确认，不得静默按标题改选另一部作品。
 目录与文件分别查询，禁止拼接原始字符串；冲突一律交给用户确认。
 ```
 
@@ -152,6 +157,9 @@ NFO 标记 `movie/series/episode/unknown` scope；episode NFO ID 保留为解释
 | Provider 无结果 | `NO_PROVIDER_RESULT` | 「刮削源未找到匹配作品」 | 极小众影片 |
 | 标题缺失 | `NO_TITLE` | 「无法从文件名提取有效标题」 | 文件名全是乱码 |
 | 多信息冲突 | `CONFLICTING_INFO` | 「文件名信息与目录结构信息冲突」 | 文件名暗示电影，目录结构暗示剧集 |
+| 身份编号冲突 | `IDENTITY_CONFLICT` | 「身份编号与文件信息冲突」 | NFO ID 与可信作品目录明显不一致 |
+| 身份编号不可验证 | `IDENTITY_LOOKUP_FAILED` | 「身份编号暂时无法验证」 | Provider 超时或 ID 在约束类型下不存在 |
+| 候选过近 | `CLOSE_CANDIDATES` | 「存在难以自动区分的候选作品」 | 同名同年作品缺少进一步证据 |
 | AI 不确定 | `AI_UNCERTAIN` | 历史兼容字段 | 新流程不再生成 |
 
 **疑虑原因数据结构**：

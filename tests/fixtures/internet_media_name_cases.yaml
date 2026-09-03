@@ -1,0 +1,696 @@
+meta:
+  description: Public naming-guide grammar expressed with zero-byte media placeholders.
+  minimum_positive_families: 30
+  minimum_positive_samples: 100
+  minimum_safety_samples: 15
+  minimum_auto_rate: 0.90
+
+sources:
+  plex_movie: https://support.plex.tv/articles/naming-and-organizing-your-movie-media-files/
+  plex_tv: https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/
+  jellyfin_movie: https://jellyfin.org/docs/general/server/media/movies/
+  jellyfin_tv: https://jellyfin.org/docs/general/server/media/shows/
+  sonarr: https://wiki.servarr.com/sonarr/settings
+  radarr: https://wiki.servarr.com/radarr/settings
+  trash_radarr: https://trash-guides.info/Radarr/Radarr-recommended-naming-scheme/
+  trash_sonarr: https://trash-guides.info/Sonarr/Sonarr-recommended-naming-scheme/
+  kodi_movie: https://kodi.wiki/view/Naming_video_files/Movies
+  project_cn: docs/decisions/0024-layered-release-name-recognition.md
+
+works:
+  inception:
+    provider_id: "27205"
+    imdb_id: tt1375666
+    title: 盗梦空间
+    original_title: Inception
+    aliases: [Inception, 盗梦空间]
+    year: 2010
+    media_type: movie
+  avatar:
+    provider_id: "19995"
+    title: 阿凡达
+    original_title: Avatar
+    aliases: [Avatar, 阿凡达]
+    year: 2009
+    media_type: movie
+  batman_begins:
+    provider_id: "272"
+    imdb_id: tt0372784
+    title: 蝙蝠侠：侠影之谜
+    original_title: Batman Begins
+    aliases: [Batman Begins, 蝙蝠侠侠影之谜]
+    year: 2005
+    media_type: movie
+  blade_runner:
+    provider_id: "78"
+    title: 银翼杀手
+    original_title: Blade Runner
+    aliases: [Blade Runner, 银翼杀手]
+    year: 1982
+    media_type: movie
+  dark_knight:
+    provider_id: "155"
+    title: 蝙蝠侠：黑暗骑士
+    original_title: The Dark Knight
+    aliases: [The Dark Knight, 蝙蝠侠黑暗骑士]
+    year: 2008
+    media_type: movie
+  oppenheimer:
+    provider_id: "872585"
+    imdb_id: tt15398776
+    title: 奥本海默
+    original_title: Oppenheimer
+    aliases: [Oppenheimer, 奥本海默]
+    year: 2023
+    media_type: movie
+  real_oppenheimer:
+    provider_id: "1230570"
+    title: The Real Oppenheimer
+    original_title: The Real Oppenheimer
+    aliases: [The Real Oppenheimer, Oppenheimer]
+    year: 2023
+    media_type: movie
+  matrix:
+    provider_id: "603"
+    title: 黑客帝国
+    original_title: The Matrix
+    aliases: [The Matrix, Matrix, 黑客帝国]
+    year: 1999
+    media_type: movie
+  parasite:
+    provider_id: "496243"
+    title: 寄生虫
+    original_title: Parasite
+    aliases: [Parasite, 寄生虫, 寄生蟲, 기생충]
+    year: 2019
+    media_type: movie
+  handmaiden:
+    provider_id: "290098"
+    title: 小姐
+    original_title: The Handmaiden
+    aliases: [The Handmaiden, 小姐, 아가씨]
+    year: 2016
+    media_type: movie
+  spirited_away:
+    provider_id: "129"
+    title: 千与千寻
+    original_title: 千と千尋の神隠し
+    aliases: [Spirited Away, 千与千寻, 千と千尋の神隠し]
+    year: 2001
+    media_type: movie
+  amelie:
+    provider_id: "194"
+    title: 天使爱美丽
+    original_title: Le Fabuleux Destin d'Amélie Poulain
+    aliases: [Amélie, Amelie, 天使爱美丽]
+    year: 2001
+    media_type: movie
+  coda:
+    provider_id: "776503"
+    title: 健听女孩
+    original_title: CODA
+    aliases: [CODA, 健听女孩]
+    year: 2021
+    media_type: movie
+  coda_short:
+    provider_id: "1016458"
+    title: Coda
+    original_title: Coda
+    aliases: [Coda]
+    year: 2021
+    media_type: movie
+  lotr:
+    provider_id: "120"
+    title: 指环王1：护戒使者
+    original_title: "The Lord of the Rings: The Fellowship of the Ring"
+    aliases: [The Lord of the Rings The Fellowship of the Ring, 指环王1护戒使者]
+    year: 2001
+    media_type: movie
+  movie_1917:
+    provider_id: "530915"
+    title: 1917
+    original_title: 1917
+    aliases: ["1917"]
+    year: 2019
+    media_type: movie
+  barbie:
+    provider_id: "346698"
+    imdb_id: tt1517268
+    title: 芭比
+    original_title: Barbie
+    aliases: [Barbie, 芭比]
+    year: 2023
+    media_type: movie
+  dune_1984:
+    provider_id: "841"
+    title: 沙丘
+    original_title: Dune
+    aliases: [Dune, 沙丘]
+    year: 1984
+    media_type: movie
+  dune_2021:
+    provider_id: "438631"
+    title: 沙丘
+    original_title: Dune
+    aliases: [Dune, 沙丘]
+    year: 2021
+    media_type: movie
+  game_of_thrones:
+    provider_id: "1399"
+    imdb_id: tt0944947
+    tvdb_id: "121361"
+    title: 权力的游戏
+    original_title: Game of Thrones
+    aliases: [Game of Thrones, 权力的游戏]
+    year: 2011
+    media_type: tv
+  breaking_bad:
+    provider_id: "1396"
+    title: 绝命毒师
+    original_title: Breaking Bad
+    aliases: [Breaking Bad, 绝命毒师]
+    year: 2008
+    media_type: tv
+  office_us:
+    provider_id: "2316"
+    imdb_id: tt0386676
+    tvdb_id: "73244"
+    title: 办公室
+    original_title: The Office
+    aliases: [The Office US, The Office, 办公室]
+    year: 2005
+    media_type: tv
+  office_uk:
+    provider_id: "2996"
+    title: 办公室笑云
+    original_title: The Office
+    aliases: [The Office UK, The Office, 办公室笑云]
+    year: 2001
+    media_type: tv
+  band_of_brothers:
+    provider_id: "4613"
+    title: 兄弟连
+    original_title: Band of Brothers
+    aliases: [Band of Brothers, 兄弟连]
+    year: 2001
+    media_type: tv
+  band_of_brothers_korean:
+    provider_id: "18441"
+    title: 밴드 오브 브라더스
+    original_title: 밴드 오브 브라더스
+    aliases: [Band of Brothers, 밴드 오브 브라더스]
+    year: 2008
+    media_type: tv
+  doctor_who:
+    provider_id: "121"
+    title: 神秘博士
+    original_title: Doctor Who
+    aliases: [Doctor Who, 神秘博士]
+    year: 1963
+    media_type: tv
+  greys_anatomy:
+    provider_id: "1416"
+    title: 实习医生格蕾
+    original_title: Grey's Anatomy
+    aliases: [Grey's Anatomy, Greys Anatomy, 实习医生格蕾]
+    year: 2005
+    media_type: tv
+  planet_earth_ii:
+    provider_id: "68595"
+    title: 地球脉动 第二季
+    original_title: Planet Earth II
+    aliases: [Planet Earth II, 地球脉动, 地球脉动 第二季]
+    year: 2016
+    media_type: tv
+  attack_on_titan:
+    provider_id: "1429"
+    title: 进击的巨人
+    original_title: 進撃の巨人
+    aliases: [Attack on Titan, 进击的巨人, 進撃の巨人]
+    year: 2013
+    media_type: tv
+  frieren:
+    provider_id: "209867"
+    title: 葬送的芙莉莲
+    original_title: 葬送のフリーレン
+    aliases: [Frieren Beyond Journey's End, Frieren, 葬送的芙莉莲, 葬送のフリーレン]
+    year: 2023
+    media_type: tv
+  frieren_duplicate:
+    provider_id: "327813"
+    title: 葬送的芙莉莲
+    original_title: 葬送のフリーレン
+    aliases: [Frieren Beyond Journey's End, Frieren, 葬送的芙莉莲, 葬送のフリーレン]
+    year:
+    media_type: tv
+  violet_evergarden:
+    provider_id: "75214"
+    title: 紫罗兰永恒花园
+    original_title: ヴァイオレット・エヴァーガーデン
+    aliases: [Violet Evergarden, 紫罗兰永恒花园, ヴァイオレット・エヴァーガーデン]
+    year: 2018
+    media_type: tv
+  one_piece:
+    provider_id: "37854"
+    title: 海贼王
+    original_title: ワンピース
+    aliases: [One Piece, 海贼王, ワンピース]
+    year: 1999
+    media_type: tv
+  one_piece_live_action:
+    provider_id: "111110"
+    title: ONE PIECE
+    original_title: ONE PIECE
+    aliases: [One Piece]
+    year: 2023
+    media_type: tv
+  north_water:
+    provider_id: "86941"
+    title: 北海鲸梦
+    original_title: The North Water
+    aliases: [The North Water, North Water, 北海鲸梦]
+    year: 2021
+    media_type: tv
+  sherlock:
+    provider_id: "19885"
+    title: 神探夏洛克
+    original_title: Sherlock
+    aliases: [Sherlock, 神探夏洛克]
+    year: 2010
+    media_type: tv
+  chernobyl:
+    provider_id: "87108"
+    title: 切尔诺贝利
+    original_title: Chernobyl
+    aliases: [Chernobyl, 切尔诺贝利]
+    year: 2019
+    media_type: tv
+
+positive_families:
+  - id: movie_folder_year
+    kind: movie
+    source: plex_movie
+    work: inception
+    samples:
+      - {path: "Movies/Inception (2010)/Inception (2010).mkv"}
+      - {path: "Movies/Inception (2010)/Inception.2010.1080p.BluRay.mkv"}
+      - {path: "Films/Inception_2010/Inception_2010_WEB-DL_2160p.mkv"}
+  - id: movie_standalone_year
+    kind: movie
+    source: plex_movie
+    work: avatar
+    samples:
+      - {path: "Movies/Avatar (2009).mkv"}
+      - {path: "Films/Avatar.2009.1080p.BluRay.x264.mkv"}
+      - {path: "下载/Avatar_2009_WEBRip_720p.mp4"}
+  - id: movie_curly_tmdb_id
+    kind: movie
+    source: plex_movie
+    work: batman_begins
+    samples:
+      - {path: "Movies/Batman Begins (2005) {tmdb-272}/Batman Begins (2005) {tmdb-272}.mkv"}
+      - {path: "Movies/Batman.Begins.2005.{tmdb-272}.1080p.mkv"}
+      - {path: "下载/Batman Begins {tmdb-272}.mp4"}
+  - id: movie_square_provider_id
+    kind: movie
+    source: jellyfin_movie
+    work: oppenheimer
+    samples:
+      - {path: "Movies/Oppenheimer (2023) [tmdbid-872585]/Oppenheimer (2023) [tmdbid-872585].mkv"}
+      - {path: "Movies/Oppenheimer.2023.[imdbid-tt15398776].2160p.mkv"}
+      - {path: "下载/Oppenheimer [tmdbid-872585].mp4"}
+  - id: movie_scene_dotted
+    kind: movie
+    source: trash_radarr
+    work: matrix
+    samples:
+      - {path: "Movies/The.Matrix.1999.1080p.BluRay.x264-GROUP.mkv"}
+      - {path: "下载/Matrix.1999.REMASTERED.2160p.UHD.BluRay.x265-RlsGrp.mkv"}
+      - {path: "Completed/The.Matrix.1999.WEB-DL.1080p.DDP5.1.H264-P2P.mkv"}
+  - id: movie_rich_release_tags
+    kind: movie
+    source: trash_radarr
+    work: inception
+    samples:
+      - {path: "Movies/Inception.2010.REMUX-2160p.TrueHD.Atmos.7.1.DV.HDR10Plus.HEVC-GROUP.mkv"}
+      - {path: "下载/Inception.2010.AMZN.WEB-DL.2160p.DDP5.1.HDR.HEVC-GROUP.mkv"}
+      - {path: "Completed/Inception.2010.1080p.BluRay.x264.DTS-HD.MA.5.1-RlsGrp.mkv"}
+  - id: movie_bilingual_cn_en
+    kind: movie
+    source: project_cn
+    work: handmaiden
+    samples:
+      - {path: "电影/小姐.The.Handmaiden.2016.EXTENDED.1080p.BluRay.mkv"}
+      - {path: "下载/小姐.加长版.中英特效字幕.The.Handmaiden.2016.BD1080P.X264.mkv"}
+      - {path: "Movies/小姐 (2016)/小姐.The.Handmaiden.2016.KOREAN.WEB-DL.mkv"}
+  - id: movie_traditional_chinese
+    kind: movie
+    source: project_cn
+    work: parasite
+    samples:
+      - {path: "電影/寄生蟲.2019.1080p.BluRay.mkv"}
+      - {path: "Movies/寄生蟲 (2019)/寄生蟲.Parasite.2019.mkv"}
+      - {path: "下載/寄生蟲.Parasite.2019.2160p.WEB-DL.mkv"}
+  - id: movie_japanese_title
+    kind: movie
+    source: project_cn
+    work: spirited_away
+    samples:
+      - {path: "Movies/千と千尋の神隠し (2001)/千と千尋の神隠し.2001.mkv"}
+      - {path: "电影/千与千寻.Spirited.Away.2001.1080p.BluRay.mkv"}
+      - {path: "下载/Spirited.Away.2001.JAPANESE.BD1080P.mkv"}
+  - id: movie_korean_title
+    kind: movie
+    source: project_cn
+    work: parasite
+    samples:
+      - {path: "Movies/기생충 (2019)/기생충.2019.mkv"}
+      - {path: "电影/기생충.Parasite.2019.KOREAN.1080p.mkv"}
+      - {path: "下载/Parasite.2019.KOREAN.BluRay.x265.mkv"}
+  - id: movie_accented_alias
+    kind: movie
+    source: jellyfin_movie
+    work: amelie
+    samples:
+      - {path: "Movies/Amélie (2001)/Amélie (2001).mkv"}
+      - {path: "Films/Amelie.2001.1080p.BluRay.mkv"}
+      - {path: "电影/天使爱美丽.Amélie.2001.mkv"}
+  - id: movie_edition
+    kind: movie
+    source: plex_movie
+    work: blade_runner
+    samples:
+      - {path: "Movies/Blade Runner (1982) {edition-Director's Cut}/Blade Runner (1982) {edition-Director's Cut}.mkv"}
+      - {path: "Movies/Blade Runner (1982) {edition-Final Cut}.mp4"}
+      - {path: "下载/Blade.Runner.1982.Final.Cut.1080p.BluRay.mkv"}
+  - id: movie_multiple_versions
+    kind: movie
+    source: jellyfin_movie
+    work: inception
+    samples:
+      - {path: "Movies/Inception (2010)/Inception (2010) - 2160p.mp4"}
+      - {path: "Movies/Inception (2010)/Inception (2010) - [1080P].mkv"}
+      - {path: "Movies/Inception (2010)/Inception (2010) - Directors Cut.mkv"}
+  - id: movie_multipart
+    kind: movie
+    source: plex_movie
+    work: dark_knight
+    samples:
+      - {path: "Movies/The Dark Knight (2008)/The Dark Knight (2008) - pt1.mkv"}
+      - {path: "Movies/The Dark Knight (2008)/The Dark Knight (2008).cd2.mp4"}
+      - {path: "Movies/The Dark Knight (2008)/The Dark Knight (2008)_disc3.mkv"}
+  - id: movie_bdmv_stream
+    kind: movie
+    source: jellyfin_movie
+    work: inception
+    samples:
+      - {path: "Movies/Inception (2010)/BDMV/STREAM/00001.m2ts"}
+      - {path: "下载/Inception.2010/BluRay/BDMV/STREAM/00002.m2ts"}
+      - {path: "Films/Inception_2010/BDMV/STREAM/00003.m2ts"}
+  - id: movie_video_ts
+    kind: movie
+    source: jellyfin_movie
+    work: batman_begins
+    samples:
+      - {path: "Movies/Batman Begins (2005)/VIDEO_TS/VIDEO_TS.VOB"}
+      - {path: "Movies/Batman Begins (2005)/VIDEO_TS/VTS_01_1.VOB"}
+      - {path: "Films/Batman.Begins.2005/VIDEO_TS/VTS_01_2.VOB"}
+  - id: movie_technical_nested_path
+    kind: movie
+    source: radarr
+    work: inception
+    samples:
+      - {path: "Movies/Inception.2010/2160p/Inception.2010.mkv"}
+      - {path: "下载/Inception.2010/REMUX/00001.mkv"}
+      - {path: "Completed/Inception.2010/UHD/BluRay/00002.m2ts"}
+  - id: movie_numeric_title
+    kind: movie
+    source: kodi_movie
+    work: movie_1917
+    samples:
+      - {path: "Movies/1917 (2019)/1917 (2019).mkv"}
+      - {path: "Films/1917.2019.1080p.BluRay.x264.mkv"}
+      - {path: "下载/1917_2019_WEB-DL_2160p.mkv"}
+  - id: movie_long_title_group
+    kind: movie
+    source: trash_radarr
+    work: lotr
+    samples:
+      - {path: "Movies/The.Lord.of.the.Rings.The.Fellowship.of.the.Ring.2001.1080p.BluRay.x264-GROUP.mkv"}
+      - {path: "下载/The Lord of the Rings The Fellowship of the Ring 2001 WEB-DL 2160p.mkv"}
+      - {path: "电影/指环王1护戒使者.The.Lord.of.the.Rings.The.Fellowship.of.the.Ring.2001.mkv"}
+  - id: movie_nfo_identity
+    kind: movie
+    source: jellyfin_movie
+    work: inception
+    samples:
+      - path: "Movies/Inception (2010)/movie.mkv"
+        nfo: {path: "Movies/Inception (2010)/movie.nfo", xml: "<movie><uniqueid type='tmdb'>27205</uniqueid></movie>"}
+      - path: "Movies/Inception (2010)/video.mkv"
+        nfo: {path: "Movies/Inception (2010)/movie.nfo", xml: "<movie><uniqueid type='imdb'>tt1375666</uniqueid></movie>"}
+      - path: "Films/Inception.2010/main.mkv"
+        nfo: {path: "Films/Inception.2010/main.nfo", xml: "<movie><tmdbid>27205</tmdbid></movie>"}
+
+  - id: tv_standard_sxxeyy
+    kind: tv
+    source: plex_tv
+    work: game_of_thrones
+    samples:
+      - {path: "TV Shows/Game of Thrones (2011)/Season 01/Game of Thrones (2011) - S01E01.mkv", season: 1, episode: 1}
+      - {path: "Series/Game.of.Thrones/Season.02/Game.of.Thrones.S02E03.1080p.mkv", season: 2, episode: 3}
+      - {path: "电视剧/权力的游戏/第3季/权力的游戏.S03E05.mkv", season: 3, episode: 5}
+  - id: tv_one_x_notation
+    kind: tv
+    source: sonarr
+    work: breaking_bad
+    samples:
+      - {path: "TV/Breaking Bad/Season 01/Breaking.Bad.1x01.mkv", season: 1, episode: 1}
+      - {path: "Series/Breaking.Bad.2008/Season 02/Breaking Bad 2x03 1080p.mkv", season: 2, episode: 3}
+      - {path: "下载/Breaking.Bad.5x16.HDTV.x264.mkv", season: 5, episode: 16}
+  - id: tv_multi_episode_range
+    kind: tv
+    source: plex_tv
+    work: band_of_brothers
+    samples:
+      - {path: "TV/Band of Brothers (2001)/Season 01/Band of Brothers S01E01-E02.mkv", season: 1, episode: 1}
+      - {path: "Series/Band.of.Brothers.2001/Season 01/Band.of.Brothers.S01E03-04.1080p.mkv", season: 1, episode: 3}
+      - {path: "下载/Band.of.Brothers.S01E05-E07.BluRay.x265.mkv", season: 1, episode: 5}
+  - id: tv_multi_episode_repeat
+    kind: tv
+    source: sonarr
+    work: sherlock
+    samples:
+      - {path: "TV/Sherlock (2010)/Season 01/Sherlock.S01E01E02.mkv", season: 1, episode: 1}
+      - {path: "Series/Sherlock/Season 02/Sherlock.S02E01E02E03.1080p.mkv", season: 2, episode: 1}
+      - {path: "下载/Sherlock.S03E01E02.WEB-DL.mkv", season: 3, episode: 1}
+  - id: tv_multi_episode_scene
+    kind: tv
+    source: sonarr
+    work: chernobyl
+    samples:
+      - {path: "TV/Chernobyl (2019)/Season 01/Chernobyl.S01E01-E02-E03.mkv", season: 1, episode: 1}
+      - {path: "Series/Chernobyl (2019)/Season 01/Chernobyl.S01E03-05.1080p.mkv", season: 1, episode: 3}
+      - {path: "下载/Chernobyl.2019.S01E04E05.WEB-DL.mkv", season: 1, episode: 4}
+  - id: tv_date_yyyy_mm_dd
+    kind: tv
+    source: plex_tv
+    work: greys_anatomy
+    samples:
+      - {path: "TV/Grey's Anatomy (2005)/Season 21/Grey's Anatomy - 2024-09-26.mkv"}
+      - {path: "Series/Greys Anatomy/Season 20/Greys.Anatomy.2024.03.14.1080p.mkv"}
+      - {path: "下载/Greys.Anatomy.2023 05 18.HDTV.mkv"}
+  - id: tv_date_dd_mm_yyyy
+    kind: tv
+    source: plex_tv
+    work: greys_anatomy
+    samples:
+      - {path: "TV/Grey's Anatomy (2005)/Season 21/Grey's Anatomy - 26-09-2024.mkv"}
+      - {path: "Series/Greys Anatomy/Season 20/Greys Anatomy 14.03.2024.mkv"}
+      - {path: "下载/Greys.Anatomy.18 05 2023.HDTV.mkv"}
+  - id: tv_specials_folder
+    kind: tv
+    source: plex_tv
+    work: game_of_thrones
+    samples:
+      - {path: "TV/Game of Thrones (2011)/Specials/Game of Thrones S00E01.mkv", season: 0, episode: 1}
+      - {path: "Series/Game.of.Thrones/Specials/S00E02.mkv", season: 0, episode: 2}
+      - {path: "电视剧/权力的游戏/Specials/权力的游戏.S00E03.mkv", season: 0, episode: 3}
+  - id: tv_season_zero_folder
+    kind: tv
+    source: jellyfin_tv
+    work: greys_anatomy
+    samples:
+      - {path: "TV/Grey's Anatomy (2005)/Season 00/Grey's Anatomy S00E01.mkv", season: 0, episode: 1}
+      - {path: "Series/Greys Anatomy/Season 00/S00E02.mkv", season: 0, episode: 2}
+      - {path: "电视剧/实习医生格蕾/S00/实习医生格蕾.S00E03.mkv", season: 0, episode: 3}
+  - id: tv_weak_filename_folder_rescue
+    kind: tv
+    source: jellyfin_tv
+    work: planet_earth_ii
+    samples:
+      - {path: "TV/Planet Earth II (2016)/Season 01/S01E01.mkv", season: 1, episode: 1}
+      - {path: "Series/Planet.Earth.II.2016/Season 01/01.mkv", season: 1, episode: 1}
+      - {path: "纪录片/地球脉动 第二季/第1季/第1集.mkv", season: 1, episode: 1}
+  - id: tv_anime_absolute
+    kind: tv
+    source: sonarr
+    work: one_piece
+    samples:
+      - {path: "Anime/One Piece (1999)/[Group] One Piece - 001 [1080p HEVC].mkv", season: 1, episode: 1}
+      - {path: "动漫/海贼王 (1999)/[字幕组] 海贼王 - 100 [720p].mkv", season: 1, episode: 100}
+      - {path: "Anime/One.Piece.1999/One Piece - 1000v2 [WEB-DL].mkv", episode: 1000}
+  - id: tv_anime_standard_absolute
+    kind: tv
+    source: trash_sonarr
+    work: attack_on_titan
+    samples:
+      - {path: "Anime/Attack on Titan (2013)/Season 01/Attack on Titan - S01E01 - 001.mkv", season: 1, episode: 1}
+      - {path: "动漫/进击的巨人/Season 02/进击的巨人.S02E03.028.1080p.mkv", season: 2, episode: 3}
+      - {path: "Anime/進撃の巨人/Season 04/進撃の巨人 S04E28 087.mkv", season: 4, episode: 28}
+  - id: tv_anime_release_group
+    kind: tv
+    source: trash_sonarr
+    work: frieren
+    samples:
+      - {path: "Anime/葬送的芙莉莲 (2023)/[Nekomoe] 葬送的芙莉莲 - 01 [1080p HEVC AAC].mkv", season: 1, episode: 1}
+      - {path: "动漫/葬送のフリーレン (2023)/[Group] 葬送のフリーレン - 12 [WEBRip 1080p].mkv", season: 1, episode: 12}
+      - {path: "Anime/Frieren (2023)/Frieren - 28 [BD 1080p FLAC].mkv", season: 1, episode: 28}
+  - id: tv_chinese_season_episode
+    kind: tv
+    source: project_cn
+    work: north_water
+    samples:
+      - {path: "电视剧/北海鲸梦/第一季/北海鲸梦.第一季.第1集.mkv", season: 1, episode: 1}
+      - {path: "下载/北海鲸梦.第一季.2021.EP03.HD1080P.mkv", season: 1, episode: 3}
+      - {path: "网盘/北海鲸梦/第1季/北海鲸梦 第五集.mkv", season: 1, episode: 5}
+  - id: tv_bilingual_title
+    kind: tv
+    source: project_cn
+    work: game_of_thrones
+    samples:
+      - {path: "电视剧/权力的游戏.Game of Thrones/Season 01/权力的游戏.Game.of.Thrones.S01E01.mkv", season: 1, episode: 1}
+      - {path: "下载/权力的游戏.Game.of.Thrones.S02E02.1080p.mkv", season: 2, episode: 2}
+      - {path: "TV/Game of Thrones/Season 03/权力的游戏.Game of Thrones 3x03.mkv", season: 3, episode: 3}
+  - id: tv_curly_provider_id
+    kind: tv
+    source: plex_tv
+    work: office_uk
+    samples:
+      - {path: "TV/The Office (UK) (2001) {tmdb-2996}/Season 01/The Office UK S01E01.mkv", season: 1, episode: 1}
+      - {path: "Series/The.Office.UK.2001.{tmdb-2996}/Season 02/The.Office.UK.S02E02.mkv", season: 2, episode: 2}
+      - {path: "下载/The.Office.UK.{tmdb-2996}.S01E03.mkv", season: 1, episode: 3}
+  - id: tv_square_external_id
+    kind: tv
+    source: jellyfin_tv
+    work: office_us
+    samples:
+      - {path: "TV/The Office (US) (2005) [tvdbid-73244]/Season 01/The Office US S01E01.mkv", season: 1, episode: 1}
+      - {path: "Series/The.Office.US.[imdbid-tt0386676].S02E02.mkv", season: 2, episode: 2}
+      - {path: "下载/The.Office.US.[tvdbid-73244].S03E03.1080p.mkv", season: 3, episode: 3}
+  - id: tv_episode_split_parts
+    kind: tv
+    source: plex_tv
+    work: greys_anatomy
+    samples:
+      - {path: "TV/Grey's Anatomy (2005)/Season 01/Grey's Anatomy S01E01 - pt1.avi", season: 1, episode: 1}
+      - {path: "TV/Grey's Anatomy (2005)/Season 01/Grey's Anatomy S01E01 - pt2.avi", season: 1, episode: 1}
+      - {path: "Series/Greys Anatomy/Season 02/Greys.Anatomy.S02E02.cd1.mkv", season: 2, episode: 2}
+  - id: tv_miniseries
+    kind: tv
+    source: plex_tv
+    work: chernobyl
+    samples:
+      - {path: "TV/Chernobyl (2019)/Season 01/Chernobyl S01E01.mkv", season: 1, episode: 1}
+      - {path: "Series/Chernobyl (2019)/Season 01/Chernobyl.1x03.1080p.mkv", season: 1, episode: 3}
+      - {path: "下载/Chernobyl.2019.S01E05.WEB-DL.mkv", season: 1, episode: 5}
+  - id: tv_same_name_year
+    kind: tv
+    source: plex_tv
+    work: office_us
+    samples:
+      - {path: "TV/The Office (US) (2005)/Season 01/The Office US (2005) S01E01.mkv", season: 1, episode: 1}
+      - {path: "Series/The.Office.US.2005/Season 02/The.Office.US.2005.S02E03.mkv", season: 2, episode: 3}
+      - {path: "下载/The.Office.US.2005.S03E05.WEB-DL.mkv", season: 3, episode: 5}
+  - id: tv_generic_technical_path
+    kind: tv
+    source: sonarr
+    work: breaking_bad
+    samples:
+      - {path: "电视剧/Breaking Bad/downloads/Season 01/S01E01.mkv", season: 1, episode: 1}
+      - {path: "TV/Breaking.Bad.2008/Complete/Season 02/Breaking.Bad.S02E02.mkv", season: 2, episode: 2}
+      - {path: "网盘/Breaking Bad/1080p/Season 03/Breaking.Bad.S03E03.mkv", season: 3, episode: 3}
+  - id: tv_japanese_title
+    kind: tv
+    source: project_cn
+    work: violet_evergarden
+    samples:
+      - {path: "Anime/ヴァイオレット・エヴァーガーデン/Season 01/ヴァイオレット・エヴァーガーデン S01E01.mkv", season: 1, episode: 1}
+      - {path: "动漫/紫罗兰永恒花园/第1季/紫罗兰永恒花园.第2集.mkv", season: 1, episode: 2}
+      - {path: "Anime/Violet Evergarden (2018)/Violet.Evergarden.S01E03.1080p.mkv", season: 1, episode: 3}
+  - id: tv_nfo_identity
+    kind: tv
+    source: jellyfin_tv
+    work: game_of_thrones
+    samples:
+      - path: "TV/Game of Thrones/Season 01/S01E01.mkv"
+        season: 1
+        episode: 1
+        nfo: {path: "TV/Game of Thrones/tvshow.nfo", xml: "<tvshow><uniqueid type='tmdb'>1399</uniqueid></tvshow>"}
+      - path: "Series/Game of Thrones/Specials/S00E01.mkv"
+        season: 0
+        episode: 1
+        nfo: {path: "Series/Game of Thrones/tvshow.nfo", xml: "<tvshow><uniqueid type='tvdb'>121361</uniqueid></tvshow>"}
+      - path: "电视剧/权力的游戏/第1季/第1集.mkv"
+        season: 1
+        episode: 1
+        nfo: {path: "电视剧/权力的游戏/tvshow.nfo", xml: "<tvshow><tmdbid>1399</tmdbid></tvshow>"}
+
+safety_cases:
+  - id: ambiguous_oppenheimer_same_year
+    path: "Movies/Oppenheimer.2023.1080p.BluRay.mkv"
+  - id: ambiguous_yearless_band_of_brothers
+    path: "TV/Band of Brothers/Season 01/Band.of.Brothers.S01E01.mkv"
+  - id: ambiguous_yearless_frieren
+    path: "Anime/葬送的芙莉莲/葬送的芙莉莲 - 01.mkv"
+  - id: ambiguous_same_title_same_year
+    path: "Movies/CODA.2021.1080p.BluRay.mkv"
+  - id: ambiguous_yearless_one_piece
+    path: "Anime/One Piece/One Piece - 001.mkv"
+  - id: explicit_id_wrong_year
+    path: "Movies/Oppenheimer.2022.[tmdbid-872585].mkv"
+  - id: explicit_movie_id_with_tv_structure
+    path: "TV/Oppenheimer/Oppenheimer.S01E01.[tmdbid-872585].mkv"
+  - id: conflicting_filename_ids
+    path: "Movies/Movie.2023.[tmdbid-872585].[imdbid-tt1517268].mkv"
+  - id: conflicting_bilingual_titles
+    path: "Movies/Oppenheimer.Barbie.2023.mkv"
+  - id: ambiguous_remake_without_year
+    path: "Movies/Dune.mkv"
+  - id: ambiguous_remake_wrong_folder
+    path: "Movies/Dune/1080p/Dune.mkv"
+  - id: extras_do_not_inherit_movie_nfo
+    path: "Movies/Inception.2010/Extras/Making.Of.mkv"
+    nfo: {path: "Movies/Inception.2010/movie.nfo", xml: "<movie><tmdbid>27205</tmdbid></movie>"}
+  - id: trailers_do_not_inherit_movie_nfo
+    path: "Movies/Inception.2010/Trailers/trailer.mkv"
+    nfo: {path: "Movies/Inception.2010/movie.nfo", xml: "<movie><tmdbid>27205</tmdbid></movie>"}
+  - id: special_features_do_not_inherit_movie_nfo
+    path: "Movies/Inception.2010/Special Features/feature.mkv"
+    nfo: {path: "Movies/Inception.2010/movie.nfo", xml: "<movie><tmdbid>27205</tmdbid></movie>"}
+  - id: weak_numeric_at_source_root
+    path: "00001.m2ts"
+  - id: generic_video_at_source_root
+    path: "video.mkv"
+  - id: provider_has_no_work
+    path: "Movies/Definitely.Not.A.Real.Movie.2099.mkv"
+  - id: nfo_id_wrong_year
+    path: "Movies/Inception.2000/video.mkv"
+    nfo: {path: "Movies/Inception.2000/movie.nfo", xml: "<movie><year>2000</year><tmdbid>27205</tmdbid></movie>"}
+  - id: tvshow_nfo_points_to_movie
+    path: "TV/Wrong Show/Season 01/S01E01.mkv"
+    nfo: {path: "TV/Wrong Show/tvshow.nfo", xml: "<tvshow><tmdbid>27205</tmdbid></tvshow>"}
+  - id: episode_nfo_not_series_identity
+    path: "TV/Unknown Show/Season 01/S01E01.mkv"
+    nfo: {path: "TV/Unknown Show/Season 01/S01E01.nfo", xml: "<episodedetails><tmdbid>1399</tmdbid></episodedetails>"}
+  - id: folder_id_conflicts_with_strong_filename
+    path: "Movies/Inception.2010.{tmdb-272}/Inception.2010.mkv"
