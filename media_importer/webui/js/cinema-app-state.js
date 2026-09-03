@@ -48,6 +48,7 @@ let currentConfigSnapshot = null;
 let currentConfigRevision = "";
 let currentCleanerTab = "delete";
 let dashboardRefreshTimer = null;
+let taskProgressRefreshTimer = null;
 let currentTaskRecords = [];
 let currentTaskTotal = 0;
 let currentTaskPage = 1;
@@ -82,6 +83,11 @@ function setView(view, navKey = view) {
     item.classList.toggle("active", item.dataset.nav === navKey);
   });
   updateStickyHeroState();
+  if (view === "tasks" && typeof startTaskProgressPolling === "function") {
+    startTaskProgressPolling();
+  } else if (typeof stopTaskProgressPolling === "function") {
+    stopTaskProgressPolling();
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -156,9 +162,6 @@ function currentPathSnapshot() {
     source_dir: normalizePathValue(
       document.getElementById("cfg-source-inline")?.value || currentConfigSnapshot?.source_dir,
     ),
-    temp_dir: normalizePathValue(
-      document.getElementById("cfg-temp-inline")?.value || currentConfigSnapshot?.temp_dir,
-    ),
     recycle_dir: normalizePathValue(
       document.getElementById("cfg-recycle-inline")?.value || currentConfigSnapshot?.source_policy?.recycle_dir,
     ),
@@ -173,20 +176,12 @@ function currentPathSnapshot() {
 
 function validateDirectoryConflicts(paths) {
   const conflicts = [];
-  if (paths.source_dir && paths.temp_dir && paths.source_dir === paths.temp_dir)
-    conflicts.push("源目录与中转目录不能相同");
   if (
     paths.source_dir &&
     paths.recycle_dir &&
     paths.source_dir === paths.recycle_dir
   )
     conflicts.push("源目录与回收目录不能相同");
-  if (
-    paths.temp_dir &&
-    paths.recycle_dir &&
-    paths.temp_dir === paths.recycle_dir
-  )
-    conflicts.push("中转目录与回收目录不能相同");
   return conflicts;
 }
 
@@ -532,7 +527,42 @@ function toggleSourceModeUi() {
     card.classList.toggle("is-selected", card.dataset.sourceModeCard === mode);
   });
   if (cleanerToggle) cleanerToggle.checked = mode === "preserve_media";
+  const disposalPanel = document.getElementById("source-disposal-panel");
+  if (disposalPanel) disposalPanel.hidden = mode === "preserve_all";
+  const disposalTitle = document.getElementById("source-disposal-title");
+  const disposalContext = document.getElementById("source-disposal-context");
+  if (disposalTitle) {
+    disposalTitle.textContent =
+      mode === "preserve_media"
+        ? "删除的垃圾放到哪里？"
+        : "清空的来源内容放到哪里？";
+  }
+  if (disposalContext) {
+    disposalContext.textContent =
+      mode === "preserve_media"
+        ? "影片和字幕仍保留；这里只决定已确认垃圾的去向。"
+        : "只在同组影片全部成功后处理；目标片库始终不在此范围内。";
+  }
+  if (mode === "preserve_all") {
+    const localRecycle = document.querySelector(
+      'input[name="cfg-source-disposal"][value="local_recycle"]',
+    );
+    if (localRecycle) localRecycle.checked = true;
+  }
+  toggleSourceDisposalUi();
   toggleSourceCleanerUi();
+}
+
+function toggleSourceDisposalUi() {
+  const disposition =
+    document.querySelector('input[name="cfg-source-disposal"]:checked')
+      ?.value || "local_recycle";
+  const danger = document.getElementById("source-disposal-danger");
+  if (danger) danger.hidden = disposition !== "permanent_delete";
+  document.querySelectorAll(".source-disposal-option").forEach((card) => {
+    const radio = card.querySelector('input[name="cfg-source-disposal"]');
+    card.classList.toggle("is-selected", !!radio?.checked);
+  });
 }
 
 function openSourceCleanerRulesModal() {
@@ -599,8 +629,8 @@ function syncAutomationToggleCopy() {
   const label = document.getElementById("cfg-auto-watcher-label");
   if (!toggle || !label) return;
   label.textContent = toggle.checked
-    ? "后台自动整理已开启"
-    : "后台自动整理已关闭";
+    ? "已设置为后台自动整理"
+    : "已设置为不自动整理";
 }
 
 function updateStickyHeroState() {

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .storage_readiness import inspect_storage_readiness
+from .storage_readiness import inspect_processing_support_readiness
 
 
 @dataclass
@@ -23,9 +23,6 @@ def apply_runtime_config(
         pipeline.config = config
         scraper_cls = scraper_factory or _default_scraper_factory()
         pipeline.scraper = scraper_cls(config)
-        if getattr(pipeline, "copier", None) is not None:
-            pipeline.copier = type(pipeline.copier)(config.get("temp_dir", ""))
-
     notifier = build_notifier(config, notifier_factory=notifier_factory)
     if pipeline:
         pipeline.notifier = notifier
@@ -59,20 +56,26 @@ def restart_watcher(
     if not watcher_cfg.get("enabled", False):
         _log(logger, "info", "文件监控已停用（配置 enabled=false）")
         return None
-    readiness = inspect_storage_readiness(config)
+    readiness = inspect_processing_support_readiness(config)
     if not readiness["automatic_allowed"]:
         _log(logger, "error", "存储检查未达到自动运行条件，文件监控保持停用")
         return None
 
     def on_new_files(new_files):
         if pipeline and not pipeline.is_paused():
-            try:
-                pipeline.run_all()
-            except Exception as exc:
-                _log(logger, "error", "批量处理异常: " + str(exc))
+            pipeline.run_all()
+
+    def on_maintenance():
+        if pipeline and not pipeline.is_paused():
+            pipeline.retry_pending_source_cleanup()
 
     factory = watcher_factory or _default_watcher_factory()
-    watcher = factory(config, on_new_files=on_new_files, logger=logger)
+    watcher = factory(
+        config,
+        on_new_files=on_new_files,
+        on_maintenance=on_maintenance,
+        logger=logger,
+    )
     watcher.start()
     _log(
         logger,

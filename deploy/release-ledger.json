@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "releases": [
+    {
+      "version": "0.3.23",
+      "source_sha256": null,
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "4bbcb8aea65303c24bd5a4297682755c477360be788ffff10978faa66f0e06b1",
+          "built_at": "2026-09-02T01:18:07+08:00"
+        }
+      ],
+      "note": "历史候选包；建立台账前未记录源码指纹，未标记为 fnOS 验收正常版本"
+    },
+    {
+      "version": "0.3.24",
+      "source_sha256": "595afe9dfd6522758c31949cda4a444c5ce1bf25703d21354f4d2f5ae2a1f439",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "210fb5df50be5ac741646a49d4738d676366bbfc9e32655eff34d639f64d15bf",
+          "built_at": "2026-09-02T21:09:11+08:00"
+        }
+      ]
+    },
+    {
+      "version": "0.3.25",
+      "source_sha256": "b471d7683da84a8218756e5a639dfb77fe325b1ddd54831df4f0139a3d3def7f",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "1d2f8db580b58bbfec26a783ec1e9fe41776aa7dc6df74311d2f5db7c916d109",
+          "built_at": "2026-09-02T22:50:15+08:00"
+        }
+      ]
+    },
+    {
+      "version": "0.3.26",
+      "source_sha256": "d5a07cdc5e5f82aeb8cd05a803bdc5ae83f57ee09dae1a8200816c950f6f7f6a",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "5eccd62a646d96c60648ae09c9b45708c69295ba16744d5f27d1c2294a126de3",
+          "built_at": "2026-09-03T13:56:45+08:00"
+        }
+      ]
+    }
+  ]
+}

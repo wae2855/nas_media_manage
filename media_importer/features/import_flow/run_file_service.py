@@ -3,7 +3,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from media_importer.features.configuration import inspect_storage_readiness
+from media_importer.features.configuration import inspect_processing_support_readiness
 from media_importer.infrastructure.filesystem import validate_file_ext, validate_path_safety
 
 
@@ -20,7 +20,9 @@ def run_batch_for_api(
 ) -> RunFileResult:
     if pipeline is None:
         return RunFileResult(code=500, message="Pipeline not initialized")
-    readiness = inspect_storage_readiness(getattr(pipeline, "config", {}) or {})
+    readiness = inspect_processing_support_readiness(
+        getattr(pipeline, "config", {}) or {},
+    )
     if readiness["state"] != "READY":
         return RunFileResult(code=409, message="配置尚未就绪，请先处理存储检查中的阻塞项")
 
@@ -57,7 +59,7 @@ def run_file_for_api(
     if not os.path.isfile(file_path):
         return RunFileResult(code=404, message=f"File not found: {file_path}")
 
-    readiness = inspect_storage_readiness(config or {})
+    readiness = inspect_processing_support_readiness(config or {})
     if readiness["state"] != "READY":
         return RunFileResult(code=409, message="配置尚未就绪，请先处理存储检查中的阻塞项")
 
@@ -67,7 +69,7 @@ def run_file_for_api(
         if (config.get("source_policy", {}) or {}).get("mode") == "recycle_source_unit":
             from media_importer.features.source_files import register_source_unit
             source_unit_id = register_source_unit(
-                task_manager.conn, source_dir, file_path
+                task_manager.conn, source_dir, file_path, config=config
             ).unit_id
         task_kwargs = dict(
             video_path=file_path,

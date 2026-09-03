@@ -41,14 +41,13 @@ def test_run_batch_starts_background_processing():
     from pathlib import Path
 
     base = Path(tempfile.mkdtemp())
-    directories = [base / name for name in ("source", "temp", "recycle", "target")]
+    directories = [base / name for name in ("source", "recycle", "target")]
     for directory in directories:
         directory.mkdir()
     pipeline = FakePipeline({
         "source_dir": str(directories[0]),
-        "temp_dir": str(directories[1]),
-        "source_policy": {"recycle_dir": str(directories[2])},
-        "fallback_dir": str(directories[3]),
+        "source_policy": {"recycle_dir": str(directories[1])},
+        "fallback_dir": str(directories[2]),
     })
 
     result = run_batch_for_api(pipeline, thread_factory=FakeThread)
@@ -75,16 +74,14 @@ def test_run_file_starts_single_file_processing(tmp_path):
     task_manager = FakeTaskManager()
     pipeline = FakePipeline()
 
-    temp_dir = tmp_path / "temp"
     recycle_dir = tmp_path / "recycle"
     target_dir = tmp_path / "target"
-    for directory in (temp_dir, recycle_dir, target_dir):
+    for directory in (recycle_dir, target_dir):
         directory.mkdir()
 
     result = run_file_for_api(
         {
             "source_dir": str(source_dir),
-            "temp_dir": str(temp_dir),
             "source_policy": {"recycle_dir": str(recycle_dir)},
             "fallback_dir": str(target_dir),
             "video_extensions": ["mkv"],

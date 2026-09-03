@@ -59,7 +59,6 @@ def directory_roots(config: dict) -> list[DirectoryRoot]:
     policy = config.get("source_policy", {}) or {}
     raw: list[tuple[str, str, str]] = [
         ("source", "文件来源", str(config.get("source_dir", "") or "")),
-        ("temp", "本地中转", str(config.get("temp_dir", "") or "")),
         (
             "recycle",
             "本地回收",

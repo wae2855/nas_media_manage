@@ -43,7 +43,7 @@
 | `test_source_cleaner*` / `test_feature_source_cleaning*` | 源目录清理 | `test_source_cleaner_comprehensive.py` | 单元/集成 |
 | `test_task_*` / `test_feature_task_*` | 任务领域 | `test_task_operations.py` | 单元/集成 |
 | `test_config_*` / `test_feature_configuration_*` | 配置加载/校验/脱敏 | `test_config_view.py` | 单元 |
-| `test_fnos_packaging` | fnOS 首次配置、生命周期合同与 FPK 内容门禁 | `test_fnos_packaging.py` | 单元/产物 |
+| `test_fnos_packaging` / `test_release_ledger` | fnOS 首次配置、生命周期合同、FPK 内容与版本单调门禁 | `test_fnos_packaging.py`, `test_release_ledger.py` | 单元/产物 |
 | `test_api_*` | API 路由表与契约 | `test_api_routes.py` | 集成 |
 | `test_architecture_guards` | 架构护栏（防回退） | `test_architecture_guards.py` | 静态/单测 |
 | `test_no_legacy_*` | 历史兼容面清理验证 | `test_no_legacy_compat_surface.py` | 静态/单测 |
@@ -58,10 +58,10 @@
 
 | 功能点 | 前台节点 | 后端 API | 后端实现入口 | 已覆盖测试 | 缺口 |
 |--------|----------|----------|--------------|------------|------|
-| 健康检查 | 顶栏状态指示 | `GET /api/health` | `api/handler.py:_health` | `test_api_routes.py` | — |
+| 健康检查与运行版本 | 顶栏状态指示、胶囊下版本 | `GET /api/health` | `api/connectivity_handlers.py:_health`, `app_version.py` | `test_api_routes.py`, `test_runtime_version.py`, `test_dashboard_responsive_ui.py`, `test_fnos_packaging.py` | fnOS 安装后版本视觉复核 |
 | 运行指标 | 顶栏运行中/暂停/异常 | `GET /api/metrics` | `api/handler.py:_metrics` | `test_api_routes.py` | 指标字段契约单测 |
 | 首页业务摘要 | 状态提示/今日入库/最近活动/最近影片 | `GET /api/dashboard/summary` | `features/tasks/dashboard_service.py` | `test_dashboard_summary.py`, `test_dashboard_responsive_ui.py`, `test_api_routes.py` | 真实 fnOS 设备视觉验收 |
-| Watcher 状态/启停 | 顶栏 watcher 开关 | `GET /api/watcher/status`, `POST /api/watcher/control` | `api/handler.py` | `test_config_consumers.py`（间接）、`test_feature_configuration_runtime.py` | 显式 watcher 状态 API smoke |
+| Watcher 状态/启停 | 自动运行阶段即时开关与状态卡 | `GET /api/watcher/status`, `POST /api/config`, `POST /api/watcher/control` | `api/config_save.py`, `features/configuration/runtime_service.py` | `test_feature_configuration_runtime.py`, `test_feature_configuration_application.py`, `test_config_atomic_save.py`, `test_configuration_refinement_ui.py`, `test_location_health.py`, `test_stable_source_gate.py`, `test_fnos_packaging.py`（含空闲只触达来源、候选恢复重试、回收每日节流、状态查询零探针） | 真实 fnOS rclone 来源、关闭桌面窗口后的持续运行与目标硬盘休眠验收 |
 | 队列状态（暂停/恢复/重试全部） | 顶栏/批处理入口 | `GET /api/queue/status`, `POST /api/queue/pause|resume|retry-all` | `api/handler.py`, `features/tasks` | `test_feature_task_queue.py`（暂停/恢复/retry_all） | 队列状态 payload 字段单测 |
 | 立即扫描（批处理入口） | 仪表盘 CTA | `POST /api/run` | `features/import_flow/services` | `test_feature_import_flow_run_file.py`（run_batch 间接） | run_batch 端到端 |
 | 重启服务 | 仪表盘高级菜单 | `POST /api/restart` | `api/handler.py` | — | 缺回归脚本（建议 `test_dashboard_service_lifecycle.py`） |
@@ -77,7 +77,7 @@
 |--------|----------|----------|--------------|------------|------|
 | 任务列表分页/筛选 | 任务工作台主表 | `GET /api/tasks` | `features/tasks` | `test_feature_task_list.py` | — |
 | 任务状态统计 | 顶部状态卡 | `GET /api/tasks/stats` | `features/tasks` | `test_feature_task_detail.py:test_get_task_stats_*` | — |
-| 任务详情 | 右侧详情抽屉/二级页 | `GET /api/tasks/{id}` | `features/tasks` | `test_feature_task_detail.py:test_get_task_*` | — |
+| 任务详情 | 详情弹窗 | `GET /api/tasks/{id}` | `features/tasks` | `test_feature_task_detail.py:test_get_task_*`, `test_dashboard_responsive_ui.py` | 320/390px 真实浏览器视觉验收 |
 | 字幕查询 | 详情内字幕 Tab | `GET /api/tasks/{id}/subtitles` | `features/tasks` | `test_feature_task_detail.py:test_get_task_subtitles_*` | — |
 | 缩略图（详情/卡片/最近影片） | 卡片/详情/首页轮播 | `GET /api/thumbnails`, `GET /api/thumbnails/{file}` | `api/thumbnail_handlers.py`, `features/scraping/thumbnail_cache.py` | `test_dashboard_summary.py`（路径边界、去重、双阈值治理） | 缩略图 HTTP 响应端到端 |
 | 启动单文件 | 任务空态/文件拖拽 | `POST /api/run/file` | `features/import_flow` | `test_feature_import_flow_run_file.py`（run_file 全部分支） | — |
@@ -102,9 +102,9 @@
 | 保存整段配置 | 配置页 | `POST /api/config` | `api/config_save.py` | `test_config_view.py`, `test_config_api_no_legacy_prompts.py` | — |
 | 保存分区配置 | 各分区卡片 | `POST /api/config/section` | `api/config_handlers.py`, `api/config_save.py` | `test_feature_configuration_application.py` | — |
 | 路径测试（模板渲染） | 路径规则页 | `POST /api/path/test` | `api/config_handlers.py` | `test_feature_configuration_application.py:test_build_path_test_payload_*`, `test_path_rules.py` | — |
-| 开场检查 | 配置完成页 | `GET /api/config/startup-readiness` | `features/configuration/startup_readiness.py` | `test_startup_readiness.py`, `test_configuration_realistic_scenarios.py`, `test_api_routes.py` | — |
+| 配置检查 | 配置完成页 | `GET /api/config/startup-readiness` | `features/configuration/startup_readiness.py` | `test_startup_readiness.py`, `test_configuration_realistic_scenarios.py`, `test_api_routes.py`, `test_configuration_refinement_ui.py` | fnOS watcher 真实运行态复核 |
 | SQLite 并发保护 | 多线程 HTTP repository 访问 | 共享连接 + `_sqlite_conn_lock` | `core/db/connection.py`, `core/db/cleaner_repo.py` | `test_db_concurrency.py` | — |
-| 来源单元整组回收 | 文件来源 | 内部协调器 | `features/source_files/source_units.py` | `test_source_unit_lifecycle.py`, `test_configuration_realistic_scenarios.py` | — |
+| 来源单元整组回收 | 文件来源 | 内部协调器 | `features/source_files/source_units.py` | `test_source_unit_lifecycle.py`, `test_configuration_realistic_scenarios.py`, `test_naming_dedup_watcher.py` | fnOS rclone 永久删除真机验收 |
 | 权限检查（读写路径） | 路径规则 | `POST /api/config/check-permission` | `api/config_handlers.py` | `test_config_consumers.py:test_permission_checker*` | — |
 | Watcher 配置/状态/启停 | 监控/路径区 | `/api/watcher/status`, `/api/watcher/control` | `features/configuration/runtime` | `test_config_consumers.py:test_file_watcher_config`, `test_feature_configuration_runtime.py` | — |
 | Hermes 通知配置/测试 | 系统通知区 | `POST /api/config/test-hermes` | `features/configuration` | `test_config_consumers.py:test_hermes_config` | — |
@@ -122,6 +122,7 @@
 | Provider 搜索 | Provider 卡片 | `POST /api/providers/{type}/search` | `features/providers` | `test_feature_providers.py`（tmdb search） | 多 Provider 覆盖 |
 | Provider 详情 | Provider 卡片 | `POST /api/providers/{type}/details` | `features/providers` | `test_feature_providers.py` | — |
 | Provider 类型 Genre 字典 | Provider 卡片 | `GET /api/providers/{type}/genres` | `features/providers` | — | 缺回归脚本 |
+| Provider 维度能力 | 维度工作区 | `GET /api/providers/{type}/dimension-capabilities` | `features/providers` | `test_dimension_mapping_v2.py`, `test_api_routes.py` | 新 Provider 扩展验收 |
 | LLM 连接测试 | LLM 配置 | `POST /api/config/test-llm` | `features/configuration` | `test_config_consumers.py`（间接） | LLM 集成端到端（gated） |
 | LLM 演示 | AI 辅助 | `POST /api/config/ai-demo` | `features/configuration` | `test_ai_config_runtime.py`（ai_assist/ai_search 分离） | — |
 | 提示词默认/模板 | Prompt 工作区 | `GET /api/config/prompt-defaults` | `features/prompts` | `test_api_routes.py`, `test_prompt_resolver_integration.py` | — |
@@ -131,6 +132,7 @@
 | 维度详情 | 维度工作区 | `GET /api/dimensions/{name}` | `features/scraping` | `test_api_routes.py`, `test_feature_dimensions_service.py:test_get_dimension_detail_*` | — |
 | 维度更新 | 维度工作区 | `PUT /api/dimensions/{name}` | `features/scraping` | `test_feature_dimensions_service.py` | — |
 | 维度启用/禁用/重置 | 维度工作区 | `POST /api/dimensions/{name}/{enable,disable,reset}` | `features/scraping` | `test_feature_dimensions_service.py` | — |
+| Provider 维度映射读写/试算 | 维度工作区 | `GET/PUT/POST /api/dimensions/{name}/mappings/{provider}[/preview]` | `features/scraping` | `test_dimension_mapping_v2.py`, `test_dimension_mapping_ui.py`, `test_api_routes.py` | fnOS 移动端弹层 |
 | 维度 enabled 过滤匹配 | 引擎内部 | 内部 | `features/scraping` | `test_dimension_enabled_filter.py` | — |
 | 维度解析/信任校验 | 引擎内部 | 内部 | `features/scraping` | `test_dimension_resolution.py` | — |
 | 维度数据追溯 | 引擎内部 | 内部 | `features/scraping` | `test_dimension_trace_data_link.py` | — |
@@ -157,6 +159,7 @@
 | AI 辅助清理预览 | 源目录清理页 | `GET /api/source-cleaner/ai-preview` | `features/source_cleaning` | — | 缺回归脚本（建议 `test_source_cleaner_ai_preview.py`） |
 | 入库后源文件清理策略 | 入库规则 | 内部 | `features/source_files` | `test_import_flow_services.py:SourceCleanupService`, `test_recycle_safety.py` | — |
 | 黑名单目录/伴生文件规则 | 源目录清理策略 | 内部 | `features/source_cleaning` | `test_source_cleaner_comprehensive.py`（含 blacklist） | 拆分至 `test_source_cleaner_rules.py` |
+| 媒体候选过滤 | 文件来源 | 扫描前内部合同 | `features/source_files/media_candidates.py` | `test_media_candidate_policy.py`, `test_source_unit_lifecycle.py`, `test_configuration_realistic_scenarios.py` | fnOS 真实广告文件夹 |
 
 ## 8. 工作区 6 · 回收站 Recycle
 
@@ -187,7 +190,7 @@
 
 ## 10. 缺口汇总与建议脚本
 
-多片库与 fnOS 首次启动专项覆盖：`test_library_root_boundary.py`（显式多根迁移、未覆盖回滚、引用、停用、越界）、`test_multiple_library_roots.py`（0/2/10 根、分类、资源目录和 readiness）、`test_multiple_library_roots_ui.py`（统一目录台账、唯一目录入口、无 opener 回调合同）、`test_storage_directory_buttons_ui.py`（来源/中转/回收/日志/资源/片库六类按钮的真实点击、fnOS 选择器路由与角色载荷；多片库暂存后直接确认、提交中禁用、失败原位反馈、草稿保留和成功刷新）、`test_fnos_directory_access.py`（Unix socket/token、全部用户选择目录的授权根 containment 与失败关闭）、`test_location_health.py`（ACL、本地回收、远程来源/片库）、`test_config_atomic_save.py`（旧片库待迁移时五类非片库目录仍可独立保存、非空/可恢复中转切换拒绝和原子门禁）、`test_fnos_packaging.py`（首次启动空目录、应用私有中转/日志/资源目录、授权入口与离线 wheelhouse）。本地 Playwright 实际点击验证统一目录动作、中转本地盘提示、来源页无重复字段，以及 1440/390 无横向溢出；真实 fnOS 原生弹窗和安装时长仍属于 FNOS_UAT，不由本地测试替代。
+多片库与 fnOS 首次启动专项覆盖：`test_library_root_boundary.py`（规则显式选根、未知/停用引用、越界、未使用片库合法和规则解析不触达未选片库）、`test_multiple_library_roots.py`（0/2/10 根、分类、资源目录和 readiness）、`test_multiple_library_roots_ui.py`（统一目录台账、唯一目录入口、无默认规则归属）、`test_storage_directory_buttons_ui.py`（来源/回收/日志/资源/片库五类按钮的真实点击、fnOS 选择器路由与角色载荷；页面不存在中心中转入口；未授权的既有外部目录显示“重新授权”，应用私有目录显示“系统托管”；已有目录授权延迟可见后的自动刷新；模板变量光标插入、选区替换、分辨率变量、开头 `/` 即时移除和手机无溢出；片库目录独立保存、逐条人工关联、失效引用提示、失败原位反馈和成功跳转片库整理）、`test_fnos_directory_access.py`（Unix socket/token、外部目录授权根 containment、应用私有目录窄边界与失败关闭）、`test_location_health.py`（ACL、本地回收、远程来源/片库、分作用域 readiness、重启设备号重排不误报、真实挂载变化阻断）、`test_config_atomic_save.py`（片库根可先保存、规则保存必须显式绑定、废弃 `temp_dir` 请求拒绝和原子门禁）、`test_fnos_packaging.py`（首次启动空目录、应用私有日志/资源目录、跨卷重装托管路径迁移、用户外部路径保留、授权入口与离线 wheelhouse）。`test_bundle_restart_recovery.py` 覆盖目标侧暂存提交前回退、完整提交复核成功、歧义现场保留和重新整理恢复。`test_p0_confirm_workflow_fixes.py` 额外验证 `{resolution}` 能从 ffprobe 生成的 `dimensions.resolution_tier` 渲染。真实 fnOS 原生弹窗、安装时长和硬盘实际休眠仍属于 FNOS_UAT，不由本地测试替代。
 
 按上面表格累计，主要缺口（按优先级）。**已补齐** 标记 ✅：
 

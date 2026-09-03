@@ -93,8 +93,9 @@ def execute_source_cleaning(
             message="目录边界不安全，已阻止源目录清理：" + conflicts[0],
         )
 
+    disposal_mode = source_policy.get("disposal_mode", "local_recycle")
     recycle_dir = source_policy.get("recycle_dir", "")
-    if recycle_dir and permission_check is not None:
+    if disposal_mode != "permanent_delete" and recycle_dir and permission_check is not None:
         result = permission_check(recycle_dir, need_write=True)
         if not result.get("ok"):
             return SourceCleanerExecutionResult(
@@ -107,10 +108,17 @@ def execute_source_cleaning(
     )
 
     readiness = inspect_storage_readiness(config)
-    if set(readiness.get("blocking", [])).intersection({"source", "recycle"}):
+    required_roles = {"source"}
+    if disposal_mode != "permanent_delete":
+        required_roles.add("recycle")
+    if set(readiness.get("blocking", [])).intersection(required_roles):
         return SourceCleanerExecutionResult(
             ok=False,
-            message="源目录或回收目录的挂载身份、权限或空间已变化，本次未执行任何文件操作",
+            message=(
+                "源目录的挂载身份或权限已变化，本次未执行任何文件操作"
+                if disposal_mode == "permanent_delete"
+                else "源目录或回收目录的挂载身份、权限或空间已变化，本次未执行任何文件操作"
+            ),
         )
 
     cleaner = SourceCleaner(config)

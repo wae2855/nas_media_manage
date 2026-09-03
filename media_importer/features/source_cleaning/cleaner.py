@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -5,8 +6,14 @@ from datetime import datetime
 from typing import Optional
 
 from media_importer.features.configuration import ConfigView
+from media_importer.features.configuration.storage_topology import configured_library_roots
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
 from media_importer.features.source_cleaning.prompts import SYSTEM_PROMPT, build_cleaner_prompt
+from media_importer.features.source_files.media_candidates import MediaCandidatePolicy
+from media_importer.features.source_files.permanent_delete import (
+    permanently_delete_source_members,
+    resume_permanent_source_delete,
+)
 from media_importer.infrastructure.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -26,6 +33,11 @@ class SourceCleaner:
         cleaner = self.view.source_cleaner
         self.source_dir = self.view.paths.source_dir
         self.recycle_dir = self.view.source_policy.recycle_dir
+        self.disposal_mode = self.view.source_policy.disposal_mode
+        self.delete_ledger_dir = os.path.join(
+            self.view.paths.data_dir or self.source_dir,
+            "source_delete_ledgers",
+        )
         self.cleanup_mode = cleaner.cleanup_mode
         self.ai_enabled = cleaner.ai_enabled
         self.merge_strategy = cleaner.merge_strategy
@@ -40,6 +52,7 @@ class SourceCleaner:
         self.video_extensions = set(self.view.paths.video_extensions)
         self.subtitle_extensions = set(self.view.paths.subtitle_extensions)
         self.media_extensions = self.video_extensions | self.subtitle_extensions
+        self.candidate_policy = MediaCandidatePolicy(config)
 
     def preview(self, task_paths: Optional[set] = None) -> list:
         if not self.source_dir or not os.path.isdir(self.source_dir):
@@ -71,6 +84,22 @@ class SourceCleaner:
         both_count = 0
 
         for item in items:
+            if self.disposal_mode == "permanent_delete":
+                result = self._permanently_delete_item(item)
+                if result.ok:
+                    item["disposal"] = "permanent_delete"
+                    item["delete_ledger"] = result.ledger_path
+                    moved_items.append(item)
+                    source = item.get("source", "")
+                    if source == "rule":
+                        rule_only_count += 1
+                    elif source == "ai":
+                        ai_only_count += 1
+                    elif source == "both":
+                        both_count += 1
+                else:
+                    item["disposal_error"] = result.message
+                continue
             if item.get("category") == "empty_dir":
                 ok, dest_path, _ = move_dir_to_recycle(
                     item["path"], self.recycle_dir,
@@ -113,6 +142,7 @@ class SourceCleaner:
             "executed_at": datetime.now().isoformat(),
             "mode": self.cleanup_mode,
             "merge_strategy": self.merge_strategy,
+            "disposal_mode": self.disposal_mode,
             "total_files": len(moved_items),
             "total_size_mb": round(sum(i.get("size_mb", 0) for i in moved_items), 2),
             "rule_only_count": rule_only_count,
@@ -122,6 +152,30 @@ class SourceCleaner:
         }
         logger.info(f"源目录清理完成: 清理 {len(moved_items)} 个文件, {record['total_size_mb']}MB")
         return record
+
+    def _permanently_delete_item(self, item: dict):
+        path = str(item.get("path", "") or "")
+        digest = hashlib.sha256(os.path.realpath(path).encode("utf-8")).hexdigest()[:24]
+        operation_id = f"cleaner-{digest}"
+        active_ledger = os.path.join(
+            self.delete_ledger_dir,
+            f"source-delete-{operation_id}.jsonl",
+        )
+        if os.path.isfile(active_ledger):
+            resumed = resume_permanent_source_delete(
+                active_ledger,
+                source_root=self.source_dir,
+                protected_roots=configured_library_roots(self.full_config),
+            )
+            if resumed.ok or resumed.state == "PARTIAL":
+                return resumed
+        return permanently_delete_source_members(
+            [path],
+            source_root=self.source_dir,
+            operation_id=operation_id,
+            ledger_dir=self.delete_ledger_dir,
+            protected_roots=configured_library_roots(self.full_config),
+        )
 
     def ai_preview(self, task_paths: Optional[set] = None) -> dict:
         if not self.ai_enabled:
@@ -147,13 +201,27 @@ class SourceCleaner:
     def _rule_classify_all(self, task_paths: set) -> dict:
         results = {}
         video_stems_in_dirs = self._collect_video_stems()
+        video_paths = []
+        for dirpath, _dirnames, filenames in os.walk(self.source_dir):
+            video_paths.extend(
+                os.path.join(dirpath, fname)
+                for fname in filenames
+                if os.path.splitext(fname)[1].lower() in self.video_extensions
+            )
+        candidate_decisions = self.candidate_policy.classify_tree(
+            self.source_dir, video_paths
+        )
 
         for dirpath, _dirnames, filenames in os.walk(self.source_dir):
             for fname in filenames:
                 fpath = os.path.join(dirpath, fname)
                 if fpath in task_paths:
                     continue
-                category, reason = self._classify_file(fpath, video_stems_in_dirs.get(dirpath, []))
+                category, reason = self._classify_file(
+                    fpath,
+                    video_stems_in_dirs.get(dirpath, []),
+                    candidate_decisions.get(os.path.realpath(fpath)),
+                )
                 if category:
                     size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 2) if os.path.isfile(fpath) else 0
                     results[fpath] = {
@@ -176,7 +244,12 @@ class SourceCleaner:
             stems[dirpath] = dir_stems
         return stems
 
-    def _classify_file(self, fpath: str, video_stems: list) -> tuple:
+    def _classify_file(
+        self,
+        fpath: str,
+        video_stems: list,
+        candidate_decision=None,
+    ) -> tuple:
         fname = os.path.basename(fpath)
         ext = os.path.splitext(fname)[1].lower()
 
@@ -184,10 +257,8 @@ class SourceCleaner:
             return "", ""
 
         if ext in self.video_extensions:
-            if self.junk_video_max_size_mb > 0 and os.path.isfile(fpath):
-                size_mb = os.path.getsize(fpath) / (1024 * 1024)
-                if size_mb < self.junk_video_max_size_mb:
-                    return "junk_video", f"视频文件 {size_mb:.1f}MB < 阈值 {self.junk_video_max_size_mb}MB"
+            if candidate_decision is not None and not candidate_decision.accepted:
+                return "junk_video", candidate_decision.reason
             return "", ""
 
         if ext in self.subtitle_extensions:

@@ -1,4 +1,126 @@
 // cinema-task-batch.js - task actions and batch operations
+function taskPermanentDeleteEnabled() {
+  const policy = currentConfigSnapshot?.source_policy || {};
+  return (
+    policy.disposal_mode === "permanent_delete" &&
+    policy.mode !== "preserve_all"
+  );
+}
+
+function taskCanHandleSource(task) {
+  return (
+    task?.task_kind !== "REORGANIZE" &&
+    String(task?.status || "").toUpperCase() !== "SUCCESS"
+  );
+}
+
+async function applyTaskDisposition(records, sourceDisposition) {
+  const settled = await Promise.allSettled(
+    records.map((task) =>
+      requestApi(
+        "POST",
+        `/tasks/${encodeURIComponent(task.task_id)}/dispose`,
+        { source_disposition: sourceDisposition },
+      ),
+    ),
+  );
+  const accepted = settled.filter(
+    (item) =>
+      item.status === "fulfilled" &&
+      item.value &&
+      [200, 202].includes(item.value.code),
+  );
+  const stopping = accepted.filter(
+    (item) => item.status === "fulfilled" && item.value.code === 202,
+  ).length;
+  const failed = settled.length - accepted.length;
+  return { accepted: accepted.length, stopping, failed, settled };
+}
+
+function showTaskDispositionDialog(records, { title = "结束处理" } = {}) {
+  const actionable = records.filter(taskCanHandleSource);
+  if (!actionable.length) {
+    showToast("当前选择中没有可结束或处理来源的任务");
+    return;
+  }
+  const running = actionable.filter(
+    (task) => taskStatusOf(task) === "PENDING" && taskStageOf(task) === "RUNNING",
+  ).length;
+  const permanentOption = taskPermanentDeleteEnabled()
+    ? `<label class="task-disposition-option task-disposition-option--danger">
+        <input type="radio" name="task-source-disposition" value="permanent_delete" />
+        <span><b>永久删除这次新资源</b><small>不可恢复；仅处理任务登记的来源视频和字幕，绝不会删除片库文件。</small></span>
+      </label>`
+    : "";
+  const body = `<div class="task-disposition-dialog">
+    <div class="task-disposition-assurance"><span>✓</span><div><b>目标片库受保护</b><small>本操作只结束这次整理，并处理新加入的来源资源；已有片库文件不会被删除或覆盖。</small></div></div>
+    <p>已选择 ${actionable.length} 个任务。${running ? `其中 ${running} 个正在处理，会先安全停止，再执行下面的选择。` : "请选择这次新资源怎么处理："}</p>
+    <div class="task-disposition-options">
+      <label class="task-disposition-option">
+        <input type="radio" name="task-source-disposition" value="keep" />
+        <span><b>保留新资源</b><small>只结束任务，来源视频和字幕保持原位，以后仍可重新投入。</small></span>
+      </label>
+      <label class="task-disposition-option task-disposition-option--recommended">
+        <input type="radio" name="task-source-disposition" value="local_recycle" checked />
+        <span><b>移入本地回收区</b><small>推荐；不再整理这次新资源，但仍可以从回收页面恢复。</small></span>
+      </label>
+      ${permanentOption}
+    </div>
+    <div class="modal-error-area" data-task-disposition-error hidden></div>
+  </div>`;
+  let modal = null;
+  const submit = async () => {
+    const selected = modal?.querySelector(
+      'input[name="task-source-disposition"]:checked',
+    )?.value;
+    if (!selected) return;
+    const execute = async () => {
+      const result = await applyTaskDisposition(actionable, selected);
+      if (result.accepted) {
+        removeAppModal();
+        clearTaskSelection();
+        await Promise.all([loadTaskList(), loadDashboardOverview()]);
+        showToast(
+          result.stopping
+            ? `${result.stopping} 个任务正在安全停止，其余已处理`
+            : `已处理 ${result.accepted} 个任务${result.failed ? `，${result.failed} 个未处理` : ""}`,
+        );
+        return;
+      }
+      const area = modal?.querySelector("[data-task-disposition-error]");
+      if (area) {
+        area.hidden = false;
+        area.textContent = "操作未执行，请刷新任务状态后重试";
+      } else {
+        showToast("操作未执行，请刷新任务状态后重试");
+      }
+    };
+    if (selected === "permanent_delete") {
+      showConfirm(
+        "确认永久删除新资源",
+        "这次新资源将不可恢复。目标片库现有文件仍不会被删除。确定继续吗？",
+        execute,
+      );
+      return;
+    }
+    await execute();
+  };
+  modal = showAppModal({
+    title,
+    body,
+    dismissOnBackdrop: false,
+    actions: [
+      { label: "返回", className: "btn btn-secondary" },
+      {
+        label: running ? "安全停止并处理" : "确认处理",
+        className: "btn btn-primary",
+        onClick: submit,
+        closeOnClick: false,
+      },
+    ],
+  });
+}
+
 async function performTaskAction(action, taskId) {
   if (action === "refresh-tasks") {
     await loadTaskList(false);
@@ -16,6 +138,20 @@ async function performTaskAction(action, taskId) {
   }
   if (action === "view-task") {
     await openTaskDetail(taskId);
+    return;
+  }
+  if (action === "reorganize") {
+    const result = await requestApi(
+      "POST",
+      `/tasks/${encodeURIComponent(taskId)}/reorganize`,
+    );
+    if ([200, 201].includes(result.code) && result.data?.task?.task_id) {
+      showToast(result.message || "已创建重新整理任务");
+      await Promise.all([loadTaskList(), loadDashboardOverview()]);
+      await openTaskDetail(result.data.task.task_id);
+    } else {
+      showToast(result.message || "创建重新整理任务失败");
+    }
     return;
   }
   if (action === "confirm") {
@@ -37,20 +173,24 @@ async function performTaskAction(action, taskId) {
         overrideSource = "manual";
       }
     }
+    const usesFallback = Boolean(task.used_fallback);
     showConfirm(
-      "确认入库",
-      `确定将「${taskFileName(task)}」按当前结果继续入库吗？`,
+      usesFallback ? "确认放入待整理区" : "确认入库",
+      usesFallback
+        ? `「${taskFileName(task)}」当前没有匹配正式规则。确认后会安全入库到待整理区并结束本任务，之后仍可创建独立任务重新整理。确认继续吗？`
+        : `确定将「${taskFileName(task)}」按当前结果继续入库吗？`,
       async () => {
         const body = {};
         if (confirmedTitle) body.confirmed_title = confirmedTitle;
         if (overrideSource) body.override_source = overrideSource;
+        if (usesFallback) body.fallback_acknowledged = true;
         const result = await requestApi(
           "POST",
           `/tasks/${encodeURIComponent(taskId)}/confirm`,
           body,
         );
         showToast(result.message || "确认请求已发送");
-        if (result.code === 200) {
+        if ([200, 202].includes(result.code)) {
           await Promise.all([loadTaskList(), loadDashboardOverview()]);
         }
       },
@@ -61,8 +201,8 @@ async function performTaskAction(action, taskId) {
     const isAwaitReview =
       taskStatusOf(task) === "PENDING" && taskStageOf(task) === "AWAIT_REVIEW";
     const confirmMsg = isAwaitReview
-      ? `确定重新处理「${taskFileName(task)}」吗？任务会回到队列；中转文件仍存在时将从中转断点继续，否则从源文件重新复制。`
-      : `确定重试「${taskFileName(task)}」吗？中转文件仍存在时将从断点继续，否则从源文件重新复制。`;
+      ? `确定重新处理「${taskFileName(task)}」吗？任务会从来源重新识别，全部确认后才写入片库。`
+      : `确定重试「${taskFileName(task)}」吗？任务会从来源重新识别，全部确认后才写入片库。`;
     showConfirm("重试任务", confirmMsg, async () => {
       const result = await requestApi(
         "POST",
@@ -92,10 +232,16 @@ async function performTaskAction(action, taskId) {
     );
     return;
   }
-  if (action === "delete-task") {
+  if (action === "end-task" || action === "dispose-source") {
+    showTaskDispositionDialog([task], {
+      title: action === "end-task" ? "结束这次整理" : "处理遗留来源",
+    });
+    return;
+  }
+  if (action === "delete-record" || action === "delete-task") {
     showConfirm(
-      "移入回收",
-      `确定将「${taskFileName(task)}」移出当前任务流吗？\n\n如果后端允许，将按现有安全规则进入回收流程。`,
+      "删除任务记录",
+      `确定删除「${taskFileName(task)}」的任务记录吗？\n\n这只会移除历史记录，来源文件和目标片库文件都不会改动。`,
       async () => {
         const result = await requestApi(
           "POST",
@@ -104,7 +250,7 @@ async function performTaskAction(action, taskId) {
             delete_files: false,
           },
         );
-        showToast(result.message || "移入回收请求已发送");
+        showToast(result.message || "任务记录已删除");
         if (result.code === 200) {
           await Promise.all([loadTaskList(), loadDashboardOverview()]);
         }
@@ -149,6 +295,12 @@ function isBatchableStatus(status) {
   return ["FAILED", "SKIPPED", "PENDING"].includes(status);
 }
 
+function isTerminalTask(task) {
+  return ["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"].includes(
+    taskStatusOf(task),
+  );
+}
+
 function getSelectedTaskRecords() {
   return currentTaskRecords.filter((task) =>
     selectedTaskIds.has(String(task.task_id || "")),
@@ -177,24 +329,25 @@ function updateBatchToolbar() {
   }
   const retryBtn = document.getElementById("task-batch-retry");
   const confirmBtn = document.getElementById("task-batch-confirm");
-  const ignoreBtn = document.getElementById("task-batch-ignore");
-  const deleteBtn = document.getElementById("task-batch-delete");
+  const endBtn = document.getElementById("task-batch-end");
+  const deleteRecordBtn = document.getElementById("task-batch-delete-record");
   const hasFailed = selectedRecords.some((t) => taskStatusOf(t) === "FAILED");
   const hasAwaitReview = selectedRecords.some(
     (t) =>
       taskStatusOf(t) === "PENDING" &&
       taskStageOf(t) === "AWAIT_REVIEW" &&
-      !targetLibraryConflictOf(t),
+      !targetLibraryConflictOf(t) &&
+      !t.used_fallback &&
+      t.task_kind !== "REORGANIZE",
   );
-  const hasProcessable = selectedRecords.some((t) =>
-    isBatchableStatus(taskStatusOf(t)),
-  );
+  const hasEndable = selectedRecords.some(taskCanHandleSource);
+  const hasTerminal = selectedRecords.some(isTerminalTask);
   if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailed);
   if (confirmBtn) confirmBtn.hidden = !(count > 0 && hasAwaitReview);
-  if (ignoreBtn)
-    ignoreBtn.hidden = !(count > 0 && (hasAwaitReview || hasFailed));
-  if (deleteBtn) deleteBtn.hidden = !(count > 0 && hasProcessable);
-  const actionButtons = [retryBtn, confirmBtn, ignoreBtn, deleteBtn].filter(
+  if (endBtn) endBtn.hidden = !(count > 0 && hasEndable);
+  if (deleteRecordBtn)
+    deleteRecordBtn.hidden = !(count > 0 && hasTerminal);
+  const actionButtons = [retryBtn, confirmBtn, endBtn, deleteRecordBtn].filter(
     Boolean,
   );
   actionButtons.forEach((btn) => {
@@ -267,7 +420,9 @@ async function performBatchTaskAction(action) {
       (task) =>
         taskStatusOf(task) === "PENDING" &&
         taskStageOf(task) === "AWAIT_REVIEW" &&
-        !targetLibraryConflictOf(task),
+        !targetLibraryConflictOf(task) &&
+        !task.used_fallback &&
+        task.task_kind !== "REORGANIZE",
     );
     const protectedCount = records.length - eligible.length;
     if (!eligible.length) {
@@ -307,7 +462,7 @@ async function performBatchTaskAction(action) {
     }
     showConfirm(
       "批量重试",
-      `确定对「${eligible.length}」项失败任务发起重试吗？中转文件仍存在时将从断点继续。`,
+      `确定对「${eligible.length}」项失败任务发起重试吗？这些任务都会从来源重新识别，确认无误后才写入片库。`,
       async () => {
         const settled = await Promise.allSettled(
           eligible.map((t) =>
@@ -325,44 +480,19 @@ async function performBatchTaskAction(action) {
     );
     return;
   }
-  if (action === "batch-ignore") {
-    const eligible = records.filter((t) => isBatchableStatus(taskStatusOf(t)));
-    if (eligible.length === 0) {
-      showToast("当前选中项中没有可忽略的任务");
-      return;
-    }
-    showConfirm(
-      "批量忽略",
-      `确定忽略「${eligible.length}」项任务吗？`,
-      async () => {
-        const settled = await Promise.allSettled(
-          eligible.map((t) =>
-            requestApi(
-              "POST",
-              `/tasks/${encodeURIComponent(t.task_id)}/ignore`,
-            ),
-          ),
-        );
-        const ok = settled.filter(
-          (r) => r.status === "fulfilled" && r.value && r.value.code === 200,
-        ).length;
-        const fail = settled.length - ok;
-        showToast(`批量忽略完成：成功 ${ok} 项，失败 ${fail} 项`);
-        clearTaskSelection();
-        await Promise.all([loadTaskList(), loadDashboardOverview()]);
-      },
-    );
+  if (action === "batch-end") {
+    showTaskDispositionDialog(records, { title: "批量结束处理" });
     return;
   }
-  if (action === "batch-delete") {
-    const eligible = records.filter((t) => isBatchableStatus(taskStatusOf(t)));
+  if (action === "batch-delete-record") {
+    const eligible = records.filter(isTerminalTask);
     if (eligible.length === 0) {
-      showToast("当前选中项中没有可移入回收的任务");
+      showToast("当前选中项中没有可删除记录的已结束任务");
       return;
     }
     showConfirm(
-      "批量移入回收",
-      `确定将「${eligible.length}」项任务移入回收站吗？\n\n任务不会立即物理删除，可在回收页恢复。`,
+      "批量删除任务记录",
+      `确定删除「${eligible.length}」项已结束任务的记录吗？\n\n只删除记录，不会改动来源文件或目标片库文件。`,
       async () => {
         const settled = await Promise.allSettled(
           eligible.map((t) =>
@@ -377,7 +507,7 @@ async function performBatchTaskAction(action) {
           (r) => r.status === "fulfilled" && r.value && r.value.code === 200,
         ).length;
         const fail = settled.length - ok;
-        showToast(`批量移入回收完成：成功 ${ok} 项，失败 ${fail} 项`);
+        showToast(`批量删除记录完成：成功 ${ok} 项，失败 ${fail} 项`);
         clearTaskSelection();
         await Promise.all([loadTaskList(), loadDashboardOverview()]);
       },

@@ -169,7 +169,6 @@ def test_import_flow_with_full_config():
     section("7. import-flow 完整加载（验证不会因配置类型崩溃）")
     cfg = {
         'source_dir': '/tmp',
-        'temp_dir': tempfile.mkdtemp(prefix='ptemp_'),
         'log_dir': tempfile.mkdtemp(prefix='plog_'),
         'video_extensions': ['.mkv'],
         'subtitle_extensions': ['.srt'],
@@ -233,7 +232,6 @@ def test_permission_checker():
     # check_config_permissions 综合测试
     cfg = {
         'source_dir': '/tmp',
-        'temp_dir': '/vol3/@appdata/nas-media-importer/tmp',  # 应跳过
         'log_dir': '/tmp',
         'path_rules': [{'template': '/tmp/影视/{title}/'}],
     }

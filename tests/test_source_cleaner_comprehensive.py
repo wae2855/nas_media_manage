@@ -32,7 +32,6 @@ def _make_config(source_dir="", recycle_dir="", cleanup_mode="media_only",
     ]
     return {
         "source_dir": source_dir,
-        "temp_dir": tempfile.mkdtemp(),
         "log_dir": tempfile.mkdtemp(),
         "source_policy": {"recycle_dir": recycle_dir},
         "llm": {"api_key": "test-key", "base_url": "http://localhost", "model": "test",

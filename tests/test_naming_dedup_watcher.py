@@ -19,6 +19,7 @@ from media_importer.features.import_flow.services.dedup_rules import (
 from media_importer.features.import_flow.services.naming import (
     apply_filename_template,
     apply_subtitle_template,
+    plan_subtitle_filenames,
 )
 from media_importer.monitor.file_watcher import FileWatcher
 
@@ -48,6 +49,17 @@ class TestNamingTemplate(unittest.TestCase):
     def test_subtitle_template(self):
         name = apply_subtitle_template("电影.2020", "chs", ".srt")
         self.assertEqual(name, "电影.chs.srt")  # 契约：basename.lang.ext
+
+    def test_subtitle_template_uses_config_and_deterministic_sequence(self):
+        planned = plan_subtitle_filenames(
+            ["/source/Movie.zh.forced.srt", "/source/Movie.chs.srt", "/source/Movie.en.ass"],
+            "Movie (2020).mkv",
+            "{video_filename}.{lang}.{ext}",
+        )
+        self.assertEqual(
+            [item["filename"] for item in planned],
+            ["Movie (2020).zh.2.srt", "Movie (2020).zh.srt", "Movie (2020).en.ass"],
+        )
 
 
 class TestDedupStrategies(unittest.TestCase):
@@ -96,6 +108,7 @@ class TestFileWatcherCore(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
         self.seen = []
+        self.maintenance_count = 0
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -110,9 +123,17 @@ class TestFileWatcherCore(unittest.TestCase):
         cfg = {"source_dir": self.dir,
                "video_extensions": [".mkv", ".mp4"],
                "file_watcher": {"enabled": True, "poll_interval": 1, **overrides}}
-        watcher = FileWatcher(cfg, on_new_files=lambda files: self.seen.extend(files))
-        watcher._storage_ready_for_automatic_run = lambda: True
+        watcher = FileWatcher(
+            cfg,
+            on_new_files=lambda files: self.seen.extend(files),
+            on_maintenance=self._record_maintenance,
+        )
+        watcher._source_ready_for_scan = lambda: True
+        watcher._processing_support_ready = lambda: True
         return watcher
+
+    def _record_maintenance(self):
+        self.maintenance_count += 1
 
     def test_baseline_scan_ignores_existing(self):
         self._mk("old.mkv")
@@ -162,6 +183,15 @@ class TestFileWatcherCore(unittest.TestCase):
         w.stop()
         w.stop()
         self.assertFalse(w.is_running())
+
+    def test_idle_scan_runs_source_cleanup_maintenance_without_new_files(self):
+        w = self._watcher()
+        w._known_files = set()
+
+        w._check_changes()
+
+        self.assertEqual(self.seen, [])
+        self.assertEqual(self.maintenance_count, 1)
 
 
 if __name__ == "__main__":

@@ -50,10 +50,19 @@ class ConfigHandlersMixin:
 
     def _config_startup_readiness(self, *, body: dict, params: dict, query: dict):
         try:
-            result = inspect_startup_readiness(globals._config or {})  # type: ignore[arg-type]
-            json_response(self, 200, data=result, message="开场检查完成")
+            watcher = globals._global_watcher
+            watcher_running = bool(watcher and watcher.is_running())
+            result = inspect_startup_readiness(  # type: ignore[arg-type]
+                globals._config or {}, watcher_running=watcher_running,
+                conn=(
+                    globals._global_task_manager.conn
+                    if globals._global_task_manager is not None
+                    else None
+                ),
+            )
+            json_response(self, 200, data=result, message="配置检查完成")
         except Exception as e:
-            json_response(self, 500, message="开场检查失败: " + str(e))
+            json_response(self, 500, message="配置检查失败: " + str(e))
 
     def _config_fnos_folders(self, *, body: dict, params: dict, query: dict):
         from media_importer.features.configuration.fnos_directory_access import (
@@ -120,7 +129,13 @@ class ConfigHandlersMixin:
             json_response(self, 500, message=f"路径测试异常: {e}")
 
     def _watcher_status(self, *, body: dict, params: dict, query: dict):
-        json_response(self, 200, data=build_watcher_status_payload(globals._global_watcher))
+        json_response(
+            self,
+            200,
+            data=build_watcher_status_payload(
+                globals._global_watcher, globals._config or {},  # type: ignore[arg-type]
+            ),
+        )
 
     def _watcher_control(self, *, body: dict, params: dict, query: dict):
         action = query.get("action", [None])[0]

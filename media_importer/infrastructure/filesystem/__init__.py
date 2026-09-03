@@ -1,4 +1,3 @@
-from .file_copier import FileCopier
 from .safety import (
     check_read_permission,
     check_write_permission,
@@ -12,7 +11,6 @@ from .safety import (
 )
 
 __all__ = [
-    "FileCopier",
     "check_read_permission",
     "check_write_permission",
     "hash_file",

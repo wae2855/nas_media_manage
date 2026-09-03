@@ -11,16 +11,21 @@ from .subtitle_repo import get_subtitles_by_task
 
 def create_task(conn: sqlite3.Connection, source_path: str, source_filename: str,
                 file_size_mb: float = 0, task_id: Optional[str] = None,
-                source_unit_id: str = "") -> dict:
+                source_unit_id: str = "", stage: str = "QUEUED",
+                task_kind: str = "IMPORT", parent_task_id: str = "") -> dict:
     tid = task_id or uuid.uuid4().hex[:12]
     now = datetime.now().isoformat()
     with _sqlite_conn_lock:
         conn.execute(
             """INSERT INTO tasks
                (task_id, source_path, source_filename, file_size_mb, status,
-                created_at, last_seen_at, total_steps, source_unit_id)
-               VALUES (?, ?, ?, ?, 'PENDING', ?, ?, 10, ?)""",
-            (tid, source_path, source_filename, file_size_mb, now, now, source_unit_id)
+                stage, created_at, last_seen_at, total_steps, source_unit_id,
+                task_kind, parent_task_id)
+               VALUES (?, ?, ?, ?, 'PENDING', ?, ?, ?, 10, ?, ?, ?)""",
+            (
+                tid, source_path, source_filename, file_size_mb, stage,
+                now, now, source_unit_id, task_kind, parent_task_id,
+            )
         )
         conn.commit()
     return get_task(conn, tid)  # type: ignore[return-value]
@@ -65,6 +70,11 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> Optional[dict]:
             row['dim_sources'] = json.loads(row['dim_sources'])
         except (json.JSONDecodeError, TypeError):
             pass
+    if row and row.get('bundle_manifest'):
+        try:
+            row['bundle_manifest'] = json.loads(row['bundle_manifest'])
+        except (json.JSONDecodeError, TypeError):
+            pass
     if row:
         subs = get_subtitles_by_task(conn, task_id)
         row['subtitle_files'] = [s.get('target_path', '') or s.get('source_path', '')
@@ -92,6 +102,17 @@ def find_by_source_filename(conn: sqlite3.Connection, source_filename: str
             (source_filename,)
         )
         return _rows_to_dicts(cur.fetchall())
+
+
+def find_active_reorganization(conn: sqlite3.Connection,
+                               parent_task_id: str) -> Optional[dict]:
+    with _sqlite_conn_lock:
+        cur = conn.execute(
+            "SELECT * FROM tasks WHERE parent_task_id=? AND task_kind='REORGANIZE' "
+            "AND status='PENDING' ORDER BY created_at DESC LIMIT 1",
+            (parent_task_id,),
+        )
+        return _row_to_dict(cur.fetchone())
 
 
 def find_by_fingerprint(conn: sqlite3.Connection, fingerprint: str,
@@ -133,14 +154,23 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
     count_sql = "SELECT COUNT(*) FROM tasks t" + where_clause
     data_sql = ("SELECT t.task_id, t.source_path, t.source_filename, t.status, t.stage, "
-                "t.percentage, t.file_size_mb, t.retry_count, "
+                "t.current_step, t.total_steps, t.step_name, t.percentage, "
+                "t.bytes_copied, t.total_bytes, t.progress_item_name, "
+                "t.progress_item_kind, t.progress_item_index, t.progress_item_total, "
+                "t.file_size_mb, t.retry_count, "
                 "t.scrape_title_cn, t.scrape_title_en, t.scrape_year, "
                 "t.scrape_media_type, t.scrape_season, t.scrape_episode, "
                 "t.scrape_trace, t.scrape_result, t.dim_sources, "
                 "t.import_path, t.final_filename, t.dedup_result, t.dedup_existing_file, "
-                "t.skip_reason, t.error_message, t.import_success, "
+                "t.skip_reason, t.error_message, t.import_success, t.source_cleanup_status, "
                 "t.confirm_status, t.video_path, t.file_location, "
                 "t.import_video_path, t.provider_type, t.provider_id, "
+                "t.bundle_state, t.bundle_manifest, t.bundle_committed, "
+                "t.task_kind, t.parent_task_id, t.used_fallback, "
+                "t.organization_status, t.reorganized_by_task_id, "
+                "t.cancel_requested, t.stop_requested_at, "
+                "t.requested_source_disposition, t.outcome_code, "
+                "t.source_disposition, t.source_disposition_message, "
                 "t.thumbnail_path, "
                 "t.confirmed_override, t.confirmed_title, t.override_source, "
                 "t.created_at, t.started_at, t.completed_at, "
@@ -174,6 +204,11 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 row['dedup_result'] = json.loads(row['dedup_result'])
             except (json.JSONDecodeError, TypeError):
                 pass
+        if row.get('bundle_manifest'):
+            try:
+                row['bundle_manifest'] = json.loads(row['bundle_manifest'])
+            except (json.JSONDecodeError, TypeError):
+                pass
     total_pages = max(1, (total + page_size - 1) // page_size)
     return rows, total, total_pages
 
@@ -184,6 +219,8 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "stage", "retry_count", "created_at", "started_at", "completed_at",
         "last_seen_at", "current_step", "total_steps", "step_name",
         "percentage", "bytes_copied", "total_bytes",
+        "progress_item_name", "progress_item_kind",
+        "progress_item_index", "progress_item_total",
         "scrape_result", "scrape_title_cn", "scrape_title_en",
         "scrape_year", "scrape_media_type", "scrape_season",
         "scrape_episode", "scrape_dimensions",
@@ -198,11 +235,16 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "thumbnail_path",
         "confirmed_override", "confirmed_title", "override_source",
         "source_unit_id", "source_cleanup_status",
+        "bundle_state", "bundle_manifest", "bundle_committed",
+        "task_kind", "parent_task_id", "used_fallback",
+        "organization_status", "reorganized_by_task_id",
+        "cancel_requested", "stop_requested_at", "requested_source_disposition",
+        "outcome_code", "source_disposition", "source_disposition_message",
     }
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:
@@ -267,11 +309,16 @@ def _coerce_fields(fields: dict) -> dict:
         "thumbnail_path",
         "confirmed_override", "confirmed_title", "override_source",
         "source_unit_id", "source_cleanup_status",
+        "bundle_state", "bundle_manifest", "bundle_committed",
+        "task_kind", "parent_task_id", "used_fallback",
+        "organization_status", "reorganized_by_task_id",
+        "cancel_requested", "stop_requested_at", "requested_source_disposition",
+        "outcome_code", "source_disposition", "source_disposition_message",
     }
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:

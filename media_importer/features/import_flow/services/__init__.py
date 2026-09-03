@@ -13,13 +13,16 @@ from .dedup import DedupDecision, DedupService
 from .file_operations import (
     move_to_import,
     move_with_cross_device_fallback,
+    relocate_library_bundle,
 )
 from .import_service import ImportResult, ImportService
 from .naming import (
     apply_filename_template,
     apply_subtitle_template,
     detect_subtitle_lang,
+    plan_subtitle_filenames,
 )
+from .reorganization import ReorganizationResult, ReorganizationService
 from .review import ReviewDecision, ReviewDecisionService
 
 __all__ = [
@@ -35,12 +38,16 @@ __all__ = [
     "find_companion_files",
     "move_to_import",
     "move_with_cross_device_fallback",
+    "relocate_library_bundle",
     "remove_empty_parent_dir",
     "apply_filename_template",
     "apply_subtitle_template",
     "detect_subtitle_lang",
+    "plan_subtitle_filenames",
     "ReviewDecision",
     "ReviewDecisionService",
+    "ReorganizationResult",
+    "ReorganizationService",
     "SourceCleanupResult",
     "SourceCleanupService",
 ]

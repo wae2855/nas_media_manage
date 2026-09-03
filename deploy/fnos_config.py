@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 TOP_LEVEL_KEYS = {
-    "source_dir", "temp_dir", "log_dir", "resource_dir", "library_root", "library_roots",
+    "source_dir", "log_dir", "resource_dir", "library_root", "library_roots",
     "default_library_root_id", "fallback_library_root_id",
 }
 SECTION_KEYS = {
@@ -20,6 +20,10 @@ SECTION_KEYS = {
     ("server", "api_key"),
     ("source_policy", "recycle_dir"),
 }
+APP_MANAGED_PATH_PATTERN = re.compile(
+    r"^(?:/vol\d+/@(?:appdata|apptemp|appshare)/nas-media-importer"
+    r"|/var/(?:apps|packages)/nas-media-importer/var)(?:/|$)"
+)
 
 
 class ConfigError(ValueError):
@@ -84,6 +88,11 @@ def _replace_top_level_block(content: str, key: str, replacement: str) -> str:
     return "".join(lines)
 
 
+def _remove_top_level_scalar(content: str, key: str) -> str:
+    """Remove an unsupported top-level scalar from an existing config."""
+    return re.sub(rf"(?m)^{re.escape(key)}\s*:[^\r\n]*(?:\r?\n|$)", "", content)
+
+
 def _ensure_top_level_scalar(content: str, key: str, value: str, after_key: str) -> str:
     """Add one fnOS-owned path to legacy configs without replacing user values."""
     if re.search(rf"(?m)^{re.escape(key)}\s*:", content):
@@ -97,6 +106,41 @@ def _ensure_top_level_scalar(content: str, key: str, value: str, after_key: str)
     newline = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
     lines.insert(insert_at, f"{key}: {_yaml_scalar(value)}{newline}")
     return "".join(lines)
+
+
+def _align_managed_path(content: str, key: str, value: str, after_key: str) -> str:
+    """Move only package-owned defaults to the current fnOS private root.
+
+    A user-selected shared directory is business configuration and must be
+    preserved across reinstalls.  An old ``@appdata``/package-var default is
+    fnOS-owned state and follows ``TRIM_PKGVAR`` when the package moves disks.
+    """
+    if not value:
+        return content
+    match = re.search(rf"(?m)^{re.escape(key)}\s*:(?P<value>[^\r\n]*)", content)
+    if match is None:
+        return _ensure_top_level_scalar(content, key, value, after_key)
+    current_value = _parse_path_scalar(match.group("value"))
+    if not APP_MANAGED_PATH_PATTERN.match(current_value):
+        return content
+    return _replace_values(content, {(None, key): value})
+
+
+def _parse_path_scalar(raw_value: str) -> str:
+    """Read the path value without letting comments influence migration."""
+    value = raw_value.strip()
+    if not value:
+        return ""
+    if value.startswith('"'):
+        try:
+            parsed, _end = json.JSONDecoder().raw_decode(value)
+            return parsed if isinstance(parsed, str) else ""
+        except json.JSONDecodeError:
+            return ""
+    if value.startswith("'"):
+        match = re.match(r"^'((?:[^']|'')*)'", value)
+        return match.group(1).replace("''", "'") if match else ""
+    return re.split(r"\s+#", value, maxsplit=1)[0].strip()
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -157,7 +201,6 @@ def initialize(args: argparse.Namespace) -> str:
 
     replacements: dict[tuple[str | None, str], str | int] = {
         (None, "source_dir"): _optional_absolute_path(getattr(args, "source_dir", ""), "来源目录"),
-        (None, "temp_dir"): _absolute_path(args.temp_dir, "中转目录"),
         (None, "log_dir"): _absolute_path(args.log_dir, "日志目录"),
         (None, "resource_dir"): _absolute_path(args.resource_dir, "海报与缓存目录"),
         (None, "library_root"): _optional_absolute_path(getattr(args, "library_root", ""), "片库根目录"),
@@ -197,15 +240,20 @@ def migrate_managed_service(args: argparse.Namespace) -> str:
     path = Path(args.config)
     if not path.is_file():
         raise ConfigError("运行配置不存在，无法完成 fnOS 托管配置迁移")
-    current = path.read_text(encoding="utf-8")
+    original = path.read_text(encoding="utf-8")
+    current = _remove_top_level_scalar(original, "temp_dir")
     rendered = _replace_values(current, {
         ("server", "port"): 14591,
         ("server", "api_key"): "",
     })
-    resource_dir = _optional_absolute_path(getattr(args, "resource_dir", ""), "海报与缓存目录")
-    if resource_dir:
-        rendered = _ensure_top_level_scalar(rendered, "resource_dir", resource_dir, "log_dir")
-    if rendered == current:
+    managed_paths = (
+        ("log_dir", "日志目录", "source_dir"),
+        ("resource_dir", "海报与缓存目录", "log_dir"),
+    )
+    for key, label, after_key in managed_paths:
+        value = _optional_absolute_path(getattr(args, key, ""), label)
+        rendered = _align_managed_path(rendered, key, value, after_key)
+    if rendered == original:
         return "unchanged"
     _atomic_write(path, rendered)
     return "updated"
@@ -216,7 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("initialize")
-    for name in ("config", "template", "temp-dir", "log-dir", "resource-dir"):
+    for name in ("config", "template", "log-dir", "resource-dir"):
         init_parser.add_argument(f"--{name}", required=True)
     for name in ("source-dir", "library-root", "recycle-dir"):
         init_parser.add_argument(f"--{name}", default="")
@@ -229,6 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     managed_parser = subparsers.add_parser("migrate-managed-service")
     managed_parser.add_argument("--config", required=True)
+    managed_parser.add_argument("--log-dir", default="")
     managed_parser.add_argument("--resource-dir", default="")
     managed_parser.set_defaults(handler=migrate_managed_service)
     return parser

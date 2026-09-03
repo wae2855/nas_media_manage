@@ -63,6 +63,7 @@ class MatchResult:
     tier_short_reason: str = ""           # L2
     ai_reason: str = ""                   # L3
     selected_candidate: Optional[SelectedCandidate] = None  # L4
+    identity_evidence: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """转换为可序列化的字典。"""
@@ -92,5 +93,6 @@ class MatchResult:
             "tier_short_reason": self.tier_short_reason,
             "ai_reason": self.ai_reason,
             "selected_candidate": self.selected_candidate.to_dict() if self.selected_candidate else None,
+            "identity_evidence": self.identity_evidence,
             # confirm_reason 废弃，不再输出
         }

@@ -3,6 +3,10 @@ import getpass
 import os
 import tempfile
 
+from media_importer.features.configuration.fnos_directory_access import (
+    is_fnos_app_managed_path,
+)
+
 
 def get_current_user():
     try:
@@ -16,19 +20,8 @@ def get_current_user():
 
 
 def is_app_managed_path(path: str) -> bool:
-    if not path:
-        return False
-    managed_prefixes = [
-        "/vol1/@appdata/", "/vol2/@appdata/", "/vol3/@appdata/", "/vol4/@appdata/",
-        "/vol1/@appcenter/", "/vol2/@appcenter/", "/vol3/@appcenter/", "/vol4/@appcenter/",
-        "/vol1/@appconf/", "/vol2/@appconf/", "/vol3/@appconf/", "/vol4/@appconf/",
-        "/vol1/@apptemp/", "/vol2/@apptemp/", "/vol3/@apptemp/", "/vol4/@apptemp/",
-        "/vol1/@appshare/", "/vol2/@appshare/", "/vol3/@appshare/", "/vol4/@appshare/",
-    ]
-    for prefix in managed_prefixes:
-        if path.startswith(prefix):
-            return True
-    return False
+    """Compatibility facade for the canonical fnOS app-private path check."""
+    return is_fnos_app_managed_path(path)
 
 
 def check_path_permission(path: str, need_write: bool = True) -> dict:
@@ -185,11 +178,6 @@ def check_config_permissions(config: dict) -> dict:
     if recycle_dir and not is_app_managed_path(recycle_dir):
         r = check_path_permission(recycle_dir, need_write=True)
         _add_issue("recycle_dir", recycle_dir, r)
-
-    temp_dir = config.get("temp_dir", "")
-    if temp_dir and not is_app_managed_path(temp_dir):
-        r = check_path_permission(temp_dir, need_write=True)
-        _add_issue("temp_dir", temp_dir, r)
 
     log_dir = config.get("log_dir", "")
     if log_dir and not is_app_managed_path(log_dir):

@@ -47,6 +47,12 @@ class FakeTMDbClient:
     def get_tv_details(self, item_id):
         raise AssertionError("TV details should not be called")
 
+    def get_movie_alternative_titles(self, item_id):
+        return [{"title": "As Far as My Feet Will Carry Me"}, {"title": ""}]
+
+    def get_tv_alternative_titles(self, item_id):
+        return []
+
     def get_movie_release_dates(self, item_id):
         return [
             {
@@ -100,6 +106,16 @@ def test_provider_registry_creates_tmdb_provider_with_mock_client(monkeypatch):
     assert created_kwargs[0]["timeout"] == 5
 
 
+# Requirement: REQ-20260831-235616
+def test_tmdb_config_schema_requests_v3_api_key_instead_of_read_token():
+    schema = TMDbProvider.get_config_schema()
+    api_key = next(field for field in schema["fields"] if field["key"] == "api_key")
+
+    assert api_key["label"] == "API Key（v3 auth）"
+    assert "不要填写" in api_key["description"]
+    assert "API Read Access Token" in api_key["description"]
+
+
 def test_tmdb_provider_search_details_and_dimension_mapping(monkeypatch):
     monkeypatch.setattr(
         "media_importer.features.providers.tmdb_provider.TMDbClient",
@@ -115,6 +131,9 @@ def test_tmdb_provider_search_details_and_dimension_mapping(monkeypatch):
     details = provider.get_details("101", "movie")
     assert details.title == "Inception"
     assert details.genres[0].id == "878"
+    assert provider.get_alternative_titles("101", "movie") == [
+        "As Far as My Feet Will Carry Me"
+    ]
 
     mappings = provider.map_dimensions(
         [

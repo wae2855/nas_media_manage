@@ -3,38 +3,16 @@ import json
 import logging
 from typing import Optional
 
+from .dimension_mapping_engine import default_provider_mappings, execute_mapping
+
 logger = logging.getLogger(__name__)
 
+_RESTRICTED_PRESET = default_provider_mappings("restricted_level")["tmdb"]
+# 兼容既有只读导入；业务映射事实已迁到版本化 JSON 资产，不再由 Python 常量维护。
 CERTIFICATION_TO_LEVEL = {
-    # 美国（MPAA/TV）
-    'G': '0-6', 'TV-Y': '0-6',
-    'PG': '7-12', 'TV-Y7': '7-12', 'TV-G': '7-12', 'TV-PG': '7-12',
-    'PG-13': '13-16', 'TV-14': '13-16',
-    'R': '17+', 'NC-17': '17+', 'TV-MA': '17+',
-    # 英国（BBFC）：15岁级别仍属于青少年段，18岁才是成人段
-    'U': '0-6',
-    '12A': '13-16', '12': '13-16',
-    '15': '13-16', '18': '17+',
-    # 德国（FSK，TMDB 上为数字形式）
-    'FSK 0': '0-6', 'FSK 6': '7-12', '6': '7-12',
-    'FSK 12': '13-16',
-    'FSK 16': '13-16', '16': '13-16',
-    # 法国（CN）
-    '-10': '7-12',
-    '-12': '13-16',
-    '-16': '13-16', '-18': '17+',
-    # 日本（映倫）
-    'PG12': '13-16',
-    'R-15+': '13-16', 'R15+': '13-16',
-    'R-18+': '17+', 'R18+': '17+',
-    # 韩国（영등급위）
-    'ALL': '0-6', '전체관람가': '0-6',
-    '12세이상관람가': '13-16',
-    '15세이상관람가': '13-16',
-    '19': '17+', '청소년관람불가': '17+',
-    # 加拿大/澳大利亚常见
-    '14A': '13-16', '18A': '17+',
-    'MA15+': '13-16',
+    str(certification): rule["target"]
+    for rule in _RESTRICTED_PRESET["rules"]
+    for certification in rule["inputs"]
 }
 
 
@@ -250,6 +228,18 @@ def map_provider_to_dimension(dim_config: dict, provider_data: dict, release_dat
     if not mapping:
         return {'name': name, 'value': None, 'source_reliability': 0}
 
+    if mapping.get("schema_version") == 2:
+        allowed_targets = {
+            str(item.get("value")) for item in value_list if item.get("value") is not None
+        }
+        return execute_mapping(
+            name,
+            mapping,
+            provider_data,
+            release_dates=release_dates or [],
+            allowed_targets=allowed_targets,
+        )
+
     match_type = mapping.get('match_type', '')
 
     if match_type == 'genre_ids':
@@ -381,45 +371,18 @@ def _map_animation(name: str, value_list: list, tmdb_data: dict) -> dict:
 
 
 def _map_restricted_level(name: str, value_list: list, release_dates: list) -> dict:
-    """TMDB release_dates 多国分级 → 年龄段（ADR-0010：9 国优先级规则增强）。
+    """TMDB release_dates 多国分级 → 年龄段（ADR-0010：10 地区优先级规则）。
 
-    优先级：US > GB > DE > FR > CN > JP > KR > AU > CA > 其他（数据可信度递减）。
-    旧实现只消费 US/GB 两国数据，2026-08-22 起全 9 国参与映射。
+    优先级：HK > US > GB > DE > FR > CN > JP > KR > AU > CA > 其他。
+    香港采用本地 I/IIA/IIB/III 分级，其中 III 映射为 17+ 限制观看。
     """
-    if not release_dates:
-        return {'name': name, 'value': None, 'source_reliability': 0}
-
-    country_priority = ['US', 'GB', 'DE', 'FR', 'CN', 'JP', 'KR', 'AU', 'CA']
-
-    sorted_dates = []
-    for rd in release_dates:
-        iso = rd.get('iso_3166_1', '')
-        if iso in country_priority:
-            priority = country_priority.index(iso)
-        else:
-            priority = len(country_priority)
-        sorted_dates.append((priority, rd))
-
-    sorted_dates.sort(key=lambda x: x[0])
-
-    for _, result in sorted_dates:
-        iso = result.get('iso_3166_1', '')
-
-        tv_rating = result.get('rating', '').strip().upper()
-        if tv_rating and tv_rating in CERTIFICATION_TO_LEVEL:
-            level = CERTIFICATION_TO_LEVEL[tv_rating]
-            source_reliability = 1.0 if iso == 'US' else 0.95
-            return {'name': name, 'value': level, 'source_reliability': source_reliability}
-
-        dates = result.get('release_dates', [])
-        if not dates:
-            continue
-
-        for rd in dates:
-            cert = rd.get('certification', '').strip().upper()
-            if cert in CERTIFICATION_TO_LEVEL:
-                level = CERTIFICATION_TO_LEVEL[cert]
-                source_reliability = 1.0 if iso == 'US' else 0.95
-                return {'name': name, 'value': level, 'source_reliability': source_reliability}
-
-    return {'name': name, 'value': None, 'source_reliability': 0}
+    result = execute_mapping(
+        name,
+        _RESTRICTED_PRESET,
+        {},
+        release_dates=release_dates,
+        allowed_targets={"0-6", "7-12", "13-16", "17+"},
+    )
+    # 兼容既有纯函数合同；新的 Provider 统一入口会保留 mapping_evidence。
+    result.pop("mapping_evidence", None)
+    return result

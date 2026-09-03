@@ -193,3 +193,33 @@ def test_recycle_cleanup_never_deletes_when_recycle_overlaps_library(tmp_path):
     assert deleted == []
     assert video.read_bytes() == b"library-must-survive"
     assert (recycle / "Movie.mkv.meta").exists()
+
+
+def test_recycle_cleanup_with_canonical_roots_does_not_resolve_library_disks(
+    tmp_path, monkeypatch,
+):
+    recycle = tmp_path / "recycle"
+    library = tmp_path / "sleeping-library"
+    recycle.mkdir()
+    library.mkdir()
+    calls = []
+    real_realpath = os.path.realpath
+
+    def record_realpath(path):
+        calls.append(str(path))
+        return real_realpath(path)
+
+    monkeypatch.setattr(
+        "media_importer.features.recycle.browser.os.path.realpath",
+        record_realpath,
+    )
+
+    recycle_cleanup(
+        str(recycle),
+        1,
+        protected_roots=[str(library)],
+        protected_roots_canonical=True,
+    )
+
+    assert str(recycle) in calls
+    assert str(library) not in calls

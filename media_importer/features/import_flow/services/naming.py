@@ -11,9 +11,59 @@ def apply_filename_template(scraped_info: dict, template: str, video_ext: str) -
     return filename
 
 
-def apply_subtitle_template(video_basename: str, lang: str, subtitle_ext: str) -> str:
+def apply_subtitle_template(
+    video_basename: str,
+    lang: str,
+    subtitle_ext: str,
+    template: str = "{video_filename}.{lang}.{ext}",
+    sequence: int = 1,
+) -> str:
     video_name_without_ext = os.path.splitext(video_basename)[0]
-    return f"{video_name_without_ext}.{lang}{subtitle_ext}"
+    normalized_lang = lang if lang and lang != "unknown" else "und"
+    rendered = render_template(
+        template,
+        {
+            "video_filename": video_name_without_ext,
+            "video_stem": video_name_without_ext,
+            "lang": normalized_lang,
+            "ext": subtitle_ext.lstrip("."),
+        },
+    ).rstrip("/")
+    if not rendered.lower().endswith(subtitle_ext.lower()):
+        rendered += subtitle_ext
+    if sequence > 1:
+        stem, extension = os.path.splitext(rendered)
+        rendered = f"{stem}.{sequence}{extension}"
+    return rendered
+
+
+def plan_subtitle_filenames(
+    subtitle_paths: list[str],
+    video_basename: str,
+    template: str = "{video_filename}.{lang}.{ext}",
+) -> list[dict]:
+    """按源文件名稳定排序，为同语言字幕生成确定性编号。"""
+    counters: dict[tuple[str, str], int] = {}
+    planned_by_path = {}
+    for path in sorted(subtitle_paths, key=lambda item: os.path.basename(item).casefold()):
+        lang = detect_subtitle_lang(path)
+        normalized_lang = lang if lang != "unknown" else "und"
+        extension = os.path.splitext(path)[1].lower()
+        key = (normalized_lang, extension)
+        counters[key] = counters.get(key, 0) + 1
+        planned_by_path[path] = {
+            "source_path": path,
+            "lang": normalized_lang,
+            "sequence": counters[key],
+            "filename": apply_subtitle_template(
+                video_basename,
+                normalized_lang,
+                extension,
+                template,
+                counters[key],
+            ),
+        }
+    return [planned_by_path[path] for path in subtitle_paths]
 
 
 def detect_subtitle_lang(filename: str) -> str:

@@ -78,10 +78,8 @@ def test_feature_consumers_use_feature_public_apis():
             "from media_importer.features.scraping import get_dimensions_for_file",
         ],
         root / "media_importer" / "features" / "import_flow" / "runner.py": [
-            "from media_importer.infrastructure.filesystem import FileCopier",
             "from media_importer.features.source_files import SourceCleanupService",
             "from media_importer.features.import_flow.scan_service import FileScanner",
-            "from media_importer.features.source_files import SourceCleanupService, delete_source_files",
         ],
         root / "media_importer" / "features" / "import_flow" / "services" / "classification.py": [
             "from .classification_rules import classify, render_template",
@@ -199,7 +197,6 @@ def test_feature_public_apis_are_importable():
     )
     from media_importer.features.tasks.repository import create_task, update_task
     from media_importer.infrastructure.db import init_db
-    from media_importer.infrastructure.filesystem import FileCopier
 
     assert ConfigView is not None
     assert build_config_ui_payload.__module__ == "media_importer.features.configuration.application_service"
@@ -243,7 +240,6 @@ def test_feature_public_apis_are_importable():
     assert create_task is not None
     assert update_task is not None
     assert init_db is not None
-    assert FileCopier.__module__ == "media_importer.infrastructure.filesystem.file_copier"
     assert DimensionActionResult.__module__ == "media_importer.features.scraping.dimensions_service"
     assert MetadataScraper is not None
     assert MetadataScraper.__module__ == "media_importer.features.scraping.metadata_scraper"

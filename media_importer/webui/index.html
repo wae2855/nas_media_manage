@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/cinema-pages.css">
     <link rel="stylesheet" href="css/cinema-config.css">
     <link rel="stylesheet" href="css/dimensions.css">
+    <link rel="stylesheet" href="css/dimension-mapping.css">
 
 </head>
 <body>
@@ -79,7 +80,10 @@
                     <p class="brand-sub">Cinema Library Operator</p>
                 </div>
             </div>
-            <div class="status-pill"><i class="dot"></i><span id="runtime-status">运行中</span></div>
+            <div class="runtime-meta">
+                <div class="status-pill"><i class="dot"></i><span id="runtime-status">运行中</span></div>
+                <span class="runtime-version" id="runtime-version" aria-label="当前运行版本">v—</span>
+            </div>
         </header>
 
         <main>
@@ -174,8 +178,8 @@
                     <span class="batch-count" id="task-batch-count">已选 0 项</span>
                     <button type="button" data-batch-task-action="batch-retry" id="task-batch-retry" hidden>批量重试</button>
                     <button type="button" data-batch-task-action="batch-confirm" id="task-batch-confirm" hidden>批量入库</button>
-                    <button type="button" data-batch-task-action="batch-ignore" id="task-batch-ignore" hidden>批量忽略</button>
-                    <button type="button" class="danger" data-batch-task-action="batch-delete" id="task-batch-delete" hidden>批量移入回收</button>
+                    <button type="button" class="danger" data-batch-task-action="batch-end" id="task-batch-end" hidden>结束处理</button>
+                    <button type="button" data-batch-task-action="batch-delete-record" id="task-batch-delete-record" hidden>删除记录</button>
                     <button type="button" data-batch-task-action="batch-clear">清空选择</button>
                 </div>
                 <div class="section-title section-title-stack task-panel-head">
@@ -229,13 +233,13 @@
                         <span class="config-stage-img"><img src="assets/config-stage/01.jpeg" alt="" /></span>
                         <span class="config-stage-label">开始</span>
                     </button>
-                    <button class="config-stage-card" data-config-stage="source">
+                    <button class="config-stage-card" data-config-stage="storage">
                         <span class="config-stage-img"><img src="assets/config-stage/02.jpeg" alt="" /></span>
-                        <span class="config-stage-label">文件来源</span>
-                    </button>
-                    <button class="config-stage-card" data-config-stage="temp">
-                        <span class="config-stage-img"><img src="assets/config-stage/03.jpeg" alt="" /></span>
                         <span class="config-stage-label">存储检查</span>
+                    </button>
+                    <button class="config-stage-card" data-config-stage="source">
+                        <span class="config-stage-img"><img src="assets/config-stage/03.jpeg" alt="" /></span>
+                        <span class="config-stage-label">文件来源</span>
                     </button>
                     <button class="config-stage-card" data-config-stage="scrape">
                         <span class="config-stage-img"><img src="assets/config-stage/04.jpeg" alt="" /></span>
@@ -260,7 +264,7 @@
                 </section>
                 <div class="config-stage-mobile-status" id="config-stage-mobile-status" aria-live="polite"><span>1 / 8 · 开始</span><small>左右滑动胶卷查看更多步骤</small></div>
                 <section class="config-stage-panel active" data-config-panel="start">
-                    <div class="section-title"><h2>开始</h2><button class="btn btn-primary btn-sm" type="button" data-config-stage-jump="source">检查需要处理的项目</button></div>
+                    <div class="section-title"><h2>开始</h2><button class="btn btn-primary btn-sm" type="button" data-config-stage-jump="storage">先检查存储目录</button></div>
                     <section class="setup-opening" id="setup-opening-summary">
                         <div class="setup-opening-copy">
                             <span class="setup-kicker">FIRST RUN · 四步完成自动整理</span>
@@ -307,7 +311,7 @@
                         </ol>
                     </section>
                     <div class="setup-defaults-strip">
-                        <span>默认保留源视频</span><span>文件稳定 120 秒后处理</span><span>中转与回收只用本地磁盘</span><span>高级参数稍后再调</span>
+                        <span>默认保留源视频</span><span>文件稳定 120 秒后处理</span><span>确认目标后直接安全入库</span><span>高级参数稍后再调</span>
                     </div>
                     <div class="config-form-grid legacy-start-content">
                         <article class="form-card form-card-full start-hero-card">
@@ -324,7 +328,7 @@
                         <div class="info-rows form-card-full">
                             <div class="info-row">
                                 <div class="info-key">第 1 步</div>
-                                <div class="info-value"><b>先把目录边界定清楚</b><span>先完成授权，再配置源目录、中转目录和回收目录。</span></div>
+                                <div class="info-value"><b>先把目录边界定清楚</b><span>先完成授权，再配置来源、回收和目标片库。</span></div>
                             </div>
                             <div class="info-row">
                                 <div class="info-key">第 2 步</div>
@@ -343,16 +347,12 @@
 
                         <div class="info-intro form-card-full">
                             <span class="info-label">目录说明</span>
-                            <h4>这 6 个目录各管什么</h4>
+                            <h4>这 5 类目录各管什么</h4>
                         </div>
                         <div class="info-rows form-card-full">
                             <div class="info-row">
                                 <div class="info-key">源目录</div>
                                 <div class="info-value"><b>待整理的媒体文件入口</b><span>不希望系统改动源文件时，不要开启【源目录智能清理】。</span></div>
-                            </div>
-                            <div class="info-row">
-                                <div class="info-key">中转目录</div>
-                                <div class="info-value"><b>整理入库前的缓冲区</b><span>避免直接在源目录改名、移动和覆盖。</span></div>
                             </div>
                             <div class="info-row">
                                 <div class="info-key">回收目录</div>
@@ -426,6 +426,20 @@
                                 </article>
                                 <label class="radio-card"><div class="radio-card-head"><input type="radio" name="cfg-source-after-done" value="recycle_source_unit" /><strong>入库后清空来源</strong></div><small>同一下载文件夹内全部影片成功后自动清空；任一失败、待确认或仍在下载都会完整保留。</small></label>
                             </div>
+                            <div class="source-disposal-panel" id="source-disposal-panel" hidden>
+                                <div class="source-disposal-heading">
+                                    <b id="source-disposal-title">清理掉的内容放到哪里？</b>
+                                    <small id="source-disposal-context">只影响来源目录，不影响目标片库。</small>
+                                </div>
+                                <div class="source-disposal-options">
+                                    <label class="radio-card source-disposal-option"><div class="radio-card-head"><input type="radio" name="cfg-source-disposal" value="local_recycle" checked /><strong>移入本地回收区（推荐）</strong></div><small>可在应用回收区恢复；跨磁盘或云盘时会再复制一次。</small></label>
+                                    <label class="radio-card source-disposal-option source-disposal-option-danger"><div class="radio-card-head"><input type="radio" name="cfg-source-disposal" value="permanent_delete" /><strong>永久删除来源</strong></div><small>不创建本地回收副本，适合需要立即释放网盘空间的用户；删除后无法从本应用恢复。</small></label>
+                                </div>
+                                <div class="source-disposal-danger" id="source-disposal-danger" hidden>
+                                    <b>不可恢复操作</b>
+                                    <span>只会在整个影片文件包成功入库并再次核对来源后执行；不会用于片库覆盖。保存时还需要单独确认。</span>
+                                </div>
+                            </div>
                         </article>
                         <article class="form-card form-card-full">
                             <span>递归扫描</span>
@@ -439,6 +453,25 @@
                                 <input id="cfg-source-depth-inline" type="number" min="1" max="20" value="5" />
                             </div>
                         </article>
+                        <details class="form-card form-card-full media-candidate-settings">
+                            <summary>
+                                <span><b>忽略明显广告和小视频片段</b><small>使用推荐规则，通常无需修改</small></span>
+                                <span class="media-candidate-summary-state" id="media-candidate-summary-state">已开启</span>
+                            </summary>
+                            <div class="media-candidate-settings-body">
+                                <div class="media-candidate-intro">
+                                    <label class="toggle-row-inline"><input id="cfg-media-candidate-enabled-inline" type="checkbox" checked /><b>扫描时不为明显广告创建任务</b></label>
+                                    <p>只有“强广告名称证据”，或“同文件夹有明确主视频且体积差距足够大”时才忽略。独立短片和无法确定的视频仍会正常进入任务列表。</p>
+                                </div>
+                                <div class="media-candidate-fields">
+                                    <label><span>小视频上限</span><div><input id="cfg-media-candidate-small-max-inline" type="number" min="1" max="2048" value="50" /><em>MB</em></div><small>只是第一道门槛，不会单独决定忽略。</small></label>
+                                    <label><span>主视频最小体积</span><div><input id="cfg-media-candidate-main-min-inline" type="number" min="50" max="102400" value="500" /><em>MB</em></div><small>同一来源单元必须先有达到该体积的主视频。</small></label>
+                                    <label><span>最多占主视频</span><div><input id="cfg-media-candidate-ratio-inline" type="number" min="0.1" max="20" step="0.1" value="2" /><em>%</em></div><small>默认 2%；条件不足时宁可多创建任务。</small></label>
+                                </div>
+                                <label class="media-candidate-patterns"><span>我的附加名称规则（可选）</span><textarea id="cfg-media-candidate-patterns-inline" rows="3" placeholder="每行一个高确信广告词；不要填 sample、trailer 等可能是真实内容的泛词"></textarea><small>系统内置的网址、扫码、引流句式会始终保留，这里只用于补充你自己经常遇到的明确广告词。</small></label>
+                                <div class="media-candidate-example"><b>示例</b><span>25 GB 正片 + 0.6 MB 网址广告.mp4 → 只创建 1 个正片任务，广告仅记入扫描活动。</span></div>
+                            </div>
+                        </details>
                     </div>
                     <section class="source-cleaner-block" id="source-cleaner-block" hidden>
                         <input id="cfg-source-cleaner-enabled-inline" type="checkbox" hidden />
@@ -492,7 +525,7 @@
                                 </div>
                             </div>
                             <div class="cleaner-grid cleaner-grid-advanced">
-                                <label class="cleaner-card"><span>垃圾视频大小阈值(MB)</span><input id="cfg-source_cleaner-junk_video_max_size_mb-inline" type="number" min="0" value="0" /></label>
+                                <input id="cfg-source_cleaner-junk_video_max_size_mb-inline" type="hidden" value="50" />
                                 <article class="cleaner-card">
                                     <span>清理空目录</span>
                                     <label class="toggle-row-inline">
@@ -506,18 +539,18 @@
                         </div>
                     </section>
                 </section>
-                <section class="config-stage-panel" data-config-panel="temp">
+                <section class="config-stage-panel" data-config-panel="storage">
                     <div class="section-title"><div><h2>存储检查</h2><p class="section-subnote">路径、权限、挂载身份与安全余量由系统统一判断。</p></div><button class="btn btn-secondary btn-sm" type="button" data-storage-refresh>重新检查</button></div>
                     <div class="storage-readiness-grid" id="storage-readiness-grid" aria-live="polite">
                         <article class="storage-skeleton">正在读取安装目录...</article>
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="recycle">
-                    <div class="section-title"><div><h2>完成</h2><p class="section-subnote">最后同时检查目录、权限、空间、TMDB、按需 LLM 与自动运行条件。</p></div><button class="btn btn-primary btn-sm" type="button" data-startup-readiness>运行开场检查</button></div>
+                    <div class="section-title"><div><h2>完成</h2><p class="section-subnote">最后同时检查目录、规则目标、权限、空间、TMDB、按需 LLM 与自动运行条件。</p></div><button class="btn btn-primary btn-sm" type="button" data-startup-readiness>配置检查</button></div>
                     <section class="setup-finale" id="setup-finale">
-                        <div class="setup-finale-mark"><span>CHECK</span><b>等待开场检查</b></div>
+                        <div class="setup-finale-mark"><span>CHECK</span><b>等待配置检查</b></div>
                         <div><h3>确认整套配置能正式运行</h3><p>“运行模拟”仍只验证识别和分类，不代替这里的正式运行检查。</p></div>
-                        <div class="hero-actions"><button class="btn btn-primary" type="button" data-startup-readiness>运行开场检查</button><button class="btn btn-secondary" data-nav="config" data-view-target="config-simulator">仅模拟识别与分类</button></div>
+                        <div class="hero-actions"><button class="btn btn-primary" type="button" data-startup-readiness>配置检查</button><button class="btn btn-secondary" data-nav="config" data-view-target="config-simulator">仅模拟识别与分类</button></div>
                     </section>
                     <div class="startup-readiness-list" id="startup-readiness-list" aria-live="polite"></div>
                 </section>
@@ -579,14 +612,18 @@
                     </div>
                 </section>
                 <section class="config-stage-panel" data-config-panel="ai">
-                    <div class="section-title"><div><h2>后台自动整理</h2><p class="section-subnote">决定是否让系统在后台定时查看源目录并自动入库。</p></div><button class="btn btn-primary btn-sm" type="button" data-config-save="automation">保存设置</button></div>
+                    <div class="section-title"><div><h2>后台自动整理</h2><p class="section-subnote">决定是否让系统在后台定时查看源目录并自动入库。</p></div><span class="automation-apply-mode">更改后立即生效</span></div>
                     <article class="automation-choice-card">
-                        <div><span class="setup-kicker">后台整理开关</span><h3>自动处理新放入的文件</h3><p>打开后，系统会定时查看源目录；发现下载完成的新文件就自动识别并入库。关闭后仍可手动扫描和处理。</p></div>
+                        <div><span class="setup-kicker">后台整理开关</span><h3>自动处理新放入的文件</h3><p>打开后由 fnOS 后台服务定时查看源目录；关闭桌面窗口或手机页面不会停止整理。关闭后仍可手动扫描和处理。</p></div>
                         <label class="toggle-pill toggle-pill-inline"><input id="cfg-auto-watcher-enabled" type="checkbox" /><span class="toggle-pill-ui"></span><span id="cfg-auto-watcher-label">后台自动整理已关闭</span></label>
                     </article>
+                    <div class="automation-runtime-status is-loading" id="automation-runtime-status" role="status" aria-live="polite">
+                        <span class="automation-runtime-dot" aria-hidden="true"></span>
+                        <div><b id="automation-runtime-title">正在读取后台状态...</b><small id="automation-runtime-detail">状态来自 fnOS 后台服务，不依赖当前页面保持打开。</small></div>
+                    </div>
                     <article class="automation-interval-card" id="automation-poll-card">
                         <div><span class="setup-kicker">扫描频率</span><h3>每隔多久检查一次源目录？</h3><p>云盘刷新较慢或 NAS 性能有限时，建议选择 2–5 分钟。</p></div>
-                        <label><span>轮询周期</span><select id="cfg-auto-watcher-poll-interval"><option value="30">30 秒</option><option value="60">1 分钟</option><option value="120">2 分钟</option><option value="300">5 分钟</option><option value="600">10 分钟</option></select></label>
+                        <label><span>轮询周期</span><select id="cfg-auto-watcher-poll-interval"><option value="30">30 秒</option><option value="60">1 分钟</option><option value="120">2 分钟</option><option value="300" selected>5 分钟（默认）</option><option value="600">10 分钟</option></select></label>
                     </article>
                     <details class="setup-edit-disclosure setup-advanced-disclosure" id="automation-llm-disclosure">
                         <summary><span>源目录清理需要 LLM 辅助？</span><small>高级可选项，影视识别不需要</small></summary>
@@ -641,7 +678,7 @@
                     </details>
                 </section>
 <section class="config-stage-panel" data-config-panel="rules">
-                    <div class="section-title"><div><h2>片库整理</h2><p class="section-subnote">已有合理预设时不用逐条调整；这里只决定最终落点。</p></div><button class="btn btn-primary" type="button" data-config-save="rules">保存变更</button></div>
+                    <div class="section-title"><div><h2>片库整理</h2><p class="section-subnote">每条规则都要明确选择目标片库；系统不会按顺序或默认目录自动分配。</p></div><button class="btn btn-primary" type="button" data-config-save="rules">保存变更</button></div>
                     <div class="config-form-grid">
                         <article class="form-card form-card-full library-roots-card">
                             <div class="library-roots-heading"><div><span>目标片库 <b class="required-mark">*</b></span><p>可以添加多块硬盘或挂载目录。规则只会写入它明确选择的片库。</p></div><button class="btn btn-secondary btn-sm" type="button" data-library-root-action="add">添加片库</button></div>
@@ -655,15 +692,15 @@
                         <div class="info-rows form-card-full">
                             <div class="info-row">
                                 <div class="info-key">第一步</div>
-                                <div class="info-value"><b>先排匹配顺序</b><span>先把最具体的规则放前面，通用规则放后面。</span></div>
+                                <div class="info-value"><b>先为每条规则选择片库</b><span>规则可以只使用部分片库，暂时不用的片库也可以保留。</span></div>
                             </div>
                             <div class="info-row">
                                 <div class="info-key">第二步</div>
-                                <div class="info-value"><b>再用模板变量命名</b><span>确认目录模板和文件名模板里会用到哪些变量。</span></div>
+                                <div class="info-value"><b>再填写片库内的相对目录</b><span>例如“电影/{year}/{title_cn}”，不要填写 /vol1 等绝对路径。</span></div>
                             </div>
                             <div class="info-row">
                                 <div class="info-key">第三步</div>
-                                <div class="info-value"><b>最后补兜底目录</b><span>避免没有命中任何规则时，文件直接落成失败。</span></div>
+                                <div class="info-value"><b>最后调整顺序并补兜底</b><span>具体规则放前面，通用规则放后面，并为兜底目录单独选择片库。</span></div>
                             </div>
                         </div>
                         <div class="info-callout form-card-full">
@@ -770,8 +807,9 @@
     <script src="js/cinema-task-batch.js"></script>
     <script src="js/cinema-tasks.js"></script>
 
-    <!-- 4. Dimensions: core → genre → genre-picker → edit → ops → entry -->
+    <!-- 4. Dimensions: core → mapping → genre → genre-picker → edit → ops → entry -->
     <script src="js/dimension-core.js"></script>
+    <script src="js/dimension-mapping.js"></script>
     <script src="js/dimension-genre.js"></script>
     <script src="js/dimension-genre-picker.js"></script>
     <script src="js/dimension-edit.js"></script>

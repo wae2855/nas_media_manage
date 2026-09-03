@@ -48,16 +48,33 @@ def _verified_cross_device_move(source: str, target: str, *, is_dir: bool) -> tu
 
 
 def recycle_cleanup(recycle_dir: str, retention_days: int, *,
-                    protected_roots: Optional[list[str]] = None) -> list:
+                    protected_roots: Optional[list[str]] = None,
+                    protected_roots_canonical: bool = False) -> list:
     if not recycle_dir or not os.path.isdir(recycle_dir):
         return []
     if retention_days <= 0:
         return []
     if protected_roots:
-        from media_importer.features.configuration.storage_topology import paths_overlap
+        if protected_roots_canonical:
+            recycle_real = os.path.realpath(os.path.abspath(recycle_dir))
+            for root in protected_roots:
+                root_value = str(root or "").strip()
+                if not root_value or not os.path.isabs(root_value):
+                    return []
+                protected = os.path.normpath(os.path.abspath(root_value))
+                try:
+                    if os.path.commonpath((recycle_real, protected)) in {
+                        recycle_real,
+                        protected,
+                    }:
+                        return []
+                except ValueError:
+                    continue
+        else:
+            from media_importer.features.configuration.storage_topology import paths_overlap
 
-        if any(paths_overlap(recycle_dir, root) for root in protected_roots if root):
-            return []
+            if any(paths_overlap(recycle_dir, root) for root in protected_roots if root):
+                return []
 
     now = datetime.now()
     deleted = []

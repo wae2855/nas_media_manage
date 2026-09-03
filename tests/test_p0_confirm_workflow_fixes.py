@@ -46,6 +46,14 @@ class TestRenderTemplateTitleFallback(unittest.TestCase):
         result = render_template("{title_cn}.{year}", scraped)
         self.assertEqual(result, "2009/")
 
+    def test_resolution_uses_ffprobe_dimension_value(self):
+        scraped = {
+            "title_cn": "阿凡达",
+            "dimensions": {"resolution_tier": "4k"},
+        }
+        result = render_template("{resolution}/{title_cn}", scraped)
+        self.assertEqual(result, "4k/阿凡达/")
+
 
 class TestApplyFilenameTemplateNoDegradation(unittest.TestCase):
     """P0-3 联动：电影命名模板在标题缺失时不应退化为只剩年份。"""

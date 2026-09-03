@@ -100,7 +100,8 @@ def _determine_source_zone(original_path: str, source_dir: str, import_roots: li
 def move_dir_to_recycle(dir_path: str, recycle_dir: str,
                         reason: str = "", task_id: str = "",
                         source_dir: str = "", import_roots: Optional[list] = None,
-                        extra_meta: Optional[dict] = None) -> tuple:
+                        extra_meta: Optional[dict] = None,
+                        phase_callback=None) -> tuple:
     if not os.path.exists(dir_path):
         return True, "", ""
 
@@ -169,10 +170,31 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
             return False, "", f"无法安全创建回收记录，原目录已保留: {exc}"
 
         try:
+            if phase_callback:
+                phase_callback("publish", 0, 1)
             os.rename(real, dest_path)
+            if phase_callback:
+                phase_callback("publish", 1, 1)
         except OSError:
             staging_path = dest_path + f".{uuid.uuid4().hex}.copying"
             os.makedirs(staging_path, exist_ok=True)
+            completed_before = 0
+
+            def phase_for_file(base_bytes: int):
+                def on_file_phase(phase, completed, total):
+                    if not phase_callback:
+                        return
+                    if phase == "transfer":
+                        phase_callback(
+                            phase,
+                            min(total_size, base_bytes + completed),
+                            total_size,
+                        )
+                    else:
+                        phase_callback(phase, completed, total)
+
+                return on_file_phase
+
             for current_dir, dir_names, file_names in os.walk(real):
                 relative = os.path.relpath(current_dir, real)
                 target_dir = staging_path if relative == "." else os.path.join(staging_path, relative)
@@ -184,14 +206,25 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
                     target_file = os.path.join(target_dir, file_name)
                     if os.path.exists(target_file):
                         continue
-                    copied, copy_message = verified_copy(source_file, target_file)
+                    file_size = os.path.getsize(source_file)
+
+                    copied, copy_message = verified_copy(
+                        source_file,
+                        target_file,
+                        phase_callback=phase_for_file(completed_before),
+                    )
                     if not copied:
                         _remove_owned_file(meta_path, meta_identity)
                         return False, "", f"跨盘回收校验失败，原目录已保留: {copy_message}"
+                    completed_before += file_size
             if os.path.lexists(dest_path):
                 _remove_owned_file(meta_path, meta_identity)
                 return False, "", "回收目标在复制期间出现，原目录已保留"
+            if phase_callback:
+                phase_callback("publish", 0, 1)
             os.rename(staging_path, dest_path)
+            if phase_callback:
+                phase_callback("publish", 1, 1)
             shutil.rmtree(real)
 
         return True, dest_path, f"已移入回收站(目录): {os.path.basename(dir_path)}"
@@ -205,7 +238,8 @@ def move_dir_to_recycle(dir_path: str, recycle_dir: str,
 def move_to_recycle(src_path: str, recycle_dir: str,
                     reason: str = "", task_id: str = "",
                         source_dir: str = "", import_roots: Optional[list] = None,
-                        extra_meta: Optional[dict] = None) -> tuple:
+                        extra_meta: Optional[dict] = None,
+                        phase_callback=None) -> tuple:
     if not os.path.exists(src_path):
         return True, "", ""
 
@@ -230,7 +264,8 @@ def move_to_recycle(src_path: str, recycle_dir: str,
         return move_dir_to_recycle(src_path, recycle_dir,
                                    reason=reason, task_id=task_id,
                                    source_dir=source_dir, import_roots=import_roots,
-                                   extra_meta=extra_meta)
+                                   extra_meta=extra_meta,
+                                   phase_callback=phase_callback)
 
     try:
         date_str = datetime.now().strftime("%Y-%m-%d")
@@ -267,7 +302,11 @@ def move_to_recycle(src_path: str, recycle_dir: str,
         except OSError as exc:
             return False, "", f"无法安全创建回收记录，源文件已保留: {exc}"
 
-        moved, move_message = safe_move(real, dest_path)
+        moved, move_message = safe_move(
+            real,
+            dest_path,
+            phase_callback=phase_callback,
+        )
         if not moved:
             _remove_owned_file(meta_path, meta_identity)
             return False, "", f"移入回收站失败，源文件已保留: {move_message}"

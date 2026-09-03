@@ -34,14 +34,8 @@ class ScrapeStepsMixin:
             self._log("warning", f"文件维度分析失败（不影响刮削）: {e}", task, "scrape")
 
         try:
-            result = self.scraper.scrape(
-                task.get("source_filename", ""),
-                task.get("subtitle_files", []),
-                conn=self.task_manager.conn
-            )
-            task["scrape_result"] = result
-
-            # 三级匹配引擎：运行 MatchEngine 获取 match_level、match_concerns、match_trace
+            # 先由统一匹配器决定作品身份，再按同一候选抓取完整元数据，
+            # 避免刮削器与匹配器各搜一次后给出不同结论。
             match_engine = MatchEngine(self.scraper.config if hasattr(self.scraper, 'config') else {})
             video_path = task.get("video_path") or task.get("source_path", "")
             providers = self.scraper.providers if hasattr(self.scraper, 'providers') else []
@@ -51,6 +45,15 @@ class ScrapeStepsMixin:
                 conn=self.task_manager.conn,
                 video_path=video_path,
             )
+            result = self.scraper.scrape(
+                task.get("source_filename", ""),
+                task.get("subtitle_files", []),
+                conn=self.task_manager.conn,
+                video_path=video_path,
+                match_result=match_result,
+            )
+            task["scrape_result"] = result
+
             match_dict = match_result.to_dict()
             result['match_level'] = match_dict['match_level']
             result['match_concerns'] = match_dict['concerns']
@@ -63,7 +66,7 @@ class ScrapeStepsMixin:
             # 当 LLM 刮削未返回 Provider 详情时，从 selected_candidate 回填
             selected = match_dict.get('selected_candidate')
             if selected and selected.get('provider_type') and selected.get('provider_id'):
-                if not result.get('provider_type') or result.get('provider_type') == 'ai':
+                if not result.get('provider_type'):
                     result['provider_type'] = selected['provider_type']
                     result['provider_id'] = selected['provider_id']
                 if not result.get('title_cn'):

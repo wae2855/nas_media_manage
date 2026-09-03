@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from media_importer.core.db.connection import init_db
+from media_importer.core.db.source_unit_repo import update_source_unit
 from media_importer.core.db.task_repo import create_task, update_task
 from media_importer.features.source_files.source_units import (
     SourceUnitCoordinator,
@@ -86,6 +87,148 @@ def test_folder_waits_until_every_task_succeeds_then_moves_whole_folder(tmp_path
     assert any(path.name == "Forrest Gump" for path in recycle.rglob("Forrest Gump"))
 
 
+# Requirement: REQ-20260901-233114
+def test_ignored_promotion_is_frozen_in_snapshot_and_does_not_block_cleanup(
+    tmp_path: Path,
+):
+    source = tmp_path / "source"
+    recycle = tmp_path / "recycle"
+    movie = source / "Babel.2006"
+    movie.mkdir(parents=True)
+    recycle.mkdir()
+    video = movie / "Babel.2006.mkv"
+    promotion = movie / "【更多高清电影请访问 www.HDBTHD.com】.mp4"
+    with video.open("wb") as handle:
+        handle.truncate(600 * 1024 * 1024)
+    with promotion.open("wb") as handle:
+        handle.truncate(1024 * 1024)
+    config = {
+        "source_dir": str(source),
+        "video_extensions": [".mkv", ".mp4"],
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "recycle_dir": str(recycle),
+            "unit_settle_seconds": 0,
+        },
+    }
+    conn = init_db(str(tmp_path / "app.db"))
+    unit = register_source_unit(
+        conn, str(source), str(video), config=config
+    )
+    by_name = {item["relative_path"]: item for item in unit.snapshot}
+    task = create_task(conn, str(video), video.name, source_unit_id=unit.unit_id)
+    update_task(conn, task["task_id"], status="SUCCESS", stage="DONE", import_success=1)
+
+    result = SourceUnitCoordinator(conn, config).try_recycle(unit.unit_id)
+
+    assert by_name[promotion.name]["media_candidate"]["disposition"] == "ignore_promotion"
+    assert result.state == "RECYCLED"
+    assert not movie.exists()
+
+
+# Requirement: REQ-20260902-172713
+def test_pending_legacy_unit_repairs_candidate_evidence_and_updates_task_result(
+    tmp_path: Path,
+):
+    source = tmp_path / "source"
+    recycle = tmp_path / "recycle"
+    movie = source / "Babel.2006"
+    movie.mkdir(parents=True)
+    recycle.mkdir()
+    video = movie / "Babel.2006.mkv"
+    promotion = movie / "【更多高清电影请访问 www.HDBTHD.com】.mp4"
+    with video.open("wb") as handle:
+        handle.truncate(600 * 1024 * 1024)
+    promotion.write_bytes(b"promotion")
+    config = {
+        "source_dir": str(source),
+        "video_extensions": [".mkv", ".mp4"],
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "recycle_dir": str(recycle),
+            "unit_settle_seconds": 0,
+        },
+    }
+    conn = init_db(str(tmp_path / "app.db"))
+    legacy_unit = register_source_unit(conn, str(source), str(video))
+    assert not any("media_candidate" in item for item in legacy_unit.snapshot)
+    task = create_task(
+        conn,
+        str(video),
+        video.name,
+        source_unit_id=legacy_unit.unit_id,
+    )
+    update_task(
+        conn,
+        task["task_id"],
+        status="SUCCESS",
+        stage="DONE",
+        import_success=1,
+    )
+    update_source_unit(
+        conn,
+        legacy_unit.unit_id,
+        state="WAITING",
+        cleanup_status="WAITING",
+    )
+
+    results = SourceUnitCoordinator(conn, config).retry_pending()
+    refreshed_task = conn.execute(
+        "SELECT source_cleanup_status, source_disposition, "
+        "source_disposition_message FROM tasks WHERE task_id=?",
+        (task["task_id"],),
+    ).fetchone()
+
+    assert [result.state for result in results] == ["RECYCLED"]
+    assert not movie.exists()
+    assert tuple(refreshed_task) == (
+        "RECYCLED",
+        "recycled",
+        results[0].message,
+    )
+
+
+# Requirement: REQ-20260901-010051
+def test_last_running_task_can_finish_source_cleanup_before_terminal_success(tmp_path: Path):
+    source = tmp_path / "source"
+    recycle = tmp_path / "recycle"
+    movie = source / "Movie"
+    movie.mkdir(parents=True)
+    recycle.mkdir()
+    video = movie / "movie.mkv"
+    video.write_bytes(b"video")
+    conn = init_db(str(tmp_path / "app.db"))
+    unit = register_source_unit(conn, str(source), str(video))
+    task = create_task(conn, str(video), video.name, source_unit_id=unit.unit_id)
+    update_task(
+        conn,
+        task["task_id"],
+        status="PENDING",
+        stage="RUNNING",
+        import_success=1,
+    )
+
+    events = []
+    result = SourceUnitCoordinator(conn, {
+        "source_dir": str(source),
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "recycle_dir": str(recycle),
+            "unit_settle_seconds": 0,
+        },
+    }).try_recycle(
+        unit.unit_id,
+        completing_task_id=task["task_id"],
+        phase_callback=lambda phase, completed, total: events.append(
+            (phase, completed, total)
+        ),
+    )
+
+    assert result.state == "RECYCLED"
+    assert not movie.exists()
+    assert events[-1] == ("publish", 1, 1)
+
+
 def test_changed_snapshot_blocks_recycle(tmp_path: Path):
     source = tmp_path / "source"
     recycle = tmp_path / "recycle"
@@ -142,7 +285,6 @@ def test_loose_root_partial_failure_can_resume_without_touching_source_root(
         update_task(conn, task["task_id"], status="SUCCESS", stage="DONE", import_success=1)
     config = {
         "source_dir": str(source),
-        "temp_dir": str(tmp_path / "temp"),
         "library_root": str(tmp_path / "library"),
         "video_extensions": [".mkv"],
         "source_policy": {"mode": "recycle_source_unit", "recycle_dir": str(recycle), "unit_settle_seconds": 0},

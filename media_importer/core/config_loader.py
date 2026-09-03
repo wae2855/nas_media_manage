@@ -27,6 +27,31 @@ def copy_config_template(target_path: str):
 
 # ADR-0010 退役的配置块：视图层剥离（mask_sensitive），不参与校验与前端展示
 RETIRED_CONFIG_SECTIONS = ("ai_assist", "ai_search", "ai_scene_strategy", "confidence")
+SENSITIVE_CONFIG_KEYS = frozenset({
+    "api_key", "secret", "access_token", "refresh_token", "auth_token", "password",
+})
+
+
+def _mask_nested_sensitive_fields(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized = str(key).lower()
+            is_sensitive = (
+                normalized in SENSITIVE_CONFIG_KEYS
+                or normalized.endswith(("_key", "_secret", "_token", "_password"))
+            )
+            if (
+                is_sensitive
+                and isinstance(nested, str)
+                and nested
+                and "***" not in nested
+            ):
+                value[key] = "***"
+            else:
+                _mask_nested_sensitive_fields(nested)
+    elif isinstance(value, list):
+        for item in value:
+            _mask_nested_sensitive_fields(item)
 
 
 def validate_config(config: dict) -> list:
@@ -40,7 +65,7 @@ def validate_config(config: dict) -> list:
         if not llm_cfg.get("model"):
             errors.append("llm 已配置 API Key，但缺少模型ID（model）")
 
-    for dir_key in ["source_dir", "temp_dir", "log_dir"]:
+    for dir_key in ["source_dir", "log_dir"]:
         dir_path = config.get(dir_key, "")
         if not dir_path:
             errors.append(f"{dir_key} 未配置")
@@ -79,9 +104,15 @@ def mask_sensitive(config: dict) -> dict:
         if provider.get("api_key"):
             provider["api_key"] = "***"
 
+    # 兼容遗留 YAML 中的嵌套 webhook/扩展凭据。白名单字段名避免把
+    # max_tokens 等普通数值误当成密钥，同时确保未知扩展不能明文出现在前端。
+    _mask_nested_sensitive_fields(masked)
+
     # ADR-0010 退役配置块不出现在前端载荷（底层 config 不动，仅视图剥离）
     for retired in RETIRED_CONFIG_SECTIONS:
         masked.pop(retired, None)
+    # ADR-0022: 中心中转已经从产品合同移除，旧键不再向任何调用方暴露。
+    masked.pop("temp_dir", None)
 
     return masked
 
@@ -148,7 +179,8 @@ def load_config(config_path: Optional[str] = None) -> dict:
     config_dir = os.path.dirname(os.path.abspath(config_path))
     project_root = os.path.dirname(config_dir)
 
-    for key in ["source_dir", "temp_dir", "log_dir"]:
+    config.pop("temp_dir", None)
+    for key in ["source_dir", "log_dir"]:
         path_val = config.get(key, "")
         if path_val and not os.path.isabs(path_val):
             config[key] = os.path.join(project_root, path_val)
@@ -163,6 +195,7 @@ def load_config(config_path: Optional[str] = None) -> dict:
         else "preserve_media" if (config.get("source_cleaner") or {}).get("enabled") is True
         else "preserve_all",
     )
+    source_policy.setdefault("disposal_mode", "local_recycle")
     source_policy.setdefault("recycle_retention_days", 30)
     source_policy.setdefault("scan_recursive", True)
     source_policy.setdefault("scan_max_depth", 5)
@@ -189,6 +222,18 @@ def load_config(config_path: Optional[str] = None) -> dict:
     source_cleaner.setdefault("blacklist_patterns", ["RARBG*", "*/Sample/*", "*/sample/*"])
     source_cleaner.setdefault("cleanup_empty_dirs", True)
 
+    if "media_candidate_filter" not in config:
+        config["media_candidate_filter"] = {}
+    candidate_filter = config["media_candidate_filter"]
+    candidate_filter.setdefault("enabled", True)
+    candidate_filter.setdefault(
+        "small_video_max_mb",
+        source_cleaner.get("junk_video_max_size_mb", 50),
+    )
+    candidate_filter.setdefault("main_video_min_mb", 500)
+    candidate_filter.setdefault("max_size_ratio", 0.02)
+    candidate_filter.setdefault("extra_name_patterns", [])
+
     env_data_dir = os.environ.get("NAS_MEDIA_IMPORTER_DATA_DIR")
     if env_data_dir:
         data_dir = env_data_dir
@@ -208,9 +253,13 @@ def load_config(config_path: Optional[str] = None) -> dict:
     if "manual_review" not in config:
         config["manual_review"] = {"enabled": False}
 
+    watcher = config.setdefault("file_watcher", {})
+    watcher.setdefault("enabled", False)
+    watcher.setdefault("poll_interval", 300)
+
     config.setdefault("fallback_dir", "")
 
-    # 旧版绝对路径规则只在能证明同属一个片库根目录时自动归一化。
+    # 只规范化已显式选择片库的规则；缺少选择时保留为待配置状态。
     try:
         from media_importer.features.configuration.library_paths import canonicalize_library_config
         config = canonicalize_library_config(config)

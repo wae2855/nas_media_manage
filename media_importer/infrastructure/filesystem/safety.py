@@ -2,11 +2,13 @@
 import errno
 import hashlib
 import os
+import secrets
 import stat
 import tempfile
-from typing import Optional
+from typing import Callable, Optional
 
 _COPY_CHUNK_SIZE = 1024 * 1024
+TransferPhaseCallback = Callable[[str, int, int], None]
 
 
 def validate_path_safety(path: str, allowed_base_dirs: Optional[list] = None) -> tuple:
@@ -46,34 +48,69 @@ def _open_regular_nofollow(path: str, flags: int, mode: int = 0o600) -> int:
     return descriptor
 
 
-def hash_file(path: str) -> str:
+def hash_file(
+    path: str,
+    *,
+    phase: str = "",
+    phase_callback: Optional[TransferPhaseCallback] = None,
+) -> str:
     digest = hashlib.sha256()
     descriptor = _open_regular_nofollow(path, os.O_RDONLY)
     with os.fdopen(descriptor, "rb") as handle:
+        total_bytes = os.fstat(handle.fileno()).st_size
+        checked = 0
+        if phase and phase_callback:
+            phase_callback(phase, checked, total_bytes)
         while chunk := handle.read(_COPY_CHUNK_SIZE):
             digest.update(chunk)
+            checked += len(chunk)
+            if phase and phase_callback:
+                phase_callback(phase, checked, total_bytes)
     return digest.hexdigest()
 
 
-def _prefix_matches(source, partial, length: int) -> bool:
+def _prefix_matches(
+    source,
+    partial,
+    length: int,
+    phase_callback: Optional[TransferPhaseCallback] = None,
+) -> bool:
     if length <= 0:
         return True
     source.seek(0)
     partial.seek(0)
     remaining = length
+    checked = 0
+    if phase_callback:
+        phase_callback("resume_check", checked, length)
     while remaining:
         chunk_size = min(_COPY_CHUNK_SIZE, remaining)
         if source.read(chunk_size) != partial.read(chunk_size):
             return False
         remaining -= chunk_size
+        checked += chunk_size
+        if phase_callback:
+            phase_callback("resume_check", checked, length)
     return True
 
 
-def _hash_open_file(handle) -> str:
+def _hash_open_file(
+    handle,
+    *,
+    phase: str,
+    total_bytes: int,
+    phase_callback: Optional[TransferPhaseCallback] = None,
+) -> str:
     digest = hashlib.sha256()
     handle.seek(0)
+    checked = 0
+    if phase_callback:
+        phase_callback(phase, checked, total_bytes)
     while chunk := handle.read(_COPY_CHUNK_SIZE):
         digest.update(chunk)
+        checked += len(chunk)
+        if phase_callback:
+            phase_callback(phase, checked, total_bytes)
     return digest.hexdigest()
 
 
@@ -122,8 +159,16 @@ def _publish_file_noreplace(
     _fsync_parent(dest)
 
 
-def verified_copy(src: str, dest: str, *, remove_source: bool = False,
-                  progress_callback=None) -> tuple:
+def verified_copy(
+    src: str,
+    dest: str,
+    *,
+    remove_source: bool = False,
+    expected_sha256: str = "",
+    progress_callback=None,
+    phase_callback: Optional[TransferPhaseCallback] = None,
+    digest_callback=None,
+) -> tuple:
     """可续传、校验后发布的复制。
 
     中断只会留下 ``.copying``；源文件仅在目标完成 SHA-256 校验并原子
@@ -176,23 +221,42 @@ def verified_copy(src: str, dest: str, *, remove_source: bool = False,
 
         with os.fdopen(source_fd, "rb") as source, os.fdopen(partial_fd, "r+b") as target:
             copied = os.fstat(target.fileno()).st_size
-            if copied > source_snapshot[0] or not _prefix_matches(source, target, copied):
+            if copied > source_snapshot[0] or not _prefix_matches(
+                source,
+                target,
+                copied,
+                phase_callback,
+            ):
                 target.seek(0)
                 target.truncate(0)
                 copied = 0
             source.seek(copied)
             target.seek(copied)
+            if phase_callback:
+                phase_callback("transfer", copied, source_snapshot[0])
             while chunk := source.read(_COPY_CHUNK_SIZE):
                 target.write(chunk)
                 copied += len(chunk)
                 if progress_callback:
                     progress_callback(copied, source_snapshot[0])
+                if phase_callback:
+                    phase_callback("transfer", copied, source_snapshot[0])
             target.flush()
             os.fsync(target.fileno())
             partial_snapshot = _descriptor_snapshot(target.fileno())
             source_after_copy = _descriptor_snapshot(source.fileno())
-            source_digest = _hash_open_file(source)
-            partial_digest = _hash_open_file(target)
+            source_digest = _hash_open_file(
+                source,
+                phase="verify_source",
+                total_bytes=source_snapshot[0],
+                phase_callback=phase_callback,
+            )
+            partial_digest = _hash_open_file(
+                target,
+                phase="verify_target",
+                total_bytes=partial_snapshot[0],
+                phase_callback=phase_callback,
+            )
             source_after_hash = _descriptor_snapshot(source.fileno())
 
         if source_after_copy != source_snapshot:
@@ -201,11 +265,19 @@ def verified_copy(src: str, dest: str, *, remove_source: bool = False,
             return False, "目标临时文件大小校验失败"
         if source_digest != partial_digest:
             return False, "目标临时文件 SHA-256 校验失败"
+        if expected_sha256 and source_digest != expected_sha256:
+            return False, "源文件内容与任务发现时不一致，已停止复制并等待人工确认"
         if source_after_hash != source_snapshot:
             return False, "完整性校验期间源文件发生变化，保留源文件并等待重试"
+        if digest_callback:
+            digest_callback(source_digest)
 
         try:
+            if phase_callback:
+                phase_callback("publish", 0, 1)
             _publish_file_noreplace(partial, dest, expected_snapshot=partial_snapshot)
+            if phase_callback:
+                phase_callback("publish", 1, 1)
         except FileExistsError:
             return False, f"目标文件在复制期间出现，已保留双方文件并停止发布: {dest}"
         except OSError as exc:
@@ -275,7 +347,14 @@ def safe_delete(path: str, allowed_base_dirs: Optional[list] = None) -> tuple:
         return False, f"删除失败: {exc}"
 
 
-def safe_move(src: str, dest: str, allowed_base_dirs: Optional[list] = None) -> tuple:
+def safe_move(
+    src: str,
+    dest: str,
+    allowed_base_dirs: Optional[list] = None,
+    *,
+    progress_callback=None,
+    phase_callback: Optional[TransferPhaseCallback] = None,
+) -> tuple:
     ok, msg = validate_path_safety(src, allowed_base_dirs)
     if not ok:
         return False, f"源路径安全检查失败: {msg}"
@@ -296,14 +375,61 @@ def safe_move(src: str, dest: str, allowed_base_dirs: Optional[list] = None) -> 
 
     try:
         source_snapshot = _file_snapshot(src)
+        if phase_callback:
+            phase_callback("publish", 0, 1)
         _publish_file_noreplace(src, dest, expected_snapshot=source_snapshot)
+        if phase_callback:
+            phase_callback("publish", 1, 1)
         return True, f"已移动: {os.path.basename(src)} -> {dest}"
     except FileExistsError:
         return False, f"目标文件在移动期间出现，已保留双方文件: {dest}"
     except OSError as exc:
         if exc.errno == errno.EXDEV:
-            return verified_copy(src, dest, remove_source=True)
+            return verified_copy(
+                src,
+                dest,
+                remove_source=True,
+                progress_callback=progress_callback,
+                phase_callback=phase_callback,
+            )
         return False, f"无法安全移动文件，源文件已保留: {exc}"
+
+
+def _close_descriptor_safely(descriptor: int) -> None:
+    if descriptor < 0:
+        return
+    try:
+        os.close(descriptor)
+    except OSError:
+        # 部分 FUSE 实现可能已经关闭描述符，却仍从 close 返回 EBADF。
+        # 权限探针不能因此终止 watcher；实际结果由令牌复读决定。
+        pass
+
+
+def _remove_owned_write_probe(path: str, token: bytes) -> bool:
+    """只删除仍是本轮随机令牌文件的写权限探针。"""
+    descriptor = -1
+    try:
+        descriptor = _open_regular_nofollow(path, os.O_RDONLY)
+        opened_stat = os.fstat(descriptor)
+        if opened_stat.st_nlink != 1:
+            return False
+        payload = os.read(descriptor, len(token) + 1)
+        current_stat = os.lstat(path)
+        if (
+            payload != token
+            or not stat.S_ISREG(current_stat.st_mode)
+            or current_stat.st_nlink != 1
+            or (current_stat.st_dev, current_stat.st_ino)
+            != (opened_stat.st_dev, opened_stat.st_ino)
+        ):
+            return False
+        os.unlink(path)
+        return True
+    except OSError:
+        return False
+    finally:
+        _close_descriptor_safely(descriptor)
 
 
 def check_write_permission(directory: str) -> tuple:
@@ -317,38 +443,29 @@ def check_write_permission(directory: str) -> tuple:
 
     descriptor = -1
     test_file = ""
-    created_snapshot = None
+    token = secrets.token_bytes(32)
     try:
         descriptor, test_file = tempfile.mkstemp(prefix=".write_test_", dir=directory)
         created_stat = os.fstat(descriptor)
-        created_snapshot = (created_stat.st_dev, created_stat.st_ino)
-        os.write(descriptor, b"test")
+        if not stat.S_ISREG(created_stat.st_mode) or created_stat.st_nlink != 1:
+            return False, f"写入探针身份无效，拒绝继续: {directory}"
+        os.write(descriptor, token)
         os.fsync(descriptor)
-        os.close(descriptor)
+        closing_descriptor = descriptor
         descriptor = -1
-        current_stat = os.lstat(test_file)
-        if (
-            not stat.S_ISREG(current_stat.st_mode)
-            or current_stat.st_nlink != 1
-            or (current_stat.st_dev, current_stat.st_ino) != created_snapshot
-        ):
+        _close_descriptor_safely(closing_descriptor)
+        if not _remove_owned_write_probe(test_file, token):
             return False, f"写入探针在检查期间发生变化，拒绝继续: {directory}"
-        os.unlink(test_file)
+        test_file = ""
         return True, ""
     except PermissionError:
         return False, f"目录无写入权限: {directory}"
     except OSError as exc:
         return False, f"写入测试失败: {exc}"
     finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-        if test_file and created_snapshot:
-            try:
-                current_stat = os.lstat(test_file)
-                if (current_stat.st_dev, current_stat.st_ino) == created_snapshot:
-                    os.unlink(test_file)
-            except OSError:
-                pass
+        _close_descriptor_safely(descriptor)
+        if test_file:
+            _remove_owned_write_probe(test_file, token)
 
 
 def check_read_permission(path: str) -> tuple:

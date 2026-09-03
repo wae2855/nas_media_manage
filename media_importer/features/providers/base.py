@@ -54,6 +54,7 @@ class DimensionMapping:
     value: Any
     source_reliability: float
     source: str
+    evidence: dict | None = None
 
 
 class MetadataProvider(ABC):
@@ -83,9 +84,21 @@ class MetadataProvider(ABC):
     def map_dimensions(self, dim_configs: list, details: MediaDetails) -> List[DimensionMapping]:
         pass
 
+    def get_alternative_titles(self, item_id: str, media_type: str) -> List[str]:
+        """Return Provider-authoritative aliases when supported.
+
+        Matching treats an empty result or adapter failure as no evidence.  The
+        default keeps third-party Providers source-compatible.
+        """
+        return []
+
     @classmethod
     def get_config_schema(cls) -> dict:
         return {"fields": []}
+
+    @classmethod
+    def get_dimension_capabilities(cls) -> dict:
+        return {"display_name": cls.display_name or cls.provider_type, "fields": []}
 
     @classmethod
     def get_context_template(cls) -> str:

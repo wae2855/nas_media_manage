@@ -62,6 +62,6 @@ def list_pending_source_unit_ids(conn: sqlite3.Connection) -> list[str]:
     with _sqlite_conn_lock:
         rows = conn.execute(
             "SELECT unit_id FROM source_units "
-            "WHERE state IN ('WAITING', 'BLOCKED', 'RECYCLING')"
+            "WHERE state IN ('WAITING', 'BLOCKED', 'RECYCLING', 'DELETING')"
         ).fetchall()
     return [str(row[0]) for row in rows]

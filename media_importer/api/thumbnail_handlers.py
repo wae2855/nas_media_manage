@@ -1,6 +1,7 @@
 import mimetypes
 import os
 import stat
+from functools import lru_cache
 from urllib.parse import quote, unquote
 
 from media_importer.features.configuration import configured_library_roots
@@ -49,25 +50,37 @@ def _get_thumbnail_dir() -> str:
     if not config:
         return ""
 
-    # 优先在 resource_dir 下查找
     resource_dir = config.get("resource_dir", "")
-    thumb_dir = _find_thumbnail_dir_in(resource_dir)
-    if thumb_dir and not _thumbnail_root_overlaps_library(thumb_dir, config):
-        return thumb_dir
-
-    # 如果找不到，再在 source_dir 下查找
     source_dir = config.get("source_dir", "")
-    thumb_dir = _find_thumbnail_dir_in(source_dir)
-    if thumb_dir and not _thumbnail_root_overlaps_library(thumb_dir, config):
-        return thumb_dir
+    roots = tuple(configured_library_roots(config))
+    return _resolve_thumbnail_dir(resource_dir, source_dir, roots)
 
+
+@lru_cache(maxsize=32)
+def _resolve_thumbnail_dir(
+    resource_dir: str,
+    source_dir: str,
+    library_roots: tuple[str, ...],
+) -> str:
+    """Resolve once per config path set; dashboard polling reuses the result."""
+    for parent_dir in (resource_dir, source_dir):
+        thumb_dir = _find_thumbnail_dir_in(parent_dir)
+        if thumb_dir and not _thumbnail_root_overlaps_library(
+            thumb_dir, library_roots,
+        ):
+            return thumb_dir
     return ""
 
 
-def _thumbnail_root_overlaps_library(thumb_dir: str, config: dict) -> bool:
+def _thumbnail_root_overlaps_library(
+    thumb_dir: str,
+    library_roots: tuple[str, ...],
+) -> bool:
     real_thumb = os.path.realpath(thumb_dir)
-    for root in configured_library_roots(config):
-        real_library = os.path.realpath(root)
+    for root in library_roots:
+        # library_roots are canonicalized when configuration is saved.  Avoid
+        # resolving every mounted target again during each dashboard refresh.
+        real_library = os.path.normpath(os.path.abspath(root))
         try:
             if os.path.commonpath((real_thumb, real_library)) in {real_thumb, real_library}:
                 return True

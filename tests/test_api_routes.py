@@ -55,6 +55,10 @@ class TestAPIRoutes(unittest.TestCase):
             {"task_id": "abc123"},
         )
         self.assert_route(
+            "POST", "/api/tasks/abc123/dispose", "_task_dispose",
+            {"task_id": "abc123"},
+        )
+        self.assert_route(
             "POST", "/api/tasks/abc123/retry", "_retry_task",
             {"task_id": "abc123"},
         )
@@ -71,6 +75,14 @@ class TestAPIRoutes(unittest.TestCase):
             {"task_id": "abc123"},
         )
         self.assert_route(
+            "POST", "/api/tasks/abc123/scrape-apply", "_task_scrape_apply",
+            {"task_id": "abc123"},
+        )
+        self.assert_route(
+            "POST", "/api/tasks/abc123/reorganize", "_task_reorganize",
+            {"task_id": "abc123"},
+        )
+        self.assert_route(
             "DELETE", "/api/tasks/abc123", "_delete_task",
             {"task_id": "abc123"},
         )
@@ -83,6 +95,10 @@ class TestAPIRoutes(unittest.TestCase):
         self.assert_route(
             "POST", "/api/providers/tmdb/search", "_provider_search",
             {"provider_type": "tmdb"},
+        )
+        self.assert_route(
+            "GET", "/api/providers/tmdb/dimension-capabilities",
+            "_provider_dimension_capabilities", {"provider_type": "tmdb"},
         )
 
     def test_dimension_routes(self):
@@ -97,6 +113,21 @@ class TestAPIRoutes(unittest.TestCase):
         self.assert_route(
             "POST", "/api/dimensions/media_type/enable", "_dimension_enable",
             {"dim_name": "media_type"},
+        )
+        self.assert_route(
+            "GET", "/api/dimensions/restricted_level/mappings/tmdb",
+            "_dimension_mapping_get",
+            {"dim_name": "restricted_level", "provider_type": "tmdb"},
+        )
+        self.assert_route(
+            "PUT", "/api/dimensions/restricted_level/mappings/tmdb",
+            "_dimension_mapping_update",
+            {"dim_name": "restricted_level", "provider_type": "tmdb"},
+        )
+        self.assert_route(
+            "POST", "/api/dimensions/restricted_level/mappings/tmdb/preview",
+            "_dimension_mapping_preview",
+            {"dim_name": "restricted_level", "provider_type": "tmdb"},
         )
 
     def test_unknown_route_returns_none(self):

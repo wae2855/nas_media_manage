@@ -47,6 +47,8 @@ function buildMatchPathData(task) {
       concerns: concerns,
       trace: traceSteps,
       candidates: matchTrace.candidates || [],
+      identity_evidence:
+        matchTrace.identity_evidence || scrapeTrace.identity_evidence || {},
     },
     scrape_result: {
       ...scrapeResult,

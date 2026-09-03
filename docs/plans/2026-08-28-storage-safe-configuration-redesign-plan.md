@@ -14,6 +14,8 @@ requirement: REQ-20260828-151346
 - **ADR**: [0011](../decisions/0011-fnos-install-runtime-config-ownership.md)、[0012](../decisions/0012-storage-role-topology.md)、[0013](../decisions/0013-verified-transfer-recovery.md)
 - **Status**: in_progress
 
+> 2026-09-02 修订：ADR-0022 已取消中心中转配置、旧任务断点和双复制链路。本文中对应任务及图示只作为历史实施背景，现行实现和验收以 ADR-0022 为准。
+
 在保持 cinema 胶卷视觉语言的前提下，先补齐文件安全、存储能力和配置事务，再把首次配置收敛为异常驱动流程。
 
 ## 问题陈述

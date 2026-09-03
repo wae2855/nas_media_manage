@@ -23,7 +23,6 @@ from .application_service import (
     build_watcher_status_payload,
     config_revision,
 )
-from .directory_changes import validate_temp_directory_change
 from .fnos_directory_access import (
     authorized_root_for_path,
     build_fnos_directory_capability,
@@ -37,7 +36,15 @@ from .runtime_service import (
     restart_watcher,
 )
 from .startup_readiness import inspect_startup_readiness
-from .storage_readiness import inspect_mount, inspect_storage_readiness
+from .storage_readiness import (
+    automatic_blocking_reasons,
+    configured_target_for_path,
+    inspect_mount,
+    inspect_processing_support_readiness,
+    inspect_selected_target_readiness,
+    inspect_source_scan_readiness,
+    inspect_storage_readiness,
+)
 from .storage_topology import (
     canonical_path,
     configured_library_roots,
@@ -61,7 +68,12 @@ __all__ = [
     "apply_runtime_config",
     "build_notifier",
     "inspect_mount",
+    "inspect_processing_support_readiness",
+    "inspect_selected_target_readiness",
+    "inspect_source_scan_readiness",
     "inspect_storage_readiness",
+    "automatic_blocking_reasons",
+    "configured_target_for_path",
     "canonical_path",
     "configured_library_roots",
     "path_in_library",
@@ -69,7 +81,6 @@ __all__ = [
     "paths_overlap",
     "topology_error_messages",
     "validate_directory_topology",
-    "validate_temp_directory_change",
     "authorized_root_for_path",
     "build_fnos_directory_capability",
     "is_path_authorized",

@@ -10,6 +10,7 @@ from media_importer.features.configuration.fnos_directory_access import (
     FnosOpenAPIError,
     authorized_root_for_path,
     get_shared_accessible_folders,
+    is_fnos_app_managed_path,
     is_fnos_runtime,
     validate_fnos_directory_paths,
 )
@@ -84,6 +85,19 @@ def test_authorized_root_uses_path_boundary_and_accepts_children():
     assert authorized_root_for_path("relative/path", folders) == ""
 
 
+def test_app_managed_path_is_narrowly_limited_to_this_package(monkeypatch, tmp_path):
+    package_var = tmp_path / "package-var"
+    package_var.mkdir()
+    monkeypatch.setenv("TRIM_PKGVAR", str(package_var))
+
+    assert is_fnos_app_managed_path(str(package_var / "logs"))
+    assert not is_fnos_app_managed_path("/vol12/@appdata/nas-media-importer/resources")
+    monkeypatch.delenv("TRIM_PKGVAR")
+    assert is_fnos_app_managed_path("/vol12/@appdata/nas-media-importer/resources")
+    assert not is_fnos_app_managed_path("/vol12/@appdata/another-app/resources")
+    assert not is_fnos_app_managed_path("/vol12/media")
+
+
 def test_fnos_role_validation_rejects_configured_paths_outside_acl_roots():
     config = {
         "source_dir": "/vol1/downloads",
@@ -114,7 +128,6 @@ def test_non_fnos_runtime_keeps_manual_path_fallback():
 
 def test_fnos_role_validation_covers_user_selected_system_directories():
     config = {
-        "temp_dir": "/vol1/temp",
         "log_dir": "/vol1/logs",
         "resource_dir": "/vol2/resources",
     }
@@ -125,8 +138,20 @@ def test_fnos_role_validation_covers_user_selected_system_directories():
     }
 
     errors = validate_fnos_directory_paths(
-        config, {"temp", "log", "resource"}, capability,
+        config, {"log", "resource"}, capability,
     )
 
     assert len(errors) == 1
     assert "海报与缓存目录" in errors[0]
+
+
+def test_fnos_role_validation_does_not_send_private_appdata_to_shared_picker():
+    config = {
+        "log_dir": "/vol3/@appdata/nas-media-importer/logs",
+        "resource_dir": "/vol3/@appdata/nas-media-importer/resources",
+    }
+    capability = {"enforced": True, "available": True, "folders": []}
+
+    assert validate_fnos_directory_paths(
+        config, {"log", "resource"}, capability,
+    ) == []

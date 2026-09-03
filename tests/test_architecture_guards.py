@@ -76,7 +76,7 @@ def test_filesystem_safety_lives_in_infrastructure():
     source_paths = [
         ROOT / "media_importer" / "features" / "import_flow" / "run_file_service.py",
         ROOT / "media_importer" / "features" / "import_flow" / "services" / "file_operations.py",
-        ROOT / "media_importer" / "infrastructure" / "filesystem" / "file_copier.py",
+        ROOT / "media_importer" / "infrastructure" / "filesystem" / "safety.py",
         ROOT / "media_importer" / "api" / "connectivity_handlers.py",
     ]
     for path in source_paths:

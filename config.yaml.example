@@ -10,7 +10,7 @@
 # ------------------------------------------------------------
 file_watcher:
   enabled: true                   # 是否启用文件监控（轮询扫描源目录）
-  poll_interval: 60               # 轮询间隔（秒）；界面预设30/60/120/300/600，合法范围10-3600
+  poll_interval: 300              # 轮询间隔（秒），默认5分钟；界面预设30/60/120/300/600，合法范围10-3600
   stability_window_seconds: 120   # 文件大小和修改时间保持不变后再处理（高级项：30-1800秒）
   ignore_patterns:                # 监控忽略的文件名模式
     - "*.tmp"
@@ -29,8 +29,6 @@ server:
 # [必须] 影视文件来源目录
 # 注意：如果源目录是飞牛挂载的网盘目录，文件刷新时间可能较久，建议改用Alist网盘来实现短时刷新
 source_dir: "/vol1/网盘下载"
-# [必须] 处理过程中的中转目录
-temp_dir: "/vol1/tmp/media_import"
 # [必须] 日志目录
 log_dir: "/vol1/logs/media_import"
 # [可选] 海报与缩略图缓存目录；fnOS 安装包会使用应用私有目录
@@ -38,10 +36,11 @@ resource_dir: "/vol1/cache/media_import"
 
 source_policy:
   mode: "preserve_all"             # preserve_all / preserve_media / recycle_source_unit
+  disposal_mode: "local_recycle"   # local_recycle（默认可恢复）/ permanent_delete（来源专用且不可恢复）
   cleanup_source_after_done: false  # 旧版兼容投影；新逻辑以 mode 为准
   recycle_dir: "/vol1/@appdata/nas-media-importer/data/recycle"
                                   # 回收站路径，重复文件和失败超限文件将被移入此目录
-                                  # ⚠️ 不能与源目录或中转目录相同
+                                  # ⚠️ 不能与来源目录或任何目标片库相同或互相包含
   max_auto_retries: 3             # 同一文件失败超过此次数后移入回收站
   scan_recursive: true            # 是否递归扫描源目录子目录
   scan_max_depth: 5               # 源目录递归扫描最大深度
@@ -52,6 +51,15 @@ source_policy:
     - "*.aria2"
     - "*.!qB"
     - "*.crdownload"
+
+# [推荐保持默认] 扫描阶段识别明显广告与附带小视频，避免生成无意义任务。
+# 系统采用保守策略：没有足够证据时仍会保留并进入正常识别流程。
+media_candidate_filter:
+  enabled: true
+  small_video_max_mb: 50       # 小视频体积上限；不能单独作为忽略依据
+  main_video_min_mb: 500       # 同一下载单元中用于确认主视频的最低体积
+  max_size_ratio: 0.02         # 小视频不超过主视频 2% 时才可能被忽略
+  extra_name_patterns: []      # 可选：用户确认过的广告文件名模式，例如 "*站点宣传*"
 
 video_extensions:                 # 支持的视频格式（仅这些后缀的文件会被处理）
   - ".mkv"

@@ -25,12 +25,15 @@
 
 **终态规则**：SUCCESS/FAILED/SKIPPED/CANCELLED 的 stage 固定为 `DONE`，前端过滤时只需检查 status。
 
+运行中的细分进度不扩展 status/stage，而由 `current_step`、`step_name`、`percentage`、`bytes_copied`、`total_bytes` 表达。文件阶段使用 `import_*`、`source_cleanup_*` 区分传输、源/目标 SHA-256 校验和安全发布；非字节阶段只表示流程位置，不伪装为文件百分比。
+
+`organization_status` 是成功结果的后续整理状态，不是第二套任务终态：`FALLBACK_PENDING` 表示已成功入库到待整理区，`ORGANIZED` 表示关联新任务已按正式规则整理。两者都不得把原 `SUCCESS/DONE` 任务重新变回活动态。
+
 ## Current File Locations
 
 `file_location` 用于追踪文件当前位置，典型值：
 
 - `source`
-- `temp`
 - `import`
 - `recycle`
 
@@ -41,7 +44,6 @@
 当前已集中：
 
 - processing 开始（status=PENDING, stage=RUNNING）；
-- temp ready；
 - confirming（status=PENDING, stage=AWAIT_REVIEW）；
 - needs review（status=PENDING, stage=AWAIT_REVIEW，与 confirming 相同 stage）；
 - failed（status=FAILED, stage=DONE）；
@@ -58,37 +60,50 @@
 |------|------------|-----------|----------|------------|
 | `start_processing()` | `PENDING` | `RUNNING` | 保持原值 | runner 开始处理任务 |
 | `mark_processing_step()` | `PENDING` | `RUNNING` | 保持原值 | step 进度更新 |
-| `mark_temp_ready()` | 保持原值 | 保持原值 | `temp` | copy 完成后 |
-| `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 刮削核对或目标片库冲突进入用户确认 |
+| `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | 通常 `source` | 刮削核对或目标片库冲突进入用户确认；此时尚未传输大文件 |
 | `mark_confirmed()` | 保持原值 | 保持原值 | 保持原值 | 用户确认任务 |
-| `mark_needs_review()` | `PENDING` | `AWAIT_REVIEW` | `temp` | 匹配疑虑需要人工确认 |
+| `mark_needs_review()` | `PENDING` | `AWAIT_REVIEW` | `source` | 匹配疑虑需要人工确认；此时尚未传输大文件 |
 | `mark_failed()` | `FAILED` | `DONE` | 默认 `source` | import-flow/API 失败分支 |
 | `mark_skipped()` | `SKIPPED` | `DONE` | 默认 `source` | 用户保留片库现有文件或忽略任务 |
 | `mark_cancelled()` | `CANCELLED` | `DONE` | 默认 `source` | 用户取消排队任务 |
 | `mark_imported()` | `SUCCESS` | `DONE` | `import` | 入库成功 |
 | `reset_for_retry()` | `PENDING` | `QUEUED` | `source` | 重试失败、跳过或已取消任务 |
 
+协作式停止不新增 status：运行中先写 `cancel_requested=1` 与 `requested_source_disposition`，worker 在提交点之前的安全检查点回退任务暂存，然后以 `CANCELLED/DONE + outcome_code=USER_STOPPED` 结束。视频文件包已经提交后不再接受停止，继续完成来源收尾和成功落库。
+
+`source_disposition` 独立记录 `kept/recycled/deleted/missing/failed`。删除任务记录不修改该事实，也不产生文件操作。
+
+`mark_imported()` 只能在片库新文件安全发布、来源策略已完成或已明确记录为 `WAITING/BLOCKED/FAILED/SKIPPED` 后调用。来源处理期间任务保持 `PENDING/RUNNING`，同时保留 `import_success=1` 与 `import_video_path`；来源处理异常不得把已发布片库文件回滚、删除或重复入库。
+
 ## Orphan RUNNING Cleanup
 
 服务启动时调用 `_cleanup_orphaned_state` 清理两类异常状态：
 
-1. 旧 `PROCESSING` 或当前 `PENDING/RUNNING` 任务被识别为孤儿（服务中断/重启遗留）。只有经真实路径证明位于 `temp_dir`、不是符号链接且不属于任一片库根的普通处理副本可以直接清理，再通过 `mark_failed()` 标记为 `FAILED/DONE`：
+0. 先读取 `bundle_state/bundle_manifest/bundle_committed` 恢复中断文件包：
+
+   - 视频最终文件尚未发布：普通入库只清理本任务创建且指纹吻合的目标临时成员并保留来源；重新整理任务把成员退回原片库位置；任务标记为可从头重试的失败；
+   - 视频最终文件已发布且视频/全部字幕均与清单一致：只补齐任务和字幕成功状态，不再次写入片库，也不在重启后补做来源删除；
+   - `task_kind=REORGANIZE` 时，清单来源允许位于已配置片库：提交前中断只退回原待整理位置，提交后只修复父子任务和字幕记录，不重复移动或删除任何片库文件；
+   - 提交标记存在但成员缺失、指纹变化或路径越界：保留片库现场，标记 `RECOVERY_REQUIRED`，禁止自动删除、覆盖或反复恢复；
+   - 已正常 `SUCCESS/import_success=1` 的 `COMMITTED` 日志只用于审计，启动时直接跳过。
+
+1. 没有文件包清单的 `PENDING/RUNNING` 任务被识别为孤儿（服务中断/重启遗留）。系统不猜测已完成步骤、不扫描片库，也不触碰来源或正式片库文件，只通过 `mark_failed()` 标记为 `FAILED/DONE`：
 
    ```text
    status=FAILED
    stage=DONE
    error_message=服务中断或重启导致任务未完成，请重试
    file_location=source
-   video_path=""
+   video_path=<原始来源路径>
    current_step=0
    percentage=0
    ```
 
    任务在“失败”筛选中可见，用户可手动重试。
 
-   若任务已经记录 `import_success=1` 且 `import_video_path` 是当前片库中的现存文件，说明中断发生在文件发布后、状态完成前；启动恢复只把任务修复为 `SUCCESS/DONE/import`，绝不删除或搬动该片库文件。
+   只有持久文件包清单完整且全部正式成员路径、大小和 SHA-256 一致时，才允许修复为 `SUCCESS/DONE/import`；单独的 `import_success` 或现存路径不构成成功证据。
 
-2. `PENDING/AWAIT_REVIEW` 任务的 temp 文件被登记为活跃文件，清理时保留，避免误删等待人工确认的视频。
+2. `PENDING/AWAIT_REVIEW` 任务始终引用来源文件，尚未开始大文件传输。
 
 孤儿任务不应自动重置为 `PENDING/QUEUED`，因为自动恢复会掩盖服务中断事实，并可能在反复崩溃时形成隐性循环。
 
@@ -97,6 +112,8 @@
 任务详情模态框中文件名和分类维度的可编辑性、保存按钮的可见性、错误反馈位置都按状态严格区分，保证用户只能在合理窗口内变更任务输入、且失败原因能精准定位到对应字段：
 
 目标片库冲突是 `AWAIT_REVIEW` 的受限子状态：详情不展示普通“确认入库”，而是展示现有/待入库文件对比以及保留现有、保留两份、替换现有三个动作。替换必须二次确认；冲突任务不进入批量确认。
+
+兜底确认也是受限子状态：普通入库任务必须显式接受“放入待整理区”；重新整理任务仍匹配兜底时不展示确认按钮。已完成兜底任务只读，界面仅可创建独立关联的 `REORGANIZE` 任务。
 
 | Status / Stage | 文件名输入框可编辑 | 分类维度输入框可编辑 | "保存文件名"按钮 | "保存分类"按钮 | 错误反馈区 | 状态提示 |
 |----------------|-------------------|---------------------|-----------------|----------------|-----------|---------|

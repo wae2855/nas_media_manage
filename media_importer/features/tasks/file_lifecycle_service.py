@@ -3,9 +3,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 from media_importer.features.tasks.repository import (
-    update_subtitles_by_task as update_subtitles_by_task_record,
-)
-from media_importer.features.tasks.repository import (
     update_task as update_task_record,
 )
 
@@ -82,19 +79,7 @@ def ignore_task_for_api(task_manager, config: dict, task_id: str) -> TaskFileLif
     source_policy = config.get("source_policy", {}) if config else {}
     recycle_dir = source_policy.get("recycle_dir", "") or source_policy.get("quarantine_dir", "")
     cleanup = source_policy.get("cleanup_source_after_done") is True
-    file_location = task.get("file_location", "source")
-
-    if file_location == "temp":
-        _cleanup_temp_task_files(task, config)
-        update_subtitles_by_task_record(
-            task_manager.conn,
-            task_id,
-            status="FAILED",
-            target_path="",
-        )
-        _ignore_temp_task(task_manager, task, task_id, cleanup, recycle_dir)
-    else:
-        _ignore_non_temp_task(task_manager, task, task_id, cleanup, recycle_dir)
+    _ignore_non_temp_task(task_manager, task, task_id, cleanup, recycle_dir)
 
     return TaskFileLifecycleResult(code=200, message="任务已忽略")
 
@@ -110,8 +95,6 @@ def _is_plain_filename(filename: str) -> bool:
 def _current_file_path(task: dict, file_location: str) -> str:
     if file_location == "import":
         return task.get("import_video_path", "")
-    if file_location == "temp":
-        return task.get("video_path", "")
     return task.get("source_path", "")
 
 
@@ -120,62 +103,9 @@ def _rename_update_fields(file_location: str, new_filename: str, new_path: str) 
     if file_location == "import":
         update_fields["import_video_path"] = new_path
         update_fields["final_filename"] = new_filename
-    elif file_location == "temp":
-        update_fields["video_path"] = new_path
     elif file_location in ("source", "recycle"):
         update_fields["source_path"] = new_path
     return update_fields
-
-
-def _cleanup_temp_task_files(task: dict, config: dict):
-    temp_dir = config.get("temp_dir", "") if config else ""
-    _remove_temp_path(task.get("video_path", ""), temp_dir, config)
-    for subtitle in task.get("subtitle_files") or []:
-        _remove_temp_path(str(subtitle) if subtitle else "", temp_dir, config)
-
-
-def _remove_temp_path(path: str, temp_dir: str, config: dict):
-    from media_importer.features.configuration.storage_topology import (
-        path_in_library,
-        path_within,
-    )
-
-    if (
-        not path
-        or not temp_dir
-        or os.path.islink(path)
-        or not path_within(path, temp_dir, allow_root=False)
-        or path_in_library(config or {}, path)
-    ):
-        return
-    if not os.path.exists(path):
-        return
-    try:
-        os.remove(path)
-    except OSError:
-        pass
-def _ignore_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, recycle_dir: str):
-    source_path = task.get("source_path", "")
-    subtitle_paths = task.get("subtitle_files", [])
-    if cleanup and recycle_dir and source_path and os.path.exists(source_path):
-        moved = _move_task_files_to_recycle(
-            task_manager, task_id, source_path, subtitle_paths, recycle_dir
-        )
-        if moved:
-            update_task_record(
-                task_manager.conn,
-                task_id,
-                status="SKIPPED",
-                stage="DONE",
-                skip_reason="用户忽略",
-                file_location="recycle",
-                video_path="",
-                error_message=f"已移入回收站: {recycle_dir}",
-            )
-        else:
-            _mark_ignored_at_source(task_manager, task_id, video_path="")
-    else:
-        _mark_ignored_at_source(task_manager, task_id, video_path="")
 
 
 def _ignore_non_temp_task(task_manager, task: dict, task_id: str, cleanup: bool, recycle_dir: str):

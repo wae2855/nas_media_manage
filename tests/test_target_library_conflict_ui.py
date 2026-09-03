@@ -37,7 +37,8 @@ def test_task_detail_has_three_explicit_conflict_actions_and_no_backdrop_dismiss
     source = _read("js/cinema-task-detail-open.js")
 
     assert "片库现有文件未发生任何改动" in source
-    assert "保留片库文件" in source
+    assert "保留片库，也保留新资源" in source
+    assert "保留片库，回收新资源" in source
     assert "两个都保留" in source
     assert "替换片库文件" in source
     assert 'conflict_action: conflictAction' in source
@@ -67,10 +68,12 @@ def test_conflict_comparison_collapses_to_one_column_on_mobile():
     assert "grid-template-columns: 1fr" in css
 
 
-def test_legacy_library_copy_explains_when_and_what_is_not_touched():
+def test_storage_setup_does_not_mix_legacy_rule_migration_copy_into_directory_flow():
     loader = _read("js/cinema-directory-loader.js")
     picker = _read("js/cinema-fnos-directories.js")
 
-    assert "升级、保留数据后重装，或中途更换片库路径" in loader
-    assert "不会移动、覆盖或删除片库中的任何影片" in loader
-    assert "这里只转换规则，不会移动、覆盖或删除任何影片" in picker
+    assert "升级、保留数据后重装，或中途更换片库路径" not in loader
+    assert "旧规则待设置" not in loader
+    assert "下一步再为每条规则人工选择片库" not in picker
+    assert "暂存并继续选择" not in picker
+    assert "添加并保存" in picker

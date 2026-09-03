@@ -14,7 +14,6 @@ from media_importer.features.tasks import (
     CONFIRM_PENDING,
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     STAGE_AWAIT_REVIEW,
     STAGE_DONE,
     STAGE_QUEUED,
@@ -31,7 +30,6 @@ from media_importer.features.tasks import (
     mark_needs_review,
     mark_processing_step,
     mark_skipped,
-    mark_temp_ready,
     reset_for_retry,
     start_processing,
 )
@@ -63,7 +61,7 @@ class TestStageLifecycle(unittest.TestCase):
         self.assertEqual(fields["percentage"], 35)
 
     def test_mark_confirming_sets_stage_await_review(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
         fields = mark_confirming(task)
 
         self.assertEqual(fields["status"], STATUS_PENDING)
@@ -73,7 +71,7 @@ class TestStageLifecycle(unittest.TestCase):
         self.assertEqual(task["stage"], STAGE_AWAIT_REVIEW)
 
     def test_mark_confirming_records_reason(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
         fields = mark_confirming(task, "需要人工确认")
 
         self.assertEqual(fields["status"], STATUS_PENDING)
@@ -81,15 +79,15 @@ class TestStageLifecycle(unittest.TestCase):
         self.assertEqual(fields["error_message"], "需要人工确认")
 
     def test_mark_needs_review_same_stage_as_confirming(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "file_location": "source", "status": "PENDING", "stage": "RUNNING"}
         fields = mark_needs_review(task, "来源不可信")
 
         self.assertEqual(fields["status"], STATUS_PENDING)
         self.assertEqual(fields["stage"], STAGE_AWAIT_REVIEW)
-        self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
+        self.assertEqual(fields["file_location"], FILE_LOCATION_SOURCE)
 
     def test_mark_failed_sets_stage_done(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
         fields = mark_failed(task, "失败")
 
         self.assertEqual(fields["status"], STATUS_FAILED)
@@ -98,7 +96,7 @@ class TestStageLifecycle(unittest.TestCase):
         self.assertIn("completed_at", fields)
 
     def test_mark_skipped_sets_stage_done(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
         fields = mark_skipped(task, "重复文件")
 
         self.assertEqual(fields["status"], STATUS_SKIPPED)
@@ -122,7 +120,8 @@ class TestStageLifecycle(unittest.TestCase):
             "stage": "DONE",
             "retry_count": 2,
             "error_message": "失败",
-            "video_path": "/temp/movie.mkv",
+            "source_path": "/source/movie.mkv",
+            "video_path": "/source/movie.mkv",
         }
         fields = reset_for_retry(task)
 
@@ -130,20 +129,6 @@ class TestStageLifecycle(unittest.TestCase):
         self.assertEqual(fields["stage"], STAGE_QUEUED)
         self.assertEqual(fields["retry_count"], 3)
         self.assertEqual(fields["error_message"], "")
-
-    def test_mark_temp_ready_does_not_change_stage(self):
-        task = {
-            "source_path": "/source/movie.mkv",
-            "video_path": "/temp/movie.mkv",
-            "status": "PENDING",
-            "stage": STAGE_RUNNING,
-        }
-        fields = mark_temp_ready(task)
-
-        self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
-        self.assertNotIn("status", fields)
-        self.assertNotIn("stage", fields)
-        self.assertEqual(task["stage"], STAGE_RUNNING)
 
     def test_terminal_statuses_have_stage_done(self):
         for st in (STATUS_SUCCESS, STATUS_FAILED, STATUS_SKIPPED, STATUS_CANCELLED):
@@ -161,22 +146,19 @@ class TestStageLifecycle(unittest.TestCase):
             ("processing_step", {"status": "PENDING", "stage": "RUNNING"},
              lambda t: mark_processing_step(t, current_step=1, step_name="scrape", percentage=50),
              {"status": STATUS_PENDING, "stage": STAGE_RUNNING}, []),
-            ("temp_ready", {"video_path": "/temp/m.mkv", "status": "PENDING", "stage": "RUNNING"},
-             mark_temp_ready,
-             {"file_location": FILE_LOCATION_TEMP}, []),
-            ("confirming", {"video_path": "/temp/m.mkv", "status": "PENDING", "stage": "RUNNING"},
+            ("confirming", {"video_path": "/source/m.mkv", "file_location": "source", "status": "PENDING", "stage": "RUNNING"},
              lambda t: mark_confirming(t),
              {"status": STATUS_PENDING, "stage": STAGE_AWAIT_REVIEW}, []),
             ("confirmed", {"status": "PENDING", "stage": "AWAIT_REVIEW"},
              lambda t: mark_confirmed(t, confirmed_at="now"),
              {"confirm_status": CONFIRM_CONFIRMED}, []),
-            ("needs_review", {"video_path": "/temp/m.mkv", "status": "PENDING", "stage": "RUNNING"},
+            ("needs_review", {"video_path": "/source/m.mkv", "file_location": "source", "status": "PENDING", "stage": "RUNNING"},
              lambda t: mark_needs_review(t, "review"),
              {"status": STATUS_PENDING, "stage": STAGE_AWAIT_REVIEW}, []),
-            ("failed", {"video_path": "/temp/m.mkv", "status": "PENDING", "stage": "RUNNING"},
+            ("failed", {"video_path": "/source/m.mkv", "status": "PENDING", "stage": "RUNNING"},
              lambda t: mark_failed(t, "err"),
              {"status": STATUS_FAILED, "stage": STAGE_DONE}, ["completed_at"]),
-            ("skipped", {"video_path": "/temp/m.mkv", "status": "PENDING", "stage": "RUNNING"},
+            ("skipped", {"video_path": "/source/m.mkv", "status": "PENDING", "stage": "RUNNING"},
              lambda t: mark_skipped(t, "dup"),
              {"status": STATUS_SKIPPED, "stage": STAGE_DONE}, ["completed_at"]),
             ("imported", {"import_video_path": "/import/m.mkv", "status": "PENDING", "stage": "RUNNING"},

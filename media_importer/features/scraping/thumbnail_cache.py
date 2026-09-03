@@ -14,7 +14,12 @@ DEFAULT_MAX_FILES = 500
 DEFAULT_MAX_BYTES = 200 * 1024 * 1024
 
 
-def _safe_thumbnail_root(root: str, protected_roots: list[str] | None = None) -> str:
+def _safe_thumbnail_root(
+    root: str,
+    protected_roots: list[str] | None = None,
+    *,
+    protected_roots_canonical: bool = False,
+) -> str:
     if not root or os.path.islink(root):
         return ""
     try:
@@ -23,7 +28,11 @@ def _safe_thumbnail_root(root: str, protected_roots: list[str] | None = None) ->
             return ""
         real_root = os.path.realpath(root)
         for protected_root in protected_roots or []:
-            protected = os.path.realpath(protected_root)
+            protected = (
+                os.path.normpath(os.path.abspath(protected_root))
+                if protected_roots_canonical
+                else os.path.realpath(protected_root)
+            )
             if os.path.commonpath((real_root, protected)) in {real_root, protected}:
                 return ""
         return real_root
@@ -100,9 +109,14 @@ def prune_thumbnail_cache(
     max_files: int = DEFAULT_MAX_FILES,
     max_bytes: int = DEFAULT_MAX_BYTES,
     protected_roots: list[str] | None = None,
+    protected_roots_canonical: bool = False,
 ) -> dict:
     """清理可再生成海报缓存；只删除根目录内非保护的普通图片文件。"""
-    safe_root = _safe_thumbnail_root(thumbnail_dir, protected_roots)
+    safe_root = _safe_thumbnail_root(
+        thumbnail_dir,
+        protected_roots,
+        protected_roots_canonical=protected_roots_canonical,
+    )
     if not safe_root:
         return {"files": 0, "bytes": 0, "removed": 0, "removed_bytes": 0}
     protected = {

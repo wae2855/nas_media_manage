@@ -29,11 +29,15 @@ OUTER_REQUIRED = {
 INNER_REQUIRED = {
     "ui/config",
     "ui/index.cgi",
+    "server/VERSION",
     "server/fnos_config.py",
     "server/config.yaml.example",
     "server/requirements.txt",
     "server/requirements-fnos.lock",
+    "server/THIRD_PARTY_NOTICES.md",
     "server/media_importer/features/configuration/fnos_directory_access.py",
+    "server/media_importer/features/configuration/storage_readiness.py",
+    "server/media_importer/features/configuration/application_service.py",
     "server/media_importer/features/configuration/startup_readiness.py",
     "server/media_importer/features/configuration/library_paths.py",
     "server/media_importer/features/configuration/storage_topology.py",
@@ -211,6 +215,7 @@ def validate(path: Path, expected_version: str | None = None) -> dict[str, objec
                     inner_members = {_normalize(member.name): member for member in inner.getmembers()}
                     inner_names = set(inner_members)
                     for name in {
+                        "server/VERSION",
                         "server/config.yaml.example",
                         "server/media_importer/features/import_flow/services/dedup.py",
                         "server/media_importer/features/import_flow/services/file_operations.py",
@@ -225,6 +230,8 @@ def validate(path: Path, expected_version: str | None = None) -> dict[str, objec
                         "server/media_importer/features/scraping/thumbnail_cache.py",
                         "server/media_importer/features/scraping/thumbnail_downloader.py",
                         "server/media_importer/features/source_cleaning/application_service.py",
+                        "server/media_importer/features/configuration/storage_readiness.py",
+                        "server/media_importer/features/configuration/application_service.py",
                         "server/media_importer/monitor/file_watcher.py",
                         "server/media_importer/api/config_save.py",
                     } & inner_names:
@@ -249,6 +256,14 @@ def validate(path: Path, expected_version: str | None = None) -> dict[str, objec
                 errors.append("应用层缺少离线 wheelhouse")
             elif any(not name.endswith("-none-any.whl") for name in wheels):
                 errors.append("wheelhouse 包含平台相关 wheel，不能声明 platform=all")
+
+            runtime_version = inner_text.get("server/VERSION", "").strip()
+            manifest_version = manifest_data.get("version", "")
+            if runtime_version != manifest_version:
+                errors.append(
+                    f"包内运行时版本与 manifest 不一致: {runtime_version or '<missing>'} != "
+                    f"{manifest_version or '<missing>'}"
+                )
 
             config_text = inner_text.get("server/config.yaml.example", "")
             if _yaml_section_scalar(config_text, "duplicate_handling", "strategy") != "confirm":
@@ -323,8 +338,27 @@ def validate(path: Path, expected_version: str | None = None) -> dict[str, objec
                 errors.append("包内源清理未在文件动作前复核挂载身份")
 
             watcher_text = inner_text.get("server/media_importer/monitor/file_watcher.py", "")
-            if "_storage_ready_for_automatic_run" not in watcher_text:
+            if (
+                "_source_ready_for_scan" not in watcher_text
+                or "_processing_support_ready" not in watcher_text
+            ):
                 errors.append("包内自动扫描未在每轮动作前复核挂载身份")
+
+            storage_readiness_text = inner_text.get(
+                "server/media_importer/features/configuration/storage_readiness.py", ""
+            )
+            if (
+                "网盘来源当前在线" not in storage_readiness_text
+                or '"automatic_allowed": state == "READY" and not automatic_blocking'
+                not in storage_readiness_text
+            ):
+                errors.append("包内仍禁止已识别且在线的网盘来源自动扫描")
+
+            watcher_status_text = inner_text.get(
+                "server/media_importer/features/configuration/application_service.py", ""
+            )
+            if "configured_enabled" not in watcher_status_text:
+                errors.append("包内 watcher 状态未区分配置意图与真实运行状态")
 
             delete_text = inner_text.get(
                 "server/media_importer/features/tasks/delete_service.py", ""

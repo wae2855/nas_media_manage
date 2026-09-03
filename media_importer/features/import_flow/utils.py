@@ -36,6 +36,12 @@ class PipelineSkipError(Exception):
     pass
 
 
+class PipelineCancelled(Exception):
+    """The user requested a cooperative stop before the library commit point."""
+
+    pass
+
+
 class PipelineReviewRequired(Exception):
     """流水线发现需要用户逐项处理的结构化冲突。"""
 

@@ -5,22 +5,25 @@ from typing import Optional
 
 from media_importer.features.import_flow.confirm import ConfirmMixin
 from media_importer.features.import_flow.context import TaskContext
+from media_importer.features.import_flow.progress import TaskProgressReporter
 from media_importer.features.import_flow.scan_service import FileScanner
 from media_importer.features.import_flow.steps import StepsMixin
-from media_importer.features.import_flow.utils import PipelineReviewRequired, PipelineSkipError
+from media_importer.features.import_flow.utils import (
+    PipelineCancelled,
+    PipelineReviewRequired,
+    PipelineSkipError,
+)
 from media_importer.features.scraping import MetadataScraper
 from media_importer.features.scraping.match_enums import TierShortReason
-from media_importer.features.source_files import SourceCleanupService, delete_source_files
+from media_importer.features.source_files import SourceCleanupService
 from media_importer.features.tasks import (
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     mark_confirming,
     mark_failed,
     mark_imported,
     mark_needs_review,
     mark_skipped,
-    mark_temp_ready,
     start_processing,
 )
 from media_importer.infrastructure.db import (
@@ -35,7 +38,6 @@ from media_importer.infrastructure.db import (
 from media_importer.infrastructure.db import (
     update_task as db_update_task,
 )
-from media_importer.infrastructure.filesystem import FileCopier
 from media_importer.notify.hooks import HookRunner
 
 
@@ -49,16 +51,9 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         self.notifier = notifier
         self.hooks = HookRunner(config, logger)
         self._paused = threading.Event()
+        self.progress_reporter = TaskProgressReporter(task_manager)
 
         self.scraper = MetadataScraper(config)
-        video_exts = config.get("video_extensions", [])
-        sub_exts = config.get("subtitle_extensions", [])
-        media_exts = set(
-            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
-            for ext in video_exts + sub_exts
-        )
-        self.copier = FileCopier(config.get('temp_dir', ''), media_exts)
-
         self._last_notified_error = None
         self._last_notified_time = 0
         self._error_notify_cooldown = 300
@@ -82,9 +77,157 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
     def _update_progress(self, task: dict, step_num: int, step_name: str,
                          percentage: int, **kwargs):
-        self.task_manager.update_progress(
-            task, step_num, step_name, percentage, **kwargs
+        self._raise_if_stop_requested(task)
+        self._get_progress_reporter().update(
+            task,
+            step_num,
+            step_name,
+            percentage,
+            completed_bytes=kwargs.pop("bytes_copied", 0),
+            total_bytes=kwargs.pop("total_bytes", 0),
+            force=True,
+            **kwargs,
         )
+
+    def _update_transfer_progress(
+        self,
+        task: dict,
+        step_num: int,
+        step_name: str,
+        percentage: int,
+        completed_bytes: int,
+        total_bytes: int,
+        *,
+        check_stop: bool = True,
+    ):
+        try:
+            if check_stop:
+                self._raise_if_stop_requested(task)
+            self._get_progress_reporter().update(
+                task,
+                step_num,
+                step_name,
+                percentage,
+                completed_bytes=completed_bytes,
+                total_bytes=total_bytes,
+            )
+        except PipelineCancelled:
+            raise
+        except Exception as error:
+            # 进度是观察能力；SQLite 短暂不可用不能改变文件校验、发布或保留顺序。
+            self._log(
+                "warn",
+                f"进度记录暂时失败，文件处理继续按安全协议执行: {error}",
+                task,
+                step_name,
+            )
+
+    def _raise_if_stop_requested(self, task: dict) -> None:
+        from media_importer.features.tasks import task_stop_requested
+
+        task_id = str(task.get("task_id", ""))
+        if task_id and task_stop_requested(self.task_manager, task_id):
+            raise PipelineCancelled("用户请求停止任务")
+
+    def _complete_user_stop(self, task: dict) -> None:
+        from media_importer.features.tasks import complete_requested_stop
+
+        result = complete_requested_stop(
+            self.task_manager,
+            self.config,
+            str(task.get("task_id", "")),
+        )
+        self._log(
+            "info" if result.code == 200 else "warn",
+            result.message,
+            task,
+            "cancel",
+        )
+
+    def _get_progress_reporter(self) -> TaskProgressReporter:
+        reporter = getattr(self, "progress_reporter", None)
+        if reporter is None:
+            reporter = TaskProgressReporter(self.task_manager)
+            self.progress_reporter = reporter
+        return reporter
+
+    def _complete_source_cleanup(self, task: dict) -> None:
+        tid = task.get("task_id", "")
+        if not task.get("source_unit_id"):
+            task["source_cleanup_status"] = "SKIPPED"
+            db_update_task(
+                self.task_manager.conn,
+                tid,
+                source_cleanup_status="SKIPPED",
+            )
+            return
+
+        from media_importer.features.source_files import SourceUnitCoordinator
+
+        self._update_progress(task, 10, "source_cleanup", 96)
+
+        def cleanup_progress(phase, completed, total):
+            ranges = {
+                "resume_check": (96, 96),
+                "transfer": (96, 98),
+                "verify_source": (98, 98),
+                "verify_target": (98, 99),
+                "publish": (99, 99),
+            }
+            start, end = ranges.get(phase, (96, 99))
+            fraction = min(1.0, completed / total) if total > 0 else 0.0
+            pct = int(start + (end - start) * fraction)
+            self._update_transfer_progress(
+                task,
+                10,
+                f"source_cleanup_{phase}",
+                pct,
+                completed,
+                total,
+            )
+
+        try:
+            cleanup = SourceUnitCoordinator(
+                self.task_manager.conn,
+                self.config,
+            ).try_recycle(
+                task["source_unit_id"],
+                completing_task_id=tid,
+                phase_callback=cleanup_progress,
+            )
+            task["source_cleanup_status"] = cleanup.state
+        except Exception as cleanup_error:
+            task["source_cleanup_status"] = "FAILED"
+            self._log(
+                "error",
+                f"影片已安全入库，但来源处理失败并已保留来源: {cleanup_error}",
+                task,
+                "cleanup",
+            )
+            cleanup = None
+        db_update_task(
+            self.task_manager.conn,
+            tid,
+            source_cleanup_status=task["source_cleanup_status"],
+            source_disposition=(
+                {
+                    "DELETED": "deleted",
+                    "RECYCLED": "recycled",
+                    "SKIPPED": "kept",
+                    "WAITING": "pending",
+                    "BLOCKED": "failed",
+                }.get(cleanup.state, "pending")
+                if cleanup
+                else "failed"
+            ),
+            source_disposition_message=(
+                cleanup.message
+                if cleanup
+                else "影片已安全入库，但来源处理失败；来源文件已保留"
+            ),
+        )
+        if cleanup:
+            self._log("info", cleanup.message, task, "cleanup")
 
     def _is_system_error(self, error_message: str) -> bool:
         system_error_keywords = [
@@ -122,14 +265,33 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
     def scan_and_create_tasks(self) -> list:
         source_dir = self.config.get('source_dir', '')
         source_mode = (self.config.get("source_policy", {}) or {}).get("mode")
-        if source_mode == "recycle_source_unit":
-            from media_importer.features.source_files import SourceUnitCoordinator
-            for cleanup in SourceUnitCoordinator(
-                self.task_manager.conn, self.config
-            ).retry_pending():
-                self._log("info", cleanup.message, None, "cleanup")
+        self.retry_pending_source_cleanup()
         scanner = FileScanner(self.config, task_manager=self.task_manager)
         groups = scanner.scan_and_filter(source_dir)
+        if scanner.last_ignored_candidates:
+            by_disposition = {}
+            for ignored in scanner.last_ignored_candidates:
+                disposition = ignored.get("disposition", "ignored")
+                by_disposition[disposition] = by_disposition.get(disposition, 0) + 1
+            labels = {
+                "ignore_promotion": "明显广告",
+                "ignore_small_companion": "小视频片段",
+            }
+            summary = "、".join(
+                f"{labels.get(key, key)} {count} 个"
+                for key, count in sorted(by_disposition.items())
+            )
+            examples = "、".join(
+                os.path.basename(item["path"])
+                for item in scanner.last_ignored_candidates[:3]
+            )
+            self._log(
+                "info",
+                f"扫描时已忽略 {len(scanner.last_ignored_candidates)} 个非正片视频："
+                f"{summary}；例如 {examples}",
+                None,
+                "scan",
+            )
 
         tasks = []
         for group in groups:
@@ -137,7 +299,10 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             if source_mode == "recycle_source_unit":
                 from media_importer.features.source_files import register_source_unit
                 source_unit_id = register_source_unit(
-                    self.task_manager.conn, source_dir, group["video_path"]
+                    self.task_manager.conn,
+                    source_dir,
+                    group["video_path"],
+                    config=self.config,
                 ).unit_id
             task = self.task_manager.create_task(
                 video_path=group["video_path"],
@@ -150,6 +315,20 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
         self._log("info", f"扫描完成，创建/重试 {len(tasks)} 个任务")
         return tasks
+
+    def retry_pending_source_cleanup(self) -> list:
+        source_mode = (self.config.get("source_policy", {}) or {}).get("mode")
+        if source_mode != "recycle_source_unit":
+            return []
+        from media_importer.features.source_files import SourceUnitCoordinator
+
+        results = SourceUnitCoordinator(
+            self.task_manager.conn,
+            self.config,
+        ).retry_pending()
+        for cleanup in results:
+            self._log("info", cleanup.message, None, "cleanup")
+        return results
 
     def process_one(self, task: dict, *, claimed: bool = False) -> bool:
         if not claimed:
@@ -170,15 +349,10 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         ctx = TaskContext(task)
         original_source_video = ctx.source_path or ctx.current_video_path
         original_source_subs = list(ctx.subtitle_files)
-        temp_video_path_for_cleanup = None
-
         tid = ctx.task_id
 
         try:
             self.hooks.run_before_process(task)
-            self._step_copy(task)
-            temp_video_path_for_cleanup = ctx.current_video_path
-            db_update_task(self.task_manager.conn, tid, **mark_temp_ready(ctx))
             self._step_scrape(task)
             self._step_validate(task)
 
@@ -190,7 +364,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 db_update_task(self.task_manager.conn, tid,
                                **mark_failed(
                                    ctx, fail_msg,
-                                   file_location=FILE_LOCATION_TEMP,
+                                   file_location=ctx.file_location,
                                    video_path=ctx.current_video_path,
                                    completed=False,
                                ))
@@ -202,7 +376,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 db_update_task(self.task_manager.conn, tid,
                                **mark_failed(
                                    ctx, fail_reason,
-                                   file_location=FILE_LOCATION_TEMP,
+                                   file_location=ctx.file_location,
                                    video_path=ctx.current_video_path,
                                    completed=False,
                                ))
@@ -239,6 +413,35 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 return True
 
             self._step_classify(task)
+            self._step_rename(task)
+            if task.get("used_fallback"):
+                concern = {
+                    "code": "NO_CLASSIFICATION_RULE",
+                    "message": "没有匹配到正式入库规则，将进入待整理区",
+                }
+                task["match_concerns"] = [concern]
+                fields = mark_confirming(
+                    ctx,
+                    "没有匹配到正式入库规则，请调整维度、重新刮削，或明确确认放入待整理区",
+                )
+                fields.update({
+                    "match_concerns": task["match_concerns"],
+                    "import_path": task.get("import_path", ""),
+                    "classify_result": task.get("classify_result", ""),
+                    "final_filename": task.get("final_filename", ""),
+                    "used_fallback": 1,
+                })
+                db_update_task(self.task_manager.conn, tid, **fields)
+                self._log(
+                    "info",
+                    "任务未匹配正式规则，等待用户确认是否放入待整理区",
+                    task,
+                    "classify",
+                )
+                if self.metrics:
+                    self.metrics.record_task_complete("confirming")
+                return True
+            self._step_dedup(task)
 
             manual_review = self.config.get("manual_review", {})
             review_enabled = manual_review.get("enabled", False)
@@ -252,25 +455,24 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                     self.metrics.record_task_complete("confirming")
                 return True
 
-            self._step_rename(task)
-            self._step_dedup(task)
+            self._prepare_import_input(task)
             self._step_import(task, original_source_video, original_source_subs)
             self._step_notify(task)
+            self._complete_source_cleanup(task)
             self._step_record(task)
-
             db_update_task(self.task_manager.conn, tid,
                            **mark_imported(ctx))
-            if task.get("source_unit_id"):
-                from media_importer.features.source_files import SourceUnitCoordinator
-                cleanup = SourceUnitCoordinator(
-                    self.task_manager.conn, self.config
-                ).try_recycle(task["source_unit_id"])
-                self._log("info", cleanup.message, task, "cleanup")
             self.hooks.run_after_success(task)
             if self.metrics:
                 self.metrics.record_task_complete("success")
             self._log("info", f"任务处理成功: {task.get('source_filename', '')}", task)
             return True
+
+        except PipelineCancelled:
+            self._complete_user_stop(task)
+            if self.metrics:
+                self.metrics.record_task_complete("cancelled")
+            return False
 
         except PipelineReviewRequired as e:
             fields = mark_confirming(ctx, str(e))
@@ -288,7 +490,6 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
         except PipelineSkipError as e:
             self._log("info", f"任务跳过: {task.get('source_filename', '')} - {e}", task)
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup or "")
             source_cleanup = SourceCleanupService(self.config).recycle_source_after_skip(
                 task,
                 original_source_video,
@@ -309,8 +510,6 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             error_msg = str(e)
             fields = mark_failed(ctx, error_msg, file_location=FILE_LOCATION_SOURCE)
             self._log("error", f"任务失败: {task.get('source_filename', '')} - {e}", task)
-            self._cleanup_temp_on_failure(task, temp_video_path_for_cleanup or "")
-
             db_update_task(self.task_manager.conn, tid, **fields)
 
             self.hooks.run_after_failure(task)
@@ -324,38 +523,12 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 )
             return False
 
-    def _cleanup_temp_on_failure(self, task: dict, temp_video_path: str):
-        temp_dir = self.config.get('temp_dir', '')
-        from media_importer.features.configuration.storage_topology import (
-            path_in_library,
-            path_within,
+    def run_all(self):
+        from media_importer.features.configuration import (
+            inspect_processing_support_readiness,
         )
 
-        files_to_delete = []
-        if (
-            temp_video_path
-            and temp_dir
-            and not os.path.islink(temp_video_path)
-            and path_within(temp_video_path, temp_dir, allow_root=False)
-            and not path_in_library(self.config, temp_video_path)
-        ):
-            files_to_delete.append(temp_video_path)
-            for sub in task.get("subtitle_files", []):
-                if (
-                    sub
-                    and not os.path.islink(str(sub))
-                    and path_within(str(sub), temp_dir, allow_root=False)
-                    and not path_in_library(self.config, str(sub))
-                ):
-                    files_to_delete.append(sub)
-        if files_to_delete:
-            delete_source_files(files_to_delete, allowed_base_dirs=[temp_dir])
-            self._log("info", f"已清理 temp 目录失败文件: {len(files_to_delete)} 个", task, "cleanup")
-
-    def run_all(self):
-        from media_importer.features.configuration import inspect_storage_readiness
-
-        readiness = inspect_storage_readiness(self.config)
+        readiness = inspect_processing_support_readiness(self.config)
         if readiness["state"] != "READY":
             blocking = ", ".join(readiness["blocking"])
             raise RuntimeError(f"配置尚未就绪，已阻止文件处理: {blocking}")

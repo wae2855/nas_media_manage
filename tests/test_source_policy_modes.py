@@ -7,7 +7,6 @@ from media_importer.features.source_files.cleanup_service import SourceCleanupSe
 def _config(mode: str) -> dict:
     return {
         "source_dir": "/source",
-        "temp_dir": "/temp",
         "video_extensions": [".mkv"],
         "subtitle_extensions": [".srt"],
         "source_policy": {

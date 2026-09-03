@@ -27,6 +27,8 @@ class CleanResult:
     method: str = "regex"
     year_suspect: bool = False
     cjk_title: Optional[str] = None
+    title_candidates: List[str] = field(default_factory=list)
+    release_identity: dict = field(default_factory=dict)
 
 
 @dataclass

@@ -41,6 +41,11 @@ def test_mobile_task_recycle_and_modal_contracts_are_present():
     assert "@media (max-width: 768px)" in pages
     assert "@media (max-width: 600px)" in pages
     assert "height: calc(100dvh - 16px)" in pages
+    assert "overflow-x: hidden" in pages
+    assert ".cinema-modal-summary div" in pages
+    assert "overflow-wrap: anywhere" in pages
+    assert "table-layout: fixed" in pages
+    assert "flex: 1 1 120px" in pages
     assert "min-height: 44px" in pages
     assert ".recycle-row" in pages
     assert ".task-card" in pages
@@ -61,3 +66,16 @@ def test_mobile_config_stage_and_simulator_guidance_are_present():
     assert ".match-preview-row" in pages_css
     assert "grid-template-columns: 1fr" in pages_css
     assert "${activeIndex + 1} / ${cards.length}" in app_state
+
+
+# Requirement: REQ-20260901-001019-2
+def test_runtime_version_is_visible_below_service_status():
+    index = _read("index.html")
+    layout_css = _read("css/cinema-layout.css")
+    api_js = _read("js/api.js")
+
+    assert 'class="runtime-meta"' in index
+    assert 'id="runtime-version"' in index
+    assert ".runtime-version" in layout_css
+    assert "payload.data.version" in api_js
+    assert 'runtimeVersion.textContent = "v"' in api_js

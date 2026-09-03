@@ -7,12 +7,25 @@ from .detail_service import (
     get_task_stats_for_api,
     get_task_subtitles_for_api,
 )
+from .disposition_service import (
+    KEEP,
+    LOCAL_RECYCLE,
+    PERMANENT_DELETE,
+    TaskDispositionResult,
+    complete_requested_stop,
+    request_task_disposition,
+    task_stop_requested,
+)
 from .file_lifecycle_service import (
     TaskFileLifecycleResult,
     ignore_task_for_api,
     rename_task_file_for_api,
 )
 from .list_service import TaskListResult, list_tasks_for_api
+from .organization_service import (
+    OrganizationActionResult,
+    create_reorganization_task_for_api,
+)
 from .queue_service import (
     TaskQueueActionResult,
     clear_tasks_for_api,
@@ -24,9 +37,11 @@ from .queue_service import (
 )
 from .review_service import (
     TaskReviewActionResult,
+    apply_scrape_candidate_for_api,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
     preview_task_for_api,
+    queue_confirm_task_for_api,
     reclassify_task_for_api,
 )
 from .search_service import search_provider_candidates
@@ -40,7 +55,6 @@ from .task_lifecycle_compat import (
     mark_needs_review,
     mark_processing_step,
     mark_skipped,
-    mark_temp_ready,
     reset_for_retry,
     start_processing,
 )
@@ -51,7 +65,6 @@ from .transitions import (
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     STAGE_AWAIT_REVIEW,
     STAGE_DONE,
     STAGE_QUEUED,
@@ -75,7 +88,9 @@ __all__ = [
     "TaskFileLifecycleResult",
     "TaskListResult",
     "TaskQueueActionResult",
+    "OrganizationActionResult",
     "TaskReviewActionResult",
+    "apply_scrape_candidate_for_api",
     "CONFIRM_CONFIRMED",
     "CONFIRM_NONE",
     "CONFIRM_PENDING",
@@ -85,7 +100,6 @@ __all__ = [
     "FILE_LOCATION_IMPORT",
     "FILE_LOCATION_RECYCLE",
     "FILE_LOCATION_SOURCE",
-    "FILE_LOCATION_TEMP",
     "STAGE_AWAIT_REVIEW",
     "STAGE_DONE",
     "STAGE_QUEUED",
@@ -98,10 +112,19 @@ __all__ = [
     "VALID_STAGES",
     "current_video_path",
     "delete_task",
+    "KEEP",
+    "LOCAL_RECYCLE",
+    "PERMANENT_DELETE",
+    "TaskDispositionResult",
+    "complete_requested_stop",
+    "request_task_disposition",
+    "task_stop_requested",
     "cancel_task_for_api",
     "clear_tasks_for_api",
     "confirm_all_tasks_for_api",
     "confirm_task_for_api",
+    "create_reorganization_task_for_api",
+    "queue_confirm_task_for_api",
     "preview_task_for_api",
     "get_queue_status_for_api",
     "get_dashboard_summary_for_api",
@@ -118,7 +141,6 @@ __all__ = [
     "mark_needs_review",
     "mark_processing_step",
     "mark_skipped",
-    "mark_temp_ready",
     "pause_queue_for_api",
     "reset_for_retry",
     "resume_queue_for_api",

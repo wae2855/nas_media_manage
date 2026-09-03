@@ -2,6 +2,7 @@
 import os
 import time
 
+from media_importer.app_version import get_app_version
 from media_importer.core.metrics import get_metrics
 
 from . import globals
@@ -75,17 +76,6 @@ class ConnectivityHandlersMixin:
             overall = "degraded"
 
         try:
-            temp_dir = globals._config.get("temp_dir", "")
-            if os.path.isdir(temp_dir):
-                ok, _ = check_write_permission(temp_dir)
-                checks["temp_dir"] = "ok" if ok else "no_write_permission"
-            else:
-                checks["temp_dir"] = "error"
-        except Exception:
-            checks["temp_dir"] = "error"
-            overall = "degraded"
-
-        try:
             log_dir = globals._config.get("log_dir", "") if globals._config else ""
             checks["log_dir_path"] = log_dir
             if os.path.isdir(log_dir):
@@ -108,7 +98,15 @@ class ConnectivityHandlersMixin:
             checks["llm"] = "skipped"
 
         try:
-            disk_check_dir = globals._config.get("temp_dir", "/tmp")
+            roots = globals._config.get("library_roots") or []
+            disk_check_dir = next(
+                (
+                    str(root.get("path") or "")
+                    for root in roots
+                    if isinstance(root, dict) and root.get("enabled", True) is not False
+                ),
+                globals._config.get("source_dir", "/tmp"),
+            )
             stat = os.statvfs(disk_check_dir)
             free_gb = stat.f_bavail * stat.f_frsize / (1024**3)
             checks["disk_space"] = "ok" if free_gb > 1 else "low"
@@ -121,6 +119,7 @@ class ConnectivityHandlersMixin:
 
         json_response(self, 200, data={
             "status": overall,
+            "version": get_app_version(),
             "checks": checks,
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
         }, message=f"Health check: {overall}")

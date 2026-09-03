@@ -63,7 +63,7 @@ def update_dimension(conn: sqlite3.Connection, name: str, **fields) -> Optional[
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k == "value_list" and isinstance(v, (dict, list)):
+            if k in {"value_list", "provider_mappings"} and isinstance(v, (dict, list)):
                 update_fields[k] = json.dumps(v, ensure_ascii=False)
             else:
                 update_fields[k] = v
@@ -94,7 +94,7 @@ def disable_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
 def reset_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
     with _sqlite_conn_lock:
         row = conn.execute(
-            "SELECT default_value_list, ai_prompt, description "
+            "SELECT default_value_list, default_provider_mappings, ai_prompt, description "
             "FROM dimensions WHERE name=?",
             (name,)
         ).fetchone()
@@ -108,10 +108,17 @@ def reset_dimension(conn: sqlite3.Connection, name: str) -> Optional[dict]:
                 break
     if not default_vl or default_vl.strip() == '':
         return None
+    default_mapping = row['default_provider_mappings'] or ''
     with _sqlite_conn_lock:
         conn.execute(
-            "UPDATE dimensions SET value_list=?, ai_prompt=?, description=? WHERE name=?",
-            (default_vl, row['ai_prompt'] or '', row['description'] or '', name)
+            "UPDATE dimensions SET value_list=?, provider_mappings=?, ai_prompt=?, description=? WHERE name=?",
+            (
+                default_vl,
+                default_mapping,
+                row['ai_prompt'] or '',
+                row['description'] or '',
+                name,
+            )
         )
         conn.commit()
     return get_dimension(conn, name)

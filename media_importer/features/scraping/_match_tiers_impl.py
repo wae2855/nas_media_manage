@@ -1,6 +1,7 @@
 """Match engine tier implementations — extracted from MatchEngine."""
 import logging
 import os as _os
+import re
 from typing import Optional, Union
 
 from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
@@ -67,188 +68,312 @@ def _tier1_exact_match_impl(
     providers: list,
     path_context=None,
 ) -> Optional[MatchResult]:
-    """第一级：Provider 精确匹配。"""
-    trace_steps = []
-    title_matcher = self.title_matcher
+    """Provider matching over independent file/folder title signals."""
+    trace_steps: list[MatchTraceStep] = []
+    evidence = getattr(self, "_identity_evidence", {}) or {}
+    signals = evidence.get("signals") or [{
+        "source": "file",
+        "titles": [title for title in (cjk_title, clean_title) if title],
+        "year": year,
+        "season": season,
+        "episode": episode,
+        "weak": False,
+    }]
+    # Only season/episode in the file is strong enough to constrain Provider type.
+    # A user-created folder called "TV" or "电影" must not veto an otherwise
+    # exact filename match.
+    media_type_hint = "tv" if season is not None or episode is not None else ""
+    search_cache = {}
+    alias_cache = {}
+    candidate_hits = {}
+
+    def normalized_title(value: str) -> str:
+        return re.sub(r"[\s._:：-]+", "", str(value or "")).casefold()
+
+    titles_by_source = {
+        source: {
+            normalized_title(title)
+            for signal in signals
+            if signal.get("source") == source
+            for title in signal.get("titles", [])
+            if normalized_title(title)
+        }
+        for source in ("file", "folder")
+    }
+    file_folder_title_overlap = bool(
+        titles_by_source["file"] & titles_by_source["folder"]
+    )
+
+    def candidate_payload(item) -> dict:
+        raw_data = item.raw_data or {}
+        return {
+            "id": item.item_id,
+            "title": item.title,
+            "original_title": getattr(item, "original_title", "") or "",
+            "year": item.year,
+            "media_type": item.media_type,
+            "provider_type": item.provider_type,
+            "poster_url": getattr(item, "poster_url", "") or "",
+            "vote_average": item.vote_average or 0,
+            "vote_count": raw_data.get("vote_count", 0) or 0,
+            "popularity": raw_data.get("popularity", 0) or 0,
+        }
+
+    def make_result(entry, short_reason: str, why_selected: str) -> MatchResult:
+        item = entry["item"]
+        payload = candidate_payload(item)
+        payload["identity_sources"] = sorted(entry["sources"])
+        return MatchResult(
+            match_level="AUTO_PASS",
+            provider_id=item.item_id,
+            provider_title=item.title,
+            match_tier=1,
+            trace_steps=trace_steps,
+            candidates=[payload],
+            tier_short_reason=short_reason,
+            selected_candidate=SelectedCandidate(
+                provider_type=item.provider_type,
+                provider_id=str(item.item_id),
+                title=item.title,
+                year=item.year,
+                media_type=item.media_type,
+                why_selected=why_selected,
+                score=item.vote_average,
+            ),
+        )
 
     for provider in providers:
-        search_titles = []
-        if cjk_title:
-            search_titles.append(cjk_title)
-        if clean_title and clean_title != cjk_title:
-            search_titles.append(clean_title)
-        if not search_titles and clean_title:
-            search_titles.append(clean_title)
-
-        for search_title in search_titles:
-            search_result = None
-            search_years: list[Union[int, None]] = [year] if year is not None else [None]
-            if year is not None:
-                search_years.append(None)
-            for try_year in search_years:
-                try:
-                    search_result = provider.search(search_title, year=try_year)
-                except Exception as e:
-                    logger.warning(f"Provider {provider.__class__.__name__} 搜索失败: {e}")
+        for signal in signals:
+            source = signal.get("source", "file")
+            signal_year = signal.get("year")
+            signal_season = signal.get("season")
+            seen_titles = set()
+            for search_title in signal.get("titles", []):
+                title_key = str(search_title).strip().casefold()
+                if not title_key or title_key in seen_titles:
                     continue
-                if search_result and search_result.items:
-                    break
+                seen_titles.add(title_key)
+                cache_key = (id(provider), title_key, signal_year, media_type_hint)
+                search_result = search_cache.get(cache_key)
+                if cache_key not in search_cache:
+                    search_result = None
+                    search_years: list[Union[int, None]] = (
+                        [signal_year, None] if signal_year is not None else [None]
+                    )
+                    for try_year in search_years:
+                        try:
+                            search_result = provider.search(
+                                search_title,
+                                year=try_year,
+                                media_type=media_type_hint or None,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "Provider %s 搜索失败: %s",
+                                provider.__class__.__name__, exc,
+                            )
+                            continue
+                        if search_result and search_result.items:
+                            break
+                    search_cache[cache_key] = search_result
 
-            if not search_result or not search_result.items:
-                continue
-
-            items = search_result.items
-
-            exact_matches = []
-            for item in items:
-                match_result = title_matcher.match_standard(
-                    clean_title, item, year, season
-                )
-                # L3（标题精确但无年份/季号佐证）不再授予 AUTO_PASS：
-                # 泛名词文件名（如 sample/interview）极易唯一命中同名影片，
-                # 缺少年份证据时必须降级到人工确认（tier2 提供候选列表）
-                if match_result.level in ("L1", "L2"):
-                    exact_matches.append((item, match_result))
-
-            if len(exact_matches) == 1:
-                item, match_result = exact_matches[0]
-                trace_steps.append(MatchTraceStep(
-                    tier=1,
-                    name="Provider精确匹配",
-                    matched=True,
-                    search_query=f"{search_title} (year={year})",
-                    match_level=match_result.level,
-                    reason=f"唯一精确匹配: {item.title}",
-                ))
-                return MatchResult(
-                    match_level="AUTO_PASS",
-                    provider_id=item.item_id,
-                    provider_title=item.title,
-                    match_tier=1,
-                    trace_steps=trace_steps,
-                    candidates=[{
-                        "id": item.item_id,
-                        "title": item.title,
-                        "original_title": getattr(item, 'original_title', '') or '',
-                        "year": item.year,
-                        "media_type": item.media_type,
-                        "overview": getattr(item, 'overview', '')[:100] if hasattr(item, 'overview') and getattr(item, 'overview', None) else '',
-                        "provider_type": item.provider_type,
-                        "poster_url": getattr(item, 'poster_url', '') or '',
-                        "vote_average": item.vote_average or 0,
-                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
-                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
-                    }],
-                    tier_short_reason=TierShortReason.TIER1_UNIQUE,
-                    selected_candidate=SelectedCandidate(
-                        provider_type=item.provider_type,
-                        provider_id=str(item.item_id),
-                        title=item.title,
-                        year=item.year,
-                        media_type=item.media_type,
-                        why_selected=WhySelected.UNIQUE_MATCH,
-                        score=item.vote_average,
-                    ),
-                )
-                # == end of single-match ==
-
-            elif len(exact_matches) > 1:
-                self._pending_candidates = [
-                    {
-                        "id": item.item_id,
-                        "title": item.title,
-                        "original_title": getattr(item, 'original_title', '') or '',
-                        "year": item.year,
-                        "media_type": item.media_type,
-                        "provider_type": item.provider_type,
-                        "vote_average": item.vote_average,
-                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
-                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
-                        "poster_url": getattr(item, 'poster_url', '') or '',
-                    }
-                    for item, _ in exact_matches
+                items = list(getattr(search_result, "items", []) or [])
+                eligible_items = [
+                    item for item in items
+                    if not media_type_hint or item.media_type == media_type_hint
                 ]
+                matches = []
+                for item in eligible_items:
+                    title_match = self.title_matcher.match_standard(
+                        search_title, item, signal_year, signal_season
+                    )
+                    alias_matched = ""
+                    if (
+                        source == "file"
+                        and len(eligible_items) == 1
+                        and signal_year is not None
+                        and item.year == signal_year
+                        and title_match.level not in ("L1", "L2", "L3")
+                    ):
+                        alias_key = (id(provider), item.media_type, str(item.item_id))
+                        if alias_key not in alias_cache:
+                            try:
+                                alias_cache[alias_key] = list(
+                                    provider.get_alternative_titles(item.item_id, item.media_type)
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "Provider %s 官方别名读取失败: %s",
+                                    provider.__class__.__name__, exc,
+                                )
+                                alias_cache[alias_key] = []
+                        alias_matched = next((
+                            alias for alias in alias_cache[alias_key]
+                            if normalized_title(alias) == normalized_title(search_title)
+                        ), "")
+                        if alias_matched:
+                            title_match.level = "L1"
+                            title_match.T = 1.0
+                            title_match.similarity = 1.0
+                            title_match.year_match = True
+                            title_match.reason = f"L1: 标题精确命中 Provider 官方别名 {alias_matched} + 年份一致"
+                    key = (item.provider_type, item.media_type, str(item.item_id))
+                    entry = candidate_hits.setdefault(key, {
+                        "item": item,
+                        "sources": set(),
+                        "exact_sources": set(),
+                        "support_sources": set(),
+                        "matches": [],
+                        "signal_years": set(),
+                    })
+                    entry["sources"].add(source)
+                    entry["matches"].append((source, search_title, title_match))
+                    if signal_year is not None:
+                        entry["signal_years"].add(signal_year)
+                    if title_match.level in ("L1", "L2", "L3"):
+                        entry["exact_sources"].add(source)
+                    if alias_matched:
+                        entry.setdefault("alias_matches", set()).add(alias_matched)
+                    if (
+                        source == "file"
+                        and len(eligible_items) == 1
+                        and signal_year is not None
+                        and item.year == signal_year
+                        and file_folder_title_overlap
+                    ):
+                        entry["support_sources"].add(source)
+                    if title_match.level in ("L1", "L2"):
+                        matches.append((item, title_match, entry))
 
-                if year is None:
-                    preferred_type = _infer_media_type_from_path(path_context)
-                    if preferred_type:
-                        filtered = [c for c in self._pending_candidates if c.get("media_type") == preferred_type]
-                        if filtered:
-                            self._pending_candidates = filtered
-
-                self._pending_candidates = _sort_candidates_by_trust(self._pending_candidates)
-                self._pending_candidates = self._pending_candidates[:10]
-                self._pending_candidate_type = "exact"
-                top = self._pending_candidates[0]
-
-                self._pending_concerns.append(MatchConcern(
-                    code="NO_YEAR_MULTI_MATCH",
-                    message=f"找到 {len(exact_matches)} 部同名作品",
-                    detail=f"已按热度预选: {top['title']} ({top.get('year', '')})",
-                ))
-                trace_steps.append(MatchTraceStep(
-                    tier=1,
-                    name="Provider精确匹配",
-                    matched=False,
-                    search_query=f"{search_title} (year={year})",
-                    reason=f"多个精确匹配({len(exact_matches)}条)，已预选: {top['title']} ({top.get('year', '')})",
-                ))
-
-                return MatchResult(
-                    match_level="NEEDS_CONFIRM",
-                    provider_id=top["id"],
-                    provider_title=top["title"],
-                    match_tier=1,
-                    concerns=self._pending_concerns,
-                    trace_steps=trace_steps,
-                    candidates=self._pending_candidates[:5],
-                    tier_short_reason=TierShortReason.TIER1_MULTI.format(count=len(exact_matches)),
-                    selected_candidate=SelectedCandidate(
-                        provider_type=top["provider_type"],
-                        provider_id=str(top["id"]),
-                        title=top["title"],
-                        year=top.get("year"),
-                        media_type=top.get("media_type", ""),
-                        why_selected=WhySelected.TOP_RATED,
-                        score=top.get("vote_average"),
-                    ),
-                )
-
-            else:
-                # 有 Provider 结果但无精确匹配：保留模糊候选传给 Tier 2 AI
-                fuzzy_candidates = [
-                    {
-                        "id": item.item_id,
-                        "title": item.title,
-                        "original_title": getattr(item, 'original_title', '') or '',
-                        "year": item.year,
-                        "media_type": item.media_type,
-                        "provider_type": item.provider_type,
-                        "vote_average": item.vote_average or 0,
-                        "popularity": item.raw_data.get("popularity", 0) if item.raw_data else 0,
-                        "vote_count": item.raw_data.get("vote_count", 0) if item.raw_data else 0,
-                        "poster_url": getattr(item, 'poster_url', '') or '',
-                    }
-                    for item in items[:10]
-                ]
-                fuzzy_candidates = _sort_candidates_by_trust(fuzzy_candidates)
-                self._pending_candidates = fuzzy_candidates
-                self._pending_candidate_type = "fuzzy"
-                if year and search_result and search_result.items:
-                    self._pending_concerns.append(MatchConcern(
-                        code="FUZZY_TITLE",
-                        message="标题不完全匹配，最高相似度不足",
-                        detail=f"搜索 '{search_title}' 无精确匹配，保留 {len(fuzzy_candidates)} 条模糊候选供 AI 参考",
+                label = "文件名检索" if source == "file" else "文件夹辅助检索"
+                if len(matches) == 1:
+                    item, title_match, entry = matches[0]
+                    trace_steps.append(MatchTraceStep(
+                        tier=1,
+                        name=label,
+                        matched=True,
+                        search_query=f"{search_title} (year={signal_year})",
+                        match_level=title_match.level,
+                        reason=f"唯一精确匹配: {item.title}",
                     ))
-                trace_steps.append(MatchTraceStep(
-                    tier=1,
-                    name="Provider精确匹配",
-                    matched=False,
-                    search_query=f"{search_title} (year={year})",
-                    reason=f"无精确匹配，Provider 返回 {len(items)} 条结果，保留 {len(fuzzy_candidates)} 条模糊候选",
-                ))
+                    # 文件名的标题+年份/季集强匹配保持最高优先级；目录不参与否决。
+                    if source == "file":
+                        if alias_matched:
+                            trace_steps[-1].reason = f"官方别名精确匹配: {alias_matched} → {item.title}"
+                            return make_result(
+                                entry,
+                                TierShortReason.TIER1_PROVIDER_ALIAS,
+                                WhySelected.PROVIDER_ALIAS,
+                            )
+                        return make_result(
+                            entry,
+                            TierShortReason.TIER1_UNIQUE,
+                            WhySelected.UNIQUE_MATCH,
+                        )
+                else:
+                    trace_steps.append(MatchTraceStep(
+                        tier=1,
+                        name=label,
+                        matched=False,
+                        search_query=f"{search_title} (year={signal_year})",
+                        reason=(
+                            f"找到 {len(matches)} 条精确候选，需要更多证据"
+                            if matches else f"未精确匹配，Provider 返回 {len(items)} 条候选"
+                        ),
+                    ))
 
-    if not trace_steps:
+    def year_compatible(entry) -> bool:
+        item_year = entry["item"].year
+        years = entry["signal_years"]
+        return not years or item_year is None or years == {item_year}
+
+    converged = [
+        entry for entry in candidate_hits.values()
+        if {"file", "folder"}.issubset(entry["sources"])
+        and "folder" in entry["exact_sources"]
+        and (
+            "file" in entry["exact_sources"]
+            or "file" in entry["support_sources"]
+        )
+        and year_compatible(entry)
+        and (entry["signal_years"] or season is not None or episode is not None)
+    ]
+    if len(converged) == 1:
+        entry = converged[0]
+        trace_steps.append(MatchTraceStep(
+            tier=1,
+            name="多语言证据收敛",
+            matched=True,
+            reason=f"文件名与目录名均指向 {entry['item'].title} ({entry['item'].year or '年份未知'})",
+        ))
+        return make_result(
+            entry,
+            TierShortReason.TIER1_EVIDENCE_CONVERGED,
+            WhySelected.EVIDENCE_CONVERGED,
+        )
+
+    file_signal = next((item for item in signals if item.get("source") == "file"), {})
+    if file_signal.get("weak"):
+        folder_exact = [
+            entry for entry in candidate_hits.values()
+            if "folder" in entry["exact_sources"]
+            and year_compatible(entry)
+            and (entry["signal_years"] or entry["item"].year is not None)
+        ]
+        if len(folder_exact) == 1:
+            entry = folder_exact[0]
+            trace_steps.append(MatchTraceStep(
+                tier=1,
+                name="弱文件名目录补足",
+                matched=True,
+                reason=f"文件名信息不足，可信目录精确指向 {entry['item'].title}",
+            ))
+            return make_result(
+                entry,
+                TierShortReason.TIER1_FOLDER_RESCUE,
+                WhySelected.FOLDER_RESCUE,
+            )
+
+    exact_by_source = {
+        source: {
+            key for key, entry in candidate_hits.items()
+            if source in entry["exact_sources"]
+        }
+        for source in ("file", "folder")
+    }
+    if exact_by_source["file"] and exact_by_source["folder"] and not (
+        exact_by_source["file"] & exact_by_source["folder"]
+    ):
+        self._pending_concerns.append(MatchConcern(
+            code="CONFLICTING_INFO",
+            message="文件名和文件夹名指向不同作品",
+            detail="系统没有自动入库，请人工确认正确作品",
+        ))
+
+    ranked_entries = sorted(
+        candidate_hits.values(),
+        key=lambda entry: (
+            1 if "file" in entry["exact_sources"] else 0,
+            1 if "folder" in entry["exact_sources"] else 0,
+            1 if "file" in entry["sources"] else 0,
+            entry["item"].raw_data.get("popularity", 0) if entry["item"].raw_data else 0,
+            entry["item"].vote_average or 0,
+        ),
+        reverse=True,
+    )
+    self._pending_candidates = []
+    for entry in ranked_entries[:10]:
+        payload = candidate_payload(entry["item"])
+        payload["identity_sources"] = sorted(entry["sources"])
+        self._pending_candidates.append(payload)
+
+    if candidate_hits and trace_steps and not self._pending_concerns:
+        self._pending_concerns.append(MatchConcern(
+            code="FUZZY_TITLE",
+            message="标题证据尚不足以自动确认",
+            detail="已保留文件名和可信目录检索到的候选，请人工确认",
+        ))
+    if not candidate_hits:
         self._pending_concerns.append(MatchConcern(
             code="NO_PROVIDER_RESULT",
             message="Provider 未找到精准匹配作品",
@@ -320,7 +445,7 @@ def _search_providers_impl(title_matcher, title: str, year: Optional[int], provi
 
 
 
-def _collect_context_impl(source_dir: str, video_path: str) -> dict:
+def _collect_context_impl(source_dir: str, video_path: str, *, candidate_policy=None) -> dict:
     """收集视频文件所在目录的上下文信息。"""
     context = {}
     parent_dir = _os.path.basename(_os.path.dirname(video_path))
@@ -329,11 +454,24 @@ def _collect_context_impl(source_dir: str, video_path: str) -> dict:
     dir_path = _os.path.dirname(video_path)
     if dir_path:
         try:
-            siblings = [
-                f for f in _os.listdir(dir_path)
+            sibling_paths = [
+                _os.path.join(dir_path, f) for f in _os.listdir(dir_path)
                 if f != _os.path.basename(video_path)
-                and any(f.endswith(ext) for ext in (".mkv", ".mp4", ".avi", ".ts", ".wmv", ".flv"))
+                and any(f.lower().endswith(ext) for ext in (
+                    ".mkv", ".mp4", ".avi", ".m2ts", ".ts", ".wmv", ".flv"
+                ))
             ][:20]
+            if candidate_policy and sibling_paths:
+                decisions = candidate_policy.classify_tree(
+                    source_dir or dir_path,
+                    [video_path, *sibling_paths],
+                )
+                sibling_paths = [
+                    path for path in sibling_paths
+                    if decisions.get(_os.path.realpath(path)) is None
+                    or decisions[_os.path.realpath(path)].accepted
+                ]
+            siblings = [_os.path.basename(path) for path in sibling_paths]
             if siblings:
                 context["sibling_files"] = siblings
         except OSError:
@@ -363,12 +501,12 @@ def _tier2_user_confirm_impl(
     episode: Optional[int],
     providers: list,
 ) -> MatchResult:
-    """第三级：用户确认。"""
+    """第二级：用户确认；match_tier 暂保留历史存储值 3。"""
     concerns = self._pending_concerns[:]
     trace_steps = self._pending_trace[:]
-    candidates = []
+    candidates = list(getattr(self, "_pending_candidates", []) or [])
 
-    for provider in providers:
+    for provider in providers if not candidates else []:
         search_titles = []
         if cjk_title:
             search_titles.append(cjk_title)

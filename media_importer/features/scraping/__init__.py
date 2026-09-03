@@ -18,13 +18,17 @@ from .dimensions_service import (
     disable_dimension_detail,
     enable_dimension_detail,
     get_dimension_detail,
+    get_dimension_mapping_detail,
     list_dimensions,
     list_enabled_dimensions,
+    preview_dimension_mapping,
     reset_dimension_detail,
     update_dimension_detail,
+    update_dimension_mapping_detail,
 )
 from .filename_cleaner import FilenameCleaner
 from .metadata_scraper import MetadataScraper
+from .release_identity import ReleaseIdentity, parse_release_identity
 from .title_matcher import TitleMatcher, _similarity
 
 __all__ = [
@@ -34,6 +38,8 @@ __all__ = [
     "FilenameCleaner",
     "MatchResult",
     "MetadataScraper",
+    "ReleaseIdentity",
+    "parse_release_identity",
     "TMDbClient",
     "TMDbError",
     "TitleMatcher",
@@ -43,12 +49,15 @@ __all__ = [
     "enable_dimension_detail",
     "get_dimensions_for_file",
     "get_dimension_detail",
+    "get_dimension_mapping_detail",
     "get_dimensions_for_provider",
     "get_dimensions_for_tmdb",
     "list_dimensions",
     "list_enabled_dimensions",
     "map_provider_to_dimension",
     "map_tmdb_to_dimension",
+    "preview_dimension_mapping",
     "reset_dimension_detail",
     "update_dimension_detail",
+    "update_dimension_mapping_detail",
 ]

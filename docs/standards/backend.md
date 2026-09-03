@@ -28,12 +28,12 @@ notify/          # 仅 hooks.py（高级脚本钩子）
 ## 2. 任务状态机（唯一事实源）
 
 - 全部状态写入必须经 `features/tasks/transitions.py`：
-  - `status`: PENDING/FAILED/SKIPPED/SUCCESS/CANCELLED；`stage`: QUEUED/RUNNING/AWAIT_REVIEW/DONE；`file_location`: source/temp/import/recycle。
+  - `status`: PENDING/FAILED/SKIPPED/SUCCESS/CANCELLED；`stage`: QUEUED/RUNNING/AWAIT_REVIEW/DONE；`file_location`: source/import/recycle。
   - 转换表 `TRANSITIONS` 定义 13 个动作的合法源→目标；非法转换抛 `TransitionError`。
   - 负向全组合测试自动生成（`tests/test_task_transitions.py`）——新增动作必须同步转换表，否则测试失败。
 - 并发守护：confirm/retry/cancel 用 `task_repo.compare_and_update_task`（CAS）。并发操作只成功一次。
 - 共享 SQLite 连接的所有 repository 访问必须使用同一个 `_sqlite_conn_lock`；连接禁用 `cached_statements`，避免 ThreadingHTTPServer 并发请求破坏语句缓存。
-- retry 语义：`resume=True` 默认开——temp checkpoint 文件存在则保留（`_step_copy` 跳过复制从刮削续跑），不存在自动降级从头。
+- retry 语义：清空刮削、维度、规则、冲突、进度和文件包日志，从原始来源重新排队；禁止步骤续跑或大文件断点复用。
 - `retry_all_failed` 默认仅 FAILED；SKIPPED/CANCELLED 需显式参数（用户终态决策不可批量推翻）。
 - import 幂等：目标已存在且指纹相同 → 幂等成功；不同 → 报冲突。
 
@@ -49,7 +49,7 @@ FilenameCleaner 正则清洗 → TMDB 搜索（CJK 优先，L4/L6/L7 回退英�
 - **禁止**引入任何 AI 参与刮削、匹配、维度判断（退役词 guard 拦截）。
 - 维度来源枚举：`file` / `provider:{type}` / `default` / `unknown`；不允许新来源。
 - 维度兜底：`_apply_dimension_defaults`（DB `dimensions.default_value`，标记 source=default）→ 无默认值留空进人工确认。**不猜测**。
-- 限制级映射：`CERTIFICATION_TO_LEVEL` 9 国优先级（US>GB>DE>FR>CN>JP>KR>AU>CA）。
+- 观看分级映射：版本化 Provider 规则按 10 个国家/地区优先级（HK>US>GB>DE>FR>CN>JP>KR>AU>CA）执行；香港 III 映射为 17+。
 - manual_review 开关 = AUTO_PASS 强制走人工确认（合法配置项）。
 
 ## 4. LLM 边界
@@ -63,7 +63,7 @@ FilenameCleaner 正则清洗 → TMDB 搜索（CJK 优先，L4/L6/L7 回退英�
 
 - 删除/覆盖影视文件必须走回收站；禁止直接 `os.remove()` 源文件或入库文件。
 - 文件操作限制在 `allowed_dirs_from_config` 白名单（含 fallback_dir——2026-08 修复的历史缺口，勿回退）。
-- 临时文件只在明确 `temp_dir` 或 `.tmp`/`.copying` 边界内可直接删。
+- 临时文件仅在任务清单、目标根、任务标识和 `.bundle.tmp`/`.copying` 后缀共同证明归属时可直接清理；正式片库文件仍禁止通用删除。
 - 敏感配置返回前端前必须脱敏（`mask_sensitive` 覆盖 llm 块全部 `*api_key` 字段）。
 
 ## 6. 配置面

@@ -139,25 +139,31 @@ class TestDedupService(unittest.TestCase):
 
 
 class TestImportService(unittest.TestCase):
-    def test_moves_temp_video_to_import_path_and_updates_task(self):
+    def test_direct_source_import_skips_temp_and_keeps_source_until_policy_cleanup(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            temp_dir = os.path.join(tmpdir, "temp")
-            import_dir = os.path.join(tmpdir, "import")
-            os.makedirs(temp_dir)
-            os.makedirs(import_dir)
-            temp_video = os.path.join(temp_dir, "Movie.mkv")
-            with open(temp_video, "w") as f:
-                f.write("video")
-
+            source_dir = os.path.join(tmpdir, "source")
+            library = os.path.join(tmpdir, "library")
+            import_dir = os.path.join(library, "movies")
+            for path in (source_dir, library):
+                os.makedirs(path)
+            source_video = os.path.join(source_dir, "Movie.mkv")
+            with open(source_video, "wb") as handle:
+                handle.write(b"large-video-placeholder")
             config = {
-                "source_dir": os.path.join(tmpdir, "source"),
-                "temp_dir": temp_dir,
-                "path_rules": [{"template": import_dir}],
+                "source_dir": source_dir,
+                "library_roots": [{
+                    "id": "movies",
+                    "name": "电影",
+                    "path": library,
+                    "enabled": True,
+                }],
                 "filename_templates": {"movie": "{title_cn}.{year}.{ext}"},
+                "source_policy": {"mode": "preserve_all"},
             }
             task = {
-                "task_id": "t1",
-                "video_path": temp_video,
+                "task_id": "direct-source",
+                "file_location": "source",
+                "video_path": source_video,
                 "subtitle_files": [],
                 "import_path": import_dir,
                 "scrape_result": {
@@ -168,25 +174,86 @@ class TestImportService(unittest.TestCase):
                 "final_filename": "测试电影.2026.mkv",
             }
 
-            result = ImportService(config).import_task(task, "", [])
+            result = ImportService(config).import_task(task, source_video, [])
+
+            self.assertEqual(open(result.video_path, "rb").read(), b"large-video-placeholder")
+            self.assertEqual(open(source_video, "rb").read(), b"large-video-placeholder")
+
+    def test_direct_source_video_is_copied_and_task_is_updated(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_dir = os.path.join(tmpdir, "source")
+            import_dir = os.path.join(tmpdir, "import")
+            os.makedirs(source_dir)
+            os.makedirs(import_dir)
+            source_video = os.path.join(source_dir, "Movie.mkv")
+            with open(source_video, "w") as f:
+                f.write("video")
+
+            config = {
+                "source_dir": source_dir,
+                "path_rules": [{"template": import_dir}],
+                "filename_templates": {"movie": "{title_cn}.{year}.{ext}"},
+            }
+            task = {
+                "task_id": "t1",
+                "source_path": source_video,
+                "video_path": source_video,
+                "subtitle_files": [],
+                "import_path": import_dir,
+                "scrape_result": {
+                    "title_cn": "测试电影",
+                    "year": "2026",
+                    "media_type": "movie",
+                },
+                "final_filename": "测试电影.2026.mkv",
+            }
+
+            result = ImportService(config).import_task(task, source_video, [])
 
             self.assertTrue(os.path.exists(result.video_path))
             self.assertEqual(task["import_video_path"], result.video_path)
-            self.assertFalse(os.path.exists(temp_video))
+            self.assertTrue(os.path.exists(source_video))
 
-    def test_restore_confirm_temp_name_only_when_manual_review_enabled(self):
+    def test_import_only_resolves_selected_library_root(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            temp_video = os.path.join(tmpdir, "Movie.mkv.tmp")
-            with open(temp_video, "w") as f:
-                f.write("video")
-            task = {"video_path": temp_video}
+            source_dir = os.path.join(tmpdir, "source")
+            selected_root = os.path.join(tmpdir, "selected")
+            sleeping_root = os.path.join(tmpdir, "sleeping")
+            import_dir = os.path.join(selected_root, "movies")
+            source_video = os.path.join(source_dir, "Movie.mkv")
+            config = {
+                "source_dir": source_dir,
+                "library_roots": [
+                    {"id": "selected", "path": selected_root, "enabled": True},
+                    {"id": "sleeping", "path": sleeping_root, "enabled": True},
+                ],
+                "filename_templates": {"movie": "{title_cn}.{year}.{ext}"},
+            }
+            task = {
+                "task_id": "t-selected",
+                "source_path": source_video,
+                "video_path": source_video,
+                "subtitle_files": [],
+                "import_path": import_dir,
+                "scrape_result": {"title_cn": "测试", "year": "2026", "media_type": "movie"},
+                "final_filename": "测试.2026.mkv",
+            }
 
-            ImportService({"manual_review": {"enabled": True}}).restore_confirm_temp_name(task)
+            class NoopCleanup:
+                def cleanup_source_after_import(self, *_args):
+                    from media_importer.features.source_files import SourceCleanupResult
+                    return SourceCleanupResult()
 
-            restored = os.path.join(tmpdir, "Movie.mkv")
-            self.assertEqual(task["video_path"], restored)
-            self.assertTrue(os.path.exists(restored))
-            self.assertFalse(os.path.exists(temp_video))
+            with patch(
+                "media_importer.features.import_flow.services.import_service.move_to_import",
+                return_value={"video": os.path.join(import_dir, "测试.2026.mkv"), "subtitles": []},
+            ) as move:
+                ImportService(config, cleanup_service=NoopCleanup()).import_task(task, source_video, [])
+
+            kwargs = move.call_args.kwargs
+            self.assertEqual(kwargs["import_roots"], [selected_root])
+            self.assertIn(selected_root, kwargs["allowed_base_dirs"])
+            self.assertNotIn(sleeping_root, kwargs["allowed_base_dirs"])
 
 
 class TestReviewDecisionService(unittest.TestCase):
@@ -258,7 +325,6 @@ class TestSourceCleanupService(unittest.TestCase):
     def test_skip_legacy_recycle_policy_keeps_failed_source_unit(self):
         config = {
             "source_dir": "/source",
-            "temp_dir": "/temp",
             "source_policy": {
                 "recycle_dir": "/recycle",
                 "cleanup_source_after_done": True,
@@ -277,25 +343,6 @@ class TestSourceCleanupService(unittest.TestCase):
 
         self.assertEqual(result.moved_count, 0)
         self.assertIn("未全部成功", result.message)
-
-    def test_temp_cleanup_only_deletes_files_inside_temp_dir(self):
-        service = SourceCleanupService({
-            "source_dir": "/source",
-            "temp_dir": "/temp",
-            "path_rules": [{"template": "/import"}],
-        })
-
-        with patch("media_importer.features.source_files.cleanup_service.delete_source_files") as delete_files:
-            outside = service.cleanup_temp_file("/outside/Movie.mkv")
-            inside = service.cleanup_temp_file("/temp/Movie.mkv")
-
-        self.assertEqual(outside.deleted_count, 0)
-        self.assertEqual(inside.deleted_count, 1)
-        delete_files.assert_called_once_with(
-            ["/temp/Movie.mkv"],
-            allowed_base_dirs=["/temp"],
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

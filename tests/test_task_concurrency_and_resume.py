@@ -1,8 +1,8 @@
-"""Phase 2 S2/S3 行为级测试：CAS 并发守护 / 断点续跑 / retry-all 收敛 / import 幂等。
+"""任务行为级测试：CAS 并发守护 / 整任务重启 / retry-all 收敛 / import 幂等。
 
 验证目标（proposal 2026-08-23-state-machine-redesign.md 验收标准 3/4/5）：
 - 并发 confirm 只成功一次（CAS）；
-- retry 保留 temp checkpoint 且续跑跳过 copy；
+- retry 清空旧流水线结果并从原始来源重新排队；
 - retry_all_failed 默认不复活 SKIPPED/CANCELLED；
 - import 目标同指纹幂等成功。
 """
@@ -136,43 +136,33 @@ class TestRetryAllConvergence(_Base):
         self.assertNotIn(c, {t["task_id"] for t in retried})
 
 
-class TestRetryCheckpoint(_Base):
-    """S2：retry 保留 temp checkpoint（文件存在时）。"""
+class TestWholeTaskRestart(_Base):
+    """ADR-0022：不保留步骤检查点，重试始终回到原始来源。"""
 
-    def test_retry_keeps_existing_temp(self):
-        temp_file = os.path.join(self.dir, "movie.mkv")
-        with open(temp_file, "w") as f:
-            f.write("x" * 1024)
+    def test_retry_clears_previous_pipeline_state(self):
+        tid = self._new_task(
+            status="FAILED",
+            stage="DONE",
+            video_path="/library/Movie.copying",
+            file_location="import",
+            scrape_result={"title_cn": "旧结果"},
+            classify_result='{"rule_id": "old"}',
+            bundle_state="RECOVERY_REQUIRED",
+            bundle_manifest=[{"kind": "video"}],
+            retry_count=0,
+        )
 
-        tid = self._new_task(status="FAILED", stage="DONE",
-                             video_path=temp_file, file_location="temp",
-                             retry_count=0)
+        result = self.tm.retry_task(tid)
 
-        result = self.tm.retry_task(tid, resume=True)
         self.assertIsNotNone(result)
         self.assertEqual(result["stage"], "QUEUED")
-        self.assertEqual(result["file_location"], "temp")
-        self.assertEqual(result["video_path"], temp_file)  # checkpoint 保留
-
-    def test_retry_clears_missing_temp(self):
-        tid = self._new_task(status="FAILED", stage="DONE",
-                             video_path="/nonexistent/m.mkv",
-                             file_location="temp", retry_count=0)
-
-        result = self.tm.retry_task(tid, resume=True)
-        self.assertIsNotNone(result)
         self.assertEqual(result["file_location"], "source")
-        self.assertEqual(result["video_path"], "")
-
-    def test_retry_api_default_resumes(self):
-        """API 层 retry 默认 resume=True（大文件不重拷）。"""
-        temp_file = os.path.join(self.dir, "movie2.mkv")
-        with open(temp_file, "w") as f:
-            f.write("y" * 2048)
-        tid = self._new_task(status="FAILED", stage="DONE",
-                             video_path=temp_file, file_location="temp")
-        result = self.tm.retry_task(tid)  # 默认 resume=True
-        self.assertEqual(result["file_location"], "temp")
+        self.assertEqual(result["video_path"], result["source_path"])
+        self.assertEqual(result["scrape_result"], {})
+        self.assertEqual(result["classify_result"], "")
+        self.assertEqual(result["bundle_state"], "")
+        self.assertEqual(result["bundle_manifest"], [])
+        self.assertEqual(result["percentage"], 0)
 
 
 class TestImportIdempotent(unittest.TestCase):
@@ -194,7 +184,9 @@ class TestImportIdempotent(unittest.TestCase):
             stat = os.stat(src)
             os.utime(dest, (stat.st_atime, stat.st_mtime))  # 对齐 mtime
 
-            with self.assertRaisesRegex(IOError, "冲突尚未确认"):
+            from media_importer.features.import_flow.utils import PipelineReviewRequired
+
+            with self.assertRaisesRegex(PipelineReviewRequired, "同名文件"):
                 move_to_import(
                     src, [], dest_dir,
                     {"media_type": "movie", "title_cn": "src", "title_en": "src",

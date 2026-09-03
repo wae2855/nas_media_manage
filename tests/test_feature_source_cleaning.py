@@ -166,7 +166,6 @@ class TestSourceCleaningFeatureCompatibility(unittest.TestCase):
                 paths[name] = path
             config = {
                 "source_dir": paths["source"],
-                "temp_dir": paths["temp"],
                 "source_policy": {"mode": "preserve_media", "recycle_dir": paths["recycle"]},
                 "source_cleaner": {"enabled": True},
                 "library_roots": [

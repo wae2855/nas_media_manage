@@ -50,7 +50,6 @@ def allowed_dirs_from_config(config: dict) -> list:
     view = _view(config)
     allowed_dirs = [
         view.paths.source_dir,
-        view.paths.temp_dir,
     ]
     if view.paths.library_root:
         allowed_dirs.append(view.paths.library_root)

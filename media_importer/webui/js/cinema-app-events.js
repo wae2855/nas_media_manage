@@ -66,14 +66,6 @@ function bindEvents() {
       );
       return;
     }
-    const libraryMigrationAction = event.target.closest("[data-library-migration-action]");
-    if (libraryMigrationAction) {
-      commitStagedLibraryMigration({
-        button: libraryMigrationAction,
-        feedbackHost: libraryMigrationAction.closest(".directory-migration-callout"),
-      });
-      return;
-    }
     const directoryPick = event.target.closest("[data-directory-pick]");
     if (directoryPick) {
       pickDirectoryForField(directoryPick.dataset.directoryPick);
@@ -149,7 +141,6 @@ function bindEvents() {
     if (configSave) {
       const actionMap = {
         source: saveSourceConfig,
-        temp: saveTempConfig,
         recycle: saveRecycleConfig,
         rules: saveRulesConfig,
         scrape: () => saveProvidersConfig(""),
@@ -175,7 +166,8 @@ function bindEvents() {
     const readinessFix = event.target.closest("[data-readiness-fix]");
     if (readinessFix) {
       const target = readinessFix.dataset.readinessFix || "";
-      if (target === "storage") setConfigStage("temp");
+      if (target === "storage") setConfigStage("storage");
+      else if (target === "rules") setConfigStage("rules");
       else if (target === "scraping") setConfigStage("scrape");
       else if (target === "automation") setConfigStage("ai");
       else {
@@ -246,6 +238,13 @@ function bindEvents() {
     }
   });
   document.addEventListener("change", (event) => {
+    if (event.target.id === "cfg-media-candidate-enabled-inline") {
+      const state = document.getElementById("media-candidate-summary-state");
+      if (state) {
+        state.textContent = event.target.checked ? "已开启" : "已关闭";
+        state.classList.toggle("is-off", !event.target.checked);
+      }
+    }
     const taskSelectAll = event.target.closest("[data-task-select-all]");
     if (taskSelectAll) {
       selectAllVisibleTasks();
@@ -274,6 +273,9 @@ function bindEvents() {
     .querySelectorAll('input[name="cfg-source-after-done"]')
     .forEach((radio) => radio.addEventListener("change", toggleSourceModeUi));
   document
+    .querySelectorAll('input[name="cfg-source-disposal"]')
+    .forEach((radio) => radio.addEventListener("change", toggleSourceDisposalUi));
+  document
     .getElementById("cfg-source-recursive-toggle-inline")
     .addEventListener("change", toggleSourceDepthField);
   const watcherToggle = document.getElementById(
@@ -282,8 +284,18 @@ function bindEvents() {
   if (watcherToggle)
     watcherToggle.addEventListener("change", toggleFileWatcherPollGroup);
   const automationToggle = document.getElementById("cfg-auto-watcher-enabled");
-  if (automationToggle)
-    automationToggle.addEventListener("change", syncAutomationToggleCopy);
+  if (automationToggle) {
+    automationToggle.addEventListener("change", () => {
+      syncAutomationToggleCopy();
+      saveAutomationConfig();
+    });
+  }
+  const automationInterval = document.getElementById(
+    "cfg-auto-watcher-poll-interval",
+  );
+  if (automationInterval) {
+    automationInterval.addEventListener("change", saveAutomationConfig);
+  }
   window.addEventListener("scroll", updateStickyHeroState, { passive: true });
   window.addEventListener("resize", updateStickyHeroState);
   toggleSourceCleanerUi();

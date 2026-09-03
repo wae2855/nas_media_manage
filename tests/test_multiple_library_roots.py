@@ -5,13 +5,12 @@ from media_importer.features.import_flow.services.paths import allowed_dirs_from
 
 def _config(tmp_path):
     paths = {}
-    for name in ("source", "temp", "recycle", "resources", "movies", "tv"):
+    for name in ("source", "recycle", "resources", "movies", "tv"):
         path = tmp_path / name
         path.mkdir()
         paths[name] = str(path)
     return {
         "source_dir": paths["source"],
-        "temp_dir": paths["temp"],
         "resource_dir": paths["resources"],
         "source_policy": {"mode": "preserve_all", "recycle_dir": paths["recycle"]},
         "library_roots": [
@@ -45,7 +44,7 @@ def test_all_enabled_roots_are_in_allowed_directories_and_readiness(tmp_path):
     config, paths = _config(tmp_path)
 
     assert set(allowed_dirs_from_config(config)) >= {
-        paths["source"], paths["temp"], paths["movies"], paths["tv"],
+        paths["source"], paths["movies"], paths["tv"],
     }
     report = inspect_storage_readiness(config)
     targets = {item["id"]: item for item in report["locations"] if item["role"] == "target"}
@@ -60,7 +59,6 @@ def test_all_enabled_roots_are_in_allowed_directories_and_readiness(tmp_path):
 def test_readiness_does_not_infer_targets_from_legacy_rules():
     report = inspect_storage_readiness({
         "source_dir": "",
-        "temp_dir": "",
         "source_policy": {"recycle_dir": ""},
         "path_rules": [
             {"template": "/vol1/movies/{title_cn}"},

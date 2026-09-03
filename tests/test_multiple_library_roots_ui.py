@@ -45,16 +45,26 @@ def test_storage_ledger_supports_dynamic_unbounded_library_rows():
     assert "数量不设上限" in loader
     assert 'String(item.id || "").startsWith("target:")' in loader
     assert "saveLibraryRootsConfig" in save
-    assert "_migrate_legacy_library_rules" in save
-    assert "暂存并继续选择" in source
-    assert "已选齐，确认关联" in source
-    assert 'data-library-migration-action="commit"' in loader
+    assert "_migrate_legacy_library_rules" not in save
+    assert "暂存并继续选择" not in source
+    assert "片库已选好，去设置规则" not in source
+    assert 'data-library-assignment-action="open-rules"' not in loader
 
 
-def test_legacy_migration_hides_the_normal_add_library_entry():
+def test_rules_never_fall_back_to_default_library_assignment():
+    rules = (WEBUI / "js" / "cinema-config-rules.js").read_text(encoding="utf-8")
+    save = (WEBUI / "js" / "cinema-config-save.js").read_text(encoding="utf-8")
+    payloads = (WEBUI / "js" / "cinema-config-payloads.js").read_text(encoding="utf-8")
+    assert "rule.library_root_id || defaultLibraryRootId()" not in rules
+    assert "rule.library_root_id || defaultLibraryRootId()" not in save
+    assert 'fallback_library_root_id:\n      document.getElementById("cfg-fallback-root-inline")?.value || ""' in payloads
+
+
+def test_storage_check_always_keeps_the_normal_add_library_entry():
     loader = (WEBUI / "js" / "cinema-directory-loader.js").read_text(encoding="utf-8")
-    assert "const migrationActive = Boolean(config?._library_migration_error);" in loader
-    assert 'const addTarget = migrationActive\n      ? ""' in loader
+    assert "_library_migration_error" not in loader
+    assert 'class="storage-add-library"' in loader
+    assert "旧规则待设置" not in loader
 
 
 def test_storage_rows_group_status_with_path_details():
@@ -77,10 +87,9 @@ def test_storage_check_is_the_only_directory_editing_surface():
     assert 'id="cfg-log_dir-inline"' not in advanced
     assert 'id="cfg-resource_dir-inline"' not in advanced
     assert "所有目录统一在【存储检查】" in index
-    assert 'if (!String(config?.source_dir || "").trim()) return "temp";' in loader
-    assert "建议与主要目标片库放在同一磁盘" in loader
-    assert '["source", "temp", "recycle", "log", "resource"]' in loader
+    assert 'if (!String(config?.source_dir || "").trim()) return "storage";' in loader
+    assert '["source", "recycle", "log", "resource"]' in loader
     assert 'source_dir: normalizePathValue(' not in payloads
     assert 'log_dir: normalizePathValue(' not in payloads
     assert "saveStorageDirectoryRole" in directories
-    assert 'temp: { title: "选择本地中转目录"' in directories
+    assert 'temp: { title: "选择本地中转目录"' not in directories

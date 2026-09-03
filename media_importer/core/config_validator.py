@@ -115,13 +115,6 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
         ok, msg = check_path(source_dir, require_write=source_requires_write)
         add_check("source_dir", "ok" if ok else "error", msg)
 
-    temp_dir = config.get("temp_dir", "")
-    if not temp_dir:
-        add_check("temp_dir", "error", "中转目录未配置")
-    else:
-        ok, msg = check_path(temp_dir, require_write=True)
-        add_check("temp_dir", "ok" if ok else "error", msg)
-
     source_policy = config.get("source_policy", {})
     quarantine_dir = source_policy.get("quarantine_dir", "")
     recycle_dir = source_policy.get("recycle_dir", "") or quarantine_dir
@@ -221,8 +214,70 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
                     "source_cleaner.junk_video_max_size_mb", "ok", "垃圾视频大小阈值: " + str(sc_junk_size) + " MB"
                 )
 
+    candidate_filter = config.get("media_candidate_filter", {}) or {}
+    if candidate_filter:
+        candidate_enabled = candidate_filter.get("enabled")
+        if candidate_enabled is not None and not isinstance(candidate_enabled, bool):
+            add_check(
+                "media_candidate_filter.enabled",
+                "error",
+                "媒体候选过滤开关必须为布尔值",
+            )
+        for key, label in (
+            ("small_video_max_mb", "小视频上限"),
+            ("main_video_min_mb", "主视频下限"),
+        ):
+            value = candidate_filter.get(key)
+            if value is not None:
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+                    add_check(
+                        f"media_candidate_filter.{key}",
+                        "error",
+                        f"{label}必须为非负数字",
+                    )
+                else:
+                    add_check(
+                        f"media_candidate_filter.{key}",
+                        "ok",
+                        f"{label}: {value} MB",
+                    )
+        ratio = candidate_filter.get("max_size_ratio")
+        if ratio is not None:
+            if (
+                isinstance(ratio, bool)
+                or not isinstance(ratio, (int, float))
+                or not 0 <= ratio <= 1
+            ):
+                add_check(
+                    "media_candidate_filter.max_size_ratio",
+                    "error",
+                    "附带视频体积比例必须在 0 到 1 之间",
+                )
+            else:
+                add_check(
+                    "media_candidate_filter.max_size_ratio",
+                    "ok",
+                    f"附带视频体积比例上限: {ratio:g}",
+                )
+        patterns = candidate_filter.get("extra_name_patterns")
+        if patterns is not None:
+            if not isinstance(patterns, list) or not all(
+                isinstance(pattern, str) for pattern in patterns
+            ):
+                add_check(
+                    "media_candidate_filter.extra_name_patterns",
+                    "error",
+                    "自定义推广文件名模式必须是字符串列表",
+                )
+            else:
+                add_check(
+                    "media_candidate_filter.extra_name_patterns",
+                    "ok",
+                    f"自定义推广模式: {len(patterns)} 条",
+                )
+
     watcher = config.get("file_watcher", {}) or {}
-    poll_interval = watcher.get("poll_interval", 60)
+    poll_interval = watcher.get("poll_interval", 300)
     if isinstance(poll_interval, bool) or not isinstance(poll_interval, int):
         add_check("file_watcher.poll_interval", "error", "自动运行轮询周期必须为整数秒")
     elif not 10 <= poll_interval <= 3600:
@@ -324,6 +379,21 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
             add_check("source_policy.mode", "error", "源文件处理模式无效")
         else:
             add_check("source_policy.mode", "warning", "旧版源文件策略将在保存时迁移")
+    disposal_mode = source_policy.get("disposal_mode", "local_recycle")
+    if disposal_mode not in {"local_recycle", "permanent_delete"}:
+        add_check("source_policy.disposal_mode", "error", "来源处置方式无效")
+    elif source_mode == "preserve_all" and disposal_mode == "permanent_delete":
+        add_check(
+            "source_policy.disposal_mode",
+            "error",
+            "完整保留模式不能同时选择永久删除来源",
+        )
+    elif disposal_mode == "permanent_delete":
+        add_check(
+            "source_policy.disposal_mode",
+            "warning",
+            "来源内容将永久删除，无法从应用回收区恢复",
+        )
     source_cleaner = config.get("source_cleaner", {}) or {}
     if source_cleaner.get("enabled") is True and source_mode not in {None, "preserve_media"}:
         add_check("source_cleaner.enabled", "error", "智能清理仅能用于保留媒体模式")
@@ -357,7 +427,15 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
             add_check("path_rules", "ok", "入库规则格式正确，共 " + str(len(path_rules)) + " 条")
 
     try:
-        disk_check_dir = config.get("temp_dir", "/tmp")
+        roots = config.get("library_roots") or []
+        disk_check_dir = next(
+            (
+                str(root.get("path") or "")
+                for root in roots
+                if isinstance(root, dict) and root.get("enabled", True) is not False
+            ),
+            config.get("source_dir", "/tmp"),
+        )
         stat = os.statvfs(disk_check_dir)
         free_gb = stat.f_bavail * stat.f_frsize / (1024**3)
         if free_gb > 1:

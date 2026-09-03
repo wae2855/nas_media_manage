@@ -123,6 +123,18 @@ async function _handleApiResponse(response) {
 async function checkApiKeyRequired() {
   try {
     var resp = await fetch(getApiBase() + "/api/health");
+    var payload = null;
+    try {
+      payload = await resp.json();
+    } catch (e) {
+      payload = null;
+    }
+    var runtimeVersion = document.getElementById("runtime-version");
+    var version = payload && payload.data ? String(payload.data.version || "").trim() : "";
+    if (runtimeVersion && version && version !== "unknown") {
+      runtimeVersion.textContent = "v" + version.replace(/^v/i, "");
+      runtimeVersion.title = "当前运行版本 " + version.replace(/^v/i, "");
+    }
     if (resp.status === 401) {
       document.getElementById("api-key-btn").style.display = "";
       if (!getApiKey()) {

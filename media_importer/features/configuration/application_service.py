@@ -5,10 +5,14 @@ from typing import Callable
 from media_importer.core.config_loader import mask_sensitive
 
 from .fnos_directory_access import build_fnos_directory_capability
-from .storage_readiness import inspect_storage_readiness
+from .storage_readiness import (
+    automatic_blocking_reasons,
+    inspect_processing_support_readiness,
+    inspect_storage_readiness,
+)
 
 SECTION_FIELD_MAP = {
-    "basic": ["source_dir", "temp_dir", "source_policy"],
+    "basic": ["source_dir", "source_policy"],
     "path_rules": [
         "library_roots", "default_library_root_id", "library_root",
         "path_rules", "fallback_library_root_id", "fallback_dir",
@@ -48,6 +52,8 @@ def build_config_ui_payload(config: dict) -> dict:
             if source_policy.get("cleanup_source_after_done") is True
             else "preserve_all"
         )
+    if source_policy.get("disposal_mode") not in {"local_recycle", "permanent_delete"}:
+        source_policy["disposal_mode"] = "local_recycle"
     source_policy["cleanup_mode"] = (
         "full_cleanup" if source_policy["mode"] == "recycle_source_unit" else "read_only"
     )
@@ -117,14 +123,55 @@ def build_path_test_payload(
     return result
 
 
-def build_watcher_status_payload(watcher) -> dict:
-    if not watcher:
-        return {"enabled": False, "status": "not_started"}
-    is_running = watcher.is_running()
+def build_watcher_status_payload(watcher, config: dict | None = None) -> dict:
+    if config is None:
+        if not watcher:
+            return {"enabled": False, "status": "not_started"}
+        is_running = watcher.is_running()
+        return {
+            "enabled": is_running,
+            "poll_interval": watcher.poll_interval,
+            "status": "running" if is_running else "stopped",
+        }
+
+    watcher_config = (config or {}).get("file_watcher", {}) or {}
+    configured_enabled = watcher_config.get("enabled") is True
+    is_running = bool(watcher and watcher.is_running())
+
+    if not configured_enabled:
+        status = "disabled"
+        reason = "后台自动整理未开启"
+        automatic_allowed = False
+        reasons = []
+    elif is_running:
+        runtime = getattr(watcher, "status", {}) or {}
+        automatic_allowed = bool(runtime.get("automatic_allowed", True))
+        reasons = list(runtime.get("blocking_reasons", []) or [])
+        status = "running" if automatic_allowed else "blocked"
+        reason = (
+            "后台监控正在运行"
+            if automatic_allowed
+            else reasons[0] if reasons else "来源或处理支持目录当前不可用"
+        )
+    else:
+        readiness = inspect_processing_support_readiness(config or {})
+        automatic_allowed = bool(readiness.get("automatic_allowed", False))
+        reasons = automatic_blocking_reasons(readiness)
+    if configured_enabled and not is_running and not automatic_allowed:
+        status = "blocked"
+        reason = reasons[0] if reasons else "当前存储状态不允许后台自动整理"
+    elif configured_enabled and not is_running:
+        status = "not_started"
+        reason = "设置已保存，但后台监控尚未启动；请重新应用设置或重启服务"
+
     return {
+        "configured_enabled": configured_enabled,
         "enabled": is_running,
-        "poll_interval": watcher.poll_interval,
-        "status": "running" if is_running else "stopped",
+        "automatic_allowed": automatic_allowed,
+        "blocking_reasons": reasons,
+        "reason": reason,
+        "poll_interval": int(watcher_config.get("poll_interval", 300) or 300),
+        "status": status,
     }
 
 

@@ -3,14 +3,13 @@
 设计（proposal: 2026-08-23-state-machine-redesign.md S1）：
 - 转换表 TRANSITIONS 定义每个动作的合法源状态与目标状态；
 - apply() 统一校验 + 生成字段，非法转换抛 TransitionError；
-- file_location 诚实规则：fail/retry 按失败瞬间文件实际位置计算，禁止硬编码；
+- file_location 诚实规则：任务只记录来源、片库或回收区，不暴露内部暂存；
 - 全部状态写入（含 mark_* 兼容层）必须经本模块；负向测试由转换表自动生成。
 
-S2 断点续跑：retry 动作支持 resume=True 保留 temp checkpoint（copy 完成档）。
+ADR-0022：retry 总是从原始来源重启，不保留步骤或大文件断点。
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime
 
 # 状态常量（与 core/task_lifecycle 保持单一值集）
@@ -26,7 +25,6 @@ STAGE_AWAIT_REVIEW = "AWAIT_REVIEW"
 STAGE_DONE = "DONE"
 
 FILE_LOCATION_SOURCE = "source"
-FILE_LOCATION_TEMP = "temp"
 FILE_LOCATION_IMPORT = "import"
 FILE_LOCATION_RECYCLE = "recycle"
 
@@ -75,9 +73,8 @@ def _state(task) -> tuple:
 TRANSITIONS: dict = {
     # QUEUED -> RUNNING（runner 开始处理）
     "start": (frozenset({(STATUS_PENDING, STAGE_QUEUED)}), (STATUS_PENDING, STAGE_RUNNING)),
-    # RUNNING 内部推进（进度/临时区就绪，不改状态机位置）
+    # RUNNING 内部推进（进度更新，不改状态机位置）
     "step": (frozenset({(STATUS_PENDING, STAGE_RUNNING)}), (STATUS_PENDING, STAGE_RUNNING)),
-    "temp_ready": (frozenset({(STATUS_PENDING, STAGE_RUNNING)}), (STATUS_PENDING, STAGE_RUNNING)),
     # RUNNING -> AWAIT_REVIEW（需人工确认/审核）
     "need_confirm": (frozenset({(STATUS_PENDING, STAGE_RUNNING)}), (STATUS_PENDING, STAGE_AWAIT_REVIEW)),
     "need_review": (frozenset({(STATUS_PENDING, STAGE_RUNNING)}), (STATUS_PENDING, STAGE_AWAIT_REVIEW)),
@@ -127,10 +124,6 @@ def _check_source(action: str, source: tuple) -> None:
         )
 
 
-def _exists(path) -> bool:
-    return bool(path) and os.path.exists(path)
-
-
 # ---------------------------------------------------------------------------
 # apply：统一转换入口
 # ---------------------------------------------------------------------------
@@ -143,7 +136,6 @@ def apply(task, action: str, **ctx) -> dict:
     ctx 常用键：
     - error_message / skip_reason / reason：文案
     - video_path：当前文件路径（用于 file_location 诚实计算）
-    - resume（retry）：True 时保留 temp checkpoint（S2）
     - 其余键原样透传为字段
     """
     data = getattr(task, "raw", task)
@@ -163,15 +155,13 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
         return {"status": STATUS_PENDING, "stage": STAGE_RUNNING,
                 **_pass(ctx, "current_step", "step_name", "percentage", "bytes_copied", "total_bytes")}
 
-    if action == "temp_ready":
-        video_path = ctx.get("video_path") or data.get("video_path", "")
-        return {"file_location": FILE_LOCATION_TEMP, "video_path": video_path}
-
     if action in ("need_confirm", "need_review"):
+        video_path = ctx.get("video_path") or data.get("video_path") or data.get("source_path", "")
+        location = data.get("file_location") or FILE_LOCATION_SOURCE
         fields = {
             "status": STATUS_PENDING, "stage": STAGE_AWAIT_REVIEW,
-            "video_path": ctx.get("video_path") or data.get("video_path", ""),
-            "file_location": FILE_LOCATION_TEMP,
+            "video_path": video_path,
+            "file_location": location,
         }
         if action == "need_confirm":
             fields["confirm_status"] = ctx.get("confirm_status", "PENDING")
@@ -200,19 +190,18 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
         }
 
     if action == "fail":
-        # 诚实规则：失败瞬间文件在哪就记哪（不硬编码 source）
+        # 内部目标暂存不是业务文件位置；失败只保留已有业务位置。
         # video_path 语义：显式传值（含 ""）=写入该值；缺省/None=保留不动（不写字段，location 按当前值计算）
         video_path = ctx.get("video_path")
         if video_path is None:
-            current = data.get("video_path", "")
-            location = FILE_LOCATION_TEMP if _exists(current) else FILE_LOCATION_SOURCE
+            location = data.get("file_location") or FILE_LOCATION_SOURCE
             fields = {
                 "status": STATUS_FAILED, "stage": STAGE_DONE,
                 "error_message": ctx.get("error_message", ""),
                 "file_location": location,
             }
         else:
-            location = FILE_LOCATION_TEMP if _exists(video_path) else FILE_LOCATION_SOURCE
+            location = data.get("file_location") or FILE_LOCATION_SOURCE
             fields = {
                 "status": STATUS_FAILED, "stage": STAGE_DONE,
                 "error_message": ctx.get("error_message", ""),
@@ -225,9 +214,7 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
 
     if action == "skip":
         video_path = ctx.get("video_path", "")
-        location = ctx.get("file_location") or (
-            FILE_LOCATION_TEMP if _exists(video_path) else FILE_LOCATION_SOURCE
-        )
+        location = ctx.get("file_location") or data.get("file_location") or FILE_LOCATION_SOURCE
         return {
             "status": STATUS_SKIPPED, "stage": STAGE_DONE,
             "skip_reason": ctx.get("reason", ""),
@@ -254,28 +241,28 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
         }
 
     if action == "retry":
-        resume = bool(ctx.get("resume")) and _exists(data.get("video_path", ""))
-        if resume:
-            # S2 断点续跑：temp checkpoint 存在，保留 video_path/file_location
-            return {
-                "status": STATUS_PENDING, "stage": STAGE_QUEUED,
-                "retry_count": data.get("retry_count", 0) + 1,
-                "error_code": 0, "error_message": "",
-                "current_step": 0, "step_name": "", "percentage": 0,
-                "import_video_path": "", "import_path": "", "final_filename": "",
-                "classify_result": "",
-                "confirmed_override": 0, "confirmed_title": "", "override_source": "",
-                "file_location": FILE_LOCATION_TEMP,
-            }
+        is_reorganization = data.get("task_kind") == "REORGANIZE"
         return {
             "status": STATUS_PENDING, "stage": STAGE_QUEUED,
             "retry_count": data.get("retry_count", 0) + 1,
             "error_code": 0, "error_message": "",
             "current_step": 0, "step_name": "", "percentage": 0,
-            "video_path": "", "import_video_path": "", "import_path": "",
+            "video_path": data.get("source_path", ""),
+            "import_video_path": "", "import_path": "",
             "final_filename": "", "classify_result": "",
-            "file_location": FILE_LOCATION_SOURCE,
+            "file_location": FILE_LOCATION_IMPORT if is_reorganization else FILE_LOCATION_SOURCE,
+            "scrape_result": {}, "scrape_dimensions": {},
+            "dedup_result": {}, "dedup_existing_file": "",
+            "match_concerns": [], "used_fallback": 0,
+            "confirm_status": CONFIRM_NONE, "confirmed_at": "",
+            "bytes_copied": 0, "total_bytes": 0,
+            "progress_item_name": "", "progress_item_kind": "",
+            "progress_item_index": 0, "progress_item_total": 0,
+            "bundle_state": "", "bundle_manifest": [], "bundle_committed": 0,
             "confirmed_override": 0, "confirmed_title": "", "override_source": "",
+            "cancel_requested": 0, "stop_requested_at": "",
+            "requested_source_disposition": "", "outcome_code": "",
+            "source_disposition": "", "source_disposition_message": "",
         }
 
     raise TransitionError(f"动作 {action} 未实现")  # pragma: no cover

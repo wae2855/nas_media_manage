@@ -23,7 +23,6 @@ function renderStorageReadiness(readiness, config = currentConfigSnapshot, capab
     : [];
   const roleLabels = {
     source: "文件来源",
-    temp: "本地中转",
     recycle: "本地回收",
     target: "片库目标",
     log: "运行日志",
@@ -40,48 +39,44 @@ function renderStorageReadiness(readiness, config = currentConfigSnapshot, capab
               : capacity.known
               ? `可用 ${formatStorageBytes(capacity.free)} · 安全余量 ${formatStorageBytes(capacity.reserve)}`
               : "容量由远程挂载提供，运行时再次确认";
-            const source = !item.identity
+            const source = item.managed_by_app
+              ? "应用私有目录"
+              : !item.identity
               ? "尚未验证"
               : item.identity.locality === "remote"
                 ? "远程挂载"
                 : "本地目录";
             const rootId = String(item.id || "").startsWith("target:") ? String(item.id).slice(7) : "";
             const root = rootId ? targetRoots.find((entry) => entry.id === rootId) : null;
-            const editableRole = ["source", "temp", "recycle", "log", "resource"].includes(item.role);
+            const editableRole = ["source", "recycle", "log", "resource"].includes(item.role);
+            const needsReauthorization = capability?.enforced
+              && !!item.path
+              && item.authorization?.required === true
+              && item.authorization?.authorized === false;
+            const managedBadge = item.managed_by_app
+              ? '<span class="storage-managed-badge" title="由 fnOS 随应用创建并授权，不会出现在共享目录选择器中">系统托管</span>'
+              : "";
             const authAction = capability?.enforced && editableRole
-              ? `<button class="btn btn-secondary btn-sm" type="button" data-fnos-auth-role="${item.role}">${item.path ? "更改位置" : "选择并授权"}</button>`
+              ? `<button class="btn ${needsReauthorization ? "btn-primary" : "btn-secondary"} btn-sm" type="button" data-fnos-auth-role="${item.role}"${needsReauthorization ? ` data-fnos-auth-path="${escapeHtml(item.path)}"` : ""}>${needsReauthorization ? "重新授权" : item.path ? "更改位置" : "选择并授权"}</button>`
               : editableRole
                 ? `<button class="btn btn-secondary btn-sm" type="button" data-directory-pick="${item.role}">${item.path ? "更改位置" : "选择目录"}</button>`
                 : "";
             const targetActions = root ? `${capability?.enforced ? `<button class="btn btn-secondary btn-sm" type="button" data-fnos-auth-role="library" data-fnos-auth-path="${escapeHtml(root.path)}">重新授权</button>` : ""}<button class="btn btn-secondary btn-sm" type="button" data-library-root-action="edit" data-library-root-id="${escapeHtml(root.id)}">编辑</button><button class="btn btn-secondary btn-sm" type="button" data-library-root-action="delete" data-library-root-id="${escapeHtml(root.id)}">移除</button>` : "";
             const guidance = {
-              temp: "建议与主要目标片库放在同一磁盘，减少跨盘搬运；也可选择本地 SSD 提升高频读写速度。",
               log: "系统默认位置通常无需修改；更改后将在下次服务启动时写入新目录。",
               resource: "用于海报和缩略图缓存，系统默认位置通常无需修改。",
             }[item.role] || "";
             return `<article class="storage-readiness-card is-${escapeHtml(item.level || "error")}">
               <div class="storage-card-head"><span class="storage-status-dot"></span><div><b>${escapeHtml(item.label || roleLabels[item.role] || item.role || "目录")}</b><small>${escapeHtml(source)}${root?.id === defaultLibraryRootId(config) ? " · 默认片库" : ""}</small></div></div>
               <div class="storage-card-detail"><strong>${item.level === "ok" ? "可用" : item.level === "warning" ? "请留意" : "需要处理"}</strong><code title="${escapeHtml(item.path || "")}">${escapeHtml(item.path || "未配置")}</code><p>${escapeHtml(item.message || "")}${guidance ? `<small class="storage-role-guidance">${escapeHtml(guidance)}</small>` : ""}</p></div>
-              <div class="storage-card-foot"><span class="storage-capacity">${escapeHtml(capacityText)}</span><div class="storage-card-actions">${authAction}${targetActions}</div></div>
+              <div class="storage-card-foot"><span class="storage-capacity">${escapeHtml(capacityText)}</span><div class="storage-card-actions">${managedBadge}${authAction}${targetActions}</div></div>
             </article>`;
           })
           .join("")
       : "";
     const targetPickerAttribute = capability?.enforced ? 'data-fnos-auth-role="library"' : 'data-library-root-action="add"';
-    const migrationDrafts = targetRoots.length
-      ? `<div class="directory-migration-drafts">${targetRoots.map((root) => `<code>${escapeHtml(root.name)} · ${escapeHtml(root.path)}</code>`).join("")}</div>`
-      : "";
-    const migrationActive = Boolean(config?._library_migration_error);
-    const migrationActions = targetRoots.length
-      ? `<div class="directory-migration-actions"><button class="btn btn-secondary btn-sm" type="button" ${targetPickerAttribute}>继续添加片库</button><button class="btn btn-primary btn-sm" type="button" data-library-migration-action="commit">已选齐，确认关联（${targetRoots.length}）</button></div>`
-      : `<div class="directory-migration-actions"><button class="btn btn-primary btn-sm" type="button" ${targetPickerAttribute}>选择片库根</button></div>`;
-    const migration = migrationActive
-      ? `<article class="directory-migration-callout"><span>保留规则待关联</span><div><b>${targetRoots.length ? `已暂存 ${targetRoots.length} 个片库根` : "检测到本设备保留的旧版入库规则"}</b><p>这通常发生在升级、保留数据后重装，或中途更换片库路径。这里只转换路径规则，不会移动、覆盖或删除片库中的任何影片。请先选齐影片所在的所有磁盘；任何规则无法覆盖时整次保存都会取消。</p>${migrationDrafts}<p class="library-migration-feedback" data-library-migration-feedback hidden></p></div>${migrationActions}</article>`
-      : "";
-    const addTarget = migrationActive
-      ? ""
-      : `<article class="storage-add-library"><div><span>TARGET LIBRARY · ${targetRoots.length}</span><b>${targetRoots.length ? "还有其他硬盘？继续添加" : "添加第一个目标片库"}</b><p>数量不设上限，每个目录独立授权、检查和命名。</p></div><button class="btn btn-primary btn-sm" type="button" ${targetPickerAttribute}>${targetRoots.length ? "添加目标片库" : capability?.enforced ? "选择并授权" : "添加片库"}</button></article>`;
-    host.innerHTML = `${migration}${cards}${addTarget}`;
+    const addTarget = `<article class="storage-add-library"><div><span>TARGET LIBRARY · ${targetRoots.length}</span><b>${targetRoots.length ? "还有其他硬盘？继续添加" : "添加第一个目标片库"}</b><p>数量不设上限，每个目录独立授权、检查和命名。</p></div><button class="btn btn-primary btn-sm" type="button" ${targetPickerAttribute}>${targetRoots.length ? "添加目标片库" : capability?.enforced ? "选择并授权" : "添加片库"}</button></article>`;
+    host.innerHTML = `${cards}${addTarget}`;
   }
 
   const overall = document.getElementById("setup-overall-state");
@@ -101,7 +96,7 @@ function resetStartupReadinessView() {
   if (!finale) return;
   finale.classList.remove("is-ready", "is-blocked");
   const mark = finale.querySelector(".setup-finale-mark");
-  if (mark) mark.innerHTML = "<span>CHECK</span><b>等待开场检查</b>";
+  if (mark) mark.innerHTML = "<span>CHECK</span><b>等待配置检查</b>";
 }
 
 function renderStartupReadiness(result) {
@@ -139,7 +134,7 @@ function renderStartupReadiness(result) {
   if (mark) mark.innerHTML = `<span>${passed ? "READY" : "HOLD"}</span><b>${passed ? "可以开始" : "暂不运行"}</b>`;
   const title = finale.querySelector("h3");
   const copy = finale.querySelector("p");
-  if (title) title.textContent = passed ? "整套配置已通过开场检查" : "仍有阻塞项需要处理";
+  if (title) title.textContent = passed ? "整套配置已通过配置检查" : "仍有阻塞项需要处理";
   if (copy) copy.textContent = passed
     ? "目录、外部能力与运行条件已确认；可以返回首页开始任务。"
     : "系统会保留现有文件，不会在关键条件不满足时开始自动文件操作。";
@@ -150,7 +145,7 @@ function renderStartupReadinessFailure(message) {
   const finale = document.getElementById("setup-finale");
   const detail = String(message || "无法连接本地服务，请确认服务仍在运行后重试。");
   if (list) {
-    list.innerHTML = `<article class="startup-check is-blocked"><span>检查失败</span><div><b>开场检查未完成</b><p>${escapeHtml(detail)}</p></div><button class="btn btn-secondary btn-sm" type="button" data-startup-readiness>重新检查</button></article>`;
+    list.innerHTML = `<article class="startup-check is-blocked"><span>检查失败</span><div><b>配置检查未完成</b><p>${escapeHtml(detail)}</p></div><button class="btn btn-secondary btn-sm" type="button" data-startup-readiness>重新检查</button></article>`;
   }
   if (!finale) return;
   finale.classList.remove("is-ready");
@@ -159,7 +154,7 @@ function renderStartupReadinessFailure(message) {
   if (mark) mark.innerHTML = "<span>失败</span><b>请重新检查</b>";
   const title = finale.querySelector("h3");
   const copy = finale.querySelector("p");
-  if (title) title.textContent = "开场检查没有完成";
+  if (title) title.textContent = "配置检查没有完成";
   if (copy) copy.textContent = "尚未执行任何自动文件操作；请确认本地服务正常后重新检查。";
 }
 
@@ -170,21 +165,21 @@ async function runStartupReadiness() {
     button.dataset.originalLabel = button.textContent;
     button.textContent = "正在检查...";
   });
-  showToast("正在检查目录、网络与外部能力...");
+  showToast("正在检查目录、规则、网络与外部能力...");
   try {
     const result = await requestApi("GET", "/config/startup-readiness");
     if (result.code !== 200 || !result.data) {
-      const message = result.message || "开场检查失败，请稍后重试。";
+      const message = result.message || "配置检查失败，请稍后重试。";
       renderStartupReadinessFailure(message);
       showToast(message);
       return;
     }
     renderStartupReadiness(result.data);
-    showToast(result.data.state === "PASS" ? "开场检查通过" : "开场检查发现阻塞项");
+    showToast(result.data.state === "PASS" ? "配置检查通过" : "配置检查发现阻塞项");
   } finally {
     buttons.forEach((button) => {
       button.disabled = false;
-      button.textContent = button.dataset.originalLabel || "运行开场检查";
+      button.textContent = button.dataset.originalLabel || "配置检查";
       delete button.dataset.originalLabel;
     });
   }
@@ -197,13 +192,13 @@ function requiredDirectorySetupStage(config) {
         (root) => root && root.enabled !== false && String(root.path || "").trim(),
       )
     : [];
-  if (!String(config?.source_dir || "").trim()) return "temp";
+  if (!String(config?.source_dir || "").trim()) return "storage";
   if (
     !String(
       sourcePolicy.recycle_dir || sourcePolicy.quarantine_dir || "",
     ).trim()
   ) {
-    return "temp";
+    return "storage";
   }
   if (!roots.length && !String(config?.library_root || "").trim()) return "rules";
   return "";
@@ -236,13 +231,12 @@ async function loadDirectoryConfig(options = {}) {
   const llm = rawConfig.llm || {};
   const sourcePolicy = rawConfig.source_policy || {};
   const sourceCleaner = rawConfig.source_cleaner || {};
+  const mediaCandidateFilter = rawConfig.media_candidate_filter || {};
   const paths = {
     source_dir: rawConfig.source_dir || "",
-    temp_dir: rawConfig.temp_dir || "",
     recycle_dir: sourcePolicy.recycle_dir || sourcePolicy.quarantine_dir || "",
   };
   setFieldValue("cfg-source-inline", paths.source_dir);
-  setFieldValue("cfg-temp-inline", paths.temp_dir);
   setFieldValue("cfg-recycle-inline", paths.recycle_dir);
   document
     .querySelectorAll('input[name="cfg-source-after-done"]')
@@ -253,6 +247,12 @@ async function loadDirectoryConfig(options = {}) {
           (sourcePolicy.cleanup_source_after_done === true
             ? "recycle_source_unit"
             : "preserve_all"));
+    });
+  document
+    .querySelectorAll('input[name="cfg-source-disposal"]')
+    .forEach((radio) => {
+      radio.checked =
+        radio.value === (sourcePolicy.disposal_mode || "local_recycle");
     });
   document.getElementById("cfg-source-recursive-toggle-inline").checked =
     sourcePolicy.scan_recursive ?? true;
@@ -301,8 +301,9 @@ async function loadDirectoryConfig(options = {}) {
   syncAutomationToggleCopy();
   setFieldValue(
     "cfg-auto-watcher-poll-interval",
-    watcherCfg.poll_interval || 60,
+    watcherCfg.poll_interval || 300,
   );
+  loadWatcherRuntimeStatus();
   setFieldValue(
     "cfg-video_extensions-inline",
     (rawConfig.video_extensions || []).join("\n"),
@@ -351,10 +352,41 @@ async function loadDirectoryConfig(options = {}) {
   );
   setFieldValue(
     "cfg-source_cleaner-junk_video_max_size_mb-inline",
-    sourceCleaner.junk_video_max_size_mb != null
-      ? sourceCleaner.junk_video_max_size_mb
-      : 0,
+    mediaCandidateFilter.small_video_max_mb != null
+      ? mediaCandidateFilter.small_video_max_mb
+      : sourceCleaner.junk_video_max_size_mb != null
+        ? sourceCleaner.junk_video_max_size_mb
+        : 50,
   );
+  const candidateEnabled = document.getElementById(
+    "cfg-media-candidate-enabled-inline",
+  );
+  if (candidateEnabled) candidateEnabled.checked = mediaCandidateFilter.enabled !== false;
+  setFieldValue(
+    "cfg-media-candidate-small-max-inline",
+    mediaCandidateFilter.small_video_max_mb != null
+      ? mediaCandidateFilter.small_video_max_mb
+      : sourceCleaner.junk_video_max_size_mb || 50,
+  );
+  setFieldValue(
+    "cfg-media-candidate-main-min-inline",
+    mediaCandidateFilter.main_video_min_mb || 500,
+  );
+  setFieldValue(
+    "cfg-media-candidate-ratio-inline",
+    (mediaCandidateFilter.max_size_ratio != null
+      ? Number(mediaCandidateFilter.max_size_ratio)
+      : 0.02) * 100,
+  );
+  setFieldValue(
+    "cfg-media-candidate-patterns-inline",
+    (mediaCandidateFilter.extra_name_patterns || []).join("\n"),
+  );
+  const candidateState = document.getElementById("media-candidate-summary-state");
+  if (candidateState) {
+    candidateState.textContent = mediaCandidateFilter.enabled === false ? "已关闭" : "已开启";
+    candidateState.classList.toggle("is-off", mediaCandidateFilter.enabled === false);
+  }
   document.getElementById(
     "cfg-source_cleaner-cleanup_empty_dirs-inline",
   ).checked = !!sourceCleaner.cleanup_empty_dirs;

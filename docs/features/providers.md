@@ -17,6 +17,18 @@ Provider 能力负责接入 TMDB 或后续外部元数据源，并为刮削流�
 - Config: provider enablement, API keys, language, region, timeout.
 - API: provider configuration and scrape endpoints.
 - Tests: provider behavior should be mocked, deterministic, and network-free by default.
+- 手动刮削搜索可临时覆盖 Provider 的返回语言（中文、英文、日文、韩文），不修改全局 Provider 配置。候选应用必须按 `provider_type + item_id + media_type` 获取完整详情，禁止只把搜索卡片上的标题和年份写入任务。
+- Provider 只声明可提供的标准化原始字段与数据形态，不在适配器内写死“原始值 → 产品维度值”。当前 TMDB 声明 `genres/origin_country/original_language/release_dates/adult`，由版本化 Provider 映射合同执行。
+- `restricted_level` 的产品名为“观看分级”；TMDB 优先采用香港本地分级，`HK/I → 0-6`、`HK/IIA/IIB → 13-16`、`HK/III → 17+`，并保留 `US/R → 17+` 等其他地区预置。`17+ / 限制观看` 不等同于成人内容。`content_sensitivity` 的产品名为“成人电影标记”，只显示“否/是”：TMDB `adult=false/true` 分别映射到稳定内部值 `normal/adult`，不表示全年龄或内容警示。
+- 自动刮削和手动应用 Provider 候选都保存精简映射证据（字段、原始值、规则 ID、目标值和 schema 版本），不保存 API Key 或完整 Provider 响应。
+
+## TMDB Credential Contract
+
+- 当前客户端调用 TMDB v3 接口并以 `api_key` 查询参数认证，配置页必须引导用户填写个人 API 页面中的 **API Key（v3 auth）**，不能填写较长的 API Read Access Token。
+- 非商业用途可免费申请，但界面必须保留 TMDB 来源声明；商业用途需由使用者向 TMDB 单独确认授权。
+- TMDB 不公布固定的每日次数配额；界面按官方动态限流说明展示约 40 次/秒，并把 HTTP 429 解释为稍后重试，不承诺永久固定值。
+- 网络检查分两步：先打开 TMDB 官网，再打开 `https://api.themoviedb.org/3/configuration`。后者即使返回缺少/无效密钥 JSON，也证明 DNS、TLS 和 API 域名已连通；打不开或超时才进入 NAS 网络/代理排查。
+- 官方入口：`https://www.themoviedb.org/settings/api`。网络是否需要代理取决于用户所在地区和运营商，产品不得承诺所有网络直连可用。
 
 ## Target Shape
 

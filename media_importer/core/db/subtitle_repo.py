@@ -1,7 +1,10 @@
 import os
 import sqlite3
+import uuid
 from datetime import datetime
 from typing import Optional
+
+from media_importer.infrastructure.filesystem import hash_file
 
 from .connection import _row_to_dict, _rows_to_dicts, _sqlite_conn_lock
 
@@ -15,17 +18,36 @@ def create_subtitles(conn: sqlite3.Connection, task_id: str,
         for i, sp in enumerate(subtitle_paths):
             filename = os.path.basename(sp)
             tp = tpaths[i] if i < len(tpaths) else ""
+            member_id = uuid.uuid4().hex
+            try:
+                source_stat = os.stat(sp, follow_symlinks=False)
+                source_size = source_stat.st_size
+                source_mtime_ns = source_stat.st_mtime_ns
+                source_fingerprint = hash_file(sp)
+            except OSError:
+                source_size = 0
+                source_mtime_ns = 0
+                source_fingerprint = ""
             cur = conn.execute(
                 """INSERT INTO task_subtitles
-                   (task_id, source_path, source_filename, target_path, status, created_at)
-                   VALUES (?, ?, ?, ?, 'PENDING', ?)""",
-                (task_id, sp, filename, tp, now)
+                   (task_id, source_path, source_filename, member_id,
+                    source_size, source_mtime_ns, source_fingerprint,
+                    target_path, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)""",
+                (
+                    task_id, sp, filename, member_id, source_size,
+                    source_mtime_ns, source_fingerprint, tp, now,
+                )
             )
             inserted.append({
                 "id": cur.lastrowid,
                 "task_id": task_id,
                 "source_path": sp,
                 "source_filename": filename,
+                "member_id": member_id,
+                "source_size": source_size,
+                "source_mtime_ns": source_mtime_ns,
+                "source_fingerprint": source_fingerprint,
                 "target_path": tp,
                 "status": "PENDING",
             })
@@ -46,6 +68,8 @@ def update_subtitle(conn: sqlite3.Connection, subtitle_id: int, **fields) -> Opt
     valid_columns = {
         "lang", "status", "import_path", "confirm_status",
         "error_message", "completed_at", "target_path", "source_path",
+        "planned_filename", "source_size", "source_mtime_ns",
+        "source_fingerprint", "member_id",
     }
     update_fields = {k: v for k, v in fields.items() if k in valid_columns}
     if not update_fields:

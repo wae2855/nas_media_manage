@@ -38,6 +38,12 @@
 
 .brand-sub { margin-top: 3px; color: var(--muted); font-size: 11px; }
 
+.runtime-meta {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+}
+
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -49,6 +55,15 @@
     color: #c7ffe6;
     background: rgba(38, 194, 129, 0.1);
     font-size: 12px;
+    white-space: nowrap;
+}
+
+.runtime-version {
+    color: var(--muted);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    line-height: 1;
     white-space: nowrap;
 }
 
@@ -135,4 +150,6 @@
 
 @media (max-width: 460px) {
     .brand-sub, .status-pill span:last-child { display: none; }
+    .runtime-meta { gap: 3px; }
+    .runtime-version { font-size: 9px; letter-spacing: 0.04em; }
 }

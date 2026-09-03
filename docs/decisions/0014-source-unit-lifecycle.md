@@ -19,6 +19,7 @@ Requirement: REQ-20260828-151346
 7. 整体回收复用 ADR-0013 的 verified transfer 与 recycle ledger。入库状态和清理状态分离，失败只重试清理。
 8. 旧配置迁移：两个能力都关闭或缺失 → `preserve_all`；保留视频且 cleaner 开启 → `preserve_media`；入库后清理开启 → `recycle_source_unit`。
 9. LLM 只参与 `preserve_media` 的垃圾分类。`recycle_source_unit` 整体回收，不运行单文件垃圾分类；其高级策略只控制单元边界和安全等待条件。
+10. 来源内容的最终处置由 ADR-0019 扩展为默认本地回收或用户明确确认的受控永久删除；来源单元边界和全部成功门禁保持不变。
 
 ## Consequences
 
@@ -37,3 +38,4 @@ Requirement: REQ-20260828-151346
 - [Brainstorm](../brainstorms/2026-08-28-configuration-dependency-and-readiness-brainstorm.md)
 - [ADR-0013](0013-verified-transfer-recovery.md)
 - [Plan](../plans/2026-08-28-feat-configuration-dependency-and-readiness-plan.md)
+- [ADR-0019](0019-source-disposal-with-guarded-permanent-delete.md)

@@ -35,24 +35,34 @@ def _navigate_to_config(page):
     page.wait_for_load_state("networkidle")
     time.sleep(1)
     _dismiss_api_key_modal(page)
-    page.locator("#tab-config").click()
+    page.locator('[data-nav="config"][data-view-target="config"]').last.click()
+    page.wait_for_selector('[data-view="config"].active')
     time.sleep(0.5)
 
 
-def _navigate_to_subtab(page, subtab):
+def _navigate_to_config_stage(page, stage):
     _navigate_to_config(page)
-    page.locator("#cfg-subtab-" + subtab).click()
+    page.locator(f'[data-config-stage="{stage}"]').click()
+    page.wait_for_selector(f'[data-config-panel="{stage}"].active')
     time.sleep(0.5)
+
+
+def _expand_first_provider(page):
+    card = page.locator("#provider-inline-stack .provider-inline-card").first
+    page.wait_for_selector("#provider-inline-stack .provider-inline-card", timeout=5000)
+    if "is-collapsed" in (card.get_attribute("class") or ""):
+        card.locator(".provider-inline-head").click()
+    return card
 
 
 def test_scrape_button_in_config_subtab():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
-        _navigate_to_config(page)
-        btn = page.locator(".config-sub-tab-action:has-text('刮削与搜索测试')")
-        assert btn.count() >= 1, "Scrape button not found in config sub-tab bar"
-        assert btn.first.is_visible(), "Scrape button not visible in config sub-tab bar"
+        _navigate_to_config_stage(page, "scrape")
+        btn = page.locator('[data-provider-action="preview"]')
+        assert btn.count() >= 1, "Provider scrape preview button not found"
+        assert btn.first.is_visible(), "Provider scrape preview button not visible"
         browser.close()
         print("PASS: test_scrape_button_in_config_subtab")
 
@@ -61,17 +71,18 @@ def test_scrape_modal_opens():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
-        _navigate_to_config(page)
-        btn = page.locator(".config-sub-tab-action:has-text('刮削与搜索测试')")
+        _navigate_to_config_stage(page, "scrape")
+        card = _expand_first_provider(page)
+        btn = card.locator('[data-provider-action="preview"]')
         btn.first.click()
         time.sleep(0.5)
-        modal = page.locator("#scrape-preview-modal")
+        modal = page.locator("#tmdb-preview-modal")
         assert modal.count() == 1, "Scrape preview modal not found"
         assert modal.is_visible(), "Scrape preview modal not visible"
         header = modal.locator("h3")
         assert "刮削" in header.text_content() or "预览" in header.text_content(), f"Modal title should contain '刮削' or '预览', got '{header.text_content()}'"
-        filename_input = modal.locator("#scrape-preview-filename")
-        assert filename_input.count() == 1, "Filename input not found in modal"
+        query_input = modal.locator("#tmdb-preview-query")
+        assert query_input.count() == 1, "Search query input not found in modal"
         browser.close()
         print("PASS: test_scrape_modal_opens")
 
@@ -80,11 +91,11 @@ def test_provider_section_in_llm_tab():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
-        _navigate_to_subtab(page, "llm")
-        provider_section = page.locator('[data-section="metadata.providers"]')
+        _navigate_to_config_stage(page, "scrape")
+        provider_section = page.locator("#provider-inline-stack")
         assert provider_section.count() == 1, "Provider section not found"
-        page.wait_for_selector("#provider-configs-container", timeout=5000)
-        container = page.locator("#provider-configs-container")
+        page.wait_for_selector("#provider-inline-stack .provider-inline-card", timeout=5000)
+        container = page.locator("#provider-inline-stack")
         assert container.count() == 1, "Provider configs container not found"
         browser.close()
         print("PASS: test_provider_section_in_llm_tab")
@@ -94,13 +105,13 @@ def test_provider_preview_button_in_llm_tab():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
-        _navigate_to_subtab(page, "llm")
+        _navigate_to_config_stage(page, "scrape")
         try:
-            page.wait_for_selector(".provider-card button:has-text('刮削预览')", timeout=5000)
-            preview_btn = page.locator(".provider-card button:has-text('刮削预览')")
+            page.wait_for_selector('[data-provider-action="preview"]', timeout=5000)
+            preview_btn = page.locator('[data-provider-action="preview"]')
             assert preview_btn.count() >= 1, "Provider preview button not found"
         except Exception:
-            provider_section = page.locator('[data-section="metadata.providers"]')
+            provider_section = page.locator("#provider-inline-stack")
             assert provider_section.count() == 1, "Provider section exists but no cards rendered (API may be unavailable)"
         browser.close()
         print("PASS: test_provider_preview_button_in_llm_tab")
@@ -129,16 +140,14 @@ def test_provider_preview_modal_opens():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
-        _navigate_to_subtab(page, "llm")
-        try:
-            page.wait_for_selector(".provider-card button:has-text('刮削预览')", timeout=5000)
-            preview_btn = page.locator(".provider-card button:has-text('刮削预览')")
-            preview_btn.first.click()
-            time.sleep(0.5)
-            modal = page.locator("#tmdb-preview-modal")
-            assert modal.count() == 1, "Provider preview modal not found"
-        except Exception:
-            pass
+        _navigate_to_config_stage(page, "scrape")
+        card = _expand_first_provider(page)
+        preview_btn = card.locator('[data-provider-action="preview"]')
+        preview_btn.click()
+        time.sleep(0.5)
+        modal = page.locator("#tmdb-preview-modal")
+        assert modal.count() == 1, "Provider preview modal not found"
+        assert modal.is_visible(), "Provider preview modal not visible"
         browser.close()
         print("PASS: test_provider_preview_modal_opens")
 
@@ -147,15 +156,15 @@ def test_provider_test_button_in_llm_tab():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
-        _navigate_to_subtab(page, "llm")
+        _navigate_to_config_stage(page, "scrape")
         try:
-            page.wait_for_selector(".provider-card button:has-text('测试连接')", timeout=5000)
-            test_btn = page.locator(".provider-card button:has-text('测试连接')")
+            page.wait_for_selector('[data-provider-action="test"]', timeout=5000)
+            test_btn = page.locator('[data-provider-action="test"]')
             assert test_btn.count() >= 1, "Provider test button not found"
             has_btn_sm = test_btn.evaluate("el => el.classList.contains('btn-sm')")
             assert has_btn_sm, "Provider test button should have btn-sm class"
         except Exception:
-            provider_section = page.locator('[data-section="metadata.providers"]')
+            provider_section = page.locator("#provider-inline-stack")
             assert provider_section.count() == 1, "Provider section exists but no cards rendered"
         browser.close()
         print("PASS: test_provider_test_button_in_llm_tab")

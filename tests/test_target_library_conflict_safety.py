@@ -51,10 +51,140 @@ def test_exact_target_conflict_is_read_only_even_when_semantic_detection_disable
     assert decision.action == "review"
     assert decision.result["conflict_type"] == "target_path"
     assert decision.result["status"] == "awaiting_user"
-    assert decision.result["existing_fingerprint"] == hash_file(existing)
+    assert decision.result["existing_fingerprint"] == ""
+    assert decision.result["existing_stat"]["size"] == existing.stat().st_size
+    assert decision.result["new_fingerprint"] == ""
     assert existing.read_bytes() == before_existing
     assert incoming.read_bytes() == before_incoming
     assert list(recycle.iterdir()) == []
+
+
+def test_replace_fingerprint_is_deferred_until_user_confirms(tmp_path, monkeypatch):
+    library = tmp_path / "library"
+    incoming = tmp_path / "incoming.mkv"
+    library.mkdir()
+    existing = library / "Movie.2026.1080p.mkv"
+    _write(existing, b"existing-library-bytes")
+    _write(incoming, b"incoming-source-bytes")
+    calls = []
+
+    monkeypatch.setattr(
+        "media_importer.features.import_flow.services.dedup.hash_file",
+        lambda path: calls.append(path) or "bound-fingerprint",
+    )
+    service = DedupService({"duplicate_handling": {"enabled": False}})
+    decision = service.check_task(_task(library, incoming))
+
+    assert calls == []
+    decision.result["resolved_action"] = "replace_existing"
+    prepared = service.prepare_replace(
+        {**_task(library, incoming), "dedup_result": decision.result},
+        decision.result,
+    )
+    assert calls == [str(existing)]
+    assert prepared["existing_fingerprint"] == "bound-fingerprint"
+
+
+def test_replace_preparation_rejects_rule_that_now_targets_another_library(tmp_path):
+    old_library = tmp_path / "old-library"
+    new_library = tmp_path / "new-library"
+    incoming = tmp_path / "incoming.mkv"
+    old_library.mkdir()
+    new_library.mkdir()
+    existing = old_library / "Movie.2026.1080p.mkv"
+    _write(existing, b"existing-library-bytes")
+    _write(incoming, b"incoming-source-bytes")
+    service = DedupService({"duplicate_handling": {"enabled": False}})
+    conflict = service.check_task(_task(old_library, incoming)).result
+
+    with pytest.raises(PipelineReviewRequired, match="目标片库已变化"):
+        service.prepare_replace(
+            _task(new_library, incoming),
+            {**conflict, "resolved_action": "replace_existing"},
+        )
+
+    assert existing.read_bytes() == b"existing-library-bytes"
+    assert incoming.read_bytes() == b"incoming-source-bytes"
+
+
+def test_replace_preparation_rejects_lightweight_snapshot_change(tmp_path):
+    library = tmp_path / "library"
+    incoming = tmp_path / "incoming.mkv"
+    library.mkdir()
+    existing = library / "Movie.2026.1080p.mkv"
+    _write(existing, b"existing-library-bytes")
+    _write(incoming, b"incoming-source-bytes")
+    service = DedupService({"duplicate_handling": {"enabled": False}})
+    conflict = service.check_task(_task(library, incoming)).result
+    existing.write_bytes(b"changed-library-content")
+
+    with pytest.raises(PipelineReviewRequired, match="已发生变化"):
+        service.prepare_replace(
+            _task(library, incoming),
+            {**conflict, "resolved_action": "replace_existing"},
+        )
+
+    assert existing.read_bytes() == b"changed-library-content"
+    assert incoming.read_bytes() == b"incoming-source-bytes"
+
+
+def test_existing_subtitle_is_detected_before_large_video_copy(tmp_path):
+    library = tmp_path / "library"
+    source = tmp_path / "source"
+    library.mkdir()
+    source.mkdir()
+    incoming = source / "Movie.mkv"
+    subtitle = source / "Movie.zh.srt"
+    existing_subtitle = library / "Movie.2026.1080p.zh.srt"
+    _write(incoming, b"large-video-placeholder")
+    _write(subtitle, b"new-subtitle")
+    _write(existing_subtitle, b"existing-subtitle")
+
+    decision = DedupService({
+        "duplicate_handling": {"enabled": False},
+        "filename_templates": {"subtitle": "{video_filename}.{lang}.{ext}"},
+    }).check_task({
+        **_task(library, incoming),
+        "subtitle_source_files": [str(subtitle)],
+    })
+
+    assert decision.action == "review"
+    assert decision.result["conflict_type"] == "target_bundle"
+    assert decision.result["replace_allowed"] is False
+    assert decision.result["subtitle_conflicts"] == [str(existing_subtitle)]
+    assert incoming.read_bytes() == b"large-video-placeholder"
+
+
+def test_video_conflict_with_incoming_subtitle_blocks_partial_bundle_replace(tmp_path):
+    library = tmp_path / "library"
+    source = tmp_path / "source"
+    library.mkdir()
+    source.mkdir()
+    incoming = source / "Movie.mkv"
+    subtitle = source / "Movie.zh.srt"
+    existing = library / "Movie.2026.1080p.mkv"
+    _write(incoming, b"new-video")
+    _write(subtitle, b"new-subtitle")
+    _write(existing, b"existing-video")
+    service = DedupService({
+        "duplicate_handling": {"enabled": False},
+        "filename_templates": {"subtitle": "{video_filename}.{lang}.{ext}"},
+    })
+    task = {
+        **_task(library, incoming),
+        "subtitle_source_files": [str(subtitle)],
+    }
+
+    decision = service.check_task(task)
+
+    assert decision.action == "review"
+    assert decision.result["conflict_type"] == "target_path"
+    assert decision.result["replace_allowed"] is False
+    assert decision.result["replace_block_reason"] == "incoming_subtitle_bundle"
+    with pytest.raises(PipelineReviewRequired, match="字幕"):
+        service.prepare_replace(task, decision.result)
+    assert existing.read_bytes() == b"existing-video"
+    assert incoming.read_bytes() == b"new-video"
 
 
 def test_keep_both_uses_explicit_available_filename_and_only_adds(tmp_path):
@@ -114,13 +244,53 @@ def test_confirmed_replace_recycles_existing_then_publishes_new_file(tmp_path):
 
     assert result["replaced"] is True
     assert existing.read_bytes() == b"new-library-bytes"
-    assert not incoming.exists()
+    assert incoming.read_bytes() == b"new-library-bytes"
     recycled_files = [
         path for path in recycle.rglob("*.mkv") if path.is_file()
     ]
     assert len(recycled_files) == 1
     assert recycled_files[0].read_bytes() == b"existing-library-bytes"
     assert os.path.exists(str(recycled_files[0]) + ".meta")
+
+
+def test_direct_source_replace_preserves_incoming_until_source_policy_runs(tmp_path):
+    library = tmp_path / "library"
+    source = tmp_path / "source"
+    recycle = tmp_path / "recycle"
+    library.mkdir()
+    source.mkdir()
+    recycle.mkdir()
+    existing = library / "Movie.2026.1080p.mkv"
+    incoming = source / "incoming.mkv"
+    _write(existing, b"existing-library-bytes")
+    _write(incoming, b"new-library-bytes")
+    snapshot = {
+        "existing_path": str(existing),
+        "existing_fingerprint": hash_file(existing),
+    }
+
+    result = move_to_import(
+        str(incoming),
+        [],
+        str(library),
+        {"media_type": "movie"},
+        {"movie": "ignored.mkv"},
+        [str(source), str(library)],
+        overwrite=True,
+        final_filename=existing.name,
+        recycle_dir=str(recycle),
+        task_id="direct-source-conflict-task",
+        expected_conflict=snapshot,
+        import_roots=[str(library)],
+    )
+
+    assert result["replaced"] is True
+    assert result["source_retained"] is True
+    assert existing.read_bytes() == b"new-library-bytes"
+    assert incoming.read_bytes() == b"new-library-bytes"
+    recycled_files = [path for path in recycle.rglob("*.mkv") if path.is_file()]
+    assert len(recycled_files) == 1
+    assert recycled_files[0].read_bytes() == b"existing-library-bytes"
 
 
 def test_stale_replace_snapshot_fails_closed_without_changing_either_file(tmp_path):

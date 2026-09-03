@@ -8,16 +8,56 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import socket
 import time
 
 FNOS_SOCKET_PATH = "/var/run/trim_open_gateway_apiscope.socket"
 FNOS_API_PATH = "/api/v1/trimapp"
 FNOS_APP_NAME = "nas-media-importer"
+_APP_PRIVATE_PATH = re.compile(
+    rf"^/vol\d+/@(?:appdata|apptemp|appshare)/{re.escape(FNOS_APP_NAME)}(?:/|$)"
+)
 
 
 class FnosOpenAPIError(RuntimeError):
     pass
+
+
+def is_fnos_app_managed_path(path: str) -> bool:
+    """Return whether *path* belongs to this package's private fnOS storage.
+
+    Private app data is provisioned by fnOS and is intentionally absent from
+    the shared-directory picker.  Keep this check app-specific: another
+    package's ``@appdata`` directory must never gain an authorization bypass.
+    """
+    if not isinstance(path, str) or not os.path.isabs(path):
+        return False
+    candidates = {
+        os.path.normpath(path),
+        os.path.normpath(os.path.realpath(path)),
+    }
+    package_var = os.environ.get("TRIM_PKGVAR", "")
+    if package_var and os.path.isabs(package_var):
+        package_root = os.path.normpath(os.path.realpath(package_var))
+        for candidate in candidates:
+            try:
+                if os.path.commonpath([candidate, package_root]) == package_root:
+                    return True
+            except ValueError:
+                continue
+        # In a real package process only the current TRIM_PKGVAR is managed.
+        # A same-named @appdata directory left on another volume is stale data,
+        # not an authorization bypass.
+        return False
+    for candidate in candidates:
+        if _APP_PRIVATE_PATH.match(candidate):
+            return True
+        if candidate == f"/var/apps/{FNOS_APP_NAME}/var" or candidate.startswith(
+            f"/var/apps/{FNOS_APP_NAME}/var/"
+        ):
+            return True
+    return False
 
 
 def is_fnos_runtime(*, socket_path: str = FNOS_SOCKET_PATH,
@@ -156,8 +196,6 @@ def validate_fnos_directory_paths(config: dict, roles: set[str] | None = None,
         values.append(("来源目录", str(config.get("source_dir", "") or "")))
     if "recycle" in selected_roles:
         values.append(("回收目录", str(policy.get("recycle_dir", "") or policy.get("quarantine_dir", "") or "")))
-    if "temp" in selected_roles:
-        values.append(("中转目录", str(config.get("temp_dir", "") or "")))
     if "log" in selected_roles:
         values.append(("日志目录", str(config.get("log_dir", "") or "")))
     if "resource" in selected_roles:
@@ -173,6 +211,8 @@ def validate_fnos_directory_paths(config: dict, roles: set[str] | None = None,
         elif config.get("library_root"):
             values.append(("片库目录", str(config.get("library_root") or "")))
     for label, path in values:
+        if is_fnos_app_managed_path(path):
+            continue
         if path and not is_path_authorized(path, folders):
             errors.append(f"{label}尚未授权给本应用，请先通过 fnOS 目录选择器授权")
     return errors

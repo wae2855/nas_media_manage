@@ -16,7 +16,6 @@ from .transitions import (  # noqa: F401
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     STAGE_AWAIT_REVIEW,
     STAGE_DONE,
     STAGE_QUEUED,
@@ -55,10 +54,6 @@ def mark_processing_step(task, *, current_step: int, step_name: str,
                          percentage: int, **extra) -> dict:
     return _transition(task, "step", current_step=current_step, step_name=step_name,
                        percentage=percentage, **extra)
-
-
-def mark_temp_ready(task, *, video_path: Optional[str] = None) -> dict:
-    return _transition(task, "temp_ready", video_path=video_path)
 
 
 def mark_confirmed(task, *, confirmed_at: Optional[str] = None) -> dict:
@@ -114,5 +109,5 @@ def mark_imported(task, *, import_video_path: Optional[str] = None) -> dict:
     return _transition(task, action, import_video_path=import_video_path)
 
 
-def reset_for_retry(task, *, resume: bool = False) -> dict:
-    return _transition(task, "retry", resume=resume)
+def reset_for_retry(task) -> dict:
+    return _transition(task, "retry")

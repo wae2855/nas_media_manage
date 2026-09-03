@@ -2,8 +2,8 @@
 """配置校验 validate_config() 的单测。
 
 覆盖 validate_config 的所有关键分支：
-- 目录配置（source_dir / temp_dir / recycle_dir / log_dir）
-- 目录冲突（源/中转/回收两两不可重复）
+- 目录配置（source_dir / recycle_dir / log_dir）
+- 目录冲突（来源/回收/片库不可重叠）
 - 旧字段弃用 warning（cleanup_mode / delete_source_after_import）
 - 新策略字段（cleanup_source_after_done / recycle_retention_days）
 - 源目录清理器（enabled / cleanup_mode / merge_strategy / ai_enabled / junk_video_max_size_mb）
@@ -25,14 +25,12 @@ from media_importer.core.config_validator import validate_config
 def _make_config(tmp_path, **overrides):
     """构造一个能在 tmp_path 下通过所有路径校验的最小 config。"""
     source = tmp_path / "source"
-    temp = tmp_path / "temp"
     recycle = tmp_path / "recycle"
     log_dir = tmp_path / "logs"
-    for p in (source, temp, recycle, log_dir):
+    for p in (source, recycle, log_dir):
         p.mkdir()
     cfg = {
         "source_dir": str(source),
-        "temp_dir": str(temp),
         "log_dir": str(log_dir),
         "source_policy": {"recycle_dir": str(recycle)},
         "metadata": {
@@ -78,16 +76,12 @@ def _status(results, item_name):
 
 class TestValidateConfigDirectories(unittest.TestCase):
     def test_empty_source_dir_is_error(self):
-        results = validate_config({"source_dir": "", "temp_dir": "/tmp", "source_policy": {"recycle_dir": "/tmp"}})
+        results = validate_config({"source_dir": "", "source_policy": {"recycle_dir": "/tmp"}})
         self.assertEqual(_status(results, "source_dir"), "error")
         self.assertEqual(results["overall"], "degraded")
 
-    def test_empty_temp_dir_is_error(self):
-        results = validate_config({"source_dir": "/tmp", "temp_dir": "", "source_policy": {"recycle_dir": "/tmp"}})
-        self.assertEqual(_status(results, "temp_dir"), "error")
-
     def test_missing_recycle_dir_is_error(self):
-        results = validate_config({"source_dir": "/tmp", "temp_dir": "/tmp", "source_policy": {}})
+        results = validate_config({"source_dir": "/tmp", "source_policy": {}})
         self.assertEqual(_status(results, "recycle_dir"), "error")
 
     def test_recycle_falls_back_to_quarantine_dir(self, tmp_path=None):
@@ -98,17 +92,15 @@ class TestValidateConfigDirectories(unittest.TestCase):
         q.mkdir()
         cfg = {
             "source_dir": str(tmp_path / "src"),
-            "temp_dir": str(tmp_path / "tmp"),
             "source_policy": {"quarantine_dir": str(q)},
         }
         (tmp_path / "src").mkdir()
-        (tmp_path / "tmp").mkdir()
         results = validate_config(cfg)
         self.assertEqual(_status(results, "recycle_dir"), "ok")
 
     def test_nonexistent_dir_is_error(self):
         results = validate_config(
-            {"source_dir": "/this/path/does/not/exist", "temp_dir": "/tmp", "source_policy": {"recycle_dir": "/tmp"}}
+            {"source_dir": "/this/path/does/not/exist", "source_policy": {"recycle_dir": "/tmp"}}
         )
         self.assertEqual(_status(results, "source_dir"), "error")
 
@@ -123,41 +115,13 @@ class TestValidateConfigDirectories(unittest.TestCase):
 
 
 class TestValidateConfigDirConflicts(unittest.TestCase):
-    def test_source_equals_temp_is_error(self, tmp_path=None):
-        if tmp_path is None:
-            import tempfile
-            tmp_path = Path(tempfile.mkdtemp())
-        same = tmp_path / "same"
-        same.mkdir()
-        results = validate_config(
-            {"source_dir": str(same), "temp_dir": str(same), "source_policy": {"recycle_dir": str(tmp_path / "r")}}
-        )
-        (tmp_path / "r").mkdir()
-        results = validate_config(
-            {"source_dir": str(same), "temp_dir": str(same), "source_policy": {"recycle_dir": str(tmp_path / "r")}}
-        )
-        conflict = _by_item(results, "dir_conflict")
-        self.assertIsNotNone(conflict)
-        self.assertEqual(conflict["status"], "error")
-
     def test_source_equals_recycle_is_error(self):
         import tempfile
         tmp_path = Path(tempfile.mkdtemp())
         same = tmp_path / "same"
         same.mkdir()
         results = validate_config(
-            {"source_dir": str(same), "temp_dir": str(tmp_path / "t"), "source_policy": {"recycle_dir": str(same)}}
-        )
-        conflict = _by_item(results, "dir_conflict")
-        self.assertEqual(conflict["status"], "error")
-
-    def test_temp_equals_recycle_is_error(self):
-        import tempfile
-        tmp_path = Path(tempfile.mkdtemp())
-        same = tmp_path / "same"
-        same.mkdir()
-        results = validate_config(
-            {"source_dir": str(tmp_path / "s"), "temp_dir": str(same), "source_policy": {"recycle_dir": str(same)}}
+            {"source_dir": str(same), "source_policy": {"recycle_dir": str(same)}}
         )
         conflict = _by_item(results, "dir_conflict")
         self.assertEqual(conflict["status"], "error")
@@ -168,14 +132,12 @@ class TestValidateConfigDirConflicts(unittest.TestCase):
         tmp_path = Path(tempfile.mkdtemp())
         library = tmp_path / "library"
         source = library / "incoming"
-        temp = tmp_path / "temp"
         recycle = tmp_path / "recycle"
         logs = tmp_path / "logs"
-        for path in (source, temp, recycle, logs):
+        for path in (source, recycle, logs):
             path.mkdir(parents=True)
         results = validate_config({
             "source_dir": str(source),
-            "temp_dir": str(temp),
             "log_dir": str(logs),
             "source_policy": {"recycle_dir": str(recycle)},
             "library_roots": [
@@ -193,14 +155,12 @@ class TestValidateConfigDirConflicts(unittest.TestCase):
         tmp_path = Path(tempfile.mkdtemp())
         library = tmp_path / "library"
         source = library / "incoming"
-        temp = tmp_path / "temp"
         recycle = tmp_path / "recycle"
-        for path in (source, temp, recycle):
+        for path in (source, recycle):
             path.mkdir(parents=True)
 
         results = validate_config({
             "source_dir": str(source),
-            "temp_dir": str(temp),
             "source_policy": {"recycle_dir": str(recycle)},
             "library_roots": [
                 {"id": "old", "name": "停用片库", "path": str(library), "enabled": False}
@@ -214,32 +174,6 @@ class TestValidateConfigDirConflicts(unittest.TestCase):
         self.assertIn("文件来源", conflict["message"])
 
     # Requirement: REQ-20260831-004019
-    def test_symlinked_temp_pointing_into_library_is_error(self):
-        import tempfile
-        tmp_path = Path(tempfile.mkdtemp())
-        library = tmp_path / "library"
-        source = tmp_path / "source"
-        recycle = tmp_path / "recycle"
-        logs = tmp_path / "logs"
-        for path in (library, source, recycle, logs):
-            path.mkdir()
-        temp_link = tmp_path / "temp-link"
-        temp_link.symlink_to(library, target_is_directory=True)
-        results = validate_config({
-            "source_dir": str(source),
-            "temp_dir": str(temp_link),
-            "log_dir": str(logs),
-            "source_policy": {"recycle_dir": str(recycle)},
-            "library_roots": [
-                {"id": "movies", "name": "电影", "path": str(library), "enabled": True}
-            ],
-            "library_root": str(library),
-        })
-
-        conflict = _by_item(results, "dir_conflict")
-        self.assertIsNotNone(conflict)
-        self.assertEqual(conflict["status"], "error")
-
 
 class TestValidateConfigLegacyFields(unittest.TestCase):
     def test_legacy_cleanup_mode_emits_warning(self):

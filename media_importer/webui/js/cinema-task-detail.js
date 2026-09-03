@@ -53,6 +53,20 @@ function dimSourceBadge(task, dimName) {
   );
 }
 
+function dimMappingEvidenceHint(task, dimName) {
+  const evidence = task.scrape_trace?.dimension_mapping_evidence?.[dimName];
+  if (!evidence || !evidence.target) return "";
+  const matched = evidence.matched_input;
+  let raw = "";
+  if (matched && typeof matched === "object") {
+    raw = [matched.country, matched.certification].filter(Boolean).join(" / ");
+  } else if (matched != null && matched !== "") {
+    raw = String(matched);
+  }
+  const source = String(task.provider_type || "TMDB").toUpperCase();
+  return `<small class="dimension-evidence-hint">依据：${escapeHtml(source)}${raw ? ` 返回 ${escapeHtml(raw)}` : ""}，按当前映射得出</small>`;
+}
+
 function buildTaskDimensionsForm(task, editable, enabled = editable) {
   const dimensions = currentEnabledDimensions.length
     ? currentEnabledDimensions
@@ -80,6 +94,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
                 <label class="cinema-modal-field">
                     <span>${escapeHtml(dim.label || dim.name)}${dimSourceBadge(task, dim.name)}</span>
                     <span class="cinema-modal-readonly-value">${escapeHtml(displayValue || "—")}</span>
+                    ${dimMappingEvidenceHint(task, dim.name)}
                 </label>`;
       }
 
@@ -105,6 +120,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
                 <div class="cinema-modal-field">
                     <span>${escapeHtml(dim.label || dim.name)}${dimSourceBadge(task, dim.name)}</span>
                     <div class="cinema-modal-checkbox-group">${checkboxHtml}</div>
+                    ${dimMappingEvidenceHint(task, dim.name)}
                 </div>`;
       }
 
@@ -127,6 +143,7 @@ function buildTaskDimensionsForm(task, editable, enabled = editable) {
                         ${emptyStateHtml}
                         ${optionHtml}
                     </select>
+                    ${dimMappingEvidenceHint(task, dim.name)}
                 </label>`;
       }
 
@@ -164,6 +181,7 @@ function getTaskEditPermission(task) {
   const isCancelled = status === "CANCELLED";
   const isSuccess = status === "SUCCESS";
   const isSkipped = status === "SKIPPED";
+  const isReorganization = task.task_kind === "REORGANIZE";
 
   var labelText, labelColor;
   if (isAwaitReview) {
@@ -199,7 +217,13 @@ function getTaskEditPermission(task) {
     statusLabel: labelText,
     statusColor: labelColor,
     stateLabel: isAwaitReview
-      ? "待确认 — 可修改文件名和维度后确认入库"
+      ? isReorganization
+        ? task.used_fallback
+          ? "重新整理 — 先调整维度或手动刮削，匹配正式规则后才能继续"
+          : "重新整理 — 已匹配正式规则，可核对后开始移动"
+        : task.used_fallback
+          ? "待确认 — 明确接受待整理区后才会继续入库"
+          : "待确认 — 可修改文件名和维度后确认入库"
       : isQueued
         ? "排队中 — 只读，不可编辑"
         : isFailed
@@ -223,8 +247,18 @@ function buildReviewReasonSection(task) {
   if (!(status === "PENDING" && stage === "AWAIT_REVIEW")) return "";
   const scrape = task.scrape_result || {};
   const concerns = task.match_concerns || scrape.match_concerns || [];
+  const isReorganization = task.task_kind === "REORGANIZE";
   const items = Array.isArray(concerns)
-    ? concerns.filter((c) => c && (c.message || c.code))
+    ? concerns.filter(
+        (c) =>
+          c &&
+          (c.message || c.code) &&
+          !(
+            isReorganization &&
+            !task.used_fallback &&
+            c.code === "FALLBACK_REORGANIZATION"
+          ),
+      )
     : [];
   const rows = items
     .map((c) => {
@@ -240,11 +274,18 @@ function buildReviewReasonSection(task) {
         </div>`;
     })
     .join("");
+  const tip = isReorganization && task.used_fallback
+    ? "当前仍落入待整理区。请修改维度或手动刮削，直到入库预览匹配正式规则。"
+    : isReorganization
+      ? "已匹配正式入库规则。请核对目标路径，确认后会整组移动影片和随片字幕。"
+    : task.used_fallback
+      ? "如果当前资料无法匹配正式规则，可以明确确认后先放入待整理区；原任务完成后仍可单独重新整理。"
+      : "可在下方修改维度、手动刮削选片，确认无误后点击「确认入库」。";
   return `
         <div class="cinema-modal-block review-reason-block">
             <h4>待确认原因</h4>
-            ${rows || '<div class="cinema-modal-hint">需要人工核对刮削结果后确认入库。</div>'}
-            <div class="review-reason-tip">可在下方修改维度、手动刮削选片，确认无误后点击「确认入库」。</div>
+            ${rows || `<div class="cinema-modal-hint">${escapeHtml(isReorganization ? "没有其他待确认问题。" : "需要人工核对刮削结果后确认入库。")}</div>`}
+            <div class="review-reason-tip">${escapeHtml(tip)}</div>
         </div>`;
 }
 
@@ -310,7 +351,7 @@ function showMatchPathModalFromData(dataJson, filename) {
 }
 
 function subtitleLangLabel(lang) {
-  const map = { zh: "中文", chs: "简中", cht: "繁中", en: "英文", ja: "日文", ko: "韩文", unknown: "未识别" };
+  const map = { zh: "中文", chs: "简中", cht: "繁中", en: "英文", ja: "日文", ko: "韩文", und: "未识别", unknown: "未识别" };
   const key = String(lang || "").toLowerCase();
   return map[key] || (lang && lang !== "-" ? lang : "未识别");
 }
@@ -325,6 +366,7 @@ function buildSubtitleTable(subtitles) {
         <tr>
             <td>${escapeHtml(item.source_filename || "-")}</td>
             <td>${escapeHtml(subtitleLangLabel(item.lang))}</td>
+            <td>${escapeHtml(item.planned_filename || (item.import_path ? String(item.import_path).split(/[\\/]/).pop() : "等待生成"))}</td>
             <td>${escapeHtml(getTaskStatusText(item.status || "PENDING"))}</td>
             <td>${escapeHtml(item.import_path || "-")}</td>
         </tr>`,
@@ -332,7 +374,7 @@ function buildSubtitleTable(subtitles) {
     .join("");
   return `
         <table class="cinema-inline-table">
-            <thead><tr><th>文件名</th><th>语言</th><th>状态</th><th>入库路径</th></tr></thead>
+            <thead><tr><th>源字幕</th><th>语言</th><th>计划文件名</th><th>状态</th><th>最终路径</th></tr></thead>
             <tbody>${rows}</tbody>
         </table>`;
 }

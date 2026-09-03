@@ -11,7 +11,16 @@ function toggleDimCard(name) {
   if (_expandedDim) {
     setTimeout(function () {
       var card = document.getElementById("dim-card-" + name);
-      if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (card) {
+        card.scrollIntoView({
+          behavior: window.innerWidth <= 640 ? "auto" : "smooth",
+          block: "nearest",
+          inline: "nearest",
+        });
+        if (window.innerWidth <= 640 && window.scrollX) {
+          window.scrollTo({ left: 0, top: window.scrollY, behavior: "auto" });
+        }
+      }
     }, 50);
   }
 }
@@ -206,6 +215,11 @@ document.addEventListener("click", function (e) {
     }
     if (action === "reset" && dimName) {
       resetDimension(dimName);
+      return;
+    }
+    if (action === "edit-provider-mapping" && dimName) {
+      var providerType = actionEl.getAttribute("data-provider-type") || "tmdb";
+      openProviderMappingEditor(dimName, providerType);
       return;
     }
     if (action === "toggle-genre-help") {

@@ -17,6 +17,8 @@
             callback();
         }
         overlay.remove();
+        document.documentElement.classList.remove("has-cinema-modal");
+        document.body.classList.remove("has-cinema-modal");
     }
 
     function showAppModal({
@@ -65,6 +67,14 @@
             footer.appendChild(button);
         });
         document.body.appendChild(overlay);
+        document.documentElement.classList.add("has-cinema-modal");
+        document.body.classList.add("has-cinema-modal");
+        const previousScrollBehavior = document.documentElement.style.scrollBehavior;
+        document.documentElement.style.scrollBehavior = "auto";
+        window.scrollTo({ left: 0, top: window.scrollY, behavior: "auto" });
+        requestAnimationFrame(() => {
+            document.documentElement.style.scrollBehavior = previousScrollBehavior;
+        });
         return overlay;
     }
 

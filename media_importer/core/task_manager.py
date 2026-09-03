@@ -70,19 +70,33 @@ class TaskManager:
         self.config = config or {}
         db_path = os.path.join(data_dir, "tasks.db")
         self.conn = init_db(db_path)
+        if self.config:
+            from media_importer.features.tasks.organization_service import (
+                backfill_fallback_outcomes,
+            )
+
+            try:
+                backfill_fallback_outcomes(self.conn, self.config)
+            except (OSError, TypeError, ValueError):
+                # 历史标记是兼容增强，不能让尚未完成存储配置的首次启动失败。
+                pass
         self._lock = threading.RLock()
 
     def create_task(self, video_path: str, video_file: str,
                     subtitle_files: Optional[list] = None,
                     file_size_mb: float = 0,
                     initial_status: Optional[str] = None,
-                    source_unit_id: str = "") -> dict:
+                    source_unit_id: str = "", stage: str = "QUEUED",
+                    task_kind: str = "IMPORT", parent_task_id: str = "") -> dict:
         task = db_create_task(
             self.conn,
             source_path=video_path,
             source_filename=video_file,
             file_size_mb=file_size_mb,
             source_unit_id=source_unit_id,
+            stage=stage,
+            task_kind=task_kind,
+            parent_task_id=parent_task_id,
         )
         if initial_status and initial_status in VALID_STATUSES:
             db_update_task(self.conn, task["task_id"], status=initial_status)
@@ -127,7 +141,9 @@ class TaskManager:
             task["percentage"] = min(100, max(0, percentage))
             for k, v in kwargs.items():
                 if k in ("bytes_copied", "total_bytes", "import_path",
-                         "final_filename", "video_path", "subtitle_files"):
+                         "final_filename", "video_path", "subtitle_files",
+                         "progress_item_name", "progress_item_kind",
+                         "progress_item_index", "progress_item_total"):
                     task[k] = v
             db_update_task(
                 self.conn, task["task_id"],
@@ -159,11 +175,8 @@ class TaskManager:
         rows = db_list_all_tasks(self.conn, limit=limit + offset)
         return rows[offset:offset + limit]
 
-    def retry_task(self, task_id: str, *, resume: bool = True) -> Optional[dict]:
-        """重试复活（S3：CAS 原子化，并发双 retry 只成功一次）。
-
-        resume=True 时若 temp checkpoint 文件存在则保留（S2 断点续跑）。
-        """
+    def retry_task(self, task_id: str) -> Optional[dict]:
+        """整任务重试；CAS 保证并发双 retry 只成功一次。"""
         task = db_get_task(self.conn, task_id)
         if not task:
             return None
@@ -173,7 +186,7 @@ class TaskManager:
         # 先取期望态（reset_for_retry 会就地修改 task dict）
         expect_status = task.get("status", "")
         expect_stage = task.get("stage", "")
-        fields = reset_for_retry(task, resume=resume)
+        fields = reset_for_retry(task)
         from media_importer.infrastructure.db import compare_and_update_task
         return compare_and_update_task(
             self.conn, task_id,
@@ -392,7 +405,6 @@ class TaskManager:
         db_update_subs(self.conn, task_id, status="FAILED")
         protected = [
             self.config.get("source_dir", ""),
-            self.config.get("temp_dir", ""),
             recycle_dir,
         ]
         self._cleanup_empty_dirs(source_path, protected_dirs=protected)

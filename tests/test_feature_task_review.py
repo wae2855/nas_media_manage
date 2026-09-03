@@ -1,4 +1,5 @@
 from media_importer.features.tasks import (
+    apply_scrape_candidate_for_api,
     confirm_all_tasks_for_api,
     confirm_task_for_api,
     reclassify_task_for_api,
@@ -32,6 +33,16 @@ class FakePipeline:
         self.reclassified = []
         self.confirm_exceptions = {}
         self.confirm_calls = []
+        self.applied_candidates = []
+
+    def apply_scrape_candidate(self, task_id, **selection):
+        self.applied_candidates.append({"task_id": task_id, **selection})
+        return {
+            "task_id": task_id,
+            "status": "PENDING",
+            "stage": "AWAIT_REVIEW",
+            "provider_id": selection["item_id"],
+        }
 
     def confirm_task(self, task_id, confirmed_title=None, override_source=None,
                      conflict_action=None):
@@ -97,6 +108,43 @@ def test_confirm_task_requires_pipeline():
 
     assert result.code == 500
     assert result.message == "Pipeline not initialized"
+
+
+def test_apply_scrape_candidate_returns_preview_without_confirming_task():
+    pipeline = FakePipeline()
+
+    result = apply_scrape_candidate_for_api(
+        pipeline,
+        "task-1",
+        {
+            "provider_type": "tmdb",
+            "item_id": "290098",
+            "media_type": "movie",
+            "language": "zh-CN",
+        },
+    )
+
+    assert result.code == 200
+    assert result.data["task"]["stage"] == "AWAIT_REVIEW"
+    assert pipeline.confirmed == []
+    assert pipeline.applied_candidates == [{
+        "task_id": "task-1",
+        "provider_type": "tmdb",
+        "item_id": "290098",
+        "media_type": "movie",
+        "language": "zh-CN",
+    }]
+
+
+def test_apply_scrape_candidate_requires_provider_identity():
+    result = apply_scrape_candidate_for_api(
+        FakePipeline(),
+        "task-1",
+        {"provider_type": "tmdb", "media_type": "movie"},
+    )
+
+    assert result.code == 400
+    assert "item_id" in result.message
 
 
 def test_reclassify_task_returns_updated_task_payload():
@@ -171,3 +219,22 @@ def test_confirm_all_excludes_target_library_conflicts():
     assert pipeline.confirmed == ["normal-1"]
     assert result.data["conflict_skipped"] == 1
     assert result.data["success"] == 1
+
+
+def test_confirm_all_excludes_fallback_and_reorganization_tasks():
+    pipeline = FakePipeline()
+    manager = FakeTaskManager()
+    manager.confirming_tasks = [
+        {"task_id": "fallback-1", "used_fallback": 1},
+        {"task_id": "reorg-1", "task_kind": "REORGANIZE"},
+        {"task_id": "normal-1"},
+    ]
+
+    result = confirm_all_tasks_for_api(pipeline, manager)
+
+    assert pipeline.confirmed == ["normal-1"]
+    assert result.data["conflict_skipped"] == 2
+    assert all(
+        row.get("error") == "该任务必须打开详情逐项确认"
+        for row in result.data["results"][:2]
+    )

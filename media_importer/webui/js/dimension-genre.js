@@ -112,6 +112,7 @@ function _renderDimBody(dim) {
       .join("");
 
     var mappingHtml = "";
+    var providerMappingV2 = null;
     var hasGenreMapping = false;
     var hasRegionMapping = false;
     var hasLangMapping = false;
@@ -126,6 +127,9 @@ function _renderDimBody(dim) {
       }
       if (pm && typeof pm === "object") {
         for (var pmKey in pm) {
+          if (pm[pmKey] && pm[pmKey].schema_version === 2 && !providerMappingV2) {
+            providerMappingV2 = { provider: pmKey, mapping: pm[pmKey] };
+          }
           if (pm[pmKey] && pm[pmKey].field === "genres") hasGenreMapping = true;
           if (pm[pmKey] && pm[pmKey].field === "origin_country")
             hasRegionMapping = true;
@@ -138,7 +142,13 @@ function _renderDimBody(dim) {
       if (dim.tmdb_field === "original_language") hasLangMapping = true;
     }
 
-    if (
+    if (providerMappingV2 && typeof renderProviderMappingSummary === "function") {
+      mappingHtml = renderProviderMappingSummary(
+        dim,
+        providerMappingV2.provider,
+        providerMappingV2.mapping,
+      );
+    } else if (
       dim.source_type === "provider" &&
       hasGenreMapping &&
       dim.name !== "documentary" &&
@@ -151,7 +161,9 @@ function _renderDimBody(dim) {
     }
 
     var autoRuleHtml = "";
-    if (dim.name === "documentary") {
+    if (providerMappingV2) {
+      autoRuleHtml = "";
+    } else if (dim.name === "documentary") {
       autoRuleHtml =
         '<div class="dim-auto-rule-info">' +
         '<div class="dim-auto-rule-title">⚙ 自动判定规则</div>' +
@@ -167,7 +179,7 @@ function _renderDimBody(dim) {
       autoRuleHtml =
         '<div class="dim-auto-rule-info">' +
         '<div class="dim-auto-rule-title">⚙ 自动判定规则</div>' +
-        '<div class="dim-auto-rule-desc">从 Provider 获取 <strong>release_dates</strong> 字段中的分级认证（certification），按国家优先级 US → GB → DE → FR → CN → JP → KR → AU → CA 映射到年龄区间。Provider 无分级数据时，使用该维度的默认值；未设默认值则进入人工确认。</div>' +
+        '<div class="dim-auto-rule-desc">从 Provider 获取 <strong>release_dates</strong> 字段中的分级认证（certification），按国家/地区优先级 HK → US → GB → DE → FR → CN → JP → KR → AU → CA 映射到年龄区间；香港 III 归为 17+ 限制观看。Provider 无分级数据时，使用该维度的默认值；未设默认值则进入人工确认。</div>' +
         "</div>";
     }
 
@@ -191,7 +203,6 @@ function _renderDimBody(dim) {
       dim.color +
       '" class="dim-color-picker">' +
       "</div>" +
-      trustHtml +
       '<div class="dim-edit-row">' +
       '<span class="dim-edit-label">值域</span>' +
       '<div class="dim-value-tags">' +
@@ -204,7 +215,8 @@ function _renderDimBody(dim) {
       '<button class="btn btn-primary btn-sm" type="button" data-dimension-action="save" data-dimension-name="' +
       dim.name +
       '">保存</button>' +
-      (hasGenreMapping && dim.name !== "documentary" && dim.name !== "animation"
+      (providerMappingV2 ||
+      (hasGenreMapping && dim.name !== "documentary" && dim.name !== "animation")
         ? '<button class="btn btn-warning btn-sm" type="button" data-dimension-action="reset" data-dimension-name="' +
           dim.name +
           '">恢复默认</button>'

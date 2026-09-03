@@ -1,3 +1,4 @@
+import errno
 import os
 from datetime import datetime
 
@@ -67,6 +68,45 @@ def test_write_permission_checks_ignore_fixed_name_symlink_traps(tmp_path):
     assert check_write_permission(str(directory))[0] is True
     assert check_path(str(directory), require_write=True)[0] is True
     assert victim.read_bytes() == b"LIBRARY-MUST-SURVIVE"
+
+
+# Requirement: REQ-20260902-172713
+def test_write_permission_cleans_probe_when_fuse_close_reports_bad_descriptor(
+    tmp_path, monkeypatch,
+):
+    directory = tmp_path / "remote-source"
+    directory.mkdir()
+    real_close = os.close
+    raised = False
+
+    def fuse_close(descriptor):
+        nonlocal raised
+        if not raised:
+            raised = True
+            real_close(descriptor)
+            raise OSError(errno.EBADF, "simulated rclone close result")
+        real_close(descriptor)
+
+    monkeypatch.setattr(
+        "media_importer.infrastructure.filesystem.safety.os.close",
+        fuse_close,
+    )
+
+    ok, message = check_write_permission(str(directory))
+
+    assert ok is True, message
+    assert list(directory.glob(".write_test_*")) == []
+
+
+# Requirement: REQ-20260902-172713
+def test_write_permission_never_removes_unknown_legacy_probe(tmp_path):
+    directory = tmp_path / "source"
+    directory.mkdir()
+    legacy = directory / ".write_test_ejk3wv_d"
+    legacy.write_bytes(b"test")
+
+    assert check_write_permission(str(directory))[0] is True
+    assert legacy.read_bytes() == b"test"
 
 
 # Requirement: REQ-20260831-004019

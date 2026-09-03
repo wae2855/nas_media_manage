@@ -47,6 +47,8 @@ def list_tasks_for_api(query: dict, task_manager, logger=None) -> TaskListResult
         statuses=statuses if statuses else None,  # type: ignore[arg-type]
         stage=stage,
     )
+    for row in rows:
+        row.pop("bundle_manifest", None)
     counts = task_manager.count_by_status()
     active_count = sum(
         counts.get(status_name, 0)

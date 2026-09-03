@@ -34,10 +34,9 @@ class _MatrixBase(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix="ffm_")
         self.src_dir = os.path.join(self.dir, "source")
-        self.temp_dir = os.path.join(self.dir, "temp")
         self.import_dir = os.path.join(self.dir, "media")
         self.recycle_dir = os.path.join(self.dir, "recycle")
-        for d in (self.src_dir, self.temp_dir, self.import_dir, self.recycle_dir):
+        for d in (self.src_dir, self.import_dir, self.recycle_dir):
             os.makedirs(d, exist_ok=True)
 
         self.conn = init_db(os.path.join(self.dir, "tasks.db"))
@@ -48,7 +47,6 @@ class _MatrixBase(unittest.TestCase):
 
         self.config = {
             "source_dir": self.src_dir,
-            "temp_dir": self.temp_dir,
             "log_dir": os.path.join(self.dir, "logs"),
             "fallback_dir": os.path.join(self.import_dir, "fallback"),
             "path_rules": [],
@@ -85,8 +83,6 @@ class _MatrixBase(unittest.TestCase):
         runner.notifier = None
         from media_importer.notify.hooks import HookRunner
         runner.hooks = HookRunner(cfg)
-        from media_importer.infrastructure.filesystem.file_copier import FileCopier
-        runner.copier = FileCopier(self.temp_dir)
         return runner
 
 
@@ -113,14 +109,24 @@ class TestAutoPassFlow(_MatrixBase):
         runner._step_notify = MagicMock()
         return runner
 
-    def test_m01_auto_pass_imports_to_fallback(self):
+    def test_m01_fallback_requires_explicit_confirmation_before_import(self):
         task = self._create_pending("Inception.2010.1080p.mp4")
         runner = self._mock_scraper_auto_pass(self._runner())
         ok = runner.process_one(dict(task))
         self.assertTrue(ok)
         final = get_task(self.conn, task["task_id"])
+        self.assertEqual(final["status"], "PENDING")
+        self.assertEqual(final["stage"], "AWAIT_REVIEW")
+        self.assertEqual(final["used_fallback"], 1)
+
+        self.assertTrue(runner.confirm_task(
+            task["task_id"],
+            fallback_acknowledged=True,
+        ))
+        final = get_task(self.conn, task["task_id"])
         self.assertEqual(final["status"], "SUCCESS")
         self.assertEqual(final["stage"], "DONE")
+        self.assertEqual(final["organization_status"], "FALLBACK_PENDING")
         self.assertEqual(final["file_location"], "import")
         self.assertTrue(os.path.dirname(final["import_video_path"] or "").startswith(self.import_dir))
 
@@ -140,7 +146,66 @@ class TestAutoPassFlow(_MatrixBase):
         ok = runner.process_one(dict(task))
         self.assertTrue(ok)
         final = get_task(self.conn, task["task_id"])
+        self.assertEqual(final["stage"], "AWAIT_REVIEW")
+        self.assertTrue(runner.confirm_task(
+            task["task_id"],
+            fallback_acknowledged=True,
+        ))
+        final = get_task(self.conn, task["task_id"])
         self.assertEqual(final["status"], "SUCCESS")
+
+    def test_conflict_stops_before_copy_and_keep_existing_preserves_source(self):
+        """重复影片先确认；选择保留片库文件时不读取大文件到中转。"""
+        task = self._create_pending("Existing.2020.1080p.mkv")
+        runner = self._mock_scraper_auto_pass(self._runner())
+        target_name = "测试电影.Movie.2020...mkv"
+
+        def fake_rename(task_inner):
+            task_inner["final_filename"] = target_name
+            update_task(
+                self.conn,
+                task_inner["task_id"],
+                final_filename=target_name,
+            )
+
+        runner._step_rename = fake_rename
+        existing = _mkfile(
+            os.path.join(self.config["fallback_dir"], target_name),
+            content=b"library",
+        )
+        source_before = open(task["source_path"], "rb").read()
+        existing_before = open(existing, "rb").read()
+
+        ok = runner.process_one(dict(task))
+
+        self.assertTrue(ok)
+        awaiting = get_task(self.conn, task["task_id"])
+        self.assertEqual(awaiting["stage"], "AWAIT_REVIEW")
+        self.assertEqual(awaiting["file_location"], "source")
+        self.assertEqual(open(task["source_path"], "rb").read(), source_before)
+        self.assertEqual(open(existing, "rb").read(), existing_before)
+
+        first_confirm = runner.confirm_task(
+            task["task_id"],
+            fallback_acknowledged=True,
+        )
+        self.assertTrue(first_confirm)
+        conflict_task = get_task(self.conn, task["task_id"])
+        self.assertEqual(conflict_task["stage"], "AWAIT_REVIEW")
+        self.assertTrue(conflict_task["dedup_result"]["is_duplicate"])
+
+        confirmed = runner.confirm_task(
+            task["task_id"],
+            conflict_action="keep_existing",
+            fallback_acknowledged=True,
+        )
+
+        self.assertTrue(confirmed)
+        final = get_task(self.conn, task["task_id"])
+        self.assertEqual(final["status"], "SKIPPED")
+        self.assertEqual(final["file_location"], "source")
+        self.assertEqual(open(task["source_path"], "rb").read(), source_before)
+        self.assertEqual(open(existing, "rb").read(), existing_before)
 
 
 class TestConfirmFlow(_MatrixBase):
@@ -150,15 +215,14 @@ class TestConfirmFlow(_MatrixBase):
         update_task(self.conn, task["task_id"],
                     status="PENDING", stage="AWAIT_REVIEW",
                     confirm_status="PENDING",
-                    file_location="temp", video_path="")
+                    file_location="source", video_path=task["source_path"])
         return get_task(self.conn, task["task_id"])
 
     def test_m06_confirm_completes_import(self):
         task = self._create_pending()
-        temp_video = _mkfile(os.path.join(self.temp_dir, "Movie.2020.1080p.mkv"))
         task = self._to_await_review(task)
         fallback = self.config["fallback_dir"]
-        update_task(self.conn, task["task_id"], video_path=temp_video,
+        update_task(self.conn, task["task_id"], video_path=task["source_path"],
                     import_path=fallback,
                     scrape_result={"title_cn": "电影", "title_en": "Movie",
                                    "year": 2020, "media_type": "movie",
@@ -168,7 +232,7 @@ class TestConfirmFlow(_MatrixBase):
         runner = self._runner()
         runner._step_notify = MagicMock()
 
-        ok = runner.confirm_task(task["task_id"])
+        ok = runner.confirm_task(task["task_id"], fallback_acknowledged=True)
         self.assertTrue(ok)
         final = get_task(self.conn, task["task_id"])
         self.assertEqual(final["status"], "SUCCESS")
@@ -181,20 +245,21 @@ class TestConfirmFlow(_MatrixBase):
         with self.assertRaises(PipelineError):
             runner.confirm_task(task["task_id"])
 
-    def test_c27_confirm_when_temp_deleted_fails_cleanly(self):
-        """C27：confirm 时 temp 已被外部删除 → FAILED 而非崩溃。"""
+    def test_confirm_always_uses_intact_original_source(self):
+        """人工确认后仍从原始来源写入，不依赖步骤检查点。"""
         task = self._create_pending()
         task = self._to_await_review(task)
         update_task(self.conn, task["task_id"],
-                    video_path=os.path.join(self.temp_dir, "gone.mkv"),
+                    video_path=task["source_path"],
                     import_path=self.config["fallback_dir"],
                     scrape_result={"title_cn": "x", "title_en": "x", "year": 2020,
                                    "media_type": "movie", "dimensions": {}})
         runner = self._runner()
-        ok = runner.confirm_task(task["task_id"])
-        self.assertFalse(ok)
+        ok = runner.confirm_task(task["task_id"], fallback_acknowledged=True)
+        self.assertTrue(ok)
         final = get_task(self.conn, task["task_id"])
-        self.assertEqual(final["status"], "FAILED")
+        self.assertEqual(final["status"], "SUCCESS")
+        self.assertEqual(final["file_location"], "import")
 
 
 class TestTerminalActions(_MatrixBase):
@@ -260,9 +325,8 @@ class TestFailureInjection(_MatrixBase):
     def test_c24_interrupted_running_marked_failed_by_cleanup(self):
         """C24：进程中断（RUNNING 残留）→ 启动清理标 FAILED。"""
         task = self._create_pending()
-        update_task(self.conn, task["task_id"], stage="RUNNING",
-                    video_path=os.path.join(self.temp_dir, "orphan.mkv"))
-        _mkfile(os.path.join(self.temp_dir, "orphan.mkv"))
+        unrelated = _mkfile(os.path.join(self.import_dir, "unrelated.copying"))
+        update_task(self.conn, task["task_id"], stage="RUNNING")
 
         from media_importer.api.handler import _cleanup_orphaned_state
         logger = MagicMock()
@@ -270,7 +334,8 @@ class TestFailureInjection(_MatrixBase):
 
         final = get_task(self.conn, task["task_id"])
         self.assertEqual(final["status"], "FAILED")
-        self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "orphan.mkv")))
+        self.assertTrue(os.path.exists(unrelated))
+        self.assertEqual(final["file_location"], "source")
 
 
 if __name__ == "__main__":

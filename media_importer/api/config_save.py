@@ -16,13 +16,17 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         write_response(handler, 400, message="Empty config")
         return
 
+    if "temp_dir" in body:
+        write_response(handler, 400, message="中转目录已取消，影片会在全部确认后直接安全写入目标片库")
+        return
+
     try:
         from media_importer.features.configuration import (
+            automatic_blocking_reasons,
             config_revision,
             inspect_storage_readiness,
             validate_config,
             validate_fnos_directory_paths,
-            validate_temp_directory_change,
         )
         from media_importer.features.configuration.library_paths import (
             LibraryPathError,
@@ -31,14 +35,41 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         )
 
         requested_revision = body.get("_revision")
+        source_delete_acknowledged = body.get("_confirm_source_permanent_delete") is True
         if requested_revision and requested_revision != config_revision(state._config or {}):
             write_response(handler, 409, message="配置已被其他页面更新，请刷新后重试")
             return
         migrate_legacy = body.get("_migrate_legacy_library_rules") is True
         body = {
             key: value for key, value in body.items()
-            if key not in {"_revision", "_migrate_legacy_library_rules"}
+            if key not in {
+                "_revision", "_migrate_legacy_library_rules",
+                "_confirm_source_permanent_delete",
+            }
         }
+
+        old_source_policy = (state._config or {}).get("source_policy", {}) or {}
+        new_source_policy = body.get("source_policy", {}) or {}
+        old_source_mode = old_source_policy.get("mode", "preserve_all")
+        new_source_mode = new_source_policy.get("mode", old_source_mode)
+        old_disposal_mode = old_source_policy.get("disposal_mode", "local_recycle")
+        new_disposal_mode = new_source_policy.get("disposal_mode", old_disposal_mode)
+        active_source_modes = {"preserve_media", "recycle_source_unit"}
+        was_permanent = (
+            old_source_mode in active_source_modes
+            and old_disposal_mode == "permanent_delete"
+        )
+        becomes_permanent = (
+            new_source_mode in active_source_modes
+            and new_disposal_mode == "permanent_delete"
+        )
+        if becomes_permanent and not was_permanent and not source_delete_acknowledged:
+            write_response(
+                handler,
+                400,
+                message="配置未保存：选择永久删除来源时，必须明确确认内容无法恢复",
+            )
+            return
 
         config_path = state._config.get("_config_path") if state._config else None
         if not config_path:
@@ -63,7 +94,9 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         }
 
         config_to_save = handler._filter_sensitive_fields(body, config_doc)
-        old_temp_dir = str(config_doc.get("temp_dir", "") or "")
+        # ADR-0022: remove stale center-staging keys instead of preserving them
+        # during unrelated saves.
+        config_doc.pop("temp_dir", None)
 
         def changed_leaf_paths(patch, current, prefix=""):
             changed = set()
@@ -187,7 +220,12 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
                         str(config_doc.get("default_library_root_id") or ""),
                     )
                 else:
-                    canonical = canonicalize_library_config(dict(config_doc))
+                    canonical = canonicalize_library_config(
+                        dict(config_doc),
+                        require_rule_assignments=bool({
+                            "path_rules", "fallback_library_root_id", "fallback_dir",
+                        }.intersection(body)),
+                    )
             except LibraryPathError as exc:
                 write_response(handler, 400, message=f"配置未保存：{exc}")
                 return
@@ -199,8 +237,6 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         captured_storage_identities = None
         if "source_dir" in body:
             touched_roles.add("source")
-        if "temp_dir" in body:
-            touched_roles.add("temp")
         if "log_dir" in body:
             touched_roles.add("log")
         if "resource_dir" in body or "resources_dir" in body:
@@ -213,18 +249,6 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         ):
             touched_roles.add("recycle")
         if touched_roles:
-            if "temp" in touched_roles:
-                temp_change_errors = validate_temp_directory_change(
-                    old_temp_dir,
-                    str(config_doc.get("temp_dir", "") or ""),
-                    getattr(state, "_global_task_manager", None),
-                )
-                if temp_change_errors:
-                    write_response(
-                        handler, 400,
-                        message="配置未保存：" + "；".join(temp_change_errors),
-                    )
-                    return
             authorization_errors = validate_fnos_directory_paths(
                 dict(config_doc), touched_roles,
             )
@@ -322,10 +346,12 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
         if isinstance(watcher_update, dict) and watcher_update.get("enabled") is True:
             readiness = inspect_storage_readiness(dict(config_doc))
             if not readiness["automatic_allowed"]:
+                reasons = automatic_blocking_reasons(readiness)
+                detail = reasons[0] if reasons else "存在不满足自动运行条件的目录"
                 write_response(
                     handler,
                     400,
-                    message="自动运行未启用：请先让所有存储检查项达到绿色",
+                    message=f"自动运行未启用：{detail}",
                 )
                 return
 
@@ -363,7 +389,11 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
 
         has_running_tasks = state._global_task_manager and state._global_task_manager.has_running_tasks()
 
-        safe_sections = {"source_cleaner", "advanced"}
+        # 监控开关和轮询周期属于独立后台组件，不改变正在执行任务的
+        # pipeline 快照；即使已有任务运行，也应立即应用到服务进程。
+        safe_sections = {
+            "source_cleaner", "media_candidate_filter", "advanced", "file_watcher"
+        }
         body_sections = set(body.keys())
         is_safe_update = body_sections.issubset(safe_sections)
 
@@ -388,23 +418,9 @@ def save_config(handler, body: dict, globals_module=None, respond=None):
                 handler._update_config_safely(state._config, applied_update)
                 if migrate_legacy:
                     state._config.pop("_library_migration_error", None)
-            if "temp_dir" in body:
-                pipeline = getattr(state, "_global_pipeline", None)
-                if pipeline and getattr(pipeline, "copier", None) is not None:
-                    extensions = set(
-                        str(ext).lower() if str(ext).startswith(".") else f".{str(ext).lower()}"
-                        for ext in (
-                            list(state._config.get("video_extensions", []) or [])
-                            + list(state._config.get("subtitle_extensions", []) or [])
-                        )
-                    )
-                    pipeline.config = state._config
-                    pipeline.copier = type(pipeline.copier)(
-                        state._config.get("temp_dir", ""), extensions,
-                    )
             if "file_watcher" in body:
                 try:
-                    handler._reload_watcher()
+                    handler._reload_watcher(body={}, params={}, query={})
                     write_response(handler, 200, message="轮询监控配置已保存并立即生效")
                     return
                 except Exception as e:

@@ -25,10 +25,48 @@ from media_importer.features.scraping.confidence_models import (
     _YEAR_PATTERN,
     CleanResult,
 )
+from media_importer.features.scraping.release_identity import parse_release_identity
 
 
 class FilenameCleaner:
     def clean(self, filename: str) -> CleanResult:
+        identity = parse_release_identity(filename)
+        if identity.title_candidates:
+            removed = list(identity.evidence)
+            return CleanResult(
+                clean_title=identity.primary_title,
+                year=identity.year,
+                season=identity.season,
+                episode=identity.episode,
+                removed_items=removed,
+                method="structured",
+                year_suspect=identity.year_suspect,
+                cjk_title=(
+                    identity.cjk_title
+                    if identity.cjk_title != identity.primary_title
+                    else None
+                ),
+                title_candidates=list(identity.title_candidates),
+                release_identity={
+                    "title_candidates": list(identity.title_candidates),
+                    "year": identity.year,
+                    "season": identity.season,
+                    "episode": identity.episode,
+                    "episodes": list(identity.episodes),
+                    "media_type_hint": identity.media_type_hint,
+                    "editions": list(identity.editions),
+                    "languages": list(identity.languages),
+                    "subtitle_tags": list(identity.subtitle_tags),
+                    "resolution": identity.resolution,
+                    "source": identity.source,
+                    "codecs": list(identity.codecs),
+                    "release_group": identity.release_group,
+                    "unknown_tags": list(identity.unknown_tags),
+                    "evidence": list(identity.evidence),
+                },
+            )
+
+        # 极端异常名保留旧清洗逻辑作为兼容兜底。
         name = _EXTENSION_PATTERN.sub('', filename)
         removed = []
 

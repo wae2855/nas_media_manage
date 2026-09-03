@@ -1,3 +1,4 @@
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -11,17 +12,58 @@ class TaskReviewActionResult:
     message: str = ""
 
 
+_confirm_jobs: set[str] = set()
+_confirm_jobs_lock = threading.Lock()
+
+
+def apply_scrape_candidate_for_api(
+    pipeline,
+    task_id: str,
+    selection: dict,
+) -> TaskReviewActionResult:
+    if pipeline is None:
+        return TaskReviewActionResult(code=500, message="Pipeline not initialized")
+    required = ("provider_type", "item_id", "media_type")
+    missing = [name for name in required if not str(selection.get(name, "")).strip()]
+    if missing:
+        return TaskReviewActionResult(
+            code=400,
+            message="缺少候选参数: " + ", ".join(missing),
+        )
+    try:
+        task = pipeline.apply_scrape_candidate(
+            task_id,
+            provider_type=str(selection["provider_type"]),
+            item_id=str(selection["item_id"]),
+            media_type=str(selection["media_type"]),
+            language=str(selection.get("language", "") or ""),
+        )
+        return TaskReviewActionResult(
+            code=200,
+            data={"task": task},
+            message="作品资料已更新，请核对入库预览后再确认",
+        )
+    except Exception as exc:
+        return TaskReviewActionResult(code=400, message=str(exc))
+
+
 def confirm_task_for_api(pipeline, task_manager, task_id: str,
                          confirmed_title: Optional[str] = None,
                          override_source: Optional[str] = None,
-                         conflict_action: Optional[str] = None) -> TaskReviewActionResult:
+                         conflict_action: Optional[str] = None,
+                         fallback_acknowledged: bool = False) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
 
     try:
-        ok = pipeline.confirm_task(task_id, confirmed_title=confirmed_title,
-                                   override_source=override_source,
-                                   conflict_action=conflict_action)
+        confirm_kwargs = {
+            "confirmed_title": confirmed_title,
+            "override_source": override_source,
+            "conflict_action": conflict_action,
+        }
+        if fallback_acknowledged:
+            confirm_kwargs["fallback_acknowledged"] = True
+        ok = pipeline.confirm_task(task_id, **confirm_kwargs)
         if ok:
             current = task_manager.get_task(task_id) if task_manager else None
             conflict = (current or {}).get("dedup_result") or {}
@@ -45,6 +87,99 @@ def confirm_task_for_api(pipeline, task_manager, task_id: str,
         )
     except Exception as exc:
         return TaskReviewActionResult(code=400, message=str(exc))
+
+
+def queue_confirm_task_for_api(
+    pipeline,
+    task_manager,
+    task_id: str,
+    confirmed_title: Optional[str] = None,
+    override_source: Optional[str] = None,
+    conflict_action: Optional[str] = None,
+    source_disposition: Optional[str] = None,
+    fallback_acknowledged: bool = False,
+) -> TaskReviewActionResult:
+    """快速返回，由服务端线程继续确认后的长文件流程。"""
+    if pipeline is None:
+        return TaskReviewActionResult(code=500, message="Pipeline not initialized")
+    if task_manager is None:
+        return TaskReviewActionResult(code=500, message="TaskManager not initialized")
+
+    task = task_manager.get_task(task_id)
+    if not task or task.get("status") != "PENDING" or task.get("stage") != "AWAIT_REVIEW":
+        return TaskReviewActionResult(code=400, message="任务已不在等待确认状态，请刷新后重试")
+    if task.get("task_kind") == "REORGANIZE" and task.get("used_fallback"):
+        return TaskReviewActionResult(
+            code=400,
+            message="重新整理任务仍未匹配正式入库规则，请调整维度或重新刮削",
+        )
+    if task.get("used_fallback") and not fallback_acknowledged:
+        return TaskReviewActionResult(
+            code=400,
+            message="该影片将进入待整理区，请先明确确认后再继续",
+        )
+    conflict = task.get("dedup_result") or {}
+    has_conflict = bool(
+        conflict.get("is_duplicate")
+        and conflict.get("status") == "awaiting_user"
+    )
+    allowed_actions = {"keep_existing", "keep_both", "replace_existing"}
+    if has_conflict and conflict_action not in allowed_actions:
+        return TaskReviewActionResult(code=400, message="片库冲突必须先选择处理方式")
+    if conflict_action == "replace_existing" and conflict.get("replace_allowed") is False:
+        return TaskReviewActionResult(
+            code=400,
+            message="当前文件包包含字幕冲突，请选择保留片库文件或两个都保留",
+        )
+    if source_disposition and conflict_action != "keep_existing":
+        return TaskReviewActionResult(
+            code=400,
+            message="只有选择保留片库现有文件时，才能同时处理本次新资源",
+        )
+    if source_disposition not in {None, "", "keep", "local_recycle", "permanent_delete"}:
+        return TaskReviewActionResult(code=400, message="来源处理方式无效")
+
+    with _confirm_jobs_lock:
+        if task_id in _confirm_jobs:
+            return TaskReviewActionResult(
+                code=202,
+                data={"queued": True, "task_id": task_id},
+                message="任务已在后台处理中，请勿重复提交",
+            )
+        _confirm_jobs.add(task_id)
+
+    def run_confirm_job():
+        try:
+            confirm_kwargs = {
+                "confirmed_title": confirmed_title,
+                "override_source": override_source,
+                "conflict_action": conflict_action,
+            }
+            if source_disposition:
+                confirm_kwargs["source_disposition"] = source_disposition
+            if fallback_acknowledged:
+                confirm_kwargs["fallback_acknowledged"] = True
+            pipeline.confirm_task(task_id, **confirm_kwargs)
+        finally:
+            with _confirm_jobs_lock:
+                _confirm_jobs.discard(task_id)
+
+    try:
+        threading.Thread(
+            target=run_confirm_job,
+            name=f"confirm-{task_id}",
+            daemon=True,
+        ).start()
+    except Exception as exc:
+        with _confirm_jobs_lock:
+            _confirm_jobs.discard(task_id)
+        return TaskReviewActionResult(code=500, message=f"后台任务启动失败: {exc}")
+
+    return TaskReviewActionResult(
+        code=202,
+        data={"queued": True, "task_id": task_id},
+        message="已加入后台队列，关闭页面也会继续处理",
+    )
 
 
 def reclassify_task_for_api(pipeline, task_id: str, dimensions: dict,
@@ -121,13 +256,17 @@ def confirm_all_tasks_for_api(
     for task in confirming_tasks:
         task_id = task.get("task_id", "")
         dedup_result = task.get("dedup_result") or {}
-        if dedup_result.get("is_duplicate") and dedup_result.get("status") == "awaiting_user":
+        requires_individual_review = bool(
+            dedup_result.get("is_duplicate")
+            and dedup_result.get("status") == "awaiting_user"
+        ) or bool(task.get("used_fallback")) or task.get("task_kind") == "REORGANIZE"
+        if requires_individual_review:
             conflict_skipped += 1
             results.append({
                 "task_id": task_id,
                 "success": False,
                 "skipped": True,
-                "error": "片库冲突必须逐项确认",
+                "error": "该任务必须打开详情逐项确认",
             })
             continue
         try:

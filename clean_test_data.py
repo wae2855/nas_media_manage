@@ -7,7 +7,7 @@
     python clean_test_data.py --dry-run      # 仅列出将清理的内容，不操作
 
 清理范围:
-    - 源目录、中转目录、入库目录、回收站、资源目录、日志目录下的所有文件
+    - 源目录、入库目录、回收站、资源目录、日志目录下的所有文件
     - tasks.db 数据库（清空 tasks / task_subtitles / cleaner_records 表）
     - __pycache__ 缓存目录
 
@@ -22,7 +22,6 @@ import logging
 import os
 import shutil
 import sqlite3
-import subprocess
 import sys
 from pathlib import Path
 
@@ -106,7 +105,6 @@ def collect_dirs(cfg, ext_dirs):
     # 基础配置目录
     key_map = {
         "源目录": cfg.get("source_dir"),
-        "中转目录": cfg.get("temp_dir"),
         "日志目录": cfg.get("log_dir"),
         "回收站目录": cfg.get("source_policy", {}).get("recycle_dir"),
         "资源目录": cfg.get("resource_dir"),
@@ -223,7 +221,7 @@ def clean_directory(path, label="", dry_run=False):
 
     count = 0
     if dry_run:
-        for entry in path.iterdir():
+        for _entry in path.iterdir():
             count += 1
         logger.info("  - %s: 将删除 %d 项", label, count)
         return count

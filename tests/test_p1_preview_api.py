@@ -217,6 +217,57 @@ class TestPreviewTask(unittest.TestCase):
         self.assertIsNotNone(task)
         self.assertEqual(task["task_id"], "task-test-1")
 
+    def test_manual_candidate_refreshes_details_without_starting_import(self):
+        library = os.path.join(self.data_dir, "manual-candidate-library")
+        os.makedirs(library, exist_ok=True)
+        self.pipeline.config = {
+            "fallback_dir": library,
+            "filename_templates": {
+                "movie": "{title_cn}.{year}.{ext}",
+            },
+        }
+        candidate = {
+            "provider_type": "tmdb",
+            "provider_id": "290098",
+            "language": "zh-CN",
+            "dimensions": {"media_type": "movie"},
+            "dim_sources": {"media_type": "provider:tmdb"},
+            "scrape_result": {
+                "title_cn": "小姐",
+                "title_en": "The Handmaiden",
+                "year": 2016,
+                "media_type": "movie",
+                "overview": "完整简介",
+                "provider_type": "tmdb",
+                "provider_id": "290098",
+                "dimensions": {"media_type": "movie"},
+                "match_level": "NEEDS_CONFIRM",
+                "match_concerns": [],
+                "manual_selected": True,
+            },
+        }
+        with patch(
+            "media_importer.features.tasks.search_service.load_provider_candidate",
+            return_value=candidate,
+        ):
+            task = self.pipeline.apply_scrape_candidate(
+                "task-test-1",
+                provider_type="tmdb",
+                item_id="290098",
+                media_type="movie",
+                language="zh-CN",
+            )
+
+        self.assertEqual(task["status"], "PENDING")
+        self.assertEqual(task["stage"], "AWAIT_REVIEW")
+        self.assertEqual(task["provider_id"], "290098")
+        self.assertEqual(task["scrape_title_cn"], "小姐")
+        self.assertEqual(task["scrape_result"]["overview"], "完整简介")
+        self.assertEqual(os.path.normpath(task["import_path"]), library)
+        self.assertEqual(task["final_filename"], "小姐.2016.mkv")
+        self.assertEqual(task["import_success"], 0)
+        self.assertFalse(os.path.exists(os.path.join(library, task["final_filename"])))
+
 
 # ============================================================================
 # search_provider_candidates 测试
@@ -320,13 +371,21 @@ class TestSearchProviderCandidates(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertLessEqual(len(result[0]["overview"]), 203)
 
-    def test_search_limits_per_provider_to_five(self):
-        items = [FakeSearchItem(str(i), f"Movie {i}", 2020) for i in range(10)]
+    def test_search_returns_up_to_twenty_candidates(self):
+        items = [FakeSearchItem(str(i), f"Movie {i}", 2020) for i in range(30)]
         providers = [FakeProvider("tmdb", items)]
         with patch("media_importer.features.providers.create_providers", lambda _: providers):
             result = self.search_fn({}, "Movie")
 
-        self.assertEqual(len(result), 5)
+        self.assertEqual(len(result), 20)
+
+    def test_search_honors_smaller_limit(self):
+        items = [FakeSearchItem(str(i), f"Movie {i}", 2020) for i in range(10)]
+        providers = [FakeProvider("tmdb", items)]
+        with patch("media_importer.features.providers.create_providers", lambda _: providers):
+            result = self.search_fn({}, "Movie", limit=7)
+
+        self.assertEqual(len(result), 7)
 
     def test_search_handles_provider_with_empty_result(self):
         providers = [
@@ -345,6 +404,98 @@ class TestSearchProviderCandidates(unittest.TestCase):
             result = self.search_fn({}, "test")
 
         self.assertEqual(result, [])
+
+
+class TestLoadProviderCandidate(unittest.TestCase):
+    def test_loads_full_details_in_selected_language_and_maps_dimensions(self):
+        from media_importer.features.providers import (
+            DimensionMapping,
+            Genre,
+            MediaDetails,
+        )
+        from media_importer.features.tasks.search_service import (
+            load_provider_candidate,
+        )
+
+        class FakeDetailsProvider:
+            received_config = {}
+
+            def __init__(self, config):
+                type(self).received_config = config
+
+            def get_details(self, item_id, media_type):
+                self.item_id = item_id
+                return MediaDetails(
+                    provider_type="tmdb",
+                    item_id=item_id,
+                    media_type=media_type,
+                    title="小姐",
+                    original_title="The Handmaiden",
+                    year=2016,
+                    genres=[Genre(id="18", name="剧情")],
+                    overview="完整简介",
+                    vote_average=8.1,
+                    origin_country=["KR"],
+                    original_language="ko",
+                    adult=False,
+                    tagline="",
+                    poster_url="https://image.example/poster.jpg",
+                    raw_data={},
+                )
+
+            def map_dimensions(self, dim_configs, details):
+                self.dim_configs = dim_configs
+                self.details = details
+                return [
+                    DimensionMapping(
+                        name="documentary",
+                        value="否",
+                        source_reliability=0.9,
+                        source="tmdb",
+                    ),
+                ]
+
+        config = {
+            "metadata": {
+                "providers": [
+                    {
+                        "type": "tmdb",
+                        "enabled": True,
+                        "api_key": "secret",
+                        "language": "zh-CN",
+                    },
+                ],
+            },
+        }
+        with (
+            patch(
+                "media_importer.features.providers.get_provider_class",
+                return_value=FakeDetailsProvider,
+            ),
+            patch(
+                "media_importer.features.scraping.dimension_manager.get_dimensions_for_provider",
+                return_value=[{"name": "documentary"}],
+            ),
+            patch(
+                "media_importer.infrastructure.db.get_enabled_dimensions",
+                return_value=[{"name": "media_type"}, {"name": "documentary"}],
+            ),
+        ):
+            result = load_provider_candidate(
+                config,
+                object(),
+                provider_type="tmdb",
+                item_id="290098",
+                media_type="movie",
+                language="ko-KR",
+            )
+
+        self.assertEqual(FakeDetailsProvider.received_config["language"], "ko-KR")
+        self.assertEqual(result["provider_id"], "290098")
+        self.assertEqual(result["scrape_result"]["title_cn"], "小姐")
+        self.assertEqual(result["scrape_result"]["overview"], "完整简介")
+        self.assertEqual(result["dimensions"]["documentary"], "否")
+        self.assertEqual(result["dimensions"]["media_type"], "movie")
 
 
 # ============================================================================
@@ -367,7 +518,12 @@ class _PreviewPipeline:
             self, type(self)
         )(task_id, updates)
 
-    def _log(self, level, msg, task=None):
+    def apply_scrape_candidate(self, task_id: str, **selection) -> dict:
+        return self._confirm_mixin.apply_scrape_candidate.__get__(
+            self, type(self)
+        )(task_id, **selection)
+
+    def _log(self, level, msg, task=None, step=""):
         pass
 
 

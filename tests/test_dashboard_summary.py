@@ -6,7 +6,7 @@ from media_importer.features.scraping.thumbnail_cache import (
     prune_thumbnail_cache,
     recent_movie_items,
 )
-from media_importer.features.tasks import get_dashboard_summary_for_api
+from media_importer.features.tasks import dashboard_service, get_dashboard_summary_for_api
 from media_importer.infrastructure.db import update_task
 
 
@@ -173,3 +173,85 @@ def test_thumbnail_cache_rejects_symlinked_root_into_library(tmp_path):
 
     assert result["removed"] == 0
     assert victim.read_bytes() == b"LIBRARY-MUST-SURVIVE"
+
+
+# Requirement: REQ-20260902-013607
+def test_unchanged_dashboard_snapshot_reuses_thumbnail_io(tmp_path, monkeypatch):
+    manager = TaskManager(str(tmp_path / "data-cache"))
+    thumb_dir = tmp_path / "resources-cache" / "thumbnail"
+    thumb_dir.mkdir(parents=True)
+    poster = thumb_dir / "cached.jpg"
+    poster.write_bytes(b"poster")
+    task = _task(
+        manager,
+        "cached.mkv",
+        status="SUCCESS",
+        stage="DONE",
+        import_success=1,
+        completed_at=datetime.now().isoformat(),
+        thumbnail_path=str(poster),
+        provider_type="tmdb",
+        provider_id="cache-1",
+        scrape_title_cn="缓存影片",
+    )
+    recent_calls = []
+    prune_calls = []
+    original_recent = dashboard_service.recent_movie_items
+    original_prune = dashboard_service.prune_thumbnail_cache
+    monkeypatch.setattr(
+        dashboard_service,
+        "recent_movie_items",
+        lambda *args, **kwargs: recent_calls.append(1) or original_recent(*args, **kwargs),
+    )
+    monkeypatch.setattr(
+        dashboard_service,
+        "prune_thumbnail_cache",
+        lambda *args, **kwargs: prune_calls.append(1) or original_prune(*args, **kwargs),
+    )
+
+    first = get_dashboard_summary_for_api(
+        manager, paused=False, thumbnail_dir=str(thumb_dir),
+    )
+    second = get_dashboard_summary_for_api(
+        manager, paused=False, thumbnail_dir=str(thumb_dir),
+    )
+
+    assert first.data["recent_movies"] == second.data["recent_movies"]
+    assert recent_calls == [1]
+    assert prune_calls == [1]
+
+    update_task(manager.conn, task["task_id"], scrape_title_cn="缓存影片新标题")
+    changed = get_dashboard_summary_for_api(
+        manager, paused=False, thumbnail_dir=str(thumb_dir),
+    )
+    assert changed.data["recent_movies"][0]["title"] == "缓存影片新标题"
+    assert recent_calls == [1, 1]
+    assert prune_calls == [1]
+
+
+# Requirement: REQ-20260902-013607
+def test_dashboard_prune_uses_canonical_library_roots_without_resolving_them(
+    tmp_path, monkeypatch,
+):
+    thumb_dir = tmp_path / "resource" / "thumbnail"
+    thumb_dir.mkdir(parents=True)
+    library = tmp_path / "sleeping-library"
+    calls = []
+    original_realpath = os.path.realpath
+
+    def tracked_realpath(path):
+        calls.append(str(path))
+        return original_realpath(path)
+
+    monkeypatch.setattr(
+        "media_importer.features.scraping.thumbnail_cache.os.path.realpath",
+        tracked_realpath,
+    )
+    prune_thumbnail_cache(
+        str(thumb_dir),
+        set(),
+        protected_roots=[str(library)],
+        protected_roots_canonical=True,
+    )
+
+    assert str(library) not in calls

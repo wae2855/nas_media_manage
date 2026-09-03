@@ -1,4 +1,19 @@
 // cinema-reel.js - reel wheel and status update functions
+function syncConfigPanelDomOrder() {
+  const configView = document.querySelector('.page-view[data-view="config"]');
+  if (!configView) return;
+  const panels = new Map(
+    Array.from(configView.querySelectorAll(":scope > [data-config-panel]")).map(
+      (panel) => [panel.dataset.configPanel, panel],
+    ),
+  );
+  ["start", "storage", "source", "scrape", "rules", "ai", "advanced", "recycle"]
+    .forEach((stage) => {
+      const panel = panels.get(stage);
+      if (panel) configView.appendChild(panel);
+    });
+}
+
 function initReelWheel() {
   const wheel = document.getElementById("reel-wheel");
   const emptyState = document.getElementById("reel-empty-state");
@@ -207,6 +222,7 @@ function setReelMovies(movies) {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadHtmlPartial("advanced-pages-slot", "partials/advanced-pages.html");
   mountAdvancedSettingsInTrack();
+  syncConfigPanelDomOrder();
   initializeFnosAuthorizationBridge();
   bindEvents();
   renderStaticLists();

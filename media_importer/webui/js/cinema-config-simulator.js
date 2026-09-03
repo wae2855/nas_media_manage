@@ -50,6 +50,14 @@ function renderMatchPathPreview(data) {
     matchResult.match_level || scrapeRes.match_level || "NEEDS_CONFIRM";
   const concerns = matchResult.concerns || [];
   const traceSteps = matchResult.trace || [];
+  const identityEvidence = matchResult.identity_evidence || {};
+  const identitySignals = Array.isArray(identityEvidence.signals)
+    ? identityEvidence.signals
+    : [];
+  const folderSignal = identitySignals.find((item) => item.source === "folder");
+  const ignoredDirectories = Array.isArray(identityEvidence.ignored_directories)
+    ? identityEvidence.ignored_directories
+    : [];
   const queueExplanation = explainSimulatedQueue(matchResult);
 
   let html = '<div class="sim-compare">';
@@ -66,6 +74,11 @@ function renderMatchPathPreview(data) {
   html +=
     '<div class="sim-step-header"><span class="sim-step-title" style="color:#06B6D4">文件名输入</span><span class="sim-step-tag" style="background:#06B6D418;color:#06B6D4">文件识别</span></div>';
   html += `<div class="sim-kv"><span class="sim-k">原始文件名</span><span class="sim-v">${escapeHtml(data.filename || "—")}</span></div>`;
+  if (folderSignal) {
+    html += `<div class="sim-kv"><span class="sim-k">辅助目录名</span><span class="sim-v">${escapeHtml(folderSignal.raw_name || "—")}</span></div>`;
+  } else if (ignoredDirectories.length > 0 && ignoredDirectories[0].name) {
+    html += `<div class="sim-kv"><span class="sim-k">目录未参与</span><span class="sim-v">${escapeHtml(ignoredDirectories[0].reason || "不是有效片名目录")}</span></div>`;
+  }
   html += "</div></div>";
 
   // --- timeline step 2: 规则清洗 ---

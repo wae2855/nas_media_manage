@@ -10,12 +10,18 @@ function buildSourceConfigPayload() {
     document.querySelector(
       'input[name="cfg-source_cleaner-cleanup_mode_inline"]:checked',
     )?.value || "media_and_related";
+  const selectedDisposalMode =
+    document.querySelector('input[name="cfg-source-disposal"]:checked')
+      ?.value || "local_recycle";
+  const disposalMode =
+    sourceMode === "preserve_all" ? "local_recycle" : selectedDisposalMode;
   const unitPatternField = document.getElementById(
     "cfg-source-unit-incomplete-patterns",
   );
   return {
     source_policy: {
       mode: sourceMode,
+      disposal_mode: disposalMode,
       cleanup_source_after_done: sourceMode === "recycle_source_unit",
       scan_recursive: !!document.getElementById(
         "cfg-source-recursive-toggle-inline",
@@ -60,10 +66,9 @@ function buildSourceConfigPayload() {
       ),
       junk_video_max_size_mb:
         Number(
-          document.getElementById(
-            "cfg-source_cleaner-junk_video_max_size_mb-inline",
-          )?.value || 0,
-        ) || 0,
+          document.getElementById("cfg-media-candidate-small-max-inline")
+            ?.value || 50,
+        ) || 50,
       cleanup_empty_dirs: !!document.getElementById(
         "cfg-source_cleaner-cleanup_empty_dirs-inline",
       )?.checked,
@@ -72,14 +77,19 @@ function buildSourceConfigPayload() {
           "",
       ).trim(),
     },
-  };
-}
-
-function buildTempConfigPayload() {
-  return {
-    temp_dir: normalizePathValue(
-      document.getElementById("cfg-temp-inline")?.value,
-    ),
+    media_candidate_filter: {
+      enabled: !!document.getElementById("cfg-media-candidate-enabled-inline")
+        ?.checked,
+      small_video_max_mb:
+        Number(document.getElementById("cfg-media-candidate-small-max-inline")?.value || 50) || 50,
+      main_video_min_mb:
+        Number(document.getElementById("cfg-media-candidate-main-min-inline")?.value || 500) || 500,
+      max_size_ratio:
+        (Number(document.getElementById("cfg-media-candidate-ratio-inline")?.value || 2) || 2) / 100,
+      extra_name_patterns: parseMultilineValue(
+        "cfg-media-candidate-patterns-inline",
+      ),
+    },
   };
 }
 
@@ -108,7 +118,7 @@ function buildRulesConfigPayload() {
       ? currentConfigSnapshot.path_rules
       : [],
     fallback_library_root_id:
-      document.getElementById("cfg-fallback-root-inline")?.value || defaultId,
+      document.getElementById("cfg-fallback-root-inline")?.value || "",
     fallback_dir: normalizePathValue(
       document.getElementById("cfg-fallback-inline")?.value,
     ),

@@ -5,6 +5,9 @@ class TierShortReason:
     """L2: 一句话原因枚举（程序兜底，AI 应优先返回 ≤30 字）"""
     # Tier 1
     TIER1_UNIQUE = "唯一精确匹配"
+    TIER1_EVIDENCE_CONVERGED = "文件名与目录名指向同一作品"
+    TIER1_FOLDER_RESCUE = "文件名信息不足，目录片名与年份精确匹配"
+    TIER1_PROVIDER_ALIAS = "标题命中影视资料官方别名"
     TIER1_TOP_RATED = "同名{count}部，预选热度最高，请确认"
     TIER1_MULTI = "{count}部同名作品，需确认"
     TIER1_FUZZY = "标题不完全匹配"
@@ -16,7 +19,7 @@ class TierShortReason:
     TIER2_AI_FAILED = "AI 不可用，降级到候选列表"
     TIER2_INVALID = "文件名无可识别影视信息"
     # Tier 3
-    TIER3_FALLBACK = "AI 不可用，候选列表供选择"
+    TIER3_FALLBACK = "无法自动确认，请选择正确作品"
     # 兜底
     UNKNOWN = "匹配结果未知"
 
@@ -24,9 +27,12 @@ class TierShortReason:
 class WhySelected:
     """L4: 最终候选选择原因枚举"""
     UNIQUE_MATCH = "unique_match"           # 唯一精确匹配
+    EVIDENCE_CONVERGED = "evidence_converged"  # 文件名与目录名收敛到同一作品
+    FOLDER_RESCUE = "folder_rescue"         # 弱文件名由可信目录片名补足
+    PROVIDER_ALIAS = "provider_alias"       # 标题命中 Provider 官方别名
     TOP_RATED = "top_rated"                 # 评分打破平局
     AI_SUGGESTION = "ai_suggestion"         # AI 建议（含年份纠正等）
-    FIRST_CANDIDATE = "first_candidate"     # Provider 排序第一（AI 不可用降级）
+    FIRST_CANDIDATE = "first_candidate"     # Provider 排序第一，仅供用户确认
     USER_PICK = "user_pick"                 # 用户人工选择（review 后写入）
 
 

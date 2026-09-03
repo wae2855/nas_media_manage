@@ -13,7 +13,6 @@ from media_importer.features.tasks.task_lifecycle_compat import (  # noqa: F401
     mark_needs_review,
     mark_processing_step,
     mark_skipped,
-    mark_temp_ready,
     reset_for_retry,
     start_processing,
 )
@@ -26,7 +25,6 @@ from media_importer.features.tasks.transitions import (  # noqa: F401
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_RECYCLE,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     STAGE_AWAIT_REVIEW,
     STAGE_DONE,
     STAGE_QUEUED,

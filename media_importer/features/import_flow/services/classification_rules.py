@@ -72,6 +72,10 @@ def render_template(template: str, scraped_info: Dict[str, Any], extra_vars: Opt
         if key.startswith('dimension.'):
             dim_name = key[len('dimension.'):]
             value = scraped_info.get('dimensions', {}).get(dim_name, '')
+        elif key == 'resolution':
+            value = lookup.get(key)
+            if not value:
+                value = scraped_info.get('dimensions', {}).get('resolution_tier', '')
         else:
             value = lookup.get(key)
 

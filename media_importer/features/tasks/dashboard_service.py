@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import copy
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -11,6 +14,12 @@ from media_importer.features.scraping.thumbnail_cache import (
 )
 
 from .repository import get_dashboard_task_snapshot
+
+DASHBOARD_CACHE_MAINTENANCE_SECONDS = 24 * 60 * 60
+_cache_lock = threading.Lock()
+_recent_movies_key: tuple = ()
+_recent_movies_value: list[dict] = []
+_thumbnail_maintenance: dict[str, dict] = {}
 
 
 @dataclass
@@ -62,6 +71,59 @@ def _activity(task: dict) -> dict:
     }
 
 
+def _movie_snapshot_key(rows: list[dict], thumbnail_dir: str, limit: int) -> tuple:
+    fields = (
+        "task_id", "thumbnail_path", "provider_type", "provider_id",
+        "import_video_path", "scrape_title_cn", "scrape_title_en",
+        "source_filename", "scrape_year", "completed_at",
+    )
+    return (
+        thumbnail_dir,
+        limit,
+        tuple(tuple(str(row.get(field) or "") for field in fields) for row in rows),
+    )
+
+
+def _recent_movies(rows: list[dict], thumbnail_dir: str, *, limit: int) -> list[dict]:
+    global _recent_movies_key, _recent_movies_value
+
+    key = _movie_snapshot_key(rows, thumbnail_dir, limit)
+    with _cache_lock:
+        if key == _recent_movies_key:
+            return copy.deepcopy(_recent_movies_value)
+    movies = recent_movie_items(rows, thumbnail_dir, limit=limit)
+    with _cache_lock:
+        _recent_movies_key = key
+        _recent_movies_value = copy.deepcopy(movies)
+    return movies
+
+
+def _maintain_thumbnail_cache(
+    thumbnail_dir: str,
+    protected_paths: set[str],
+    protected_roots: list[str] | None,
+    *,
+    now: float | None = None,
+) -> dict:
+    current = time.monotonic() if now is None else now
+    with _cache_lock:
+        previous = _thumbnail_maintenance.get(thumbnail_dir)
+        if previous and current - float(previous["checked_at"]) < DASHBOARD_CACHE_MAINTENANCE_SECONDS:
+            return dict(previous["result"])
+    result = prune_thumbnail_cache(
+        thumbnail_dir,
+        protected_paths,
+        protected_roots=protected_roots,
+        protected_roots_canonical=True,
+    )
+    with _cache_lock:
+        _thumbnail_maintenance[thumbnail_dir] = {
+            "checked_at": current,
+            "result": dict(result),
+        }
+    return result
+
+
 def get_dashboard_summary_for_api(
     task_manager,
     *,
@@ -94,13 +156,13 @@ def get_dashboard_summary_for_api(
         elif status == "FAILED":
             counts["failed"] += count
 
-    movies = recent_movie_items(snapshot["movies"], thumbnail_dir, limit=12)
+    movies = _recent_movies(snapshot["movies"], thumbnail_dir, limit=12)
     protected = set(snapshot["protected_thumbnail_paths"])
     protected.update(item["_path"] for item in movies)
-    cache = prune_thumbnail_cache(
+    cache = _maintain_thumbnail_cache(
         thumbnail_dir,
         protected,
-        protected_roots=protected_roots,
+        protected_roots,
     )
     for item in movies:
         item.pop("_path", None)

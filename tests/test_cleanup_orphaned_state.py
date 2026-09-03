@@ -1,5 +1,3 @@
-import os
-
 from media_importer.api.handler import _cleanup_orphaned_state
 from media_importer.core import db as db_module
 from media_importer.core.task_manager import TaskManager
@@ -17,7 +15,7 @@ class _RecordingLogger:
         self.messages.append(message)
 
 
-def make_task_manager(tmp_path, temp_dir):
+def make_task_manager(tmp_path):
     conn = db_module.init_db(str(tmp_path / "tasks.db"))
     manager = TaskManager.__new__(TaskManager)
     manager.config = {}
@@ -40,9 +38,8 @@ def create_task(conn, status="PENDING", stage="QUEUED", **fields):
 
 
 def test_orphaned_running_marked_failed(tmp_path):
-    config = {"temp_dir": str(tmp_path / "temp")}
-    os.makedirs(config["temp_dir"], exist_ok=True)
-    manager, conn = make_task_manager(tmp_path, config["temp_dir"])
+    config = {}
+    manager, conn = make_task_manager(tmp_path)
 
     task = create_task(
         manager.conn,
@@ -59,18 +56,17 @@ def test_orphaned_running_marked_failed(tmp_path):
     updated = db_module.get_task(conn, tid)
     assert updated["status"] == STATUS_FAILED
     assert updated["stage"] == STAGE_DONE
-    assert updated["error_message"] == "服务中断或重启导致任务未完成，请重试"
+    assert updated["error_message"] == "服务在入库完成前中断，来源文件保持不变；请重新整理"
     assert updated["file_location"] == "source"
     assert updated["current_step"] == 0
     assert updated["percentage"] == 0
-    assert updated["video_path"] == ""
+    assert updated["video_path"] == task["source_path"]
     assert updated["completed_at"]
 
 
 def test_await_review_task_left_alone(tmp_path):
-    config = {"temp_dir": str(tmp_path / "temp")}
-    os.makedirs(config["temp_dir"], exist_ok=True)
-    manager, conn = make_task_manager(tmp_path, config["temp_dir"])
+    config = {}
+    manager, conn = make_task_manager(tmp_path)
 
     task = create_task(
         manager.conn,
@@ -90,9 +86,8 @@ def test_await_review_task_left_alone(tmp_path):
 
 
 def test_terminal_failed_task_left_alone(tmp_path):
-    config = {"temp_dir": str(tmp_path / "temp")}
-    os.makedirs(config["temp_dir"], exist_ok=True)
-    manager, conn = make_task_manager(tmp_path, config["temp_dir"])
+    config = {}
+    manager, conn = make_task_manager(tmp_path)
 
     task = create_task(
         manager.conn,
@@ -109,25 +104,22 @@ def test_terminal_failed_task_left_alone(tmp_path):
 
 
 # Requirement: REQ-20260831-004019
-def test_orphaned_running_task_never_deletes_file_already_in_library(tmp_path):
-    temp_dir = tmp_path / "temp"
+def test_orphaned_running_task_does_not_guess_success_from_a_library_path(tmp_path):
     library_dir = tmp_path / "library"
-    temp_dir.mkdir()
     library_dir.mkdir()
     library_video = library_dir / "Movie.2026.mkv"
     library_video.write_bytes(b"library-bytes-must-survive")
     config = {
-        "temp_dir": str(temp_dir),
         "library_roots": [
             {"id": "movies", "name": "电影", "path": str(library_dir), "enabled": True}
         ],
     }
-    manager, conn = make_task_manager(tmp_path, str(temp_dir))
+    manager, conn = make_task_manager(tmp_path)
     task = create_task(
         conn,
         status="PENDING",
         stage="RUNNING",
-        file_location="temp",
+        file_location="source",
         video_path=str(library_video),
         import_video_path=str(library_video),
         import_success=1,
@@ -137,30 +129,29 @@ def test_orphaned_running_task_never_deletes_file_already_in_library(tmp_path):
 
     assert library_video.read_bytes() == b"library-bytes-must-survive"
     updated = db_module.get_task(conn, task["task_id"])
-    assert updated["status"] == "SUCCESS"
+    assert updated["status"] == "FAILED"
     assert updated["stage"] == STAGE_DONE
-    assert updated["file_location"] == "import"
+    assert updated["file_location"] == "source"
     assert updated["import_video_path"] == str(library_video)
 
 
 # Requirement: REQ-20260831-004019
-def test_disabled_library_root_still_blocks_orphan_temp_cleanup(tmp_path):
+def test_disabled_library_file_is_never_touched_by_generic_restart_cleanup(tmp_path):
     library_dir = tmp_path / "library"
     library_dir.mkdir()
     library_video = library_dir / "Movie.2026.mkv"
     library_video.write_bytes(b"disabled-library-must-survive")
     config = {
-        "temp_dir": str(library_dir),
         "library_roots": [
             {"id": "old", "name": "停用片库", "path": str(library_dir), "enabled": False}
         ],
     }
-    manager, conn = make_task_manager(tmp_path, str(library_dir))
+    manager, conn = make_task_manager(tmp_path)
     task = create_task(
         conn,
         status="PENDING",
         stage="RUNNING",
-        file_location="temp",
+        file_location="source",
         video_path=str(library_video),
         import_success=0,
     )
@@ -170,4 +161,4 @@ def test_disabled_library_root_still_blocks_orphan_temp_cleanup(tmp_path):
     assert library_video.read_bytes() == b"disabled-library-must-survive"
     updated = db_module.get_task(conn, task["task_id"])
     assert updated["status"] == STATUS_FAILED
-    assert updated["video_path"] == str(library_video)
+    assert updated["video_path"] == task["source_path"]

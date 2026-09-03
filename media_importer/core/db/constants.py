@@ -1,4 +1,20 @@
 import json
+from pathlib import Path
+
+_MAPPING_PRESET_PATH = (
+    Path(__file__).parents[2]
+    / "features/scraping/data/provider_dimension_mappings.v2.json"
+)
+_MAPPING_PRESETS = json.loads(_MAPPING_PRESET_PATH.read_text(encoding="utf-8"))
+
+
+def _mapping_json(dimension_name: str) -> str:
+    mappings = (
+        _MAPPING_PRESETS.get("dimensions", {})
+        .get(dimension_name, {})
+        .get("providers", {})
+    )
+    return json.dumps(mappings, ensure_ascii=False, sort_keys=True) if mappings else ""
 
 CREATE_TASKS_TABLE = """
 CREATE TABLE IF NOT EXISTS tasks (
@@ -20,6 +36,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     percentage INTEGER DEFAULT 0,
     bytes_copied INTEGER DEFAULT 0,
     total_bytes INTEGER DEFAULT 0,
+    progress_item_name TEXT DEFAULT '',
+    progress_item_kind TEXT DEFAULT '',
+    progress_item_index INTEGER DEFAULT 0,
+    progress_item_total INTEGER DEFAULT 0,
     scrape_result TEXT DEFAULT '{}',
     scrape_title_cn TEXT,
     scrape_title_en TEXT,
@@ -58,6 +78,20 @@ CREATE TABLE IF NOT EXISTS tasks (
     override_source TEXT DEFAULT ''
     ,source_unit_id TEXT DEFAULT ''
     ,source_cleanup_status TEXT DEFAULT ''
+    ,bundle_state TEXT DEFAULT ''
+    ,bundle_manifest TEXT DEFAULT '[]'
+    ,bundle_committed INTEGER DEFAULT 0
+    ,task_kind TEXT DEFAULT 'IMPORT'
+    ,parent_task_id TEXT DEFAULT ''
+    ,used_fallback INTEGER DEFAULT 0
+    ,organization_status TEXT DEFAULT ''
+    ,reorganized_by_task_id TEXT DEFAULT ''
+    ,cancel_requested INTEGER DEFAULT 0
+    ,stop_requested_at TEXT DEFAULT ''
+    ,requested_source_disposition TEXT DEFAULT ''
+    ,outcome_code TEXT DEFAULT ''
+    ,source_disposition TEXT DEFAULT ''
+    ,source_disposition_message TEXT DEFAULT ''
 )
 """
 
@@ -87,6 +121,11 @@ CREATE TABLE IF NOT EXISTS task_subtitles (
     task_id TEXT NOT NULL,
     source_path TEXT NOT NULL,
     source_filename TEXT NOT NULL,
+    member_id TEXT DEFAULT '',
+    source_size INTEGER DEFAULT 0,
+    source_mtime_ns INTEGER DEFAULT 0,
+    source_fingerprint TEXT DEFAULT '',
+    planned_filename TEXT DEFAULT '',
     target_path TEXT DEFAULT '',
     lang TEXT DEFAULT '',
     status TEXT DEFAULT 'PENDING',
@@ -103,6 +142,7 @@ CREATE_TASKS_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_fingerprint ON tasks(source_fingerprint)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id)",
 ]
 
 CREATE_SUBTITLES_INDEXES = [
@@ -143,6 +183,7 @@ CREATE TABLE IF NOT EXISTS dimensions (
     ai_prompt TEXT,
     tmdb_field TEXT,
     provider_mappings TEXT DEFAULT '',
+    default_provider_mappings TEXT DEFAULT '',
     value_list TEXT NOT NULL,
     default_value_list TEXT DEFAULT '',
     color TEXT DEFAULT '#6c757d',
@@ -187,7 +228,8 @@ DEFAULT_DIMENSIONS = [
         "sort_order": 2,
         "ai_prompt": "请判断是否为纪录片（true/false）。纪录片是以真实事件、人物、历史、社会等为主题的非虚构影视作品，包括自然纪录片（如《地球脉动》）、历史纪录片、社会纪录片、科学纪录片等。TMDB genres 包含 Documentary (id=99) 则为 true；如 TMDB 未标注，请根据标题和简介判断。真人出演+虚构剧情的作品（如《辛德勒的名单》）应选 false。",
         "tmdb_field": "genres",
-        "provider_mappings": json.dumps({"tmdb": {"field": "genres", "match_type": "genre_ids", "match_rules": {"true": {"ids": [99]}}}}, ensure_ascii=False),
+        "provider_mappings": _mapping_json("documentary"),
+        "default_provider_mappings": _mapping_json("documentary"),
         "value_list": json.dumps([
             {"value": "true", "label": "是", "tmdb_genre_ids": [99]},
             {"value": "false", "label": "否"}
@@ -206,23 +248,24 @@ DEFAULT_DIMENSIONS = [
     },
     {
         "name": "restricted_level",
-        "label": "限制级分类",
+        "label": "观看分级",
         "source_type": "provider",
         "sort_order": 3,
-        "ai_prompt": "请判断该影视内容的年龄分级，从以下选项中选择最匹配的一个：\n- 0-6：幼儿/儿童内容，完全无任何不适画面，如幼儿启蒙动画、低龄卡通\n- 7-12：家庭向，适合全家观看，无暴力/恐怖/敏感内容，如合家欢动画、儿童剧集（对应美国G/PG、英国U/PG、中国普遍级）\n- 13-16：青少年向，可能含轻微暴力、恐怖或敏感话题，但不涉及露骨画面（对应美国PG-13、英国12A/12、中国辅导级）\n- 17+：成人内容，含明显暴力血腥、裸露性爱、深度恐怖等（对应美国R/NC-17、英国15/18、中国限制级）\n\n判断方法：优先使用 TMDB release_dates 中的官方分级数据；如 TMDB 未提供分级，请联网搜索该影视的官方分级（如 MPAA、BBFC、豆瓣家长指引等）后判断。",
+        "ai_prompt": "请判断该影视内容的官方观看年龄分级。17+ 只表示限制观看，不等同于成人或露骨内容；成人电影标记由独立维度表达。优先使用 Provider 提供的国家/地区官方分级，缺失时进入人工确认。",
         "tmdb_field": "release_dates",
-        "provider_mappings": json.dumps({"tmdb": {"field": "release_dates", "match_type": "certification"}}, ensure_ascii=False),
+        "provider_mappings": _mapping_json("restricted_level"),
+        "default_provider_mappings": _mapping_json("restricted_level"),
         "value_list": json.dumps([
             {"value": "0-6", "label": "幼儿/儿童"},
             {"value": "7-12", "label": "家庭向"},
             {"value": "13-16", "label": "青少年向"},
-            {"value": "17+", "label": "成人内容"}
+            {"value": "17+", "label": "限制观看"}
         ], ensure_ascii=False),
         "default_value_list": json.dumps([
             {"value": "0-6", "label": "幼儿/儿童"},
             {"value": "7-12", "label": "家庭向"},
             {"value": "13-16", "label": "青少年向"},
-            {"value": "17+", "label": "成人内容"}
+            {"value": "17+", "label": "限制观看"}
         ], ensure_ascii=False),
         "color": "#ec4899",
         "is_system": 1,
@@ -230,7 +273,32 @@ DEFAULT_DIMENSIONS = [
         "trust_ai_assist": 1,
         "trust_ai_search": 0,
         "required_tier": "free",
-        "description": "按年龄分级隔离成人内容"
+        "description": "按国家/地区的官方年龄分级分类，不代表成人电影标记"
+    },
+    {
+        "name": "content_sensitivity",
+        "label": "成人电影标记",
+        "source_type": "provider",
+        "sort_order": 4,
+        "ai_prompt": "仅根据 Provider 的明确成人标记判断是否为成人电影。没有明确证据时不要猜测，保留为待确认。",
+        "tmdb_field": "adult",
+        "provider_mappings": _mapping_json("content_sensitivity"),
+        "default_provider_mappings": _mapping_json("content_sensitivity"),
+        "value_list": json.dumps([
+            {"value": "normal", "label": "否"},
+            {"value": "adult", "label": "是"}
+        ], ensure_ascii=False),
+        "default_value_list": json.dumps([
+            {"value": "normal", "label": "否"},
+            {"value": "adult", "label": "是"}
+        ], ensure_ascii=False),
+        "color": "#ef4444",
+        "is_system": 1,
+        "is_enabled": 0,
+        "trust_ai_assist": 0,
+        "trust_ai_search": 0,
+        "required_tier": "free",
+        "description": "仅在 Provider 有明确证据时标记成人电影"
     },
     {
         "name": "animation",
@@ -239,7 +307,8 @@ DEFAULT_DIMENSIONS = [
         "sort_order": 4,
         "ai_prompt": "请判断是否为动漫/动画作品（true/false）。判断标准：以动画/手绘/CG形式制作的作品均为 true，包括日本动画（日漫）、中国动画（国漫）、欧美动画电影、动画短片等。TMDB genres 包含 Animation (id=16) 则为 true。真人拍摄+少量CG特效的作品（如漫威电影）不算动画，应选 false。",
         "tmdb_field": "genres",
-        "provider_mappings": json.dumps({"tmdb": {"field": "genres", "match_type": "genre_ids", "match_rules": {"true": {"ids": [16]}}}}, ensure_ascii=False),
+        "provider_mappings": _mapping_json("animation"),
+        "default_provider_mappings": _mapping_json("animation"),
         "value_list": json.dumps([
             {"value": "true", "label": "是", "tmdb_genre_ids": [16]},
             {"value": "false", "label": "否"}
@@ -263,7 +332,8 @@ DEFAULT_DIMENSIONS = [
         "sort_order": 5,
         "ai_prompt": "请判断该影视作品的主要制片国家或地区，从以下选项中选择：us（美国）、cn（中国大陆）、hk（中国香港）、tw（中国台湾）、jp（日本）、kr（韩国）、gb（英国）、fr（法国）、de（德国）、it（意大利）、es（西班牙）、in（印度）、other（其他）。判断依据：优先看制作公司/出品方所在国家，其次看主要创作团队国籍和语言。合拍片选择投资占比最大或主创团队所属的国家。如不确定，请联网搜索该作品的制片信息。",
         "tmdb_field": "origin_country",
-        "provider_mappings": json.dumps({"tmdb": {"field": "origin_country", "match_type": "country_codes", "codes": {"us": ["US"], "cn": ["CN"], "hk": ["HK"], "tw": ["TW"], "jp": ["JP"], "kr": ["KR"], "gb": ["GB", "IE"], "fr": ["FR"], "de": ["DE"], "it": ["IT"], "es": ["ES"], "in": ["IN"]}}}, ensure_ascii=False),
+        "provider_mappings": _mapping_json("region"),
+        "default_provider_mappings": _mapping_json("region"),
         "value_list": json.dumps([
             {"value": "us", "label": "美国", "tmdb_codes": ["US"]},
             {"value": "cn", "label": "中国大陆", "tmdb_codes": ["CN"]},
@@ -309,7 +379,8 @@ DEFAULT_DIMENSIONS = [
         "sort_order": 6,
         "ai_prompt": "请判断该影视作品的原始语言，从以下选项中选择：zh（中文）、en（英语）、ja（日语）、ko（韩语）、other（其他语言）。判断依据：原始语言是作品最初制作时使用的语言，不是配音或翻译后的语言。例如日本动漫的原始语言是ja，即使有中文配音版也选ja。",
         "tmdb_field": "original_language",
-        "provider_mappings": json.dumps({"tmdb": {"field": "original_language", "match_type": "direct_match"}}, ensure_ascii=False),
+        "provider_mappings": _mapping_json("origin_lang"),
+        "default_provider_mappings": _mapping_json("origin_lang"),
         "value_list": json.dumps([
             {"value": "zh", "label": "中文"},
             {"value": "en", "label": "英语"},
@@ -367,7 +438,8 @@ DEFAULT_DIMENSIONS = [
         "sort_order": 8,
         "ai_prompt": "请判断该影视作品的主要类型，从以下选项中选择风格最鲜明突出的一个：horror_mystery（恐怖/悬疑：以恐惧、惊悚、推理为核心，如恐怖片、悬疑片、惊悚片）、scifi_fantasy（科幻/奇幻：以未来科技或奇幻世界观为背景，如太空歌剧、超级英雄、魔幻）、war（战争/军事：以战争或军事行动为核心题材）、action_adventure（动作/冒险：以动作场面或冒险旅程为核心，如功夫片、探险片）、comedy（喜剧：以幽默搞笑为核心，如爆笑喜剧、黑色幽默）、drama_romance（剧情/情感：以人物情感或社会现实为核心，如文艺片、爱情片、犯罪剧情片）、documentary（纪录/纪实：非虚构纪实作品）、music（音乐/演出：以音乐或演出为核心，如演唱会电影、音乐传记）、kids（儿童/家庭：面向低龄观众的儿童节目）、tv_show（电视节目：综艺、脱口秀、真人秀等非虚构电视节目）、other（其他：不属于以上任何类型）。如果同时属于多个类型，选择风格最突出、最能代表该作品核心特征的那个。",
         "tmdb_field": "genres",
-        "provider_mappings": json.dumps({"tmdb": {"field": "genres", "match_type": "genre_ids", "match_rules": {"horror_mystery": {"ids": [27, 9648, 53, 10758], "priority": 1}, "scifi_fantasy": {"ids": [878, 14, 10765], "priority": 2}, "war": {"ids": [10752, 10768], "priority": 3}, "action_adventure": {"ids": [28, 12, 10759, 37], "priority": 4}, "comedy": {"ids": [35], "priority": 5}, "drama_romance": {"ids": [18, 10749, 80, 36, 10751, 10766, 10770], "priority": 6}, "documentary": {"ids": [99], "priority": 7}, "music": {"ids": [10402], "priority": 8}, "kids": {"ids": [10762], "priority": 9}, "tv_show": {"ids": [10763, 10764, 10767], "priority": 10}, "other": {"ids": [], "priority": 11}}}}, ensure_ascii=False),
+        "provider_mappings": _mapping_json("broad_genre"),
+        "default_provider_mappings": _mapping_json("broad_genre"),
         "value_list": json.dumps([
             {"value": "horror_mystery", "label": "恐怖/悬疑", "tmdb_genre_ids": [27, 9648, 53, 10758], "priority": 1},
             {"value": "scifi_fantasy", "label": "科幻/奇幻", "tmdb_genre_ids": [878, 14, 10765], "priority": 2},

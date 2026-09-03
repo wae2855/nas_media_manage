@@ -8,7 +8,7 @@ from .tmdb_client import TMDbClient, TMDbError
 @register_provider
 class TMDbProvider(MetadataProvider):
     provider_type = "tmdb"
-    display_name = "TMDb"
+    display_name = "TMDB"
 
     def __init__(self, config: dict):
         self._client = TMDbClient(
@@ -87,6 +87,20 @@ class TMDbProvider(MetadataProvider):
             raw = self._client.get_tv_details(int(item_id))
         return self._to_media_details(raw, media_type)
 
+    def get_alternative_titles(self, item_id: str, media_type: str) -> List[str]:
+        try:
+            if media_type == "movie":
+                rows = self._client.get_movie_alternative_titles(int(item_id))
+            else:
+                rows = self._client.get_tv_alternative_titles(int(item_id))
+        except (TMDbError, TypeError, ValueError):
+            return []
+        return list(dict.fromkeys(
+            str(row.get("title") or "").strip()
+            for row in rows
+            if str(row.get("title") or "").strip()
+        ))
+
     def _to_media_details(self, raw: dict, media_type: str) -> MediaDetails:
         date_field = "release_date" if media_type == "movie" else "first_air_date"
         release_date = raw.get(date_field, "")
@@ -138,6 +152,7 @@ class TMDbProvider(MetadataProvider):
                     value=mapping.get("value"),
                     source_reliability=mapping.get("source_reliability", 0.5),
                     source="tmdb",
+                    evidence=mapping.get("mapping_evidence"),
                 ))
         return results
 
@@ -154,7 +169,14 @@ class TMDbProvider(MetadataProvider):
     def get_config_schema(cls) -> dict:
         return {
             "fields": [
-                {"key": "api_key", "label": "API Key", "type": "password", "required": True},
+                {
+                    "key": "api_key",
+                    "label": "API Key（v3 auth）",
+                    "type": "password",
+                    "required": True,
+                    "description": "填写个人 API 页面中的 API Key，不要填写较长的 API Read Access Token。",
+                    "placeholder": "粘贴 API Key（v3 auth）",
+                },
                 {"key": "language", "label": "优先语言", "type": "select",
                  "options": [
                      {"value": "zh-CN", "label": "中文"},
@@ -171,6 +193,14 @@ class TMDbProvider(MetadataProvider):
                 {"key": "max_retries", "label": "最大重试次数", "type": "number", "default": 3},
             ],
         }
+
+    @classmethod
+    def get_dimension_capabilities(cls) -> dict:
+        from media_importer.features.scraping.dimension_mapping_engine import (
+            provider_capabilities,
+        )
+
+        return provider_capabilities("tmdb")
 
     @classmethod
     def get_context_template(cls) -> str:

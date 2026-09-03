@@ -18,7 +18,7 @@
 | 修改文件移动/删除 | [features/source-files.md](features/source-files.md), [features/recycle.md](features/recycle.md), [standards/safety.md](standards/safety.md) | `features/source_files/`, `features/import_flow/services/file_operations.py`, `features/recycle/`, `infrastructure/filesystem/` | recycle/safety/e2e/feature smoke | source-files/recycle 文档和回归矩阵 |
 | 修改源目录清理 | [features/source-cleaning.md](features/source-cleaning.md), [architecture/source-cleaner.md](architecture/source-cleaner.md) | `features/source_cleaning/`, `api/source_cleaner_handlers.py`, `webui/js/cinema-config.js` | source cleaner/recycle/config/feature smoke | source-cleaning 文档 |
 | 修改前端 | [standards/frontend.md](standards/frontend.md), [architecture/api.md](architecture/api.md) | `media_importer/webui/` | Playwright 或相关 UI 测试 | API/产品/测试文档 |
-| 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md), [decisions/0011-fnos-install-runtime-config-ownership.md](decisions/0011-fnos-install-runtime-config-ownership.md) | `deploy/build_fpk.sh`, `deploy/fnos_config.py`, `scripts/validate_fpk.py`, 根 `media_importer/` | `tests/test_fnos_packaging.py` + FPK 内容验证 | deployment / release / testing 文档 |
+| 发布 fnOS package | [architecture/deployment-fnos.md](architecture/deployment-fnos.md), [workflows/release.md](workflows/release.md), [decisions/0003-deploy-package-generation-strategy.md](decisions/0003-deploy-package-generation-strategy.md), [decisions/0023-release-version-ledger-and-monotonic-build-gate.md](decisions/0023-release-version-ledger-and-monotonic-build-gate.md) | `deploy/build_fpk.sh`, `deploy/release-ledger.json`, `scripts/release_ledger.py`, `scripts/validate_fpk.py`, 根 `VERSION` 与 `media_importer/` | `tests/test_fnos_packaging.py`, `tests/test_release_ledger.py` + FPK 内容验证 | deployment / release / testing 文档 |
 
 ## 2. Module Map（模块 → 文档 → 测试）
 
@@ -31,7 +31,7 @@
 | `media_importer/infrastructure/` | DB facade、filesystem 基础能力（路径校验/复制/安全删除/指纹） | [architecture/storage-filesystem.md](architecture/storage-filesystem.md) | `tests/test_recycle_safety.py`, `tests/test_architecture_guards.py` |
 | `media_importer/features/configuration/` | 配置加载、迁移、校验、脱敏、多片库根、fnOS 授权目录、开场检查 | [features/configuration.md](features/configuration.md) | `tests/test_config_view.py`、`tests/test_library_root_boundary.py`、`tests/test_multiple_library_roots.py`、`tests/test_fnos_directory_access.py`、`tests/test_startup_readiness.py` |
 | `media_importer/features/source_files/source_units.py` | 来源单元识别、快照与整组回收门禁 | [features/source-files.md](features/source-files.md), [decisions/0014-source-unit-lifecycle.md](decisions/0014-source-unit-lifecycle.md) | `tests/test_source_unit_lifecycle.py` |
-| `media_importer/features/tasks/` | 任务管理、状态、生命周期、首页业务摘要 | [features/tasks.md](features/tasks.md) | `tests/test_task_*.py`、`tests/test_dashboard_summary.py` |
+| `media_importer/features/tasks/` | 任务管理、状态、协作停止、来源处置、只删记录、首页摘要、手动 Provider 候选及关联重新整理任务 | [features/tasks.md](features/tasks.md) | `tests/test_task_*.py`、`tests/test_dashboard_summary.py`、`tests/test_p1_preview_api.py` |
 | `media_importer/features/recycle/` | 回收站移动/浏览/恢复/清理 | [features/recycle.md](features/recycle.md) | `tests/test_recycle_safety.py`, `tests/test_recycle_list_payload.py` |
 | `media_importer/features/import_flow/` | 入库流程：runner、steps、confirm、services | [features/import-flow.md](features/import-flow.md) | `tests/test_feature_import_flow.py` 等 |
 | `media_importer/features/source_files/` | 源文件处理策略（成功/跳过/伴生清理） | [features/source-files.md](features/source-files.md) | `tests/test_import_flow_services.py` 等 |
@@ -69,6 +69,9 @@
 
 ## 5. Active Plans（活跃计划）
 
+- [rclone 来源永久删除与失败安全续做（已归档）](_archive/2026-09-02-rclone-permanent-delete-resume/2026-09-02-fix-rclone-permanent-delete-resume-plan.md)
+- [取消中心中转并补齐整任务重启恢复（已归档）](_archive/2026-09-02-remove-central-staging-and-whole-task-restart/2026-09-02-refactor-remove-central-staging-and-restart-recovery-plan.md)
+- [任务安全退出、来源处置与最少大文件传输（已归档）](_archive/2026-09-02-task-exit-and-minimal-transfer/2026-09-02-feat-task-exit-and-minimal-transfer-plan.md)
 - [存储安全与配置界面简化重构](plans/2026-08-28-storage-safe-configuration-redesign-plan.md)
 - [配置依赖、来源单元与开场检查](plans/2026-08-28-feat-configuration-dependency-and-readiness-plan.md)
 

@@ -18,61 +18,39 @@ def _static_parent(template: str) -> str:
     return prefix
 
 
-def _matching_root_id(path: str, roots: list[dict]) -> str:
-    candidate = os.path.realpath(os.path.abspath(path))
-    matches = []
-    for root in roots:
-        root_path = root["path"]
-        try:
-            if os.path.commonpath([root_path, candidate]) == root_path:
-                matches.append((len(root_path), root["id"]))
-        except ValueError:
-            continue
-    return max(matches, default=(0, ""))[1]
+def _legacy_rule_purpose(rule: dict, index: int) -> str:
+    name = str(rule.get("name", "") or "").strip()
+    if name:
+        return name
+    conditions = rule.get("conditions")
+    if not isinstance(conditions, dict) or not conditions:
+        return "默认入库规则"
+    parts = []
+    if str(conditions.get("documentary", "")).lower() == "yes":
+        parts.append("纪录片")
+    if str(conditions.get("restricted", "")).lower() == "yes":
+        parts.append("限制级")
+    media_type = str(conditions.get("media_type", "") or "").lower()
+    if media_type == "movie":
+        parts.append("电影")
+    elif media_type == "tv":
+        parts.append("电视剧")
+    return "".join(parts) + "规则" if parts else f"规则 {index + 1}"
 
 
 def migrate_legacy_library_rules(config: dict, roots: list[dict],
                                  default_id: str = "") -> dict:
-    """Migrate legacy absolute rules only after the user selected explicit roots."""
+    """Migrate legacy rules only after every rule explicitly selected a root."""
     result = copy.deepcopy(config or {})
-    root_only = copy.deepcopy(result)
-    root_only["library_roots"] = roots
-    root_only["default_library_root_id"] = default_id
-    root_only["library_root"] = ""
-    root_only["path_rules"] = []
-    root_only["fallback_dir"] = ""
-    canonical_roots = canonicalize_library_config(root_only)["library_roots"]
-    if not canonical_roots:
-        raise LibraryPathError("请先选择至少一个目标片库，再确认旧规则迁移")
-
-    rules = result.get("path_rules", []) or []
-    for index, rule in enumerate(rules):
-        if not isinstance(rule, dict):
-            continue
-        template = str(rule.get("template", "") or "")
-        if not os.path.isabs(template):
-            continue
-        root_id = _matching_root_id(_static_parent(template) or template, canonical_roots)
-        if not root_id:
-            raise LibraryPathError(f"第 {index + 1} 条旧规则不在已选择的任何片库根目录下")
-        rule["library_root_id"] = root_id
-
-    fallback = str(result.get("fallback_dir", "") or "")
-    if fallback and os.path.isabs(fallback):
-        fallback_id = _matching_root_id(fallback, canonical_roots)
-        if not fallback_id:
-            raise LibraryPathError("旧兜底目录不在已选择的任何片库根目录下")
-        result["fallback_library_root_id"] = fallback_id
-
-    result["library_roots"] = canonical_roots
-    result["default_library_root_id"] = (
-        default_id or result.get("default_library_root_id") or canonical_roots[0]["id"]
-    )
+    result["library_roots"] = roots
+    result["default_library_root_id"] = default_id
     result["library_root"] = ""
-    return canonicalize_library_config(result)
+    if not roots:
+        raise LibraryPathError("请先选择至少一个目标片库，再确认旧规则迁移")
+    return canonicalize_library_config(result, require_rule_assignments=True)
 
 
-def canonicalize_library_config(config: dict) -> dict:
+def canonicalize_library_config(config: dict, *, require_rule_assignments: bool = False) -> dict:
     """复制并归一化多片库配置；无法证明安全边界时拒绝迁移。"""
     result = copy.deepcopy(config or {})
     root = str(result.get("library_root", "") or "").strip()
@@ -138,31 +116,56 @@ def canonicalize_library_config(config: dict) -> dict:
 
         root_by_id = {item["id"]: item["path"] for item in canonical_roots}
         enabled_by_id = {item["id"]: item["enabled"] for item in canonical_roots}
-        for rule in rules:
+        for index, rule in enumerate(rules):
             if not isinstance(rule, dict):
                 continue
-            rule_id = str(rule.get("library_root_id", "") or default_id)
-            if rule_id not in root_by_id:
-                raise LibraryPathError(f"入库规则引用了不存在的片库: {rule_id}")
-            if enabled_by_id[rule_id] is False:
-                raise LibraryPathError(f"入库规则引用了已停用的片库: {rule_id}")
-            rule["library_root_id"] = rule_id
+            purpose = _legacy_rule_purpose(rule, index)
+            rule_id = str(rule.get("library_root_id", "") or "").strip()
             template = str(rule.get("template", "") or "")
+            if not rule_id:
+                if require_rule_assignments:
+                    raise LibraryPathError(
+                        f"第 {index + 1} 条规则“{purpose}”尚未选择目标片库"
+                    )
+                if template and not os.path.isabs(template):
+                    _validate_relative(template)
+                rule.pop("library_root_id", None)
+                continue
+            if rule_id not in root_by_id:
+                raise LibraryPathError(
+                    f"第 {index + 1} 条规则“{purpose}”引用了不存在的片库: {rule_id}"
+                )
+            if enabled_by_id[rule_id] is False:
+                raise LibraryPathError(
+                    f"第 {index + 1} 条规则“{purpose}”引用了已停用的片库: {rule_id}"
+                )
+            rule["library_root_id"] = rule_id
             if os.path.isabs(template):
-                rule["template"] = _relative_under_root(root_by_id[rule_id], template)
+                try:
+                    rule["template"] = _relative_under_root(root_by_id[rule_id], template)
+                except LibraryPathError as exc:
+                    raise LibraryPathError(
+                        f"第 {index + 1} 条规则“{purpose}”的旧路径不在所选片库内: "
+                        f"{_static_parent(template) or template}"
+                    ) from exc
             elif template:
                 _validate_relative(template)
         if fallback:
-            fallback_id = str(result.get("fallback_library_root_id", "") or default_id)
-            if fallback_id not in root_by_id:
-                raise LibraryPathError(f"兜底目录引用了不存在的片库: {fallback_id}")
-            if enabled_by_id[fallback_id] is False:
-                raise LibraryPathError(f"兜底目录引用了已停用的片库: {fallback_id}")
-            result["fallback_library_root_id"] = fallback_id
-            result["fallback_dir"] = (
-                _relative_under_root(root_by_id[fallback_id], fallback) if os.path.isabs(fallback)
-                else _validate_relative(fallback)
-            )
+            fallback_id = str(result.get("fallback_library_root_id", "") or "").strip()
+            if not fallback_id:
+                if require_rule_assignments:
+                    raise LibraryPathError("兜底入库目录尚未选择目标片库")
+                result.pop("fallback_library_root_id", None)
+            else:
+                if fallback_id not in root_by_id:
+                    raise LibraryPathError(f"兜底目录引用了不存在的片库: {fallback_id}")
+                if enabled_by_id[fallback_id] is False:
+                    raise LibraryPathError(f"兜底目录引用了已停用的片库: {fallback_id}")
+                result["fallback_library_root_id"] = fallback_id
+                result["fallback_dir"] = (
+                    _relative_under_root(root_by_id[fallback_id], fallback)
+                    if os.path.isabs(fallback) else _validate_relative(fallback)
+                )
         identities = result.get("storage_identities")
         if isinstance(identities, dict):
             legacy_targets = [
@@ -176,7 +179,11 @@ def canonicalize_library_config(config: dict) -> dict:
             "id": "default", "name": "主片库", "path": root, "enabled": True,
         }]
         result["default_library_root_id"] = "default"
-        return canonicalize_library_config(result)
+        return canonicalize_library_config(
+            result, require_rule_assignments=require_rule_assignments
+        )
+    elif require_rule_assignments and (rules or fallback):
+        raise LibraryPathError("请先添加至少一个目标片库")
     return result
 
 
@@ -198,13 +205,28 @@ def library_root_by_id(config: dict, root_id: str | None = None) -> dict:
 
 def resolve_rule_template(config: dict, rule: dict | None, template: str, values: dict,
                           *, fallback: bool = False) -> str:
-    canonical = canonicalize_library_config(config)
     if fallback:
-        root_id = canonical.get("fallback_library_root_id") or canonical.get("default_library_root_id")
+        root_id = str((config or {}).get("fallback_library_root_id", "") or "").strip()
     else:
-        root_id = (rule or {}).get("library_root_id") or canonical.get("default_library_root_id")
-    root = library_root_by_id(canonical, root_id)
-    return resolve_library_template(root["path"], template, values)
+        root_id = str((rule or {}).get("library_root_id", "") or "").strip()
+    if not root_id:
+        raise LibraryPathError("入库规则尚未选择目标片库")
+    roots = (config or {}).get("library_roots") or []
+    root = next(
+        (
+            item for item in roots
+            if isinstance(item, dict) and str(item.get("id", "")) == root_id
+        ),
+        None,
+    )
+    if not root:
+        raise LibraryPathError(f"片库不存在: {root_id}")
+    if root.get("enabled", True) is False:
+        raise LibraryPathError(f"片库已停用: {root_id}")
+    root_path = str(root.get("path", "") or "").strip()
+    if not root_path or not os.path.isabs(root_path):
+        raise LibraryPathError(f"片库路径无效: {root_id}")
+    return resolve_library_template(root_path, template, values)
 
 
 def _validate_relative(path: str) -> str:

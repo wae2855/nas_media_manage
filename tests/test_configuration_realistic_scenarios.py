@@ -45,12 +45,23 @@ def _paths(tmp_path: Path) -> dict[str, Path]:
 def _config(paths: dict[str, Path], mode: str = "preserve_all") -> dict:
     return {
         "source_dir": str(paths["source"]),
-        "temp_dir": str(paths["temp"]),
         "log_dir": str(paths["logs"]),
         "library_root": str(paths["library"]),
+        "library_roots": [{
+            "id": "movies",
+            "name": "电影片库",
+            "path": str(paths["library"]),
+            "enabled": True,
+        }],
+        "default_library_root_id": "movies",
+        "fallback_library_root_id": "movies",
         "fallback_dir": "其他",
         "path_rules": [
-            {"conditions": {"media_type": "movie"}, "template": "电影/{year}/{title_cn}"},
+            {
+                "conditions": {"media_type": "movie"},
+                "template": "电影/{year}/{title_cn}",
+                "library_root_id": "movies",
+            },
         ],
         "video_extensions": [".mkv", ".mp4"],
         "subtitle_extensions": [".srt", ".ass"],
@@ -79,7 +90,7 @@ def test_real_directories_pass_opening_check_and_resolve_inside_library(tmp_path
     checks = {item["id"]: item for item in result["checks"]}
     assert result["state"] == "PASS"
     assert {item["role"] for item in result["storage"]["locations"]} == {
-        "source", "temp", "recycle", "log", "target",
+        "source", "recycle", "log", "target",
     }
     assert checks["storage"]["status"] == "PASS"
     assert checks["library"]["status"] == "PASS"
@@ -138,6 +149,14 @@ def test_preserve_media_moves_only_junk_to_recoverable_recycle(tmp_path: Path):
         "protect_extensions": [".nfo", ".jpg", ".png"],
         "blacklist_patterns": ["RARBG*", "*/Sample/*"],
         "cleanup_empty_dirs": False,
+    }
+    # 测试使用 2 MB 稀疏文件代替真实数 GB 正片，因此同步缩小候选策略的
+    # “主视频”门槛；生产默认仍为 500 MB。
+    config["media_candidate_filter"] = {
+        "enabled": True,
+        "small_video_max_mb": 1,
+        "main_video_min_mb": 1,
+        "max_size_ratio": 0.1,
     }
 
     record = SourceCleaner(config).execute(task_paths={str(video)})

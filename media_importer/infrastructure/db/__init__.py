@@ -67,6 +67,7 @@ from media_importer.core.db.task_repo import (
     count_by_status_and_stage,
     create_task,
     delete_task,
+    find_active_reorganization,
     find_by_fingerprint,
     find_by_source_filename,
     find_by_source_path,

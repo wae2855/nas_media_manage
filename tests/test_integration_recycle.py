@@ -33,17 +33,15 @@ class IntegrationRecycleTest(unittest.TestCase):
         cls.tmpdir = tempfile.mkdtemp(prefix="nas_integration_recycle_")
         cls.source_dir = os.path.join(cls.tmpdir, "source")
         cls.recycle_dir = os.path.join(cls.tmpdir, "recycle")
-        cls.temp_dir = os.path.join(cls.tmpdir, "temp")
         cls.log_dir = os.path.join(cls.tmpdir, "logs")
         cls.data_dir = os.path.join(cls.tmpdir, "data")
 
-        for d in [cls.source_dir, cls.recycle_dir, cls.temp_dir, cls.log_dir, cls.data_dir]:
+        for d in [cls.source_dir, cls.recycle_dir, cls.log_dir, cls.data_dir]:
             os.makedirs(d, exist_ok=True)
 
         cls.config_path = os.path.join(cls.tmpdir, "config.yaml")
         config_content = {
             "source_dir": cls.source_dir,
-            "temp_dir": cls.temp_dir,
             "log_dir": cls.log_dir,
             "llm": {
                 "api_key": "test-key",
@@ -158,7 +156,6 @@ class ConfigIntegrationTest(IntegrationRecycleTest):
         migrate_config_path = os.path.join(self.tmpdir, "config_migrate.yaml")
         migrate_config = {
             "source_dir": self.source_dir,
-            "temp_dir": self.temp_dir,
             "log_dir": self.log_dir,
             "llm": {"api_key": "test-key", "model": "test-model"},
             "source_policy": {

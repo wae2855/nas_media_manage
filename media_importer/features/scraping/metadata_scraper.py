@@ -213,7 +213,7 @@ class MetadataScraper:
         if overview:
             context_parts.append(f"简介: {overview[:300]}")
         if adult:
-            context_parts.append("成人内容标记: 是")
+            context_parts.append("成人电影标记: 是")
         if vote_average:
             context_parts.append(f"评分: {vote_average}")
         if country_names:
@@ -273,7 +273,15 @@ class MetadataScraper:
         from media_importer.features.scraping import get_dimensions_for_provider
         dim_configs = get_dimensions_for_provider(conn, provider.provider_type)
         dim_mappings = provider.map_dimensions(dim_configs, details)
-        return {dm.name: {'value': dm.value, 'source_reliability': dm.source_reliability, 'source': dm.source} for dm in dim_mappings}
+        return {
+            dm.name: {
+                'value': dm.value,
+                'source_reliability': dm.source_reliability,
+                'source': dm.source,
+                **({'mapping_evidence': dm.evidence} if dm.evidence else {}),
+            }
+            for dm in dim_mappings
+        }
 
     def _map_tmdb_dimensions(self, tmdb_data: dict, conn, media_type: str = "movie",
                              tmdb_id: Optional[int] = None) -> dict:
@@ -310,8 +318,17 @@ class MetadataScraper:
         return self._map_provider_dimensions(provider, details, conn)
 
     def scrape(self, video_filename: str, subtitle_filenames: Optional[List[str]] = None,
-               conn=None, force_mode: Optional[str] = None) -> Dict[str, Any]:
-        return scrape_metadata(self, video_filename, subtitle_filenames, conn, force_mode=force_mode)
+               conn=None, force_mode: Optional[str] = None, *, video_path: str = "",
+               match_result=None) -> Dict[str, Any]:
+        return scrape_metadata(
+            self,
+            video_filename,
+            subtitle_filenames,
+            conn,
+            force_mode=force_mode,
+            video_path=video_path,
+            match_result=match_result,
+        )
 
     def scrape_series(self, series_name: str) -> Dict[str, Any]:
         return scrape_series_metadata(self, series_name)

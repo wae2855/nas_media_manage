@@ -225,11 +225,16 @@ def cmd_health(args):
     source_dir = config.get("source_dir", "")
     checks["source_dir"] = "ok" if os.path.isdir(source_dir) else "error"
 
-    temp_dir = config.get("temp_dir", "")
-    checks["temp_dir"] = "ok" if os.path.isdir(temp_dir) else "error"
-
     try:
-        disk_dir = temp_dir or "/tmp"
+        roots = config.get("library_roots") or []
+        disk_dir = next(
+            (
+                str(root.get("path") or "")
+                for root in roots
+                if isinstance(root, dict) and root.get("enabled", True) is not False
+            ),
+            source_dir or "/tmp",
+        )
         stat = os.statvfs(disk_dir)
         free_gb = stat.f_bavail * stat.f_frsize / (1024**3)
         checks["disk_space"] = "ok" if free_gb > 1 else "low"

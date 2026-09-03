@@ -2,14 +2,13 @@
 
 由 TRANSITIONS 自动生成：
 1. 全部 (状态 × 动作) 组合的合法性断言——合法转换通过，非法转换抛 TransitionError；
-2. 关键语义断言：file_location 诚实规则、retry 保留 temp checkpoint（S2）、终态守卫。
+2. 关键语义断言：file_location 诚实规则、retry 整任务重启、终态守卫。
 
 这是"回退/继续不专业"问题的直接防线：任何新增动作/状态若未在转换表注册，
 本文件自动暴露非法组合缺口。
 """
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,7 +18,6 @@ from media_importer.features.tasks.transitions import (
     ALL_STATES,
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     STAGE_AWAIT_REVIEW,
     STAGE_QUEUED,
     TRANSITIONS,
@@ -88,53 +86,37 @@ class TestFullCombinationMatrix(unittest.TestCase):
 
 
 class TestKeySemantics(unittest.TestCase):
-    """关键语义断言（诚实规则 / checkpoint / 守卫）。"""
-
-    def test_fail_location_honest_when_temp_exists(self):
-        """失败时 temp 文件实际存在 → file_location=temp（不再硬编码 source）。"""
-        with tempfile.NamedTemporaryFile(suffix=".mkv", delete=False) as f:
-            temp_path = f.name
-        try:
-            task = _task("PENDING", "RUNNING", video_path=temp_path)
-            fields = apply(task, "fail", error_message="boom")
-            self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
-        finally:
-            os.unlink(temp_path)
+    """关键语义断言（诚实规则 / 整任务重启 / 守卫）。"""
 
     def test_fail_location_source_when_no_file(self):
         task = _task("PENDING", "RUNNING", video_path="/nonexistent/x.mkv")
         fields = apply(task, "fail", error_message="boom")
         self.assertEqual(fields["file_location"], FILE_LOCATION_SOURCE)
 
-    def test_retry_keeps_temp_checkpoint_when_file_exists(self):
-        """S2：retry 时 temp 存在 → 保留 video_path + file_location=temp。"""
-        with tempfile.NamedTemporaryFile(suffix=".mkv", delete=False) as f:
-            temp_path = f.name
-        try:
-            task = _task("FAILED", "DONE", video_path=temp_path,
-                         file_location=FILE_LOCATION_TEMP, retry_count=1)
-            fields = apply(task, "retry", resume=True)
-            self.assertEqual(fields["stage"], STAGE_QUEUED)
-            self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
-            self.assertEqual(task["video_path"], temp_path)  # 未清空
-            self.assertEqual(fields["retry_count"], 2)
-        finally:
-            os.unlink(temp_path)
-
-    def test_retry_without_resume_clears_checkpoint(self):
-        task = _task("FAILED", "DONE", video_path="/nonexistent/x.mkv",
-                     file_location=FILE_LOCATION_TEMP, retry_count=1)
+    def test_retry_restarts_whole_task_from_original_source(self):
+        task = _task(
+            "FAILED",
+            "DONE",
+            source_path="/source/Movie.mkv",
+            video_path="/library/Movie.copying",
+            file_location=FILE_LOCATION_IMPORT,
+            retry_count=1,
+            scrape_result={"title_cn": "旧结果"},
+            classify_result={"rule_id": "old"},
+            bundle_state="RECOVERY_REQUIRED",
+            bundle_manifest=[{"kind": "video"}],
+            percentage=77,
+        )
         fields = apply(task, "retry")
+        self.assertEqual(fields["stage"], STAGE_QUEUED)
         self.assertEqual(fields["file_location"], FILE_LOCATION_SOURCE)
-        self.assertEqual(fields["video_path"], "")
-
-    def test_retry_resume_degrades_when_temp_missing(self):
-        """resume=True 但 temp 已被外部删除 → 自动降级从头。"""
-        task = _task("FAILED", "DONE", video_path="/nonexistent/x.mkv",
-                     file_location=FILE_LOCATION_TEMP)
-        fields = apply(task, "retry", resume=True)
-        self.assertEqual(fields["file_location"], FILE_LOCATION_SOURCE)
-        self.assertEqual(fields["video_path"], "")
+        self.assertEqual(fields["video_path"], "/source/Movie.mkv")
+        self.assertEqual(fields["scrape_result"], {})
+        self.assertEqual(fields["classify_result"], "")
+        self.assertEqual(fields["bundle_state"], "")
+        self.assertEqual(fields["bundle_manifest"], [])
+        self.assertEqual(fields["percentage"], 0)
+        self.assertEqual(fields["retry_count"], 2)
 
     def test_await_review_cannot_start(self):
         """AWAIT_REVIEW 不可被 runner start（防双处理）。"""

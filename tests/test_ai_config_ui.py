@@ -86,14 +86,12 @@ class TestAiConfigUiPlaywright(unittest.TestCase):
             return
         cls.tmpdir = tempfile.mkdtemp(prefix='ai_config_ui_')
         cls.source_dir = os.path.join(cls.tmpdir, 'source')
-        cls.temp_dir = os.path.join(cls.tmpdir, 'temp')
         cls.log_dir = os.path.join(cls.tmpdir, 'logs')
         cls.recycle_dir = os.path.join(cls.tmpdir, 'recycle')
-        for d in [cls.source_dir, cls.temp_dir, cls.log_dir, cls.recycle_dir]:
+        for d in [cls.source_dir, cls.log_dir, cls.recycle_dir]:
             os.makedirs(d, exist_ok=True)
 
         config_yaml = f"""source_dir: {cls.source_dir}
-temp_dir: {cls.temp_dir}
 log_dir: {cls.log_dir}
 source_policy:
   recycle_dir: {cls.recycle_dir}

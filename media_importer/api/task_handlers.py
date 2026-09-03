@@ -6,10 +6,11 @@ from media_importer.features.configuration import configured_library_roots
 from media_importer.features.import_flow import run_batch_for_api, run_file_for_api
 from media_importer.features.import_flow.services.classification import ClassificationService
 from media_importer.features.tasks import (
+    apply_scrape_candidate_for_api,
     cancel_task_for_api,
     clear_tasks_for_api,
     confirm_all_tasks_for_api,
-    confirm_task_for_api,
+    create_reorganization_task_for_api,
     get_dashboard_summary_for_api,
     get_queue_status_for_api,
     get_task_for_api,
@@ -18,8 +19,10 @@ from media_importer.features.tasks import (
     ignore_task_for_api,
     pause_queue_for_api,
     preview_task_for_api,
+    queue_confirm_task_for_api,
     reclassify_task_for_api,
     rename_task_file_for_api,
+    request_task_disposition,
     resume_queue_for_api,
     retry_all_failed_for_api,
     retry_task_for_api,
@@ -81,6 +84,16 @@ class TaskHandlersMixin:
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
+    def _task_dispose(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
+        result = request_task_disposition(
+            globals._global_task_manager,
+            globals._config or {},
+            task_id,
+            source_disposition=(body or {}).get("source_disposition", "keep"),
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
+
     def _queue_retry_all(self, *, body: dict, params: dict, query: dict):
         result = retry_all_failed_for_api(
             globals._global_task_manager,
@@ -103,13 +116,24 @@ class TaskHandlersMixin:
 
     def _task_confirm(self, *, body: dict, params: dict, query: dict):
         task_id = params.get("task_id", "")
-        result = confirm_task_for_api(
+        result = queue_confirm_task_for_api(
             globals._global_pipeline,
             globals._global_task_manager,
             task_id,
             confirmed_title=body.get("confirmed_title"),
             override_source=body.get("override_source"),
             conflict_action=body.get("conflict_action"),
+            source_disposition=body.get("source_disposition"),
+            fallback_acknowledged=body.get("fallback_acknowledged") is True,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
+
+    def _task_reorganize(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
+        result = create_reorganization_task_for_api(
+            globals._global_task_manager,
+            globals._config or {},
+            task_id,
         )
         json_response(self, result.code, data=result.data, message=result.message)
 
@@ -140,13 +164,64 @@ class TaskHandlersMixin:
             return
 
         year = (body or {}).get("year")
-        media_type = (body or {}).get("media_type", "")
+        media_type = str((body or {}).get("media_type", "") or "")
+        language = str((body or {}).get("language", "") or "")
+        try:
+            limit = min(20, max(1, int((body or {}).get("limit", 20) or 20)))
+        except (TypeError, ValueError):
+            json_response(self, 400, message="limit 必须是 1 到 20 的整数")
+            return
+        if media_type and media_type not in {"movie", "tv"}:
+            json_response(self, 400, message="media_type 必须是 movie 或 tv")
+            return
+        if language and language not in {"zh-CN", "en-US", "ja-JP", "ko-KR"}:
+            json_response(self, 400, message="不支持的结果语言")
+            return
+        if year not in (None, ""):
+            try:
+                year = int(year)
+            except (TypeError, ValueError):
+                json_response(self, 400, message="year 必须是有效年份")
+                return
+            if year < 1870 or year > 2100:
+                json_response(self, 400, message="year 必须在 1870 到 2100 之间")
+                return
         config = globals._config or {}
 
         candidates = search_provider_candidates(
-            config, query_str, year=year, media_type=media_type or None,
+            config,
+            query_str,
+            year=year,
+            media_type=media_type or None,
+            language=language or None,
+            limit=limit,
         )
-        json_response(self, 200, data={"candidates": candidates, "query": query_str})
+        json_response(
+            self,
+            200,
+            data={
+                "candidates": candidates,
+                "query": query_str,
+                "media_type": media_type,
+                "language": language,
+                "limit": limit,
+            },
+        )
+
+    def _task_scrape_apply(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
+        selection = {
+            "provider_type": str((body or {}).get("provider_type", "") or ""),
+            "item_id": str((body or {}).get("item_id", "") or ""),
+            "media_type": str((body or {}).get("media_type", "") or ""),
+            "language": str((body or {}).get("language", "") or ""),
+        }
+        result = apply_scrape_candidate_for_api(
+            globals._global_pipeline,
+            task_id,
+            selection,
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
 
     def _task_classify_preview(self, *, body: dict, params: dict, query: dict):
         task_id = params.get("task_id", "")

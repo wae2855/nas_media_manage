@@ -20,9 +20,9 @@ class FakePipeline:
     def __init__(self):
         self.config = None
         self.scraper = None
-        self.copier = FakeCopier("old")
         self.notifier = None
         self.run_count = 0
+        self.cleanup_retry_count = 0
         self.paused = False
 
     def is_paused(self):
@@ -31,16 +31,16 @@ class FakePipeline:
     def run_all(self):
         self.run_count += 1
 
-
-class FakeCopier:
-    def __init__(self, temp_dir):
-        self.temp_dir = temp_dir
+    def retry_pending_source_cleanup(self):
+        self.cleanup_retry_count += 1
+        return []
 
 
 class FakeWatcher:
-    def __init__(self, config, on_new_files=None, logger=None):
+    def __init__(self, config, on_new_files=None, on_maintenance=None, logger=None):
         self.config = config
         self.on_new_files = on_new_files
+        self.on_maintenance = on_maintenance
         self.logger = logger
         self.started = False
         self.stopped = False
@@ -58,14 +58,13 @@ class FakeScraper:
 
 
 def _ready_config(tmp_path, *, enabled=True):
-    paths = [tmp_path / name for name in ("source", "temp", "recycle", "target")]
+    paths = [tmp_path / name for name in ("source", "recycle", "target")]
     for path in paths:
         path.mkdir()
     return {
         "source_dir": str(paths[0]),
-        "temp_dir": str(paths[1]),
-        "source_policy": {"recycle_dir": str(paths[2])},
-        "fallback_dir": str(paths[3]),
+        "source_policy": {"recycle_dir": str(paths[1])},
+        "fallback_dir": str(paths[2]),
         "file_watcher": {"enabled": enabled, "poll_interval": 3},
     }
 
@@ -100,9 +99,44 @@ def test_restart_watcher_starts_new_watcher_and_callback_runs_pipeline(tmp_path)
         watcher_factory=FakeWatcher,
     )
     watcher.on_new_files({"a.mkv"})
+    watcher.on_maintenance()
 
     assert watcher.started is True
     assert pipeline.run_count == 1
+    assert pipeline.cleanup_retry_count == 1
+
+
+# Requirement: REQ-20260901-001019-2
+def test_restart_watcher_starts_for_recognized_remote_source(tmp_path, monkeypatch):
+    from media_importer.features.configuration.storage_readiness import MountIdentity
+
+    config = _ready_config(tmp_path)
+    source_path = config["source_dir"]
+    module = __import__(
+        "media_importer.features.configuration.storage_readiness",
+        fromlist=["inspect_mount"],
+    )
+    original = module.inspect_mount
+
+    def source_is_remote(path):
+        if str(path) == source_path:
+            return MountIdentity(
+                realpath=str(path), device=1, filesystem_type="fuse.rclone",
+                mount_point=str(path), mount_source="remote:test", locality="remote",
+            )
+        return original(path)
+
+    monkeypatch.setattr(module, "inspect_mount", source_is_remote)
+
+    watcher = restart_watcher(
+        config,
+        pipeline=FakePipeline(),
+        logger=FakeLogger(),
+        watcher_factory=FakeWatcher,
+    )
+
+    assert watcher is not None
+    assert watcher.started is True
 
 
 def test_apply_runtime_config_refreshes_pipeline_notifier_and_watcher(tmp_path):
@@ -120,7 +154,6 @@ def test_apply_runtime_config_refreshes_pipeline_notifier_and_watcher(tmp_path):
 
     assert pipeline.config is config
     assert isinstance(pipeline.scraper, FakeScraper)
-    assert pipeline.copier.temp_dir == config["temp_dir"]
     # Hermes 通知已移除（简洁化 Phase 1）：notifier 恒为 None
     assert pipeline.notifier is None
     assert components.notifier is None

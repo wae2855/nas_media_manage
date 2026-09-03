@@ -42,6 +42,10 @@ def _tmdb_dimension(conn, name: str) -> dict:
 @pytest.mark.parametrize(
     ("country", "certification", "expected_value", "expected_reliability"),
     [
+        ("HK", "I", "0-6", 0.95),
+        ("HK", "IIA", "13-16", 0.95),
+        ("HK", "IIB", "13-16", 0.95),
+        ("HK", "III", "17+", 0.95),
         ("US", "PG-13", "13-16", 1.0),
         ("GB", "15", "13-16", 0.95),
         ("DE", "FSK 16", "13-16", 0.95),
@@ -92,6 +96,23 @@ def test_restricted_level_uses_current_country_priority_golden():
         "name": "restricted_level",
         "value": "7-12",
         "source_reliability": 1.0,
+    }
+
+
+def test_hong_kong_certification_precedes_us_for_local_rating_golden():
+    result = _map_restricted_level(
+        "restricted_level",
+        [],
+        [
+            {"iso_3166_1": "US", "rating": "PG-13", "release_dates": []},
+            {"iso_3166_1": "HK", "rating": "III", "release_dates": []},
+        ],
+    )
+
+    assert result == {
+        "name": "restricted_level",
+        "value": "17+",
+        "source_reliability": 0.95,
     }
 
 
@@ -186,7 +207,6 @@ def test_yaml_config_round_trip_does_not_mutate_dimension_mapping(dimension_conn
     before = get_dimension_detail(dimension_conn, "restricted_level").data
     config_document = {
         "source_dir": "/mnt/source",
-        "temp_dir": "/mnt/local-temp",
         "log_dir": "/mnt/local-logs",
         "source_policy": {"recycle_dir": "/mnt/local-recycle"},
         # ConfigView preserves unknown YAML keys in raw data, but dimensions are

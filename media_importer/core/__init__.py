@@ -28,7 +28,7 @@ def __getattr__(name):
     _lifecycle_names = {
         "STATUS_PENDING", "STATUS_FAILED", "STATUS_SKIPPED", "STATUS_SUCCESS",
         "STATUS_CANCELLED", "STAGE_QUEUED", "STAGE_RUNNING", "STAGE_AWAIT_REVIEW",
-        "STAGE_DONE", "FILE_LOCATION_SOURCE", "FILE_LOCATION_TEMP",
+        "STAGE_DONE", "FILE_LOCATION_SOURCE",
         "FILE_LOCATION_IMPORT", "FILE_LOCATION_RECYCLE",
     }
     if name in _lifecycle_names:

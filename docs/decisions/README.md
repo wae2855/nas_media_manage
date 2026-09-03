@@ -39,6 +39,15 @@ Status: Proposed | Accepted | Superseded | Deprecated
 | [0013](0013-verified-transfer-recovery.md) | Accepted | Verified transfer, recycle and recovery |
 | [0014](0014-source-unit-lifecycle.md) | Accepted | Three-mode source policy and source unit lifecycle |
 | [0015](0015-library-root-relative-rules.md) | Accepted | Validated library root and relative import rules |
+| [0016](0016-multiple-library-roots.md) | Accepted | Multiple target library roots |
+| [0017](0017-fnos-first-run-directory-authorization.md) | Accepted | fnOS first-run directory authorization |
+| [0018](0018-target-library-additive-conflict-boundary.md) | Accepted | Target library additive-only writes and per-conflict confirmation |
+| [0019](0019-source-disposal-with-guarded-permanent-delete.md) | Accepted | Source-only local recycle or guarded permanent deletion |
+| [0020](0020-provider-capabilities-and-editable-dimension-mappings.md) | Accepted | Provider capabilities and user-editable dimension mappings |
+| [0021](0021-task-exit-and-direct-library-staging.md) | Accepted | Cooperative task exit, explicit source disposition, and direct target staging |
+| [0022](0022-remove-central-staging-and-whole-task-restart.md) | Accepted | Remove central staging and restart interrupted work from the source |
+| [0023](0023-release-version-ledger-and-monotonic-build-gate.md) | Accepted | Release version ledger, candidate/UAT separation, and monotonic package gate |
+| [0024](0024-layered-release-name-recognition.md) | Accepted | Layered release-name parsing, Chinese adaptation, and Provider alias verification |
 
 ## Numbering Note
 

@@ -9,7 +9,55 @@ let currentFnosDirectoryCapability = {
 const FNOS_AUTH_PENDING_KEY = "nmmi-fnos-auth-pending";
 const FNOS_AUTH_RESULT_KEY = "nmmi-fnos-auth-result";
 const FNOS_AUTH_TTL_MS = 10 * 60 * 1000;
+const FNOS_AUTH_REFRESH_DELAYS_MS = [0, 300, 700, 1200, 1800, 2600, 3400];
 let lastConsumedFnosAuthState = "";
+
+function setFnosAuthorizationRefreshState(active, message = "") {
+  const host = document.getElementById("storage-readiness-grid");
+  if (host) {
+    host.setAttribute("aria-busy", active ? "true" : "false");
+    host.classList.toggle("is-syncing-authorization", active);
+    let notice = host.querySelector("[data-fnos-auth-sync-status]");
+    if (active) {
+      if (!notice) {
+        notice = document.createElement("div");
+        notice.className = "storage-auth-sync-status";
+        notice.dataset.fnosAuthSyncStatus = "";
+        notice.setAttribute("role", "status");
+        notice.setAttribute("aria-live", "polite");
+        host.prepend(notice);
+      }
+      notice.innerHTML = `<span aria-hidden="true"></span><div><b>正在同步 fnOS 目录权限</b><small>${escapeHtml(message || "系统授权已提交，正在确认应用权限并刷新列表…")}</small></div>`;
+    } else {
+      notice?.remove();
+    }
+  }
+  document.querySelectorAll("[data-storage-refresh], [data-fnos-auth-role], [data-directory-pick], [data-library-root-action='edit']")
+    .forEach((button) => {
+      button.disabled = active;
+      if (!button.matches("[data-storage-refresh]")) return;
+      if (active) {
+        button.dataset.originalLabel ||= button.textContent;
+        button.textContent = "同步中…";
+      } else {
+        button.textContent = button.dataset.originalLabel || "重新检查";
+        delete button.dataset.originalLabel;
+      }
+    });
+}
+
+async function waitForFnosAuthorizedPaths(expectedPaths, delays = FNOS_AUTH_REFRESH_DELAYS_MS) {
+  const normalizedExpected = expectedPaths.map(normalizePathValue).filter(Boolean);
+  let capability = currentFnosDirectoryCapability;
+  for (const delay of delays) {
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    capability = await getFnosAuthorizedFolders();
+    const ready = !capability.enforced
+      || normalizedExpected.every((path) => _authorizedRoot(path, capability.folders || []));
+    if (ready) return { ready: true, capability };
+  }
+  return { ready: false, capability };
+}
 
 function normalizedLibraryRoots(config = currentConfigSnapshot) {
   const roots = Array.isArray(config?.library_roots)
@@ -54,8 +102,8 @@ function renderLibraryRootList(config = currentConfigSnapshot) {
   }
   const fallback = document.getElementById("cfg-fallback-root-inline");
   if (fallback) {
-    const selected = String(config?.fallback_library_root_id || defaultId);
-    fallback.innerHTML = roots.filter((root) => root.enabled)
+    const selected = String(config?.fallback_library_root_id || "");
+    fallback.innerHTML = '<option value="">请选择兜底目标片库</option>' + roots.filter((root) => root.enabled)
       .map((root) => `<option value="${escapeHtml(root.id)}"${root.id === selected ? " selected" : ""}>${escapeHtml(root.name)}</option>`).join("");
   }
 }
@@ -64,9 +112,6 @@ function _setLibraryRoots(roots, defaultId = "") {
   currentConfigSnapshot = { ...(currentConfigSnapshot || {}), library_roots: roots, default_library_root_id: defaultId || roots[0]?.id || "" };
   renderLibraryRootList(currentConfigSnapshot);
   renderRuleList(currentConfigSnapshot.path_rules || []);
-  if (currentConfigSnapshot?._library_migration_error && typeof currentStorageReadinessSnapshot !== "undefined") {
-    renderStorageReadiness(currentStorageReadinessSnapshot, currentConfigSnapshot, currentFnosDirectoryCapability);
-  }
 }
 
 async function getFnosAuthorizedFolders() {
@@ -131,7 +176,6 @@ function _parseAuthorizedPaths(value) {
 function _directoryRoleMeta(role) {
   return {
     source: { title: "选择文件来源目录", success: "文件来源已选择并保存", localOnly: false },
-    temp: { title: "选择本地中转目录", success: "本地中转目录已保存", localOnly: true },
     recycle: { title: "选择本地回收目录", success: "本地回收目录已保存", localOnly: true },
     log: { title: "选择运行日志目录", success: "运行日志目录已保存", localOnly: true },
     resource: { title: "选择海报与缓存目录", success: "海报与缓存目录已保存", localOnly: true },
@@ -142,7 +186,6 @@ function _directoryRoleValue(role, config = currentConfigSnapshot) {
   const policy = config?.source_policy || {};
   return normalizePathValue({
     source: config?.source_dir,
-    temp: config?.temp_dir,
     recycle: policy.recycle_dir || policy.quarantine_dir,
     log: config?.log_dir,
     resource: config?.resource_dir || config?.resources_dir,
@@ -151,7 +194,6 @@ function _directoryRoleValue(role, config = currentConfigSnapshot) {
 
 function _directoryRolePatch(role, value) {
   if (role === "source") return { source_dir: value };
-  if (role === "temp") return { temp_dir: value };
   if (role === "log") return { log_dir: value };
   if (role === "resource") return { resource_dir: value };
   if (role === "recycle") {
@@ -191,34 +233,55 @@ async function _completeFnosAuthorization(result) {
   }
   const paths = _parseAuthorizedPaths(result.path);
   const selected = paths[0] || pending.path;
-  let capability = await getFnosAuthorizedFolders();
   const expectedPaths = paths.length ? paths : selected ? [selected] : [];
-  for (let attempt = 0; attempt < 3 && capability.enforced && expectedPaths.some((path) => !_authorizedRoot(path, capability.folders || [])); attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    capability = await getFnosAuthorizedFolders();
-  }
-  if (capability.enforced && expectedPaths.some((path) => !_authorizedRoot(path, capability.folders || []))) {
-    showToast("fnOS 尚未返回新目录权限，请稍候点击“刷新检查”后重试");
-    return;
-  }
-  if (selected && _directoryRoleMeta(pending.role)) {
-    const saved = await saveStorageDirectoryRole(pending.role, selected);
-    if (saved.code !== 200) return;
-  }
-  if (paths.length && pending.role === "library") {
-    const roots = normalizedLibraryRoots();
-    const additions = [];
-    paths.filter((path) => !roots.some((root) => root.path === path)).forEach((path, index) => {
-      const name = path.split("/").filter(Boolean).pop() || `片库 ${roots.length + index + 1}`;
-      additions.push({ id: _nextLibraryId(name, [...roots, ...additions]), name, path: normalizePathValue(path), enabled: true });
-    });
-    if (additions.length) {
-      await confirmLibraryRootAdditions(additions);
+  setFnosAuthorizationRefreshState(true);
+  showToast("fnOS 授权已提交，正在同步目录状态…");
+  try {
+    const syncResult = await waitForFnosAuthorizedPaths(expectedPaths);
+    const capability = syncResult.capability;
+    if (!syncResult.ready) {
+      showToast("fnOS 授权同步较慢，可稍后点击“重新检查”确认状态");
       return;
     }
+    if (selected && _directoryRoleMeta(pending.role)) {
+      const saved = await saveStorageDirectoryRole(pending.role, selected);
+      if (saved.code !== 200) return;
+      renderFnosAuthorizationBoard(currentConfigSnapshot, capability);
+      showToast("目录已保存，授权状态已更新");
+      return;
+    }
+    if (pending.role === "library") {
+      const roots = normalizedLibraryRoots();
+      const additions = [];
+      expectedPaths
+        .filter((path) => !roots.some((root) => root.path === normalizePathValue(path)))
+        .forEach((path, index) => {
+          const normalizedPath = normalizePathValue(path);
+          if (additions.some((item) => item.path === normalizedPath)) return;
+          const name = normalizedPath.split("/").filter(Boolean).pop() || `片库 ${roots.length + index + 1}`;
+          additions.push({
+            id: _nextLibraryId(name, [...roots, ...additions]),
+            name,
+            path: normalizedPath,
+            enabled: true,
+          });
+        });
+      if (additions.length) {
+        setFnosAuthorizationRefreshState(false);
+        showToast("目录授权已同步，请确认片库名称");
+        await confirmLibraryRootAdditions(additions);
+        return;
+      }
+    }
+    await loadDirectoryConfig();
+    renderFnosAuthorizationBoard(currentConfigSnapshot, capability);
+    showToast("授权状态已更新");
+  } catch (error) {
+    console.warn("同步 fnOS 目录授权失败", error);
+    showToast("暂时无法读取 fnOS 授权状态，请稍后重新检查");
+  } finally {
+    setFnosAuthorizationRefreshState(false);
   }
-  showToast("fnOS 目录授权已完成，正在重新检查...");
-  renderFnosAuthorizationBoard(currentConfigSnapshot, capability);
 }
 
 function initializeFnosAuthorizationBridge() {
@@ -281,7 +344,6 @@ function renderFnosAuthorizationBoard(config = currentConfigSnapshot, capability
 
 async function confirmLibraryRootAdditions(additions) {
   const roots = normalizedLibraryRoots();
-  const migration = !!currentConfigSnapshot?._library_migration_error;
   return new Promise((resolve) => {
     let overlay = null;
     const namedAdditions = () => additions.map((item, index) => ({
@@ -297,90 +359,28 @@ async function confirmLibraryRootAdditions(additions) {
     const actions = [
       { label: "取消", className: "btn btn-secondary", onClick: () => resolve(false) },
     ];
-    if (migration) {
-      actions.push({
-        label: "暂存并继续选择",
-        className: "btn btn-secondary",
-        closeOnClick: false,
-        onClick: () => {
-          const next = stageRoots();
-          removeAppModal();
-          showToast(`已暂存 ${next.length} 个片库根，请继续选择其他磁盘或确认迁移`);
-          resolve(false);
-        },
-      });
-    }
     actions.push({
-      label: migration ? "已选齐，确认关联" : "添加并保存",
-      className: "btn btn-primary js-library-migration-submit",
+      label: "添加并保存",
+      className: "btn btn-primary",
       closeOnClick: false,
       onClick: async () => {
         stageRoots();
-        const result = migration
-          ? await commitStagedLibraryMigration({
-              button: overlay?.querySelector(".js-library-migration-submit"),
-              feedbackHost: overlay,
-            })
-          : await saveLibraryRootsConfig();
+        const result = await saveLibraryRootsConfig();
         if (result.code !== 200) return;
         removeAppModal();
         resolve(true);
       },
     });
     overlay = showAppModal({
-      title: migration ? "关联本设备保留的入库规则" : `确认 ${additions.length} 个目标片库`,
+      title: `确认 ${additions.length} 个目标片库`,
       dismissOnBackdrop: false,
       body: `<div class="cinema-modal-stack">
-        ${migration ? '<p class="cinema-modal-hint is-warning">检测到本设备保留的旧版入库规则。这通常来自升级、保留数据后重装，或中途更换片库路径；这里只转换规则，不会移动、覆盖或删除任何影片。如果还有其他磁盘，先点“暂存并继续选择”；全部选齐后再确认关联。</p>' : '<p class="cinema-modal-hint">每个目录都是独立片库，可以继续添加任意数量。名称之后仍可修改。</p>'}
+        <p class="cinema-modal-hint">每个目录都是独立片库，可以继续添加任意数量。名称之后仍可修改。</p>
         ${additions.map((item, index) => `<label class="cinema-modal-field"><span>片库 ${roots.length + index + 1} 名称</span><input data-library-add-name="${index}" type="text" maxlength="40" value="${escapeHtml(item.name)}" /><code>${escapeHtml(item.path)}</code></label>`).join("")}
-        ${migration ? '<p class="library-migration-feedback" data-library-migration-feedback hidden></p>' : ""}
       </div>`,
       actions,
     });
   });
-}
-
-function setLibraryMigrationFeedback(host, message, state = "") {
-  const feedback = host?.querySelector?.("[data-library-migration-feedback]");
-  if (!feedback) return;
-  feedback.hidden = !message;
-  feedback.textContent = message || "";
-  feedback.className = `library-migration-feedback${state ? ` is-${state}` : ""}`;
-}
-
-async function commitStagedLibraryMigration({ button = null, feedbackHost = null } = {}) {
-  const roots = normalizedLibraryRoots();
-  if (!roots.length) {
-    const message = "请先选择至少一个目标片库，再确认关联";
-    setLibraryMigrationFeedback(feedbackHost, message, "error");
-    showToast(message);
-    return { code: 400, message };
-  }
-
-  const idleLabel = button?.textContent || "已选齐，确认关联";
-  if (button) {
-    button.disabled = true;
-    button.textContent = `正在检查 ${roots.length} 个片库…`;
-  }
-  setLibraryMigrationFeedback(
-    feedbackHost,
-    `正在检查 ${roots.length} 个片库能否覆盖本设备保留的全部入库规则…`,
-    "pending",
-  );
-
-  const result = await saveLibraryRootsConfig({ migrateLegacy: true });
-  if (result.code !== 200) {
-    const message = result.message || "关联失败，请检查所选片库是否覆盖全部旧规则";
-    setLibraryMigrationFeedback(feedbackHost, message, "error");
-    if (button) {
-      button.disabled = false;
-      button.textContent = idleLabel;
-    }
-    return result;
-  }
-
-  setLibraryMigrationFeedback(feedbackHost, `已关联 ${roots.length} 个片库，正在刷新存储检查…`, "success");
-  return result;
 }
 
 async function chooseAuthorizedDirectory({ title, currentValue = "", localOnly = false, role = "source" } = {}) {
@@ -461,7 +461,7 @@ async function openLibraryRootEditor(rootId = "") {
         if (roots.some((root) => root.id !== rootId && root.path === path)) { showToast("这个目录已经添加过"); return; }
         const next = { id: existing?.id || _nextLibraryId(name, roots), name, path, enabled: !!overlay.querySelector("#library-root-enabled")?.checked };
         _setLibraryRoots(existing ? roots.map((root) => root.id === rootId ? next : root) : [...roots, next], defaultLibraryRootId() || next.id);
-        const result = await saveLibraryRootsConfig({ migrateLegacy: !!currentConfigSnapshot?._library_migration_error });
+        const result = await saveLibraryRootsConfig();
         if (result.code !== 200) return;
         removeAppModal();
       } },
@@ -484,8 +484,8 @@ function handleLibraryRootAction(action, rootId) {
   if (action === "default") { _setLibraryRoots(roots, rootId); saveLibraryRootsConfig(); return; }
   if (action === "test") { const root = libraryRootById(rootId); if (root) testPathValue(root.path, root.name); return; }
   if (action === "delete") {
-    const used = (currentConfigSnapshot?.path_rules || []).some((rule) => (rule.library_root_id || defaultLibraryRootId()) === rootId)
-      || (currentConfigSnapshot?.fallback_library_root_id || defaultLibraryRootId()) === rootId;
+    const used = (currentConfigSnapshot?.path_rules || []).some((rule) => rule.library_root_id === rootId)
+      || currentConfigSnapshot?.fallback_library_root_id === rootId;
     if (used) { showToast("这个片库仍被规则或兜底目录使用，请先迁移这些引用"); return; }
     showConfirm("移除片库", "只移除配置，不会删除片库中的文件。确定继续吗？", async () => {
       const updated = roots.filter((root) => root.id !== rootId);

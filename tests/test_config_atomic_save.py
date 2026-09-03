@@ -7,6 +7,9 @@ from media_importer.features.configuration import config_revision
 
 
 class _Handler:
+    def __init__(self):
+        self.watcher_reloads = 0
+
     def _filter_sensitive_fields(self, body, _original):
         return body
 
@@ -17,17 +20,22 @@ class _Handler:
             else:
                 target[key] = value
 
+    def _reload_watcher(self, *, body, params, query):
+        assert body == {}
+        assert params == {}
+        assert query == {}
+        self.watcher_reloads += 1
+
 
 def _state(tmp_path):
     paths = {}
-    for name in ("source", "temp", "recycle", "logs", "resources", "library"):
+    for name in ("source", "recycle", "logs", "resources", "library"):
         path = tmp_path / name
         path.mkdir()
         paths[name] = str(path)
     config_path = tmp_path / "config.yaml"
     config = {
         "source_dir": paths["source"],
-        "temp_dir": paths["temp"],
         "log_dir": paths["logs"],
         "resource_dir": paths["resources"],
         "library_roots": [
@@ -40,6 +48,8 @@ def _state(tmp_path):
         "source_policy": {
             "recycle_dir": paths["recycle"],
             "cleanup_source_after_done": False,
+            "mode": "preserve_all",
+            "disposal_mode": "local_recycle",
         },
         "metadata": {
             "scrape_mode": "provider_first",
@@ -83,6 +93,64 @@ def test_save_uses_revision_and_leaves_no_temp_file(tmp_path):
     saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert saved["source_policy"]["cleanup_source_after_done"] is True
     assert list(tmp_path.glob(".config-*.tmp")) == []
+
+
+# Requirement: REQ-20260901-020743 / ADR-0019
+def test_permanent_source_delete_requires_explicit_transition_ack(tmp_path):
+    state, config_path = _state(tmp_path)
+    before = config_path.read_bytes()
+
+    code, payload = _save(state, {
+        "_revision": config_revision(state._config),
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "disposal_mode": "permanent_delete",
+        },
+    })
+
+    assert code == 400
+    assert "无法恢复" in payload["message"]
+    assert config_path.read_bytes() == before
+
+
+# Requirement: REQ-20260901-020743 / ADR-0019
+def test_permanent_source_delete_ack_is_consumed_but_not_persisted(tmp_path):
+    state, config_path = _state(tmp_path)
+
+    code, _payload = _save(state, {
+        "_revision": config_revision(state._config),
+        "_confirm_source_permanent_delete": True,
+        "source_policy": {
+            "mode": "recycle_source_unit",
+            "cleanup_source_after_done": True,
+            "disposal_mode": "permanent_delete",
+        },
+    })
+
+    assert code == 200
+    saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert saved["source_policy"]["disposal_mode"] == "permanent_delete"
+    assert "_confirm_source_permanent_delete" not in saved
+    assert "_confirm_source_permanent_delete" not in state._config
+
+
+# Requirement: REQ-20260901-020743 / ADR-0019
+def test_preserve_all_cannot_store_permanent_source_delete(tmp_path):
+    state, config_path = _state(tmp_path)
+    before = config_path.read_bytes()
+
+    code, payload = _save(state, {
+        "_revision": config_revision(state._config),
+        "_confirm_source_permanent_delete": True,
+        "source_policy": {
+            "mode": "preserve_all",
+            "disposal_mode": "permanent_delete",
+        },
+    })
+
+    assert code == 400
+    assert "完整保留模式" in payload["message"]
+    assert config_path.read_bytes() == before
 
 
 def test_stale_revision_does_not_overwrite_file(tmp_path):
@@ -157,7 +225,7 @@ def test_explicit_directory_rebind_replaces_stale_identity(tmp_path):
     assert saved["storage_identities"]["source"]["mount_source"] != "stale-mount"
 
 
-def test_automatic_run_requires_all_green_storage(tmp_path):
+def test_automatic_run_reports_the_exact_storage_blocker(tmp_path):
     state, config_path = _state(tmp_path)
     identities = {
         "source": {
@@ -178,7 +246,7 @@ def test_automatic_run_requires_all_green_storage(tmp_path):
     })
 
     assert code == 400
-    assert "所有存储检查项达到绿色" in payload["message"]
+    assert "文件来源：目录身份已变化" in payload["message"]
     assert config_path.read_text(encoding="utf-8") == before
 
 
@@ -216,7 +284,7 @@ def test_unrelated_config_save_is_not_blocked_by_stale_fnos_acl(tmp_path, monkey
     assert code == 200
 
 
-def test_legacy_library_rules_migrate_only_with_explicit_confirmation(tmp_path):
+def test_legacy_library_roots_save_before_rules_are_explicitly_assigned(tmp_path):
     state, config_path = _state(tmp_path)
     first = tmp_path / "disk-a"
     second = tmp_path / "disk-b"
@@ -225,6 +293,7 @@ def test_legacy_library_rules_migrate_only_with_explicit_confirmation(tmp_path):
     legacy = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     legacy.pop("library_roots")
     legacy.pop("default_library_root_id")
+    legacy.pop("fallback_library_root_id", None)
     legacy["library_root"] = ""
     legacy["path_rules"] = [
         {"template": str(first / "电影" / "{title_cn}")},
@@ -243,19 +312,72 @@ def test_legacy_library_rules_migrate_only_with_explicit_confirmation(tmp_path):
         "library_roots": roots,
         "default_library_root_id": "a",
     })
-    assert code == 400
-    assert "未保存" in payload["message"]
+    assert code == 200, payload
+    staged = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert [root["id"] for root in staged["library_roots"]] == ["a", "b"]
+    assert all("library_root_id" not in rule for rule in staged["path_rules"])
+    assert staged["path_rules"][0]["template"].startswith(str(first))
 
-    code, _payload = _save(state, {
+    code, payload = _save(state, {
         "_revision": config_revision(state._config),
         "_migrate_legacy_library_rules": True,
         "library_roots": roots,
         "default_library_root_id": "a",
     })
-    assert code == 200
+    assert code == 400
+    assert "第 1 条规则" in payload["message"]
+    assert "尚未选择目标片库" in payload["message"]
+
+    code, payload = _save(state, {
+        "_revision": config_revision(state._config),
+        "path_rules": [
+            {"library_root_id": "a", "template": "电影/{title_cn}"},
+            {"library_root_id": "b", "template": "剧集/{title_cn}"},
+        ],
+        "fallback_library_root_id": "a",
+        "fallback_dir": "未分类",
+    })
+    assert code == 200, payload
     saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert [rule["library_root_id"] for rule in saved["path_rules"]] == ["a", "b"]
     assert saved["path_rules"][0]["template"] == "电影/{title_cn}"
+
+
+def test_unassigned_legacy_rule_rejects_entire_rule_save(tmp_path):
+    state, config_path = _state(tmp_path)
+    selected = tmp_path / "selected"
+    omitted = tmp_path / "omitted"
+    selected.mkdir()
+    omitted.mkdir()
+    legacy = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    legacy.pop("library_roots")
+    legacy.pop("default_library_root_id")
+    legacy["library_root"] = ""
+    legacy["path_rules"] = [
+        {
+            "conditions": {"media_type": "movie"},
+            "template": str(selected / "{title_cn}"),
+        },
+        {"conditions": {}, "template": str(omitted)},
+    ]
+    legacy["fallback_dir"] = ""
+    config_path.write_text(yaml.safe_dump(legacy, allow_unicode=True), encoding="utf-8")
+    state._config = {**legacy, "_config_path": str(config_path)}
+    before = config_path.read_bytes()
+
+    code, payload = _save(state, {
+        "_revision": config_revision(state._config),
+        "_migrate_legacy_library_rules": True,
+        "library_roots": [
+            {"id": "selected", "name": "电影", "path": str(selected), "enabled": True},
+        ],
+        "default_library_root_id": "selected",
+    })
+
+    assert code == 400
+    assert "第 1 条规则“电影规则”尚未选择目标片库" in payload["message"]
+    assert config_path.read_bytes() == before
+    assert "library_roots" not in state._config
 
 
 def _legacy_library_state(tmp_path):
@@ -283,7 +405,6 @@ def test_unrelated_directory_roles_can_save_while_legacy_library_migration_is_pe
 ):
     cases = (
         ("source", ("source_dir",), lambda path: {"source_dir": str(path)}),
-        ("temp", ("temp_dir",), lambda path: {"temp_dir": str(path)}),
         (
             "recycle",
             ("source_policy", "recycle_dir"),
@@ -348,7 +469,7 @@ def test_fresh_setup_can_save_one_directory_role_at_a_time(tmp_path):
     assert code == 200
     saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert saved["library_roots"][0]["id"] == "first"
-    assert saved["path_rules"][0]["library_root_id"] == "first"
+    assert "library_root_id" not in saved["path_rules"][0]
 
 
 def test_changed_invalid_value_is_not_hidden_by_same_preexisting_error(tmp_path):
@@ -367,81 +488,39 @@ def test_changed_invalid_value_is_not_hidden_by_same_preexisting_error(tmp_path)
     assert "轮询周期" in payload["message"]
 
 
-def test_empty_temp_directory_can_be_changed(tmp_path):
-    state, config_path = _state(tmp_path)
-    replacement = tmp_path / "new-temp"
-    replacement.mkdir()
+# Requirement: REQ-20260901-001019-2
+def test_watcher_setting_applies_immediately_even_while_a_task_is_running(tmp_path):
+    state, _config_path = _state(tmp_path)
+    state._global_task_manager = SimpleNamespace(has_running_tasks=lambda: True)
+    handler = _Handler()
+    responses = []
 
-    code, _payload = _save(state, {
-        "_revision": config_revision(state._config),
-        "temp_dir": str(replacement),
-    })
-
-    assert code == 200
-    saved = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    assert saved["temp_dir"] == str(replacement)
-
-
-def test_nonempty_temp_directory_blocks_switch_without_deleting_files(tmp_path):
-    state, config_path = _state(tmp_path)
-    old_temp = tmp_path / "temp"
-    checkpoint = old_temp / "movie.mkv.copying"
-    checkpoint.write_bytes(b"unfinished")
-    replacement = tmp_path / "new-temp"
-    replacement.mkdir()
-    before = config_path.read_text(encoding="utf-8")
-
-    code, payload = _save(state, {
-        "_revision": config_revision(state._config),
-        "temp_dir": str(replacement),
-    })
-
-    assert code == 400
-    assert "旧中转目录仍有文件" in payload["message"]
-    assert checkpoint.read_bytes() == b"unfinished"
-    assert config_path.read_text(encoding="utf-8") == before
-
-
-def test_recoverable_temp_task_blocks_switch_even_when_directory_is_empty(tmp_path):
-    state, config_path = _state(tmp_path)
-    replacement = tmp_path / "new-temp"
-    replacement.mkdir()
-
-    class _Tasks:
-        def has_running_tasks(self):
-            return False
-
-        def list_all_tasks(self, limit=10000):
-            return [{"status": "FAILED", "stage": "DONE", "file_location": "temp"}]
-
-    state._global_task_manager = _Tasks()
-    before = config_path.read_text(encoding="utf-8")
-
-    code, payload = _save(state, {
-        "_revision": config_revision(state._config),
-        "temp_dir": str(replacement),
-    })
-
-    assert code == 400
-    assert "任务依赖旧中转目录" in payload["message"]
-    assert config_path.read_text(encoding="utf-8") == before
-
-
-def test_fnos_rejects_unapproved_temp_directory(tmp_path, monkeypatch):
-    state, config_path = _state(tmp_path)
-    replacement = tmp_path / "new-temp"
-    replacement.mkdir()
-    before = config_path.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        "media_importer.features.configuration.fnos_directory_access.build_fnos_directory_capability",
-        lambda: {"enforced": True, "available": True, "folders": []},
+    save_config(
+        handler,
+        {
+            "_revision": config_revision(state._config),
+            "file_watcher": {"enabled": False, "poll_interval": 120},
+        },
+        globals_module=state,
+        respond=lambda _handler, code, **payload: responses.append((code, payload)),
     )
 
+    code, payload = responses[-1]
+    assert code == 200
+    assert payload["message"] == "轮询监控配置已保存并立即生效"
+    assert handler.watcher_reloads == 1
+    assert state._config_dirty is False
+
+
+def test_removed_temp_directory_key_is_rejected_without_writing(tmp_path):
+    state, config_path = _state(tmp_path)
+    before = config_path.read_text(encoding="utf-8")
+
     code, payload = _save(state, {
         "_revision": config_revision(state._config),
-        "temp_dir": str(replacement),
+        "temp_dir": str(tmp_path / "removed"),
     })
 
     assert code == 400
-    assert "中转目录尚未授权" in payload["message"]
+    assert "中转目录已取消" in payload["message"]
     assert config_path.read_text(encoding="utf-8") == before

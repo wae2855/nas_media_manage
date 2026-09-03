@@ -27,7 +27,6 @@ DEFAULT_SUBTITLE_TEMPLATE = "{video_filename}.{lang}.{ext}"
 @dataclass(frozen=True)
 class PathConfig:
     source_dir: str = ""
-    temp_dir: str = ""
     log_dir: str = "logs"
     library_root: str = ""
     library_roots: tuple = field(default_factory=tuple)
@@ -52,6 +51,7 @@ class SourcePolicyConfig:
     recycle_dir: str = ""
     cleanup_source_after_done: bool = False
     mode: str = "preserve_all"
+    disposal_mode: str = "local_recycle"
     recycle_retention_days: int = 30
     scan_recursive: bool = True
     scan_max_depth: int = 5
@@ -107,6 +107,15 @@ class SourceCleanerConfig:
 
 
 @dataclass(frozen=True)
+class MediaCandidateFilterConfig:
+    enabled: bool = True
+    small_video_max_mb: float = 50
+    main_video_min_mb: float = 500
+    max_size_ratio: float = 0.02
+    extra_name_patterns: tuple = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class ConfigView:
     raw: dict
     paths: PathConfig
@@ -117,6 +126,7 @@ class ConfigView:
     metadata: MetadataProviderConfig
     scanner: ScannerConfig
     source_cleaner: SourceCleanerConfig
+    media_candidate_filter: MediaCandidateFilterConfig
 
     @classmethod
     def from_dict(cls, config: dict):
@@ -127,6 +137,7 @@ class ConfigView:
         filename_templates = _dict(config.get("filename_templates"))
         metadata = _dict(config.get("metadata"))
         source_cleaner = _dict(config.get("source_cleaner"))
+        candidate_filter = _dict(config.get("media_candidate_filter"))
         source_mode = source_policy.get("mode")
         if source_mode not in {"preserve_all", "preserve_media", "recycle_source_unit"}:
             if source_policy.get("cleanup_source_after_done") is True:
@@ -135,10 +146,12 @@ class ConfigView:
                 source_mode = "preserve_media"
             else:
                 source_mode = "preserve_all"
+        disposal_mode = source_policy.get("disposal_mode", "local_recycle")
+        if disposal_mode not in {"local_recycle", "permanent_delete"}:
+            disposal_mode = "local_recycle"
 
         paths = PathConfig(
             source_dir=config.get("source_dir", ""),
-            temp_dir=config.get("temp_dir", ""),
             log_dir=config.get("log_dir", "logs"),
             library_root=config.get("library_root", ""),
             library_roots=tuple(_list(config.get("library_roots"))),
@@ -160,6 +173,7 @@ class ConfigView:
                     source_mode == "recycle_source_unit"
                 ),
                 mode=source_mode,
+                disposal_mode=disposal_mode,
                 recycle_retention_days=source_policy.get("recycle_retention_days", 30),
                 scan_recursive=source_policy.get("scan_recursive", True),
                 scan_max_depth=source_policy.get("scan_max_depth", 5),
@@ -204,6 +218,18 @@ class ConfigView:
                 protect_extensions=_extensions(_list(source_cleaner.get("protect_extensions"), [".nfo", ".jpg", ".png"])),
                 blacklist_patterns=_list(source_cleaner.get("blacklist_patterns"), ["RARBG*", "*/Sample/*", "*/sample/*"]),
                 cleanup_empty_dirs=source_cleaner.get("cleanup_empty_dirs", True),
+            ),
+            media_candidate_filter=MediaCandidateFilterConfig(
+                enabled=candidate_filter.get("enabled", True),
+                small_video_max_mb=candidate_filter.get(
+                    "small_video_max_mb",
+                    source_cleaner.get("junk_video_max_size_mb", 50),
+                ),
+                main_video_min_mb=candidate_filter.get("main_video_min_mb", 500),
+                max_size_ratio=candidate_filter.get("max_size_ratio", 0.02),
+                extra_name_patterns=tuple(_list(
+                    candidate_filter.get("extra_name_patterns")
+                )),
             ),
         )
 

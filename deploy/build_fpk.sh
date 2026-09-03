@@ -9,6 +9,8 @@ PKG_DIR="${PKG_DIR:-${DEPLOY_DIR}/${APP_NAME}}"
 FPACK_BIN="${FPACK_BIN:-/tmp/fnpack/fnpack-1.2.3}"
 FPACK_VERSION="1.2.3"
 VALIDATOR_PYTHON="${VALIDATOR_PYTHON:-${PROJECT_DIR}/.venv/bin/python}"
+VERSION_FILE="${PROJECT_DIR}/VERSION"
+RELEASE_LEDGER_TOOL="${PROJECT_DIR}/scripts/release_ledger.py"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,7 +18,19 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-VERSION="${1:-1.0.0}"
+if [ ! -f "${VERSION_FILE}" ]; then
+    echo "缺少版本事实源: ${VERSION_FILE}" >&2
+    exit 1
+fi
+VERSION="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "VERSION 格式无效: ${VERSION}" >&2
+    exit 1
+fi
+if [ "$#" -gt 0 ] && [ "$1" != "${VERSION}" ]; then
+    echo "构建参数版本 $1 与 VERSION ${VERSION} 不一致，拒绝构建" >&2
+    exit 1
+fi
 
 log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}${BOLD}>>> $1${NC}"; }
@@ -103,7 +117,7 @@ start_process() {
 
     # check if dependencies are installed; reinstall if venv exists but deps missing
     if [ -x "${VENV_DIR}/bin/python3" ]; then
-        if ! "${VENV_DIR}/bin/python3" -c "import sys, yaml; raise SystemExit(0 if sys.version_info >= (${REQUIRED_PYTHON_MAJOR}, ${REQUIRED_PYTHON_MINOR}) else 1)" >/dev/null 2>&1; then
+        if ! "${VENV_DIR}/bin/python3" -c "import sys, yaml, guessit; raise SystemExit(0 if sys.version_info >= (${REQUIRED_PYTHON_MAJOR}, ${REQUIRED_PYTHON_MINOR}) else 1)" >/dev/null 2>&1; then
             log_msg "venv exists but Python version is too old or dependencies are missing, will reinstall"
             rm -rf -- "${VENV_DIR}"
         fi
@@ -276,7 +290,6 @@ fi
 if ! "${PYTHON_BIN}" "${APP_DIR}/server/fnos_config.py" initialize \
     --config "${CONFIG_FILE}" \
     --template "${TEMPLATE_FILE}" \
-    --temp-dir "${DATA_DIR}/tmp" \
     --log-dir "${DATA_DIR}/logs" \
     --resource-dir "${DATA_DIR}/resources" >/dev/null 2>"${DATA_DIR}/install-error.log"; then
     error_message=$(tail -n 1 "${DATA_DIR}/install-error.log" 2>/dev/null || true)
@@ -285,6 +298,7 @@ fi
 
 if ! "${PYTHON_BIN}" "${APP_DIR}/server/fnos_config.py" migrate-managed-service \
     --config "${CONFIG_FILE}" \
+    --log-dir "${DATA_DIR}/logs" \
     --resource-dir "${DATA_DIR}/resources" >/dev/null 2>"${DATA_DIR}/install-error.log"; then
     error_message=$(tail -n 1 "${DATA_DIR}/install-error.log" 2>/dev/null || true)
     fail_visible "${error_message:-托管服务配置迁移失败，用户目录未被覆盖}"
@@ -304,7 +318,7 @@ VENV_DIR="${TRIM_PKGVAR}/venv"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 CONFIG_FILE="${TRIM_PKGVAR}/config/config.yaml"
 PYTHON_BIN="/var/apps/python312/target/bin/python3"
-mkdir -p "${TRIM_PKGVAR}/resources"
+mkdir -p "${TRIM_PKGVAR}/tmp" "${TRIM_PKGVAR}/logs" "${TRIM_PKGVAR}/resources"
 if [ -x "${VENV_DIR}/bin/pip" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - upgrade: installing bundled dependencies offline" >>"${LOG_FILE}"
     if ! "${VENV_DIR}/bin/pip" install --no-index --find-links "${SERVER_DIR}/wheelhouse" -r "${SERVER_DIR}/requirements-fnos.lock" >>"${LOG_FILE}" 2>&1; then
@@ -319,6 +333,7 @@ if [ ! -x "${PYTHON_BIN}" ]; then
 fi
 if ! "${PYTHON_BIN}" "${SERVER_DIR}/fnos_config.py" migrate-managed-service \
     --config "${CONFIG_FILE}" \
+    --log-dir "${TRIM_PKGVAR}/logs" \
     --resource-dir "${TRIM_PKGVAR}/resources" >>"${LOG_FILE}" 2>&1; then
     echo "升级托管配置失败，来源、片库和回收目录未被覆盖。请查看应用日志" > "${TRIM_TEMP_LOGFILE}"
     exit 1
@@ -509,9 +524,6 @@ main() {
     echo -e "${CYAN}${BOLD}========================================${NC}"
     echo ""
 
-    log_step "检查 fnpack 工具"
-    ensure_fnpack
-    log_info "fnpack 就绪"
     if [ ! -x "${VALIDATOR_PYTHON}" ]; then
         VALIDATOR_PYTHON="$(command -v python3 || true)"
     fi
@@ -519,6 +531,14 @@ main() {
         echo "未找到用于验证 FPK 的 Python 3" >&2
         exit 1
     fi
+
+    log_step "检查发布版本门禁"
+    "${VALIDATOR_PYTHON}" "${RELEASE_LEDGER_TOOL}" preflight --version "${VERSION}"
+    log_info "版本高于历史候选，或属于同源码确定性重建"
+
+    log_step "检查 fnpack 工具"
+    ensure_fnpack
+    log_info "fnpack 就绪"
 
     log_step "重建应用目录"
     rm -rf "${PKG_DIR}"
@@ -563,9 +583,11 @@ main() {
     log_step "复制应用代码到 app/server/"
     mkdir -p "${PKG_DIR}/app/server"
     cp -r "${PROJECT_DIR}/media_importer" "${PKG_DIR}/app/server/"
+    cp "${VERSION_FILE}" "${PKG_DIR}/app/server/VERSION"
     cp "${PROJECT_DIR}/config.yaml.example" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/requirements.txt"    "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/deploy/requirements-fnos.lock" "${PKG_DIR}/app/server/"
+    cp "${PROJECT_DIR}/THIRD_PARTY_NOTICES.md" "${PKG_DIR}/app/server/"
     cp "${PROJECT_DIR}/deploy/fnos_config.py" "${PKG_DIR}/app/server/"
     find "${PKG_DIR}" -type d -name '__pycache__' -prune -exec rm -rf -- {} +
     find "${PKG_DIR}" -type f \( -name '*.pyc' -o -name '.DS_Store' \) -delete
@@ -596,6 +618,11 @@ main() {
     mkdir -p "${BUILD_DIR}"
     cp "${PKG_DIR}/${APP_NAME}.fpk" "${BUILD_DIR}/"
     (cd "${BUILD_DIR}" && shasum -a 256 "${APP_NAME}.fpk" > "${APP_NAME}.fpk.sha256")
+
+    log_step "登记候选包"
+    "${VALIDATOR_PYTHON}" "${RELEASE_LEDGER_TOOL}" record-build \
+        --artifact "${BUILD_DIR}/${APP_NAME}.fpk"
+    log_info "候选包版本、源码指纹与产物哈希已写入发布台账"
 
     echo ""
     echo -e "${GREEN}${BOLD}========================================${NC}"

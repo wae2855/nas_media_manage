@@ -43,7 +43,6 @@ class TestTaskOperations(unittest.TestCase):
             },
             "manual_review": {"enabled": True},
             "source_dir": os.path.join(self.tmpdir, "source"),
-            "temp_dir": os.path.join(self.tmpdir, "temp"),
         }
         self.tm = TaskManager.__new__(TaskManager)
         self.tm.config = self.config
@@ -385,7 +384,6 @@ class TestAPIOperations(unittest.TestCase):
             },
             "manual_review": {"enabled": True},
             "source_dir": os.path.join(self.tmpdir, "source"),
-            "temp_dir": os.path.join(self.tmpdir, "temp"),
         }
         self.tm = TaskManager.__new__(TaskManager)
         self.tm.config = self.config

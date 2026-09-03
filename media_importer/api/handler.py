@@ -8,14 +8,18 @@ from urllib.parse import parse_qs, urlparse
 from media_importer.core.logger import get_logger
 from media_importer.core.metrics import get_metrics
 from media_importer.core.task_lifecycle import (
-    FILE_LOCATION_IMPORT,
     FILE_LOCATION_SOURCE,
     mark_failed,
-    mark_imported,
 )
 from media_importer.core.task_manager import TaskManager
-from media_importer.features.configuration import inspect_storage_readiness, load_config
+from media_importer.features.configuration import (
+    inspect_processing_support_readiness,
+    load_config,
+)
 from media_importer.features.import_flow import PipelineRunner
+from media_importer.features.import_flow.bundle_recovery import (
+    recover_interrupted_bundle,
+)
 from media_importer.infrastructure.db import (
     update_task as db_update_task,
 )
@@ -34,17 +38,6 @@ from .task_handlers import TaskHandlersMixin
 from .thumbnail_handlers import ThumbnailHandlersMixin
 from .tmdb_handlers import TMDbHandlersMixin
 from .utils import ThreadingHTTPServer, json_response, read_json_body
-
-
-def _is_safe_temp_file(path: str, temp_dir: str, config: dict) -> bool:
-    if not path or not temp_dir or os.path.islink(path) or not os.path.isfile(path):
-        return False
-    from media_importer.features.configuration.storage_topology import (
-        path_in_library,
-        path_within,
-    )
-
-    return path_within(path, temp_dir, allow_root=False) and not path_in_library(config, path)
 
 
 class APIHandler(
@@ -142,61 +135,40 @@ class APIHandler(
 
 
 def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
-    temp_dir = config.get('temp_dir', '')
     failed_count = 0
-    cleaned_temp_count = 0
     recovered_import_count = 0
+    rolled_back_bundle_count = 0
+    recovery_required_count = 0
 
     all_tasks = task_manager.list_tasks(limit=10000)
-    active_temp_files = set()
-
     for task in all_tasks:
         status = task.get("status", "")
         stage = task.get("stage", "")
         tid = task.get("task_id", "")
 
+        bundle_recovery = recover_interrupted_bundle(
+            task,
+            config,
+            task_manager.conn,
+        )
+        if bundle_recovery:
+            logger.info(f"文件包恢复 {tid}: {bundle_recovery.message}")
+            if bundle_recovery.state == "COMMITTED_RECOVERED":
+                recovered_import_count += 1
+            elif bundle_recovery.state == "ROLLED_BACK":
+                rolled_back_bundle_count += 1
+            else:
+                recovery_required_count += 1
+            continue
+
         # PENDING/RUNNING 任务 → 标记为 FAILED
         if status == "PENDING" and stage == "RUNNING":
-            temp_video = task.get("video_path", "")
-            import_video = task.get("import_video_path", "")
-            from media_importer.features.configuration.storage_topology import path_in_library
-
-            if (
-                task.get("import_success") == 1
-                and import_video
-                and os.path.isfile(import_video)
-                and path_in_library(config, import_video)
-            ):
-                fields = mark_imported(task, import_video_path=import_video)
-                fields.update({"file_location": FILE_LOCATION_IMPORT, "video_path": import_video})
-                db_update_task(task_manager.conn, tid, **fields)
-                recovered_import_count += 1
-                continue
-
-            removed_video = False
-            if _is_safe_temp_file(temp_video, temp_dir, config):
-                try:
-                    os.remove(temp_video)
-                    cleaned_temp_count += 1
-                    removed_video = True
-                except OSError:
-                    pass
-            for sub in (task.get("subtitle_files") or []):
-                sub_str = str(sub) if sub else ""
-                if _is_safe_temp_file(sub_str, temp_dir, config):
-                    try:
-                        os.remove(sub_str)
-                    except OSError:
-                        pass
+            is_reorganization = task.get("task_kind") == "REORGANIZE"
             fields = mark_failed(
                 task,
-                "服务中断或重启导致任务未完成，请重试",
-                file_location=(
-                    FILE_LOCATION_SOURCE
-                    if removed_video or not temp_video
-                    else task.get("file_location", FILE_LOCATION_SOURCE)
-                ),
-                video_path="" if removed_video or not temp_video else None,
+                "服务在入库完成前中断，来源文件保持不变；请重新整理",
+                file_location="import" if is_reorganization else FILE_LOCATION_SOURCE,
+                video_path=task.get("source_path", ""),
             )
             fields.update({
                 "current_step": 0,
@@ -205,34 +177,21 @@ def _cleanup_orphaned_state(config: dict, task_manager: TaskManager, logger):
             db_update_task(task_manager.conn, tid, **fields)
             failed_count += 1
 
-        # PENDING/AWAIT_REVIEW 任务 → 保护 temp 文件不被清理
-        elif status == "PENDING" and stage == "AWAIT_REVIEW":
-            temp_video = task.get("video_path", "")
-            if temp_video:
-                active_temp_files.add(os.path.abspath(temp_video))
-            for sub in (task.get("subtitle_files") or []):
-                sub_str = str(sub) if sub else ""
-                if sub_str:
-                    active_temp_files.add(os.path.abspath(sub_str))
-
-    if temp_dir and os.path.isdir(temp_dir):
-        for f in os.listdir(temp_dir):
-            fpath = os.path.abspath(os.path.join(temp_dir, f))
-            if _is_safe_temp_file(fpath, temp_dir, config) and fpath not in active_temp_files:
-                try:
-                    os.remove(fpath)
-                    cleaned_temp_count += 1
-                except OSError:
-                    pass
-
-    if failed_count > 0 or cleaned_temp_count > 0 or recovered_import_count > 0:
+    if (
+        failed_count > 0
+        or recovered_import_count > 0
+        or rolled_back_bundle_count > 0
+        or recovery_required_count > 0
+    ):
         msg_parts = []
         if failed_count > 0:
             msg_parts.append(f"将 {failed_count} 个中断的运行中任务标记为 FAILED")
-        if cleaned_temp_count > 0:
-            msg_parts.append(f"清理 {cleaned_temp_count} 个孤立临时文件")
         if recovered_import_count > 0:
             msg_parts.append(f"恢复 {recovered_import_count} 个已完成入库的中断任务")
+        if rolled_back_bundle_count > 0:
+            msg_parts.append(f"回退 {rolled_back_bundle_count} 个提交前中断的文件包")
+        if recovery_required_count > 0:
+            msg_parts.append(f"保留 {recovery_required_count} 个需人工检查的文件包现场")
         logger.info("启动清理: " + ", ".join(msg_parts))
 
 
@@ -264,10 +223,7 @@ def start_server(host: str, port: int, config: dict):
 
     def on_new_files(new_files):
         if globals._global_pipeline and not globals._global_pipeline.is_paused():
-            try:
-                globals._global_pipeline.run_all()
-            except Exception as e:
-                globals._global_logger.error(f"批量处理异常: {e}")  # type: ignore[union-attr]
+            globals._global_pipeline.run_all()
 
         if globals._config_dirty and not globals._global_task_manager.has_running_tasks():
             globals._config_dirty = False
@@ -283,12 +239,21 @@ def start_server(host: str, port: int, config: dict):
             except Exception as e:
                 globals._global_logger.error(f"自动重载配置失败: {e}")  # type: ignore[union-attr]
 
+    def on_maintenance():
+        if globals._global_pipeline and not globals._global_pipeline.is_paused():
+            globals._global_pipeline.retry_pending_source_cleanup()
+
     watcher_cfg = config.get("file_watcher", {})
-    watcher_readiness = inspect_storage_readiness(config)
+    watcher_readiness = inspect_processing_support_readiness(config)
     if watcher_cfg.get("enabled", False) and watcher_readiness["automatic_allowed"]:
-        globals._global_watcher = FileWatcher(config, on_new_files=on_new_files, logger=globals._global_logger)
+        globals._global_watcher = FileWatcher(
+            config,
+            on_new_files=on_new_files,
+            on_maintenance=on_maintenance,
+            logger=globals._global_logger,
+        )
         globals._global_watcher.start()
-        globals._global_logger.info(f"文件监控已启用 (轮询间隔 {watcher_cfg.get('poll_interval', 60)}s)")  # type: ignore[union-attr]
+        globals._global_logger.info(f"文件监控已启用 (轮询间隔 {watcher_cfg.get('poll_interval', 300)}s)")  # type: ignore[union-attr]
 
         source_dir = config.get("source_dir", "")
         if source_dir and os.path.isdir(source_dir):

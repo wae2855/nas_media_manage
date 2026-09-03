@@ -21,6 +21,26 @@ def test_build_config_ui_payload_masks_sensitive_and_adds_compat_fields():
     assert "prompts" not in payload
 
 
+# Requirement: REQ-20260901-001019-2
+def test_build_config_ui_payload_masks_nested_legacy_credentials():
+    payload = build_config_ui_payload({
+        "hermes": {
+            "webhook": {
+                "secret": "must-not-leak",
+                "access_token": "must-not-leak-either",
+            },
+        },
+        "extension": {"password": "private"},
+        "custom": {"client_secret": "private", "session_token": "private"},
+    })
+
+    assert payload["config"]["hermes"]["webhook"]["secret"] == "***"
+    assert payload["config"]["hermes"]["webhook"]["access_token"] == "***"
+    assert payload["config"]["extension"]["password"] == "***"
+    assert payload["config"]["custom"]["client_secret"] == "***"
+    assert payload["config"]["custom"]["session_token"] == "***"
+
+
 def test_build_section_config_update_keeps_existing_provider_api_key():
     section_body = build_section_config_update(
         "metadata.providers",
@@ -97,3 +117,49 @@ def test_build_watcher_status_payload_handles_empty_and_running_watcher():
     assert running["enabled"] is True
     assert running["poll_interval"] == 15
     assert running["status"] == "running"
+
+
+def test_running_watcher_status_uses_cached_runtime_facts_without_storage_probe(monkeypatch):
+    class Watcher:
+        poll_interval = 15
+        status = {
+            "running": True,
+            "source_online": True,
+            "automatic_allowed": True,
+            "blocking_reasons": [],
+        }
+
+        def is_running(self):
+            return True
+
+    def unexpected_probe(*_args, **_kwargs):
+        raise AssertionError("running watcher status must not probe storage")
+
+    monkeypatch.setattr(
+        "media_importer.features.configuration.application_service."
+        "inspect_processing_support_readiness",
+        unexpected_probe,
+    )
+
+    status = build_watcher_status_payload(
+        Watcher(),
+        {"file_watcher": {"enabled": True}},
+    )
+
+    assert status["status"] == "running"
+    assert status["automatic_allowed"] is True
+
+
+# Requirement: REQ-20260901-001019-2
+def test_build_watcher_status_payload_reports_runtime_blocker(tmp_path):
+    config = {
+        "source_dir": str(tmp_path / "missing"),
+        "file_watcher": {"enabled": True, "poll_interval": 60},
+    }
+
+    status = build_watcher_status_payload(None, config)
+
+    assert status["configured_enabled"] is True
+    assert status["enabled"] is False
+    assert status["status"] == "blocked"
+    assert "文件来源" in status["reason"]

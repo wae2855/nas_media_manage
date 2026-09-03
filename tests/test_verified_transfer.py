@@ -85,23 +85,6 @@ def test_path_boundary_does_not_accept_similar_prefix(tmp_path):
     assert source.exists()
 
 
-def test_file_copier_does_not_create_missing_temp_root(tmp_path):
-    from media_importer.infrastructure.filesystem.file_copier import FileCopier
-
-    source = tmp_path / "movie.mkv"
-    source.write_bytes(b"video")
-    missing_temp = tmp_path / "unmounted-temp"
-    copier = FileCopier(str(missing_temp), {".mkv"})
-
-    try:
-        copier.copy_to_temp(str(source), [])
-    except IOError as exc:
-        assert "拒绝自动创建" in str(exc)
-    else:
-        raise AssertionError("missing temp root must be rejected")
-    assert not missing_temp.exists()
-
-
 def test_source_change_during_copy_keeps_source_and_does_not_publish(tmp_path):
     source = tmp_path / "source.bin"
     target_dir = tmp_path / "target"
@@ -128,3 +111,33 @@ def test_source_change_during_copy_keeps_source_and_does_not_publish(tmp_path):
     assert "源文件发生变化" in message
     assert source.exists()
     assert not target.exists()
+
+
+# Requirement: REQ-20260901-010051
+def test_verified_copy_reports_truthful_transfer_and_verification_phases(tmp_path):
+    source = tmp_path / "source.bin"
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    target = target_dir / "movie.bin"
+    payload = b"progress" * 300_000
+    source.write_bytes(payload)
+    (target_dir / "movie.bin.copying").write_bytes(payload[:1_100_000])
+    events = []
+
+    ok, _message = verified_copy(
+        str(source),
+        str(target),
+        phase_callback=lambda phase, completed, total: events.append(
+            (phase, completed, total)
+        ),
+    )
+
+    assert ok is True
+    phases = [event[0] for event in events]
+    assert phases.index("resume_check") < phases.index("transfer")
+    assert phases.index("transfer") < phases.index("verify_source")
+    assert phases.index("verify_source") < phases.index("verify_target")
+    assert phases.index("verify_target") < phases.index("publish")
+    for phase in ("transfer", "verify_source", "verify_target", "publish"):
+        phase_events = [event for event in events if event[0] == phase]
+        assert phase_events[-1][1] == phase_events[-1][2]

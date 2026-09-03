@@ -19,7 +19,7 @@ var PROVIDER_FIELD_DICTS = {
         revenue: '票房',
         homepage: '官网',
         imdb_id: 'IMDB ID',
-        adult: '成人内容',
+        adult: '成人电影标记',
         genres: '类型标签',
         genre_ids: '类型ID列表',
         production_companies: '制片公司',

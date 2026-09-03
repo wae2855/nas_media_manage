@@ -2,6 +2,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Set
 
+from media_importer.features.providers.base import SearchItem
 from media_importer.infrastructure.db import get_enabled_dimensions
 
 # ---------------------------------------------------------------------------
@@ -67,7 +68,7 @@ def _build_minimal_result(clean_result, enabled_dims_set=None,
         "season": clean_result.season,
         "episode": clean_result.episode,
         "media_type": media_type,
-        "provider_type": "ai",
+        "provider_type": "",
         "provider_id": "",
         "dimensions": {"media_type": media_type},
         "clean_result": {
@@ -76,7 +77,9 @@ def _build_minimal_result(clean_result, enabled_dims_set=None,
             "season": getattr(clean_result, "season", None),
             "episode": getattr(clean_result, "episode", None),
             "removed_items": getattr(clean_result, "removed_items", []) or [],
-            "method": "regex",
+            "method": getattr(clean_result, "method", "structured"),
+            "title_candidates": getattr(clean_result, "title_candidates", []) or [],
+            "release_identity": getattr(clean_result, "release_identity", {}) or {},
         },
         "scrape_trace": {},
     }
@@ -171,7 +174,9 @@ def _build_provider_only_result(scraper, details, search_item, media_type,
             "season": getattr(clean_result, "season", None),
             "episode": getattr(clean_result, "episode", None),
             "removed_items": getattr(clean_result, "removed_items", []) or [],
-            "method": "regex",
+            "method": getattr(clean_result, "method", "structured"),
+            "title_candidates": getattr(clean_result, "title_candidates", []) or [],
+            "release_identity": getattr(clean_result, "release_identity", {}) or {},
         },
         "season": clean_result.season,
         "episode": clean_result.episode,
@@ -187,6 +192,15 @@ def _build_provider_only_result(scraper, details, search_item, media_type,
             if dim_name not in result:
                 result[dim_name] = dim_data.get("value")
             result["dimensions"][dim_name] = dim_data.get("value")
+        mapping_evidence = {
+            dim_name: dim_data.get("mapping_evidence")
+            for dim_name, dim_data in provider_dimensions.items()
+            if isinstance(dim_data, dict) and dim_data.get("mapping_evidence")
+        }
+        if mapping_evidence:
+            result.setdefault("scrape_trace", {})[
+                "dimension_mapping_evidence"
+            ] = mapping_evidence
     log.info(f"[metadata_scraper] done (provider_only): total={time.time()-t_start:.1f}s")
     return result
 
@@ -196,7 +210,8 @@ def _build_provider_only_result(scraper, details, search_item, media_type,
 # ---------------------------------------------------------------------------
 
 def scrape_metadata(scraper, video_filename: str, subtitle_filenames: Optional[List[str]] = None,
-                    conn=None, force_mode: Optional[str] = None) -> Dict[str, Any]:
+                    conn=None, force_mode: Optional[str] = None, *, video_path: str = "",
+                    match_result=None) -> Dict[str, Any]:
     """Provider-first 单模式刮削入口。"""
     if subtitle_filenames is None:
         subtitle_filenames = []
@@ -208,7 +223,14 @@ def scrape_metadata(scraper, video_filename: str, subtitle_filenames: Optional[L
         if scrape_mode not in VALID_SCRAPE_MODES:
             scrape_mode = "provider_first"
 
-    return _scrape_provider_first(scraper, video_filename, subtitle_filenames, conn)
+    return _scrape_provider_first(
+        scraper,
+        video_filename,
+        subtitle_filenames,
+        conn,
+        video_path=video_path,
+        match_result=match_result,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +238,7 @@ def scrape_metadata(scraper, video_filename: str, subtitle_filenames: Optional[L
 # ---------------------------------------------------------------------------
 
 def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: List[str],
-                           conn) -> Dict[str, Any]:
+                           conn, *, video_path: str = "", match_result=None) -> Dict[str, Any]:
     """Provider-first mode: TMDB 为权威数据源（ADR-0010：AI 刮削已移除）。
 
     流程：正则清洗 → CJK/英文两轮 Provider 搜索 → 命中则映射维度+完整性检查
@@ -234,9 +256,50 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
     )
 
     last_provider_statuses = []
+    provided_match_result = match_result
 
-    # --- Step 1: Provider search（CJK 标题优先，低匹配回退英文） ---
-    if clean_result.cjk_title and scraper.providers:
+    # --- Step 1: use the unified match decision when the pipeline supplied it ---
+    provider_search_result = None
+    selected = getattr(match_result, "selected_candidate", None)
+    if selected and selected.provider_id and selected.provider_type:
+        provider = next(
+            (
+                item for item in scraper.providers
+                if item.provider_type == selected.provider_type
+            ),
+            None,
+        )
+        if provider is not None:
+            search_item = SearchItem(
+                provider_type=selected.provider_type,
+                item_id=str(selected.provider_id),
+                title=selected.title,
+                original_title=selected.title,
+                year=selected.year,
+                media_type=selected.media_type or (
+                    "tv" if clean_result.season is not None else "movie"
+                ),
+                poster_url=None,
+                vote_average=selected.score,
+                raw_data={},
+            )
+            provider_search_result = (
+                provider,
+                search_item,
+                search_item.media_type,
+                None,
+                {
+                    "query": clean_result.clean_title,
+                    "selected_title": selected.title,
+                    "selected_year": selected.year,
+                    "provider_type": selected.provider_type,
+                    "selection_source": selected.why_selected,
+                    "original_filename": video_filename,
+                },
+            )
+
+    # Direct callers without a match decision keep the existing file-only path.
+    if provider_search_result is None and clean_result.cjk_title and scraper.providers:
         provider_search_result, last_provider_statuses = scraper._search_all_providers(
             clean_result.cjk_title, clean_result.year, clean_result.season
         )
@@ -255,7 +318,7 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
             provider_search_result, last_provider_statuses = scraper._search_all_providers(
                 clean_result.clean_title, clean_result.year, clean_result.season
             )
-    else:
+    elif provider_search_result is None:
         provider_search_result, last_provider_statuses = scraper._search_all_providers(
             clean_result.clean_title, clean_result.year, clean_result.season,
         )
@@ -275,7 +338,7 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
                     "display_name": provider.display_name,
                     "status": "details_error",
                     "reason": f"{provider.display_name} 详情获取失败: {str(e)[:100]}",
-                    "best_T": match_result.T,
+                    "best_T": getattr(match_result, "T", 0.0),
                 }],
                 scrape_mode="provider_first",
             )
@@ -307,6 +370,10 @@ def _scrape_provider_first(scraper, video_filename: str, subtitle_filenames: Lis
             k: v.get("source", provider.provider_type) if isinstance(v, dict) else provider.provider_type
             for k, v in provider_dimensions.items()
         }
+        if provided_match_result is not None:
+            result.setdefault("scrape_trace", {})["identity_evidence"] = (
+                provided_match_result.to_dict().get("identity_evidence", {})
+            )
         return result
 
     # --- No provider result: build minimal result ---

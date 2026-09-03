@@ -74,6 +74,29 @@ def _migrate_schema(conn: sqlite3.Connection):
         "ALTER TABLE tasks ADD COLUMN override_source TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN source_unit_id TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN source_cleanup_status TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN bundle_state TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN bundle_manifest TEXT DEFAULT '[]'",
+        "ALTER TABLE tasks ADD COLUMN bundle_committed INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN progress_item_name TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN progress_item_kind TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN progress_item_index INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN progress_item_total INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN task_kind TEXT DEFAULT 'IMPORT'",
+        "ALTER TABLE tasks ADD COLUMN parent_task_id TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN used_fallback INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN organization_status TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN reorganized_by_task_id TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN stop_requested_at TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN requested_source_disposition TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN outcome_code TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN source_disposition TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN source_disposition_message TEXT DEFAULT ''",
+        "ALTER TABLE task_subtitles ADD COLUMN member_id TEXT DEFAULT ''",
+        "ALTER TABLE task_subtitles ADD COLUMN source_size INTEGER DEFAULT 0",
+        "ALTER TABLE task_subtitles ADD COLUMN source_mtime_ns INTEGER DEFAULT 0",
+        "ALTER TABLE task_subtitles ADD COLUMN source_fingerprint TEXT DEFAULT ''",
+        "ALTER TABLE task_subtitles ADD COLUMN planned_filename TEXT DEFAULT ''",
     ]:
         try:
             conn.execute(col_ddl)
@@ -85,6 +108,10 @@ def _migrate_schema(conn: sqlite3.Connection):
     if not _column_exists(conn, "dimensions", "default_value"):
         conn.execute(
             "ALTER TABLE dimensions ADD COLUMN default_value TEXT DEFAULT ''"
+        )
+    if not _column_exists(conn, "dimensions", "default_provider_mappings"):
+        conn.execute(
+            "ALTER TABLE dimensions ADD COLUMN default_provider_mappings TEXT DEFAULT ''"
         )
     # 2026-08-23: source_type 收敛（ADR-0010）：ai/ai+provider → provider
     conn.execute(

@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import re
+import subprocess
 import tarfile
 from pathlib import Path
 
@@ -33,7 +34,6 @@ def _init_args(tmp_path: Path, **overrides) -> argparse.Namespace:
         "source_dir": "/vol1/网盘 下载",
         "library_root": "/vol2/影视",
         "recycle_dir": "/vol2/回收/影音整理",
-        "temp_dir": "/var/packages/nas-media-importer/var/tmp",
         "log_dir": "/var/packages/nas-media-importer/var/logs",
         "resource_dir": "/var/packages/nas-media-importer/var/resources",
     }
@@ -51,11 +51,12 @@ def test_initialize_creates_loadable_config_with_install_values(tmp_path: Path):
     assert loaded["source_dir"] == args.source_dir
     assert loaded["library_root"] == args.library_root
     assert loaded["source_policy"]["recycle_dir"] == args.recycle_dir
-    assert loaded["temp_dir"] == args.temp_dir
+    assert "temp_dir" not in loaded
     assert loaded["log_dir"] == args.log_dir
     assert loaded["resource_dir"] == args.resource_dir
     assert loaded["server"]["port"] == 14591
     assert loaded["server"]["api_key"] == ""
+    assert loaded["file_watcher"]["poll_interval"] == 300
     assert config_path.stat().st_mode & 0o777 == 0o600
 
 
@@ -72,20 +73,37 @@ def test_initialize_can_defer_external_directories_to_first_web_start(tmp_path: 
     assert loaded["fallback_library_root_id"] == ""
     assert all("library_root_id" not in rule for rule in loaded["path_rules"])
     assert loaded["source_policy"]["recycle_dir"] == ""
-    assert loaded["temp_dir"] == args.temp_dir
+    assert "temp_dir" not in loaded
     assert loaded["resource_dir"] == args.resource_dir
     assert loaded["file_watcher"]["enabled"] is False
+
+
+# Requirement: REQ-20260901-001019-2
+def test_fnos_desktop_ui_is_only_a_proxy_to_the_persistent_backend_service():
+    cmd_main = (ROOT / "deploy/nas-media-importer/cmd/main").read_text(encoding="utf-8")
+    desktop_cgi = (ROOT / "deploy/nas-media-importer/app/ui/index.cgi").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'PID_FILE="${TRIM_PKGVAR}/app.pid"' in cmd_main
+    assert 'serve --host 127.0.0.1 >> "${LOG_FILE}" 2>&1 &' in cmd_main
+    assert 'TARGET_URL="http://${BACKEND_HOST}:${BACKEND_PORT}' in desktop_cgi
+    assert "stop_process" not in desktop_cgi
 
 
 def test_initialize_preserves_existing_user_config(tmp_path: Path):
     args = _init_args(tmp_path)
     assert fnos_config.initialize(args) == "created"
     path = Path(args.config)
-    path.write_text(path.read_text(encoding="utf-8").replace("/vol2/影视", "/vol3/我的片库"), encoding="utf-8")
+    existing = path.read_text(encoding="utf-8")
+    existing = existing.replace("/vol2/影视", "/vol3/我的片库")
+    existing = existing.replace("poll_interval: 300", "poll_interval: 60")
+    path.write_text(existing, encoding="utf-8")
 
     assert fnos_config.initialize(_init_args(tmp_path, library_root="/vol9/不要覆盖")) == "existing"
     assert "/vol3/我的片库" in path.read_text(encoding="utf-8")
     assert "/vol9/不要覆盖" not in path.read_text(encoding="utf-8")
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["file_watcher"]["poll_interval"] == 60
 
 
 def test_update_port_changes_only_server_port(tmp_path: Path):
@@ -135,7 +153,7 @@ def test_migrate_managed_service_adds_missing_resource_dir_without_overwriting_u
     path = Path(args.config)
     legacy = yaml.safe_load(path.read_text(encoding="utf-8"))
     legacy.pop("resource_dir")
-    legacy["temp_dir"] = "/vol9/用户中转"
+    legacy["temp_dir"] = "/vol9/已取消的旧字段"
     path.write_text(yaml.safe_dump(legacy, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
     managed_resource = "/var/packages/nas-media-importer/var/resources"
@@ -146,7 +164,83 @@ def test_migrate_managed_service_adds_missing_resource_dir_without_overwriting_u
     assert result == "updated"
     after = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert after["resource_dir"] == managed_resource
-    assert after["temp_dir"] == "/vol9/用户中转"
+    assert "temp_dir" not in after
+
+
+def test_reinstall_rebinds_only_old_package_private_defaults(tmp_path: Path):
+    args = _init_args(tmp_path)
+    fnos_config.initialize(args)
+    path = Path(args.config)
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    config["temp_dir"] = "/vol2/@appdata/nas-media-importer/tmp"
+    config["log_dir"] = "/vol2/@appdata/nas-media-importer/logs"
+    config["resource_dir"] = "/vol2/@appdata/nas-media-importer/resources"
+    config["source_dir"] = "/vol9/保留来源"
+    config["source_policy"]["recycle_dir"] = "/vol8/保留回收"
+    config["library_roots"] = [
+        {"id": "movies", "name": "电影", "path": "/vol7/保留片库", "enabled": True}
+    ]
+    path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    result = fnos_config.migrate_managed_service(argparse.Namespace(
+        config=str(path),
+        log_dir="/vol3/@appdata/nas-media-importer/logs",
+        resource_dir="/vol3/@appdata/nas-media-importer/resources",
+    ))
+
+    assert result == "updated"
+    after = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert "temp_dir" not in after
+    assert after["log_dir"].startswith("/vol3/@appdata/")
+    assert after["resource_dir"].startswith("/vol3/@appdata/")
+    assert after["source_dir"] == "/vol9/保留来源"
+    assert after["source_policy"]["recycle_dir"] == "/vol8/保留回收"
+    assert after["library_roots"][0]["path"] == "/vol7/保留片库"
+
+
+def test_reinstall_preserves_user_selected_service_directories(tmp_path: Path):
+    args = _init_args(tmp_path)
+    fnos_config.initialize(args)
+    path = Path(args.config)
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    config.update({
+        "temp_dir": "/vol9/custom/removed-temp",
+        "log_dir": "/vol9/custom/logs",
+        "resource_dir": "/vol9/custom/resources",
+    })
+    path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    fnos_config.migrate_managed_service(argparse.Namespace(
+        config=str(path),
+        log_dir="/vol3/@appdata/nas-media-importer/logs",
+        resource_dir="/vol3/@appdata/nas-media-importer/resources",
+    ))
+
+    after = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert "temp_dir" not in after
+    assert after["log_dir"] == "/vol9/custom/logs"
+    assert after["resource_dir"] == "/vol9/custom/resources"
+
+
+def test_reinstall_does_not_treat_old_private_path_in_comment_as_field_value(tmp_path: Path):
+    args = _init_args(tmp_path)
+    fnos_config.initialize(args)
+    path = Path(args.config)
+    content = path.read_text(encoding="utf-8")
+    content = re.sub(
+        r'(?m)^log_dir:.*$',
+        'log_dir: "/vol9/custom/logs"  # 曾使用 /vol2/@appdata/nas-media-importer/logs',
+        content,
+    )
+    path.write_text(content, encoding="utf-8")
+
+    fnos_config.migrate_managed_service(argparse.Namespace(
+        config=str(path),
+        log_dir="/vol3/@appdata/nas-media-importer/logs",
+    ))
+
+    after = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert after["log_dir"] == "/vol9/custom/logs"
 
 
 @pytest.mark.parametrize(
@@ -174,13 +268,17 @@ def _make_fpk(
     forbidden_inner: str | None = None,
     wizard_field: str | None = None,
     unsafe_contract: bool = False,
+    runtime_version: str = "0.3.0",
+    stale_automation_contract: bool = False,
 ) -> None:
     inner_buffer = io.BytesIO()
     with tarfile.open(fileobj=inner_buffer, mode="w:gz") as inner:
         for name in validate_fpk.INNER_REQUIRED:
             mode = 0o755 if name in validate_fpk.INNER_EXECUTABLE_FILES else 0o644
             content = b"placeholder"
-            if name == "server/config.yaml.example":
+            if name == "server/VERSION":
+                content = (runtime_version + "\n").encode()
+            elif name == "server/config.yaml.example":
                 content = (
                     b'duplicate_handling:\n  enabled: true\n  strategy: "quality"\n'
                     if unsafe_contract else
@@ -259,7 +357,22 @@ def _make_fpk(
                 content = (
                     b"WATCHER = True\n"
                     if unsafe_contract else
-                    b"def _storage_ready_for_automatic_run():\n    pass\n"
+                    b"def _source_ready_for_scan():\n    pass\n"
+                    b"def _processing_support_ready():\n    pass\n"
+                )
+            elif name.endswith("/configuration/storage_readiness.py"):
+                content = (
+                    "item.update(message='远程来源仅允许人工任务', automatic=False)\n"
+                    if stale_automation_contract else
+                    "item.update(message='网盘来源当前在线')\n"
+                    "automatic_blocking = []\n"
+                    'result = {"automatic_allowed": state == "READY" and not automatic_blocking}\n'
+                ).encode()
+            elif name.endswith("/configuration/application_service.py"):
+                content = (
+                    b"status = 'not_started'\n"
+                    if stale_automation_contract else
+                    b"configured_enabled = True\n"
                 )
             elif name.endswith("/api/config_save.py"):
                 content = (
@@ -302,6 +415,26 @@ def test_fpk_validator_accepts_current_contract(tmp_path: Path):
     result = validate_fpk.validate(path, "0.3.0")
     assert result["version"] == "0.3.0"
     assert len(result["sha256"]) == 64
+
+
+def test_fpk_validator_rejects_manifest_runtime_version_mismatch(tmp_path: Path):
+    path = tmp_path / "version-mismatch.fpk"
+    _make_fpk(path, runtime_version="0.3.1")
+
+    with pytest.raises(validate_fpk.ValidationError, match="运行时版本与 manifest 不一致"):
+        validate_fpk.validate(path, "0.3.0")
+
+
+def test_fpk_validator_rejects_stale_remote_watcher_contract(tmp_path: Path):
+    path = tmp_path / "stale-watcher.fpk"
+    _make_fpk(path, stale_automation_contract=True)
+
+    with pytest.raises(validate_fpk.ValidationError) as exc_info:
+        validate_fpk.validate(path, "0.3.0")
+
+    message = str(exc_info.value)
+    assert "网盘来源自动扫描" in message
+    assert "配置意图与真实运行状态" in message
 
 
 def test_fpk_validator_rejects_generated_cache(tmp_path: Path):
@@ -354,10 +487,18 @@ def test_build_script_declares_fnos_runtime_and_visible_failures():
     script = (ROOT / "deploy" / "build_fpk.sh").read_text(encoding="utf-8")
     cli = (ROOT / "media_importer" / "media_importer.py").read_text(encoding="utf-8")
     assert "install_dep_apps      = python312" in script
+    assert 'VERSION_FILE="${PROJECT_DIR}/VERSION"' in script
+    assert 'RELEASE_LEDGER_TOOL="${PROJECT_DIR}/scripts/release_ledger.py"' in script
+    assert '"${RELEASE_LEDGER_TOOL}" preflight' in script
+    assert '"${RELEASE_LEDGER_TOOL}" record-build' in script
+    assert 'cp "${VERSION_FILE}" "${PKG_DIR}/app/server/VERSION"' in script
+    assert "构建参数版本" in script
     assert "/var/apps/python312/target/bin/python3" in script
     assert 'VENV_DIR="${TRIM_PKGVAR}/venv"' in script
     assert "--no-index --find-links" in script
     assert "requirements-fnos.lock" in script
+    assert "THIRD_PARTY_NOTICES.md" in script
+    assert "import sys, yaml, guessit" in script
     assert "micro_app             = true" in script
     assert "disable_authorization_path = false" in script
     assert '"trim.file.sharedAccess"' in script
@@ -375,11 +516,29 @@ def test_build_script_declares_fnos_runtime_and_visible_failures():
     upgrade = script.split("create_upgrade_callback()", 1)[1].split("create_uninstall_callback()", 1)[0]
     assert "|| true" not in upgrade
     assert "migrate-managed-service" in upgrade
+    assert "--temp-dir" not in upgrade
+    assert '--log-dir "${TRIM_PKGVAR}/logs"' in upgrade
     assert '--resource-dir "${TRIM_PKGVAR}/resources"' in upgrade
     install = script.split("create_install_callback()", 1)[1].split("create_upgrade_callback()", 1)[0]
     assert "migrate-managed-service" in install
+    assert "--temp-dir" not in install
+    assert '--log-dir "${DATA_DIR}/logs"' in install
     assert '--resource-dir "${DATA_DIR}/resources"' in install
     cgi = script.split("create_ui_cgi()", 1)[1].split("main()", 1)[0]
     assert re.search(r'BACKEND_PORT\s*=\s*"14591"', cgi)
     assert "TRIM_PKGVAR" not in cgi
     assert "TRIM_SERVICE_PORT" not in cgi
+
+
+def test_build_script_rejects_a_version_that_differs_from_version_fact():
+    completed = subprocess.run(
+        [str(ROOT / "deploy" / "build_fpk.sh"), "0.0.1"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    expected = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert f"与 VERSION {expected} 不一致" in completed.stderr

@@ -13,7 +13,7 @@ from media_importer.infrastructure.db import (
 )
 
 from .file_operations import move_to_import
-from .paths import allowed_dirs_from_config, import_roots_from_config
+from .paths import allowed_dirs_for_import
 
 
 @dataclass
@@ -21,7 +21,6 @@ class ImportResult:
     video_path: str
     subtitle_files: list = field(default_factory=list)
     source_cleanup: SourceCleanupResult = field(default_factory=SourceCleanupResult)
-    temp_cleanup: SourceCleanupResult = field(default_factory=SourceCleanupResult)
 
 
 class ImportService:
@@ -33,29 +32,36 @@ class ImportService:
 
     def import_task(self, task: dict, original_source_video: str,
                     original_source_subtitles: list, *,
-                    restore_confirm_temp_name: bool = False,
                     overwrite: bool = False,
-                    conflict_snapshot: Optional[dict] = None) -> ImportResult:
-        if restore_confirm_temp_name:
-            self.restore_confirm_temp_name(task)
-
-        temp_video_path = task.get("video_path", "")
+                    conflict_snapshot: Optional[dict] = None,
+                    phase_callback=None) -> ImportResult:
+        source_video_path = task.get("source_path") or original_source_video
+        if not source_video_path:
+            raise IOError("来源影片路径缺失，无法从头执行入库")
+        allowed_dirs, import_roots = allowed_dirs_for_import(
+            self.config,
+            str(task.get("import_path", "")),
+        )
+        if not import_roots:
+            raise IOError("入库路径无法唯一归属于已配置的目标片库")
         move_result = move_to_import(
-            temp_video_path,
+            source_video_path,
             task.get("subtitle_files", []),
             task.get("import_path", ""),
             task.get("scrape_result", {}),
             self.config.filename_template_dict(),
-            allowed_base_dirs=allowed_dirs_from_config(self.config),  # type: ignore[arg-type]
+            allowed_base_dirs=allowed_dirs,
             overwrite=overwrite,
             final_filename=task.get("final_filename", ""),
             recycle_dir=self.config.source_policy.recycle_dir,
             task_id=task.get("task_id", ""),
             expected_conflict=conflict_snapshot,
-            import_roots=import_roots_from_config(self.config),  # type: ignore[arg-type]
+            import_roots=import_roots,
+            phase_callback=phase_callback,
+            journal_callback=self._bundle_journal(task.get("task_id", "")),
         )
 
-        task["video_path"] = move_result.get("video", temp_video_path)
+        task["video_path"] = move_result.get("video", source_video_path)
         task["subtitle_files"] = move_result.get("subtitles", [])
         task["import_video_path"] = move_result.get("video", "")
 
@@ -64,36 +70,49 @@ class ImportService:
             original_source_video,
             original_source_subtitles,
         )
-        temp_cleanup = self.cleanup_service.cleanup_temp_file(temp_video_path)
-
         self._update_subtitles(task.get("task_id", ""), move_result.get("subtitles", []))
 
         return ImportResult(
             video_path=task["import_video_path"],
             subtitle_files=task["subtitle_files"],
             source_cleanup=source_cleanup,
-            temp_cleanup=temp_cleanup,
         )
 
-    def restore_confirm_temp_name(self, task: dict):
-        if not self.config.manual_review.enabled:
-            return
-        temp_video_path = task.get("video_path", "")
-        for extension in (".temp", ".tmp"):
-            if temp_video_path.endswith(extension):
-                new_path = temp_video_path[:-len(extension)]
-                if os.path.exists(temp_video_path):
-                    os.rename(temp_video_path, new_path)
-                    task["video_path"] = new_path
-                return
+    def _bundle_journal(self, task_id: str):
+        if not self.conn or not task_id:
+            return None
+
+        def persist(state: str, members: list[dict]):
+            from media_importer.infrastructure.db import update_task
+
+            update_task(
+                self.conn,
+                task_id,
+                bundle_state=state,
+                bundle_manifest=members,
+                bundle_committed=1 if state == "COMMITTED" else 0,
+            )
+
+        return persist
 
     def _update_subtitles(self, task_id: str, import_subtitles: list):
         if not self.conn or not task_id:
             return
         subtitles = db_get_subtitles(self.conn, task_id)
         now = datetime.now().isoformat()
-        for index, subtitle in enumerate(subtitles):
-            import_path = import_subtitles[index] if index < len(import_subtitles) else ""
+        by_filename = {
+            os.path.basename(path): path for path in import_subtitles if path
+        }
+        for subtitle in subtitles:
+            import_path = by_filename.get(subtitle.get("planned_filename", ""), "")
+            if not import_path:
+                db_update_subtitle(
+                    self.conn,
+                    subtitle["id"],
+                    status="FAILED",
+                    error_message="入库结果中未找到计划的字幕文件",
+                )
+                continue
             db_update_subtitle(
                 self.conn,
                 subtitle["id"],

@@ -198,7 +198,6 @@ function renderSimulatorProgress(job, _seenStepKeys) {
 
 function updateConfigStageStatus(config, paths, pathRules, readiness = null) {
   const hasSource = Boolean(paths.source_dir);
-  const hasTemp = Boolean(paths.temp_dir);
   const hasRecycle = Boolean(paths.recycle_dir);
   const hasRules = Array.isArray(pathRules) && pathRules.length > 0;
   const metadata = config.metadata || {};
@@ -207,7 +206,7 @@ function updateConfigStageStatus(config, paths, pathRules, readiness = null) {
   const automationChosen = typeof config.file_watcher?.enabled === "boolean";
   const states = [
     ["source", hasSource],
-    ["temp", storageReady || (hasTemp && hasRecycle)],
+    ["storage", storageReady && hasSource && hasRecycle],
     ["recycle", storageReady && hasRules && hasScrape],
     ["rules", hasRules],
     ["scrape", hasScrape],

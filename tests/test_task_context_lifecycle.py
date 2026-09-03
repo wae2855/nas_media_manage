@@ -11,7 +11,6 @@ from media_importer.features.tasks import (
     CONFIRM_PENDING,
     FILE_LOCATION_IMPORT,
     FILE_LOCATION_SOURCE,
-    FILE_LOCATION_TEMP,
     STATUS_FAILED,
     STATUS_PENDING,
     STATUS_SKIPPED,
@@ -23,7 +22,6 @@ from media_importer.features.tasks import (
     mark_needs_review,
     mark_processing_step,
     mark_skipped,
-    mark_temp_ready,
     reset_for_retry,
     start_processing,
 )
@@ -45,16 +43,6 @@ class TestTaskContext(unittest.TestCase):
         self.assertEqual(ctx.current_video_path, "/source/movie.mkv")
         self.assertEqual(ctx.subtitle_files, ["/source/movie.srt"])
         self.assertEqual(ctx.file_location, "source")
-
-    def test_mark_temp_updates_raw_task_dict(self):
-        task = {"task_id": "t1", "source_path": "/source/movie.mkv"}
-        ctx = TaskContext(task)
-
-        ctx.mark_temp("/temp/movie.mkv", ["/temp/movie.srt"])
-
-        self.assertEqual(task["video_path"], "/temp/movie.mkv")
-        self.assertEqual(task["subtitle_files"], ["/temp/movie.srt"])
-        self.assertEqual(ctx.current_video_path, "/temp/movie.mkv")
 
     def test_mark_scraped_sets_common_scrape_fields(self):
         task = {"task_id": "t1"}
@@ -110,21 +98,14 @@ class TestTaskLifecycle(unittest.TestCase):
                 [],
             ),
             (
-                "temp_ready",
-                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
-                mark_temp_ready,
-                {"file_location": FILE_LOCATION_TEMP, "video_path": "/temp/movie.mkv"},
-                [],
-            ),
-            (
                 "confirming",
-                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
+                {"video_path": "/source/movie.mkv", "file_location": "source", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_confirming(task, "needs confirm"),
                 {
                     "status": STATUS_PENDING,
                     "confirm_status": CONFIRM_PENDING,
-                    "file_location": FILE_LOCATION_TEMP,
-                    "video_path": "/temp/movie.mkv",
+                    "file_location": FILE_LOCATION_SOURCE,
+                    "video_path": "/source/movie.mkv",
                     "error_message": "needs confirm",
                 },
                 [],
@@ -141,19 +122,19 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "needs_review",
-                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
+                {"video_path": "/source/movie.mkv", "file_location": "source", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_needs_review(task, "manual review"),
                 {
                     "status": STATUS_PENDING,
-                    "file_location": FILE_LOCATION_TEMP,
-                    "video_path": "/temp/movie.mkv",
+                    "file_location": FILE_LOCATION_SOURCE,
+                    "video_path": "/source/movie.mkv",
                     "error_message": "manual review",
                 },
                 [],
             ),
             (
                 "failed",
-                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
+                {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_failed(task, "failed", video_path=""),
                 {
                     "status": STATUS_FAILED,
@@ -165,7 +146,7 @@ class TestTaskLifecycle(unittest.TestCase):
             ),
             (
                 "skipped",
-                {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
+                {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"},
                 lambda task: mark_skipped(task, "duplicate"),
                 {
                     "status": STATUS_SKIPPED,
@@ -210,17 +191,8 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(fields["started_at"], "2026-05-31T10:00:00")
         self.assertEqual(task["status"], STATUS_PENDING)
 
-    def test_mark_temp_ready_tracks_current_temp_video(self):
-        task = {"source_path": "/source/movie.mkv", "video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
-
-        fields = mark_temp_ready(task)
-
-        self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
-        self.assertEqual(fields["video_path"], "/temp/movie.mkv")
-        self.assertEqual(task["file_location"], FILE_LOCATION_TEMP)
-
     def test_mark_confirming_can_preserve_error_message_when_no_reason(self):
-        task = {"video_path": "/temp/movie.mkv", "error_message": "old", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "error_message": "old", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_confirming(task)
 
@@ -230,37 +202,37 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(task["error_message"], "old")
 
     def test_mark_confirming_records_reason_when_provided(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_confirming(task, "需要人工确认")
 
         self.assertEqual(fields["status"], STATUS_PENDING)
         self.assertEqual(fields["error_message"], "需要人工确认")
 
-    def test_mark_needs_review_records_temp_location(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+    def test_mark_needs_review_records_source_location(self):
+        task = {"video_path": "/source/movie.mkv", "file_location": "source", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_needs_review(task, "来源不可信")
 
         self.assertEqual(fields["status"], "PENDING")
-        self.assertEqual(fields["file_location"], FILE_LOCATION_TEMP)
-        self.assertEqual(fields["video_path"], "/temp/movie.mkv")
+        self.assertEqual(fields["file_location"], FILE_LOCATION_SOURCE)
+        self.assertEqual(fields["video_path"], "/source/movie.mkv")
 
     def test_mark_failed_video_path_semantics(self):
         """S1 语义：缺省=保留不动（供失败清理读取）；显式 ""=清空。"""
-        keep_task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
-        clear_task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        keep_task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        clear_task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         keep_fields = mark_failed(keep_task, "失败")
         clear_fields = mark_failed(clear_task, "失败", video_path="")
 
         self.assertEqual(keep_fields["status"], STATUS_FAILED)
         self.assertNotIn("video_path", keep_fields)          # 缺省保留：不写该字段
-        self.assertEqual(keep_task["video_path"], "/temp/movie.mkv")
+        self.assertEqual(keep_task["video_path"], "/source/movie.mkv")
         self.assertEqual(clear_fields["video_path"], "")     # 显式清空
 
     def test_mark_skipped_records_completion_and_location(self):
-        task = {"video_path": "/temp/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
+        task = {"video_path": "/source/movie.mkv", "status": "PENDING", "stage": "RUNNING"}
 
         fields = mark_skipped(task, "重复文件")
 
@@ -286,9 +258,10 @@ class TestTaskLifecycle(unittest.TestCase):
             "stage": "DONE",
             "retry_count": 2,
             "error_message": "失败",
-            "video_path": "/temp/movie.mkv",
+            "source_path": "/source/movie.mkv",
+            "video_path": "/source/movie.mkv",
             "import_path": "/import",
-            "file_location": "temp",
+            "file_location": "source",
         }
 
         fields = reset_for_retry(task)
@@ -296,7 +269,7 @@ class TestTaskLifecycle(unittest.TestCase):
         self.assertEqual(fields["status"], STATUS_PENDING)
         self.assertEqual(fields["retry_count"], 3)
         self.assertEqual(fields["error_message"], "")
-        self.assertEqual(fields["video_path"], "")
+        self.assertEqual(fields["video_path"], "/source/movie.mkv")
         self.assertEqual(fields["import_path"], "")
         self.assertEqual(fields["file_location"], FILE_LOCATION_SOURCE)
 

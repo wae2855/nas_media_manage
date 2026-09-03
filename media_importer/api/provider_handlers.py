@@ -96,6 +96,19 @@ class ProviderHandlersMixin:
         except Exception as e:
             json_response(self, 503, message=f"获取类型列表失败: {str(e)}")
 
+    def _provider_dimension_capabilities(self, *, body: dict, params: dict, query: dict):
+        from media_importer.features.providers import get_provider_class
+
+        provider_type = params.get("provider_type", "")
+        cls = get_provider_class(provider_type)
+        if not cls:
+            json_response(self, 404, message=f"Provider 不存在: {provider_type}")
+            return
+        try:
+            json_response(self, 200, data=cls.get_dimension_capabilities())
+        except Exception as e:
+            json_response(self, 500, message=f"获取 Provider 映射能力失败: {e}")
+
     def _provider_preview(self, *, body: dict, params: dict, query: dict):
         provider_type = params.get("provider_type", "")
         query_str = (body or {}).get("query", "").strip()

@@ -7,7 +7,6 @@ from media_importer.features.source_files.config_paths import (
     allowed_dirs_from_config,
     import_roots_from_config,
 )
-from media_importer.features.source_files.operations import delete_source_files
 
 
 @dataclass
@@ -52,27 +51,6 @@ class SourceCleanupService:
         if self.config.source_policy.mode == "preserve_media":
             return SourceCleanupResult(message=f"源媒体保留；仅按智能清理策略处理垃圾文件: {filename}")
         return SourceCleanupResult(message=f"源文件保留（不做任何源目录写入）: {filename}")
-
-    def cleanup_temp_file(self, temp_video_path: str) -> SourceCleanupResult:
-        temp_dir = self.config.paths.temp_dir
-        if not temp_video_path or not temp_dir:
-            return SourceCleanupResult()
-        from media_importer.features.configuration.storage_topology import (
-            path_in_library,
-            path_within,
-        )
-
-        if (
-            os.path.islink(temp_video_path)
-            or not path_within(temp_video_path, temp_dir, allow_root=False)
-            or path_in_library(self.raw_config, temp_video_path)
-        ):
-            return SourceCleanupResult()
-        delete_source_files([temp_video_path], allowed_base_dirs=[temp_dir])
-        return SourceCleanupResult(
-            deleted_count=1,
-            message=f"已清理临时文件: {os.path.basename(temp_video_path)}",
-        )
 
     def recycle_source_after_skip(self, task: dict, original_video: str,
                                   original_subtitles: list) -> SourceCleanupResult:

@@ -3,10 +3,13 @@ from media_importer.features.scraping import (
     disable_dimension_detail,
     enable_dimension_detail,
     get_dimension_detail,
+    get_dimension_mapping_detail,
     list_dimensions,
     list_enabled_dimensions,
+    preview_dimension_mapping,
     reset_dimension_detail,
     update_dimension_detail,
+    update_dimension_mapping_detail,
 )
 
 from .utils import json_response
@@ -38,10 +41,50 @@ class DimensionHandlersMixin:
     def _dimension_update(self, *, body: dict, params: dict, query: dict):
         name = params.get("dim_name", "")
         try:
-            result = update_dimension_detail(globals._global_task_manager.conn, name, body)
+            result = update_dimension_detail(
+                globals._global_task_manager.conn,
+                name,
+                body,
+                config=globals._config or {},
+            )
             json_response(self, result.code, data=result.data, message=result.message)
         except Exception as e:
             json_response(self, 500, message=f"更新维度失败: {e}")
+
+    def _dimension_mapping_get(self, *, body: dict, params: dict, query: dict):
+        try:
+            result = get_dimension_mapping_detail(
+                globals._global_task_manager.conn,
+                params.get("dim_name", ""),
+                params.get("provider_type", ""),
+            )
+            json_response(self, result.code, data=result.data, message=result.message)
+        except Exception as e:
+            json_response(self, 500, message=f"获取映射失败: {e}")
+
+    def _dimension_mapping_update(self, *, body: dict, params: dict, query: dict):
+        try:
+            result = update_dimension_mapping_detail(
+                globals._global_task_manager.conn,
+                params.get("dim_name", ""),
+                params.get("provider_type", ""),
+                body,
+            )
+            json_response(self, result.code, data=result.data, message=result.message)
+        except Exception as e:
+            json_response(self, 500, message=f"保存映射失败: {e}")
+
+    def _dimension_mapping_preview(self, *, body: dict, params: dict, query: dict):
+        try:
+            result = preview_dimension_mapping(
+                globals._global_task_manager.conn,
+                params.get("dim_name", ""),
+                params.get("provider_type", ""),
+                body,
+            )
+            json_response(self, result.code, data=result.data, message=result.message)
+        except Exception as e:
+            json_response(self, 500, message=f"预览映射失败: {e}")
 
     def _dimension_enable(self, *, body: dict, params: dict, query: dict):
         name = params.get("dim_name", "")

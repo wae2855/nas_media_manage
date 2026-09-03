@@ -75,6 +75,7 @@ const CONCERN_LABELS = {
   FUZZY_TITLE: "标题无法自动确认",
   NO_TITLE: "无法从文件名提取标题",
   NO_PROVIDER_RESULT: "影视库中无相关结果",
+  FALLBACK_REORGANIZATION: "尚未匹配正式入库规则",
 };
 
 function concernLabel(code) {
@@ -167,8 +168,10 @@ function renderDimSourcesWithValues(task) {
 function renderFailedTaskBlock(task) {
   if (task.status !== "FAILED") return "";
   const scrapeResult = task.scrape_result || {};
-  const aiReason = scrapeResult.ai_reason || "";
-  const shortReason = scrapeResult.tier_short_reason || "刮削失败";
+  const aiReason = scrapeResult.ai_reason || task.error_message || "";
+  let shortReason = scrapeResult.tier_short_reason || "处理失败";
+  if (task.bundle_state === "ROLLED_BACK") shortReason = "入库前中断";
+  if (task.bundle_state === "RECOVERY_REQUIRED") shortReason = "需要人工检查";
 
   return `
     <div class="task-failed-block" style="padding:10px;background:rgba(217,79,69,0.08);border-left:3px solid var(--red,#d94f45);border-radius:4px;margin-bottom:10px;">
@@ -180,6 +183,19 @@ function renderFailedTaskBlock(task) {
         🔄 重新刮削
       </button>
     </div>`;
+}
+
+function renderOrganizationOutcome(task) {
+  if (
+    String(task.status || "").toUpperCase() !== "SUCCESS" ||
+    task.organization_status !== "FALLBACK_PENDING"
+  ) {
+    return "";
+  }
+  return `<div class="task-organization-outcome">
+    <span aria-hidden="true">✓</span>
+    <div><b>已安全入库，等待整理</b><small>当前影片在待整理区，原任务已经完成；需要时可另建任务重新匹配正式规则。</small></div>
+  </div>`;
 }
 
 function renderTaskCard(item, index = 0) {
@@ -197,6 +213,7 @@ function renderTaskCard(item, index = 0) {
   const thumbnailPath = item.thumbnail_path || "";
   const posterUrl = scrape.poster_url || "";
   const toneClass = `cover-${getTaskTone(item)}`;
+  const renderKey = taskCardRenderKey(item, index);
   var statusLabel, statusColor;
   if (isAwaitReview) {
     statusLabel = "待确认";
@@ -217,7 +234,7 @@ function renderTaskCard(item, index = 0) {
     statusLabel = "排队中";
     statusColor = "#94A3B8";
   } else if (status === "PENDING" && stage === "RUNNING") {
-    statusLabel = "处理中";
+    statusLabel = item.cancel_requested ? "正在停止" : "处理中";
     statusColor = "#06B6D4";
   } else {
     statusLabel = "未知";
@@ -238,13 +255,15 @@ function renderTaskCard(item, index = 0) {
   }
   const failedBlock = renderFailedTaskBlock(item);
   return `
-        <article class="task-card" data-task-row="${escapeHtml(taskId)}" style="--card-index: ${index}">
-            <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" onclick="event.stopPropagation()" />
+        <article class="task-card" data-task-row="${escapeHtml(taskId)}" data-task-render-key="${renderKey}" style="--card-index: ${index}">
+            <input type="checkbox" class="task-select-checkbox" data-task-select="${escapeHtml(taskId)}" ${checked} aria-label="选择任务" />
             <div class="${coverClass}" aria-hidden="true">${coverContent}</div>
             <div class="task-body">
                 <div class="task-top"><h3>${escapeHtml(title)}</h3><span class="task-status-capsule" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${statusColor}18;color:${statusColor};white-space:nowrap">${escapeHtml(statusLabel)}</span></div>
                 ${failedBlock}
+                ${renderOrganizationOutcome(item)}
                 ${renderReviewReasonRow(item)}
+                ${renderTaskLiveProgress(item)}
                 ${isFailed ? "" : renderTaskScrapeProcess(item)}
                 <div class="task-meta">
                     <span class="task-meta-file">🎞️ ${escapeHtml(filename)}</span>
@@ -268,12 +287,109 @@ function renderTaskCard(item, index = 0) {
         </article>`;
 }
 
-function renderTaskList() {
+function taskCardRenderKey(item, index) {
+  const taskId = String(item.task_id || "");
+  const payload = JSON.stringify([
+    item,
+    index,
+    selectedTaskIds.has(taskId),
+  ]);
+  let hash = 2166136261;
+  for (let i = 0; i < payload.length; i += 1) {
+    hash ^= payload.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function createTaskCardElement(item, index) {
+  const template = document.createElement("template");
+  template.innerHTML = renderTaskCard(item, index).trim();
+  return template.content.firstElementChild;
+}
+
+function preserveTaskCardCover(previousCard, nextCard) {
+  const previousCover = previousCard?.querySelector(".cover");
+  const nextCover = nextCard?.querySelector(".cover");
+  if (!previousCover || !nextCover || previousCover.className !== nextCover.className) return;
+  const previousImage = previousCover.querySelector("img");
+  const nextImage = nextCover.querySelector("img");
+  if ((previousImage?.getAttribute("src") || "") !== (nextImage?.getAttribute("src") || "")) {
+    return;
+  }
+  nextCover.replaceWith(previousCover);
+}
+
+function patchTaskListCards(host) {
+  const existingCards = Array.from(host.querySelectorAll(":scope > article.task-card"));
+  if (
+    existingCards.length === 0 ||
+    existingCards.some((card) => !card.dataset.taskRow)
+  ) {
+    return false;
+  }
+
+  const existingById = new Map(
+    existingCards.map((card) => [String(card.dataset.taskRow || ""), card]),
+  );
+  const desiredIds = new Set();
+  let cursor = host.firstElementChild;
+
+  currentTaskRecords.forEach((item, index) => {
+    const taskId = String(item.task_id || "");
+    const renderKey = taskCardRenderKey(item, index);
+    desiredIds.add(taskId);
+    const previousCard = existingById.get(taskId);
+    let nextCard = previousCard;
+
+    if (!previousCard || previousCard.dataset.taskRenderKey !== renderKey) {
+      nextCard = createTaskCardElement(item, index);
+      if (previousCard) {
+        const replacedCursor = previousCard === cursor;
+        preserveTaskCardCover(previousCard, nextCard);
+        previousCard.replaceWith(nextCard);
+        if (replacedCursor) cursor = nextCard;
+      }
+    }
+
+    if (nextCard !== cursor) host.insertBefore(nextCard, cursor);
+    cursor = nextCard.nextElementSibling;
+  });
+
+  existingCards.forEach((card) => {
+    if (!desiredIds.has(String(card.dataset.taskRow || "")) && card.isConnected) {
+      card.remove();
+    }
+  });
+
+  const existingLoadMore = host.querySelector(":scope > .task-load-more");
+  if (!currentTaskHasMore) {
+    existingLoadMore?.remove();
+  } else {
+    const label = `加载更多（已显示 ${currentTaskRecords.length} / 共 ${currentTaskTotal} 项）`;
+    if (existingLoadMore) {
+      const button = existingLoadMore.querySelector("button");
+      if (button && button.textContent !== label) button.textContent = label;
+      host.appendChild(existingLoadMore);
+    } else {
+      const wrap = document.createElement("div");
+      wrap.className = "task-load-more";
+      wrap.innerHTML = `<button class="btn btn-secondary" data-task-action="load-more-tasks">${escapeHtml(label)}</button>`;
+      host.appendChild(wrap);
+    }
+  }
+  return true;
+}
+
+function renderTaskList(options = {}) {
+  const incremental = Boolean(options.incremental);
   const meta = TASK_FILTER_META[currentTaskFilter] || TASK_FILTER_META.all;
   document.getElementById("task-panel-title").textContent = meta.title;
   document.getElementById("task-panel-copy").textContent = meta.copy;
   /* 刷新首页轮盘 */
-  if (typeof loadReelWheelFromTasks === "function") loadReelWheelFromTasks();
+  if (!incremental && typeof loadReelWheelFromTasks === "function") {
+    loadReelWheelFromTasks();
+  }
   const host = document.getElementById("task-list");
   if (!host) return;
   const countEl = document.getElementById("task-panel-count");
@@ -307,7 +423,9 @@ function renderTaskList() {
                 <button class="btn btn-secondary" data-task-action="load-more-tasks">加载更多（已显示 ${currentTaskRecords.length} / 共 ${currentTaskTotal} 项）</button>
             </div>`
     : "";
-  host.innerHTML = cardsHtml + loadMoreHtml;
+  if (!incremental || !patchTaskListCards(host)) {
+    host.innerHTML = cardsHtml + loadMoreHtml;
+  }
   if (countEl) {
     const loaded = currentTaskRecords.length;
     countEl.textContent = currentTaskHasMore
@@ -417,15 +535,39 @@ async function listTasksByStatuses(params, page = 1, pageSize = 20) {
   };
 }
 
-async function loadTaskList(append = false) {
+async function listVisibleTaskPages(params) {
+  const visiblePages = Math.max(1, Number(currentTaskPage || 1));
+  const tasks = [];
+  let total = 0;
+  let totalPages = 1;
+  for (let page = 1; page <= visiblePages; page += 1) {
+    const result = await listTasksByStatuses(params, page, currentTaskPageSize);
+    if (result.code !== 200) return result;
+    tasks.push(...(result.tasks || []));
+    total = Number(result.total || 0);
+    totalPages = Number(result.total_pages || 1);
+    if (page >= totalPages) break;
+  }
+  return {
+    code: 200,
+    tasks: Array.from(
+      new Map(tasks.map((task) => [String(task.task_id || ""), task])).values(),
+    ),
+    total,
+    total_pages: totalPages,
+  };
+}
+
+async function loadTaskList(append = false, options = {}) {
   if (currentTaskLoading) return;
+  const silent = Boolean(options.silent);
   currentTaskLoading = true;
-  setRefreshButtonState(true);
+  if (!silent) setRefreshButtonState(true);
   try {
     const meta = TASK_FILTER_META[currentTaskFilter] || TASK_FILTER_META.all;
     document.getElementById("task-panel-title").textContent = meta.title;
     document.getElementById("task-panel-copy").textContent = meta.copy;
-    if (!append) {
+    if (!append && !silent) {
       currentTaskPage = 1;
       currentTaskRecords = [];
       document.getElementById("task-panel-count").textContent = "加载中";
@@ -442,12 +584,15 @@ async function loadTaskList(append = false) {
                     </article>`;
       }
     }
-    const result = await listTasksByStatuses(
-      TASK_FILTER_PARAMS[currentTaskFilter],
-      currentTaskPage,
-      currentTaskPageSize,
-    );
+    const result = silent
+      ? await listVisibleTaskPages(TASK_FILTER_PARAMS[currentTaskFilter])
+      : await listTasksByStatuses(
+          TASK_FILTER_PARAMS[currentTaskFilter],
+          currentTaskPage,
+          currentTaskPageSize,
+        );
     if (result.code === 401) {
+      if (silent) return;
       currentTaskRecords = [];
       currentTaskTotal = 0;
       currentTaskHasMore = false;
@@ -455,6 +600,7 @@ async function loadTaskList(append = false) {
       return;
     }
     if (result.code !== 200) {
+      if (silent) return;
       currentTaskRecords = [];
       currentTaskTotal = 0;
       currentTaskHasMore = false;
@@ -468,11 +614,35 @@ async function loadTaskList(append = false) {
     }
     currentTaskTotal = result.total || 0;
     currentTaskHasMore = currentTaskRecords.length < currentTaskTotal;
-    renderTaskList();
+    renderTaskList({ incremental: silent });
   } finally {
     currentTaskLoading = false;
-    setRefreshButtonState(false);
+    if (!silent) setRefreshButtonState(false);
   }
+}
+
+function taskListHasRunningItem() {
+  return currentTaskRecords.some(
+    (task) =>
+      String(task.status || "").toUpperCase() === "PENDING" &&
+      String(task.stage || "").toUpperCase() === "RUNNING",
+  );
+}
+
+function stopTaskProgressPolling() {
+  if (taskProgressRefreshTimer) clearInterval(taskProgressRefreshTimer);
+  taskProgressRefreshTimer = null;
+}
+
+function startTaskProgressPolling() {
+  stopTaskProgressPolling();
+  taskProgressRefreshTimer = setInterval(() => {
+    const activeView = document.querySelector('.page-view.active[data-view="tasks"]');
+    if (!activeView || document.hidden || currentTaskLoading) return;
+    if (document.querySelector(".cinema-modal-overlay")) return;
+    if (selectedTaskIds.size > 0 || !taskListHasRunningItem()) return;
+    loadTaskList(false, { silent: true });
+  }, 2500);
 }
 
 function setRefreshButtonState(loading) {

@@ -34,9 +34,26 @@
 
 API handlers should parse requests, call feature services/public APIs, and return HTTP responses. Complex business rules should move into feature modules.
 
+### GET /api/health
+
+公开健康检查返回服务状态、目录探针、时间戳和 `version`。`version` 必须由包内 `server/VERSION` 读取，并与根 `VERSION`、FPK manifest 保持一致；前端只展示服务端返回值，不得写死版本号。
+
 ### GET /api/config/startup-readiness
 
-正式运行前的只读聚合检查。handler 只调用 `features.configuration.inspect_startup_readiness`；返回配置 revision、总状态 `PASS|BLOCKED`，以及目录/磁盘、TMDB、按需 LLM、自动运行分项。分项状态为 `PASS|WARN|BLOCKED|SKIPPED`，前端不得自行推断 READY。
+正式运行前的只读聚合检查，用户界面名称为“配置检查”。handler 只调用 `features.configuration.inspect_startup_readiness`；返回配置 revision、总状态 `PASS|BLOCKED`，以及目录/磁盘、规则与目标片库、TMDB、按需 LLM、自动运行分项。规则分项同时检查显式 root ID 和被引用目标的目录能力；自动运行分项同时读取目录的 `automatic_allowed` 和当前服务内 watcher 的真实运行状态。分项状态为 `PASS|WARN|BLOCKED|SKIPPED`，前端不得自行推断 READY。
+
+### Provider 维度映射
+
+- `GET /api/providers/{type}/dimension-capabilities`：Provider 可提供的标准字段与有界数据形态。
+- `GET /api/dimensions/{name}/mappings/{provider}`：当前映射、值域、摘要和内容哈希。
+- `PUT /api/dimensions/{name}/mappings/{provider}`：带 `expected_hash` 保存经验证的 schema v2 映射；目标值不存在或哈希过期时失败关闭。
+- `POST /api/dimensions/{name}/mappings/{provider}/preview`：对请求内的未保存映射执行本地试算，返回目标值和映射证据。
+
+映射编辑不经过通用维度 PUT，不允许任意 Python/JavaScript/正则执行。试算不保存 DB，也不触发文件操作。
+
+### GET /api/watcher/status
+
+返回后台自动整理的配置意图与运行事实：`configured_enabled` 表示用户是否设置开启，`enabled` 表示 watcher 线程是否实际存活，`automatic_allowed` 表示当前目录能力是否允许自动化，`status` 为 `disabled|blocked|not_started|running`。`reason` 和 `blocking_reasons[]` 提供可直接展示的中文原因，禁止前端用“全部绿色”等笼统文案覆盖服务端事实。
 
 ### GET /api/config/fnos-folders
 
@@ -101,6 +118,16 @@ Phase 4 dependency inventory is tracked in [api-dependency-audit.md](api-depende
 
 注意：`SUCCESS + SKIPPED` 由前端分别请求后合并，后端单次查询只支持单个 status 值。
 
+列表每条任务同时返回实时进度合同：
+
+- `current_step`、`total_steps`：兼容流程位置；
+- `step_name`：内部真实阶段，如 `copy_transfer`、`copy_verify_target`、`import_transfer`、`source_cleanup_transfer`；
+- `percentage`：整体流程的单调位置，不代表剩余时间；
+- `bytes_copied`、`total_bytes`：只在当前字节阶段用于计算阶段百分比；
+- `source_cleanup_status`：来源策略结果或等待/阻断状态。
+
+前端不得对刮削、分类、发布等非字节阶段显示伪造百分比，也不得从 `percentage` 推算 ETA。
+
 ### POST /api/tasks/{task_id}/cancel
 
 取消排队中的任务，保留任务记录，不移动源文件。
@@ -138,7 +165,7 @@ PENDING/QUEUED
 | PENDING | AWAIT_REVIEW | 去确认 | — | 详情 | 是 | 是 |
 | PENDING | QUEUED | 取消 | — | 详情 | 否 | 否 |
 | PENDING | RUNNING | — | — | 详情 | 否 | 否 |
-| SUCCESS | DONE | — | — | 详情 | 否 | 否 |
+| SUCCESS | DONE | 待整理结果显示“重新整理”；其他无 | — | 详情 | 否 | 否 |
 | FAILED | DONE | 去重试 | 移入回收 | 详情 | 否 | 否 |
 | SKIPPED | DONE | 去重试 | — | 详情 | 否 | 否 |
 | CANCELLED | DONE | 重新投入 | — | 详情 | 否 | 否 |
@@ -147,8 +174,9 @@ PENDING/QUEUED
 
 - “详情”幽灵按钮是唯一打开详情弹窗的入口。
 - 弹窗内文件名 / 分类维度是否可编辑由 `isAwaitReview` 决定，仅 `PENDING/AWAIT_REVIEW` 允许编辑。
-- 文件名区域：修改 / 保存 按钮组；维度区域：修改 / 保存 + 预览入库规则 按钮组。
-- 弹窗底部只保留“关闭”按钮，文件名保存和维度保存分别放在各自区域。
+- 待确认详情底部提供“保存”；只有当前预览满足确认门禁时才显示“确认入库”或“确认重新整理”。
+- `SUCCESS/DONE + FALLBACK_PENDING` 详情保持只读，只提供“创建重新整理任务”；新任务独立记录，不重新打开原任务。
+- 重新整理仍命中兜底时只能继续改维度或手动刮削；命中正式规则后才允许确认，视频和随片字幕按 no-replace 文件包移动。
 
 ### POST /api/tasks/{task_id}/classify-preview
 
@@ -210,14 +238,17 @@ PENDING/QUEUED
 
 ### POST /api/tasks/{task_id}/scrape-search
 
-在确认界面内嵌重刮能力。接收查询词，返回 Provider 多候选列表。
+在确认界面内嵌重刮能力。接收查询词、作品类型、结果语言、年份和数量，返回 Provider 多候选列表；`limit` 默认 20、最大 20。
 
 请求体：
 
 ```json
 {
   "query": "阿凡达",
-  "year": "2009"
+  "year": 2009,
+  "media_type": "movie",
+  "language": "zh-CN",
+  "limit": 20
 }
 ```
 
@@ -240,14 +271,34 @@ PENDING/QUEUED
         "vote_average": 7.5
       }
     ],
-    "query": "阿凡达"
+    "query": "阿凡达",
+    "media_type": "movie",
+    "language": "zh-CN",
+    "limit": 20
   }
 }
 ```
 
+### POST /api/tasks/{task_id}/scrape-apply
+
+把用户选中的 Provider ID 应用到等待确认任务。服务端按 ID 获取完整详情、重新映射维度、分类、命名和冲突预览，任务继续保持 `PENDING/AWAIT_REVIEW`；本端点不复制、不入库，也不自动调用 `confirm`。
+
+请求体：
+
+```json
+{
+  "provider_type": "tmdb",
+  "item_id": "19995",
+  "media_type": "movie",
+  "language": "zh-CN"
+}
+```
+
+响应返回更新后的完整 `task`。任务状态在 Provider 网络请求期间发生变化时，CAS 会拒绝应用并要求刷新。
+
 ### POST /api/tasks/{task_id}/confirm
 
-确认入库。普通人工核对继续使用可选参数 `confirmed_title` 和 `override_source`。当任务含未决目标片库冲突时，必须额外提交 `conflict_action`，且只能逐项调用。
+确认入库。普通人工核对继续使用可选参数 `confirmed_title` 和 `override_source`。当任务含未决目标片库冲突时，必须额外提交 `conflict_action`，且只能逐项调用。分类落入兜底目录时必须显式提交 `fallback_acknowledged=true`，否则返回 400；重新整理任务仍落入兜底时固定拒绝确认。
 
 请求体：
 
@@ -255,11 +306,21 @@ PENDING/QUEUED
 {
   "confirmed_title": "阿凡达",
   "override_source": "manual",
-  "conflict_action": "keep_both"
+  "conflict_action": "keep_both",
+  "source_disposition": "keep",
+  "fallback_acknowledged": false
 }
 ```
 
 `conflict_action` 允许值：`keep_existing`（目标与来源保持不变，任务跳过）、`keep_both`（只新增带编号文件）、`replace_existing`（指纹重检后把旧文件移入本地回收，再发布新文件）。未提供动作的冲突确认返回 400；`confirm-all` 会排除冲突任务并返回 `conflict_skipped`。
+
+仅当 `conflict_action=keep_existing` 时允许携带 `source_disposition=keep|local_recycle|permanent_delete`，分别表达保留、移入本地回收区和已显式启用后的永久删除本次新资源。该字段不影响目标片库现有文件。
+
+### POST /api/tasks/{task_id}/reorganize
+
+对已成功进入待整理区的任务创建关联重新整理任务。父任务必须为 `SUCCESS/DONE` 且 `organization_status=FALLBACK_PENDING`；已有活动子任务时返回同一任务，避免重复创建。接口不移动文件，返回的新任务为 `PENDING/AWAIT_REVIEW + task_kind=REORGANIZE`，用户仍通过维度编辑或手动刮削匹配正式规则，再调用 confirm。父任务始终只读且不重新打开。
+
+重新整理确认只允许 no-replace 整组移动影片与随片字幕；目标同名时进入逐项冲突处理，替换按钮关闭。完成后父任务记录 `reorganized_by_task_id`，父子 `organization_status` 均为 `ORGANIZED`。
 
 响应体：
 
@@ -272,11 +333,24 @@ PENDING/QUEUED
 
 ### POST /api/tasks/{task_id}/delete
 
-删除任务记录。`delete_files=false` 不触发文件动作；当任务已经位于 `file_location=import` 时，`delete_files=true` 固定返回 400，不能删除或移走目标片库文件。
+只删除已结束任务记录，不触发任何文件动作。活动任务返回 400 并引导先结束处理；目标片库和来源文件均不得因删除记录而变化。旧 `delete_files=true` 仅兼容转交来源处置，片库路径固定拒绝。
+
+### POST /api/tasks/{task_id}/dispose
+
+结束一次尚未正常完成的整理，并明确本次新资源去向。
+
+```json
+{"source_disposition": "local_recycle"}
+```
+
+- `keep`：只结束任务，来源视频和字幕保持原位。
+- `local_recycle`：只把任务登记的视频和字幕移入本地回收区，可恢复。
+- `permanent_delete`：仅 ADR-0019 高风险模式已启用时允许，使用隔离账本永久删除登记成员。
+- 排队、待确认、失败状态同步返回 200；运行中写入协作停止请求并返回 202；视频文件包已提交返回 409 并继续安全收尾；成功任务返回 400 并提示只可删除记录。
 
 ### POST /api/tasks/{task_id}/rename
 
-只允许重命名来源或本地中转文件。已入库任务固定返回 400；目标片库命名变化只能通过新的入库任务或明确的冲突替换协议完成。
+只允许重命名仍位于来源目录的任务文件。已入库任务固定返回 400；目标片库命名变化只能通过新的入库任务或明确的冲突替换协议完成。
 
 入库后 task 新增字段：
 

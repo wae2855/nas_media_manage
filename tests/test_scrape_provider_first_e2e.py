@@ -9,6 +9,7 @@
 from unittest.mock import MagicMock, patch
 
 from media_importer.features.providers.base import SearchItem
+from media_importer.features.scraping.match_models import MatchResult, SelectedCandidate
 from media_importer.features.scraping.metadata_scrape_flow import _scrape_provider_first
 
 # ===========================================================================
@@ -109,6 +110,47 @@ class TestScrapeProviderFirstE2E:
     # 路径 1：Provider 维度完整 → 不调 AI
     # ------------------------------------------------------------------
 
+    def test_preselected_match_fetches_same_candidate_without_second_search(self):
+        scraper = _make_scraper(provider_dims_complete=True)
+        mock_conn = MagicMock()
+        match_result = MatchResult(
+            match_level="AUTO_PASS",
+            provider_id="57100",
+            provider_title="双瞳",
+            selected_candidate=SelectedCandidate(
+                provider_type="tmdb",
+                provider_id="57100",
+                title="双瞳",
+                year=2002,
+                media_type="movie",
+                why_selected="evidence_converged",
+            ),
+            identity_evidence={
+                "signals": [
+                    {"source": "file", "titles": ["Double Vision"], "year": 2002},
+                    {"source": "folder", "titles": ["双瞳"], "year": 2002},
+                ]
+            },
+        )
+
+        with patch(
+            "media_importer.features.scraping.metadata_scrape_flow._get_enabled_dims",
+            return_value={"media_type", "documentary", "restricted_level", "animation"},
+        ):
+            result = _scrape_provider_first(
+                scraper,
+                "Double.Vision.2002.mkv",
+                [],
+                mock_conn,
+                video_path="/source/双瞳.2002/Double.Vision.2002.mkv",
+                match_result=match_result,
+            )
+
+        scraper._search_all_providers.assert_not_called()
+        scraper.providers[0].get_details.assert_called_once_with("57100", "movie")
+        assert result["provider_id"] == "57100"
+        assert result["scrape_trace"]["identity_evidence"]["signals"][1]["source"] == "folder"
+
     def test_provider_dims_complete_no_ai_and_trace_has_provider_dimensions(self):
         """Provider 维度完整时，不调 AI，scrape_trace 写入 provider_dimensions。"""
         scraper = _make_scraper(provider_dims_complete=True)
@@ -190,7 +232,7 @@ class TestScrapeProviderFirstE2E:
         scraper.llm_scraper.scrape.assert_not_called()
 
         # 应返回 minimal result（无 Provider 结果时由 MatchEngine 决定 match_level）
-        assert result["provider_type"] == "ai"  # minimal 的 provider_type 是 "ai"
+        assert result["provider_type"] == ""
         assert result["provider_id"] == ""
         assert "confidence" not in result
 
@@ -221,7 +263,7 @@ class TestScrapeProviderFirstE2E:
 
         # 应返回 minimal result；新流程不再输出旧 confidence 字段
         assert "confidence" not in result
-        assert result["provider_type"] == "ai"
+        assert result["provider_type"] == ""
 
     # ------------------------------------------------------------------
     # 路径 5：验证 scrape_trace 写入的维度来源可被 dimension_resolution 消费

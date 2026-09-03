@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,18 +51,21 @@ class TestImportFlowFeature(unittest.TestCase):
         self.assertTrue(hasattr(feature_lifecycle, "mark_failed"))
         self.assertTrue(hasattr(feature_lifecycle, "reset_for_retry"))
 
-    def test_feature_context_preserves_task_dict_contract(self):
-        task = {"task_id": "t1", "source_path": "/source/movie.mkv"}
+    def test_feature_context_preserves_source_task_contract(self):
+        task = {
+            "task_id": "t1",
+            "source_path": "/source/movie.mkv",
+            "subtitle_source_files": ["/source/movie.srt"],
+        }
         ctx = TaskContext(task)
 
-        ctx.mark_temp("/temp/movie.mkv", ["/temp/movie.srt"])
-        fields = ctx.to_update_fields("video_path", "subtitle_files", "missing")
+        fields = ctx.to_update_fields("source_path", "subtitle_source_files", "missing")
 
         self.assertIs(feature_context.TaskContext, TaskContext)
-        self.assertEqual(ctx.current_video_path, "/temp/movie.mkv")
+        self.assertEqual(ctx.current_video_path, "/source/movie.mkv")
         self.assertEqual(fields, {
-            "video_path": "/temp/movie.mkv",
-            "subtitle_files": ["/temp/movie.srt"],
+            "source_path": "/source/movie.mkv",
+            "subtitle_source_files": ["/source/movie.srt"],
         })
 
     def test_feature_patch_path_controls_review_service(self):
@@ -89,6 +93,83 @@ class TestImportFlowFeature(unittest.TestCase):
 
         self.assertEqual(decision.action, "continue")
         patched.assert_called_once()
+
+    def test_dedup_checks_only_classified_target_before_scanning_library(self):
+        class Harness(FileStepsMixin):
+            config = {
+                "library_roots": [
+                    {"id": "movies", "path": "/library/movies", "enabled": True},
+                    {"id": "archive", "path": "/library/archive", "enabled": True},
+                ],
+            }
+            task_manager = SimpleNamespace(conn=object())
+
+            def _update_progress(self, *_args, **_kwargs):
+                return None
+
+            def _log(self, *_args, **_kwargs):
+                return None
+
+        task = {
+            "task_id": "selected-target",
+            "source_filename": "Movie.mkv",
+            "video_path": "/temp/Movie.mkv",
+            "import_path": "/library/movies/2026/Movie",
+        }
+        readiness = {"state": "READY", "automatic_allowed": True, "locations": []}
+        decision = SimpleNamespace(action="continue", message="", result={})
+
+        with patch(
+            "media_importer.features.configuration.inspect_selected_target_readiness",
+            return_value=readiness,
+        ) as selected_check, patch(
+            "media_importer.features.import_flow.steps.file.DedupService.check_task",
+            return_value=decision,
+        ) as dedup, patch(
+            "media_importer.features.import_flow.steps.file.db_update_task",
+        ):
+            Harness()._step_dedup(task)
+
+        selected_check.assert_called_once_with(
+            Harness.config,
+            "/library/movies/2026/Movie",
+            write_bytes=0,
+        )
+        dedup.assert_called_once_with(task)
+
+    def test_dedup_does_not_scan_library_when_selected_target_is_unavailable(self):
+        class Harness(FileStepsMixin):
+            config = {"library_roots": [{"id": "movies", "path": "/offline"}]}
+            task_manager = SimpleNamespace(conn=object())
+
+            def _update_progress(self, *_args, **_kwargs):
+                return None
+
+            def _log(self, *_args, **_kwargs):
+                return None
+
+        task = {"import_path": "/offline/Movie", "video_path": "/temp/Movie.mkv"}
+        readiness = {
+            "state": "BLOCKED",
+            "automatic_allowed": False,
+            "automatic_blocking": ["target:movies"],
+            "locations": [{
+                "id": "target:movies",
+                "label": "电影盘",
+                "message": "目录不存在",
+            }],
+        }
+
+        with patch(
+            "media_importer.features.configuration.inspect_selected_target_readiness",
+            return_value=readiness,
+        ), patch(
+            "media_importer.features.import_flow.steps.file.DedupService.check_task",
+        ) as dedup:
+            with self.assertRaisesRegex(Exception, "电影盘：目录不存在"):
+                Harness()._step_dedup(task)
+
+        dedup.assert_not_called()
 
 
 if __name__ == "__main__":

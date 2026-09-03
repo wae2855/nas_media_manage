@@ -13,7 +13,6 @@ def _config(*, cleanup_source_after_done=None) -> dict:
         source_policy["cleanup_source_after_done"] = cleanup_source_after_done
     return {
         "source_dir": "/source",
-        "temp_dir": "/temp",
         "video_extensions": [".mkv"],
         "subtitle_extensions": [".srt"],
         "source_policy": source_policy,
@@ -22,10 +21,9 @@ def _config(*, cleanup_source_after_done=None) -> dict:
 
 def test_loader_defaults_missing_cleanup_policy_to_keep_source(tmp_path: Path):
     source_dir = tmp_path / "source"
-    temp_dir = tmp_path / "temp"
     log_dir = tmp_path / "logs"
     recycle_dir = tmp_path / "recycle"
-    for directory in (source_dir, temp_dir, log_dir, recycle_dir):
+    for directory in (source_dir, log_dir, recycle_dir):
         directory.mkdir()
 
     config_path = tmp_path / "config.yaml"
@@ -33,7 +31,6 @@ def test_loader_defaults_missing_cleanup_policy_to_keep_source(tmp_path: Path):
         yaml.safe_dump(
             {
                 "source_dir": str(source_dir),
-                "temp_dir": str(temp_dir),
                 "log_dir": str(log_dir),
                 "source_policy": {"recycle_dir": str(recycle_dir)},
             }

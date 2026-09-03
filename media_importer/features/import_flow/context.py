@@ -1,6 +1,3 @@
-from typing import Optional
-
-
 class TaskContext:
     def __init__(self, task: dict):
         self.raw = task
@@ -40,11 +37,6 @@ class TaskContext:
     @property
     def file_location(self) -> str:
         return self.raw.get("file_location", "source")
-
-    def mark_temp(self, video_path: str, subtitle_files: Optional[list] = None):
-        self.raw["video_path"] = video_path
-        if subtitle_files is not None:
-            self.raw["subtitle_files"] = subtitle_files
 
     def mark_scraped(self, result: dict):
         self.raw["scrape_result"] = result

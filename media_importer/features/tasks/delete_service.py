@@ -17,10 +17,28 @@ def delete_task(task_manager, config: dict, task_id: str, delete_files: bool = F
     if task is None:
         return DeleteTaskResult(404, f"Task not found: {task_id}")
 
-    current_status = task.get("status", "")
-    current_stage = task.get("stage", "")
-    if current_status == "PENDING" and current_stage == "RUNNING":
-        return DeleteTaskResult(400, "任务正在处理中，无法删除，请等待处理完成")
+    current_status = str(task.get("status", "")).upper()
+    if current_status == "PENDING":
+        return DeleteTaskResult(
+            400,
+            "任务尚未结束，请先使用“结束处理”决定新资源如何处理",
+        )
+
+    if delete_files:
+        from media_importer.features.tasks.disposition_service import (
+            LOCAL_RECYCLE,
+            request_task_disposition,
+        )
+
+        disposed = request_task_disposition(
+            task_manager,
+            config,
+            task_id,
+            source_disposition=LOCAL_RECYCLE,
+        )
+        if disposed.code != 200:
+            return DeleteTaskResult(disposed.code, disposed.message, disposed.data)
+        task = task_manager.get_task(task_id) or task
 
     deleted_files = []
     missing_files = []
@@ -34,17 +52,14 @@ def delete_task(task_manager, config: dict, task_id: str, delete_files: bool = F
             "片库文件受保护：删除任务只能删除记录，不能删除或移走片库文件",
         )
 
-    deleted_files.extend(_cleanup_temp_files(task, config, file_location, missing_files))
-
-    if delete_files:
-        deleted_files.extend(
-            _recycle_task_files(task, config, task_id, file_location, missing_files)
-        )
-
     delete_task_record(task_manager.conn, task_id)
 
     result = {"deleted": task_id, "file_location": file_location}
-    message_parts = ["任务已删除"]
+    message_parts = [
+        "任务记录已删除，片库文件未改动"
+        if delete_files
+        else "任务记录已删除，来源与片库文件均未因删除记录而改动"
+    ]
 
     if deleted_files:
         result["deleted_files"] = deleted_files
@@ -55,45 +70,6 @@ def delete_task(task_manager, config: dict, task_id: str, delete_files: bool = F
         message_parts.append(f"{len(missing_files)} 个文件已不存在")
 
     return DeleteTaskResult(200, "，".join(message_parts), result)
-
-
-def _cleanup_temp_files(task: dict, config: dict, file_location: str, missing_files: list) -> list:
-    if file_location != "temp":
-        return []
-
-    temp_files = []
-    video_path = task.get("video_path", "")
-    if video_path:
-        _append_existing_or_missing(video_path, temp_files, missing_files)
-
-    for subtitle in task.get("subtitle_files") or []:
-        subtitle_path = str(subtitle) if subtitle else ""
-        if subtitle_path:
-            _append_existing_or_missing(subtitle_path, temp_files, missing_files)
-
-    deleted_files = []
-    temp_dir = config.get("temp_dir", "") if config else ""
-    for path in temp_files:
-        try:
-            from media_importer.features.configuration.storage_topology import (
-                path_in_library,
-                path_within,
-            )
-
-            if (
-                temp_dir
-                and not os.path.islink(path)
-                and path_within(path, temp_dir, allow_root=False)
-                and not path_in_library(config or {}, path)
-            ):
-                if os.path.exists(path):
-                    os.remove(path)
-                    deleted_files.append(os.path.basename(path))
-                else:
-                    missing_files.append(os.path.basename(path))
-        except OSError:
-            pass
-    return deleted_files
 
 
 def _recycle_task_files(task: dict, config: dict, task_id: str, file_location: str, missing_files: list) -> list:
@@ -150,17 +126,9 @@ def _recycle_existing_paths(paths: list, recycle_dir: str, task_id: str, source_
     return recycled_files
 
 
-def _append_existing_or_missing(path: str, existing: list, missing: list):
-    if os.path.exists(path):
-        existing.append(path)
-    else:
-        missing.append(os.path.basename(path))
-
-
 def _location_label(file_location: str) -> str:
     return {
         "source": "源文件",
         "recycle": "回收站文件",
         "import": "入库文件",
-        "temp": "中转文件",
     }.get(file_location, "文件")

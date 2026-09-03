@@ -18,7 +18,9 @@ def get_task_for_api(task_manager, task_id: str) -> TaskDetailResult:
     if task is None:
         return TaskDetailResult(code=404, message=f"Task not found: {task_id}")
 
-    return TaskDetailResult(code=200, data={"task": task})
+    public_task = dict(task)
+    public_task.pop("bundle_manifest", None)
+    return TaskDetailResult(code=200, data={"task": public_task})
 
 
 def get_task_subtitles_for_api(task_manager, task_id: str) -> TaskDetailResult:
