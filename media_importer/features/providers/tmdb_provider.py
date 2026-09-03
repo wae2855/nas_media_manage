@@ -87,6 +87,46 @@ class TMDbProvider(MetadataProvider):
             raw = self._client.get_tv_details(int(item_id))
         return self._to_media_details(raw, media_type)
 
+    def get_by_provider_id(
+        self,
+        item_id: str,
+        media_type: Optional[str] = None,
+    ) -> SearchResult:
+        results = []
+        last_error = None
+        media_types = [media_type] if media_type in {"movie", "tv"} else ["movie", "tv"]
+        for candidate_type in media_types:
+            try:
+                raw = (
+                    self._client.get_movie_details(int(item_id))
+                    if candidate_type == "movie"
+                    else self._client.get_tv_details(int(item_id))
+                )
+                results.append(self._to_search_item(raw, candidate_type))
+            except (TMDbError, TypeError, ValueError) as exc:
+                last_error = exc
+        if not results and last_error is not None:
+            raise last_error
+        return SearchResult(items=results, total_results=len(results))
+
+    def lookup_external_id(
+        self,
+        external_id: str,
+        external_source: str,
+        media_type: Optional[str] = None,
+    ) -> SearchResult:
+        source_map = {"imdb": "imdb_id", "tvdb": "tvdb_id"}
+        source = source_map.get(str(external_source or "").casefold())
+        if not source:
+            return SearchResult(items=[])
+        raw = self._client.find_by_external_id(str(external_id), source)
+        items = []
+        if media_type in {None, "movie"}:
+            items.extend(self._to_search_item(item, "movie") for item in raw.get("movie_results", []))
+        if media_type in {None, "tv"}:
+            items.extend(self._to_search_item(item, "tv") for item in raw.get("tv_results", []))
+        return SearchResult(items=items, total_results=len(items))
+
     def get_alternative_titles(self, item_id: str, media_type: str) -> List[str]:
         try:
             if media_type == "movie":

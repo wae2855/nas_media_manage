@@ -22,6 +22,8 @@
 | **L5** | `concerns[]` | 有什么需要留意的？ | 详情"注意事项"、深度追踪 |
 | **L6** | `trace_steps[].{reason, ai_reason}` | 完整决策路径，每步发生什么？ | 详情时间轴、追踪弹窗 |
 
+`match_trace.identity_evidence` 是 L6 的结构化附件，保存 `provider_ids`、`nfo_identities`、`ignored_directories` 和 `identity_resolution`。它只用于解释“身份从哪里来、解析到哪个 Provider ID、为何冲突或降级”，不得替代 L1-L5 字段。
+
 ---
 
 ## 二、字段定义
@@ -92,6 +94,8 @@ selected_candidate: Optional[SelectedCandidate]
 | `ai_suggestion` | AI 建议 | Tier 2 高/中确定性 |
 | `first_candidate` | Provider 排序第一 | Tier 3 降级 |
 | `user_pick` | 用户选择 | Review 后写入 |
+| `explicit_provider_id` | 文件名身份编号 | 文件名中的 TMDB/IMDb/TVDB ID 经 Provider 校验通过 |
+| `nfo_provider_id` | NFO 身份编号 | 相邻受控 NFO 的 ID 经 Provider 校验通过 |
 
 ### 2.5 L5: 关注点列表
 
@@ -122,6 +126,8 @@ concerns: List[MatchConcern]
 | `MISSING_FIELDS` | Review 阶段缺必填字段 |
 | `NO_PROVIDER_MATCH` | Review 阶段无 provider_id |
 | `CANDIDATES_AVAILABLE` | 已加载候选列表第一项 |
+| `IDENTITY_CONFLICT` | 显式/NFO ID 指向多个作品或与明确年份、类型冲突 |
+| `CLOSE_CANDIDATES` | 第一、第二候选身份证据差距不足 |
 | `DIM_TRUST_DOWNGRADE` | 维度来源不被信任 |
 | `VALIDATE_CONFIRM` | （已废弃，不再使用） |
 

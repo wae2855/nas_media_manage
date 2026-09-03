@@ -69,6 +69,7 @@
 
 ## 5. Active Plans（活跃计划）
 
+- [媒体身份解析 v2（已归档）](_archive/2026-09-03-media-identity-resolution-v2/2026-09-03-refactor-media-identity-resolution-v2-plan.md)
 - [rclone 来源永久删除与失败安全续做（已归档）](_archive/2026-09-02-rclone-permanent-delete-resume/2026-09-02-fix-rclone-permanent-delete-resume-plan.md)
 - [取消中心中转并补齐整任务重启恢复（已归档）](_archive/2026-09-02-remove-central-staging-and-whole-task-restart/2026-09-02-refactor-remove-central-staging-and-restart-recovery-plan.md)
 - [任务安全退出、来源处置与最少大文件传输（已归档）](_archive/2026-09-02-task-exit-and-minimal-transfer/2026-09-02-feat-task-exit-and-minimal-transfer-plan.md)

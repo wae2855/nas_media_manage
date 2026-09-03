@@ -1,17 +1,15 @@
-from difflib import SequenceMatcher
 from typing import Optional
 
 from media_importer.features.scraping.confidence_models import DEFAULT_CONFIDENCE_CONFIG, MatchResult
+from media_importer.features.scraping.title_normalizer import TitleNormalizer
 
 
 def _normalize_title(title: str) -> str:
-    return title.lower().replace(' ', '').replace('.', '').replace('-', '').replace('_', '').replace(':', '').replace('：', '')
+    return TitleNormalizer.strict(title)
 
 
 def _similarity(a: str, b: str) -> float:
-    a_clean = _normalize_title(a)
-    b_clean = _normalize_title(b)
-    return SequenceMatcher(None, a_clean, b_clean).ratio()
+    return TitleNormalizer.compare(a, b).similarity
 
 
 class TitleMatcher:

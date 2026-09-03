@@ -13,6 +13,7 @@ from media_importer.features.scraping.match_models import (
 )
 from media_importer.features.source_files.media_candidates import MediaCandidatePolicy
 
+from .deterministic_identity import resolve_deterministic_identity
 from .filename_cleaner import FilenameCleaner
 from .identity_evidence import build_identity_evidence, evidence_to_dict
 from .title_matcher import TitleMatcher
@@ -59,6 +60,20 @@ class MatchEngine:
         self._pending_concerns = []
         self._pending_trace = []
 
+        # Only episode structure is a strong type constraint. GuessIt's default
+        # movie classification for an otherwise untyped filename is not.
+        media_type_hint = "tv" if season is not None or episode is not None else ""
+        deterministic, id_trace = resolve_deterministic_identity(
+            identity_evidence,
+            providers,
+            year=year,
+            media_type_hint=media_type_hint,
+        )
+        self._pending_trace.extend(id_trace)
+        if deterministic is not None:
+            deterministic.identity_evidence = evidence_to_dict(identity_evidence)
+            return deterministic
+
         has_any_title = any(
             signal.get("titles") for signal in identity_evidence.get("signals", [])
         )
@@ -74,7 +89,7 @@ class MatchEngine:
                 trace_steps=[MatchTraceStep(
                     tier=0, name="文件名清洗", matched=False,
                     reason="清洗后标题为空",
-                )],
+                ), *self._pending_trace],
                 identity_evidence=evidence_to_dict(identity_evidence),
             )
 

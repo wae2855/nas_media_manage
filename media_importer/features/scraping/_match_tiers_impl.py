@@ -1,7 +1,6 @@
 """Match engine tier implementations — extracted from MatchEngine."""
 import logging
 import os as _os
-import re
 from typing import Optional, Union
 
 from media_importer.features.scraping.match_enums import TierShortReason, WhySelected
@@ -11,6 +10,7 @@ from media_importer.features.scraping.match_models import (
     MatchTraceStep,
     SelectedCandidate,
 )
+from media_importer.features.scraping.title_normalizer import TitleNormalizer
 
 
 def _sort_candidates_by_trust(candidates: list) -> list:
@@ -20,6 +20,93 @@ def _sort_candidates_by_trust(candidates: list) -> list:
         c.get("vote_average", 0) or 0,
         c.get("vote_count", 0) or 0,
     ), reverse=True)
+
+
+def _entry_evidence_score(entry: dict, media_type_hint: str, season, episode) -> tuple[float, list[str]]:
+    """Rank candidates by explainable identity evidence; popularity is not identity evidence."""
+    reasons: list[str] = []
+    best_match = max(
+        (match for _, _, match in entry.get("matches", [])),
+        key=lambda match: (getattr(match, "T", 0.0), getattr(match, "similarity", 0.0)),
+        default=None,
+    )
+    level = getattr(best_match, "level", "")
+    similarity = float(getattr(best_match, "similarity", 0.0) or 0.0)
+    if level in {"L1", "L2", "L3"}:
+        score = 60.0
+        reasons.append("标题严格一致")
+    elif similarity >= 0.999:
+        score = 50.0
+        reasons.append("标题宽松一致")
+    else:
+        score = similarity * 40.0
+        if similarity:
+            reasons.append(f"标题相似度 {similarity:.2f}")
+
+    years = entry.get("signal_years") or set()
+    item = entry["item"]
+    if years and item.year is not None:
+        if years == {item.year}:
+            score += 25.0
+            reasons.append("年份一致")
+        elif item.year not in years:
+            score -= 40.0
+            reasons.append("年份冲突")
+    if media_type_hint:
+        if item.media_type == media_type_hint:
+            score += 15.0
+            reasons.append("媒体类型一致")
+        else:
+            score -= 50.0
+            reasons.append("媒体类型冲突")
+    if season is not None or episode is not None:
+        if item.media_type == "tv":
+            score += 10.0
+            reasons.append("季集结构支持剧集")
+    sources = entry.get("sources") or set()
+    if "file" in sources:
+        score += 8.0
+        reasons.append("文件名证据")
+    if "folder" in sources:
+        score += 4.0
+        reasons.append("目录证据")
+    if {"file", "folder"}.issubset(sources):
+        score += 12.0
+        reasons.append("文件与目录收敛")
+    if entry.get("alias_matches"):
+        score += 30.0
+        reasons.append("Provider 官方别名")
+    return round(score, 3), reasons
+
+
+def _candidate_ambiguity(entry: dict, runner_up: dict, config: dict) -> tuple[bool, str]:
+    """Judge candidate proximity from evidence shape, not one global score gap."""
+    best_score = float(entry["evidence_score"])
+    second_score = float(runner_up["evidence_score"])
+    margin = round(best_score - second_score, 3)
+    best_reasons = set(entry.get("evidence_reasons") or [])
+    second_reasons = set(runner_up.get("evidence_reasons") or [])
+    strong_markers = {"Provider 官方别名", "文件与目录收敛"}
+
+    if best_reasons & strong_markers and not second_reasons & strong_markers:
+        return False, f"第一候选有独立强证据，差距 {margin:.1f} 分"
+
+    # Reuse TitleMatcher's configured fuzzy boundary: when two candidates have
+    # the same evidence shape, the untrusted part of the title-similarity range
+    # defines how much separation is required. This avoids a detached magic
+    # number and becomes stricter when the configured fuzzy boundary is stricter.
+    similarity_uncertainty = 1.0 - float(config.get("title_min_similarity", 0.3))
+    required_margin = round(max(0.05, similarity_uncertainty * 0.2) * 100, 1)
+    comparable_evidence = (
+        best_reasons == second_reasons
+        or bool(best_reasons & second_reasons & {"年份一致", "标题严格一致", "标题宽松一致"})
+    )
+    is_close = comparable_evidence and margin < required_margin
+    detail = (
+        f"第一候选 {best_score:.1f} 分，第二候选 {second_score:.1f} 分，"
+        f"差距 {margin:.1f} 分；同类证据要求至少拉开 {required_margin:.1f} 分"
+    )
+    return is_close, detail
 
 
 def _infer_media_type_from_path(path_context: dict | None) -> str:
@@ -69,7 +156,7 @@ def _tier1_exact_match_impl(
     path_context=None,
 ) -> Optional[MatchResult]:
     """Provider matching over independent file/folder title signals."""
-    trace_steps: list[MatchTraceStep] = []
+    trace_steps: list[MatchTraceStep] = list(getattr(self, "_pending_trace", []) or [])
     evidence = getattr(self, "_identity_evidence", {}) or {}
     signals = evidence.get("signals") or [{
         "source": "file",
@@ -88,7 +175,7 @@ def _tier1_exact_match_impl(
     candidate_hits = {}
 
     def normalized_title(value: str) -> str:
-        return re.sub(r"[\s._:：-]+", "", str(value or "")).casefold()
+        return TitleNormalizer.strict(str(value or ""))
 
     titles_by_source = {
         source: {
@@ -121,8 +208,13 @@ def _tier1_exact_match_impl(
 
     def make_result(entry, short_reason: str, why_selected: str) -> MatchResult:
         item = entry["item"]
+        evidence_score, evidence_reasons = _entry_evidence_score(
+            entry, media_type_hint, season, episode
+        )
         payload = candidate_payload(item)
         payload["identity_sources"] = sorted(entry["sources"])
+        payload["evidence_score"] = evidence_score
+        payload["evidence_reasons"] = evidence_reasons
         return MatchResult(
             match_level="AUTO_PASS",
             provider_id=item.item_id,
@@ -138,7 +230,7 @@ def _tier1_exact_match_impl(
                 year=item.year,
                 media_type=item.media_type,
                 why_selected=why_selected,
-                score=item.vote_average,
+                score=evidence_score,
             ),
         )
 
@@ -350,12 +442,15 @@ def _tier1_exact_match_impl(
             detail="系统没有自动入库，请人工确认正确作品",
         ))
 
+    for entry in candidate_hits.values():
+        entry["evidence_score"], entry["evidence_reasons"] = _entry_evidence_score(
+            entry, media_type_hint, season, episode
+        )
+
     ranked_entries = sorted(
         candidate_hits.values(),
         key=lambda entry: (
-            1 if "file" in entry["exact_sources"] else 0,
-            1 if "folder" in entry["exact_sources"] else 0,
-            1 if "file" in entry["sources"] else 0,
+            entry["evidence_score"],
             entry["item"].raw_data.get("popularity", 0) if entry["item"].raw_data else 0,
             entry["item"].vote_average or 0,
         ),
@@ -365,7 +460,26 @@ def _tier1_exact_match_impl(
     for entry in ranked_entries[:10]:
         payload = candidate_payload(entry["item"])
         payload["identity_sources"] = sorted(entry["sources"])
+        payload["evidence_score"] = entry["evidence_score"]
+        payload["evidence_reasons"] = entry["evidence_reasons"]
         self._pending_candidates.append(payload)
+
+    if len(ranked_entries) >= 2:
+        is_ambiguous, detail = _candidate_ambiguity(
+            ranked_entries[0], ranked_entries[1], self.title_matcher._config
+        )
+        if is_ambiguous:
+            self._pending_concerns.append(MatchConcern(
+                code="CLOSE_CANDIDATES",
+                message="前两名候选过于接近",
+                detail=detail,
+            ))
+            trace_steps.append(MatchTraceStep(
+                tier=1,
+                name="候选差距保护",
+                matched=False,
+                reason=f"{detail}，没有强身份 ID，交由用户确认",
+            ))
 
     if candidate_hits and trace_steps and not self._pending_concerns:
         self._pending_concerns.append(MatchConcern(

@@ -1,0 +1,131 @@
+cases:
+  - family: explicit_tmdb_id
+    filename: "Oppenheimer (2023) [tmdbid-872585].mkv"
+    titles: ["Oppenheimer"]
+    year: 2023
+    tmdb_id: "872585"
+  - family: explicit_imdb_id
+    filename: "Inception.2010.[imdbid-tt1375666].1080p.mkv"
+    titles: ["Inception"]
+    year: 2010
+    imdb_id: "tt1375666"
+  - family: explicit_tvdb_id
+    filename: "Game.of.Thrones.[tvdbid-121361].S01E01.mkv"
+    titles: ["Game of Thrones"]
+    season: 1
+    episode: 1
+    tvdb_id: "121361"
+  - family: chinese_english_movie
+    filename: "小姐.加长版.中英特效字幕.The.Handmaiden.2016.EXTENDED.KOREAN.BD1080P.X264.mkv"
+    titles: ["小姐", "The Handmaiden"]
+    year: 2016
+    alternative_title: "小姐"
+  - family: scene_movie
+    filename: "Babel.2006.2160p.HQ.WEB-DL.H265.60fps.AAC-DreamHD.mp4"
+    titles: ["Babel"]
+    year: 2006
+  - family: episode_title
+    filename: "Treme.1x03.Right.Place,.Wrong.Time.HDTV.XviD-NoTV.avi"
+    titles: ["Treme"]
+    season: 1
+    episode: 3
+    episode_title: "Right Place, Wrong Time"
+  - family: release_date
+    filename: "Show.Name.2022-05-01.S01E03.Episode.Title.mkv"
+    titles: ["Show Name"]
+    season: 1
+    episode: 3
+    release_date: "2022-05-01"
+  - family: disc_part
+    filename: "Movie.Title.2020.CD1.PART3.mkv"
+    titles: ["Movie Title"]
+    year: 2020
+    disc: 1
+    part: 3
+  - family: chinese_episode_range
+    filename: "北海鲸梦.第一季.2021.EP01-05.HD1080P.X264.mkv"
+    titles: ["北海鲸梦"]
+    year: 2021
+    season: 1
+    episode: 1
+  - family: title_contains_me
+    filename: "Call.Me.By.Your.Name.2017.1080p.BluRay.x264.mkv"
+    titles: ["Call Me By Your Name"]
+    year: 2017
+  - family: movie_title_contains_4k
+    filename: "The.4K.Movie.2020.2160p.WEB-DL.mkv"
+    titles: ["The 4K Movie", "The"]
+    year: 2020
+  - family: movie_edition_and_language_words
+    filename: "Korean.Extended.2018.1080p.WEB-DL.mkv"
+    titles: ["Korean Extended"]
+    year: 2018
+  - family: tv_multi_episode
+    filename: "Show.S01E01E02.mkv"
+    titles: ["Show"]
+    season: 1
+    episode: 1
+  - family: tv_x_notation
+    filename: "Show.1x02.mkv"
+    titles: ["Show"]
+    season: 1
+    episode: 2
+  - family: tv_ep_notation
+    filename: "Show.EP01.mkv"
+    titles: ["Show"]
+    season: 1
+    episode: 1
+  - family: tv_chinese_numerals
+    filename: "Show.第一季.第十二集.mkv"
+    titles: ["Show"]
+    season: 1
+    episode: 12
+  - family: tv_season_complete
+    filename: "Show.S01.Complete.mkv"
+    titles: ["Show S01 Complete", "Show"]
+    season: 1
+  - family: anime_release_group
+    filename: "[Group] Title - 01 [1080p HEVC].mkv"
+    titles: ["Title"]
+    season: 1
+    episode: 1
+  - family: anime_absolute_episode
+    filename: "Title 001.mkv"
+    titles: ["Title 001", "Title"]
+    season: 0
+    episode: 1
+  - family: anime_versioned_episode
+    filename: "Title - 12v2.mkv"
+    titles: ["Title - 12v2", "Title"]
+    episode: 12
+  - family: multipart_cd
+    filename: "Movie.CD2.mkv"
+    titles: ["Movie CD2", "Movie"]
+    disc: 2
+  - family: multipart_part
+    filename: "Movie.Part.1.mkv"
+    titles: ["Movie Part 1", "Movie"]
+    part: 1
+  - family: traditional_chinese
+    filename: "寄生蟲.2019.mkv"
+    titles: ["寄生蟲"]
+    year: 2019
+  - family: korean_english_title
+    filename: "기생충.Parasite.2019.mkv"
+    titles: ["기생충 Parasite", "Parasite", "기생충"]
+    year: 2019
+  - family: japanese_title
+    filename: "おくりびと.2008.mkv"
+    titles: ["おくりびと"]
+    year: 2008
+
+directory_cases:
+  - family: nested_tv_structural_and_generic
+    relative_path: "权力的游戏/downloads/Season 01/S01E01.mkv"
+    expected_folder: "权力的游戏"
+  - family: bluray_structural_chain
+    relative_path: "Inception.2010/BDMV/STREAM/00001.m2ts"
+    expected_folder: "Inception.2010"
+  - family: unrelated_folder_does_not_override_file
+    relative_path: "随手建的目录/Inception.2010.mkv"
+    expected_file_title: "Inception"

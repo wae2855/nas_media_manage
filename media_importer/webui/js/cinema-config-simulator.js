@@ -155,15 +155,16 @@ function renderMatchPathPreview(data) {
       '<div style="margin-top:8px;color:#94A3B8;font-size:13px">无匹配路径信息</div>';
   }
 
-  // 候选列表（按可信度排序）
+  // 候选列表（身份证据优先；热度只在证据同分时打破平局）
   var candidates = matchResult.candidates || [];
   if (candidates.length > 0) {
     html += '<div class="sim-candidates" style="margin-top:8px;">';
     html +=
-      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">候选列表（按可信度）</div>';
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">候选列表（按身份依据排序）</div>';
 
     var sorted = candidates.slice().sort(function (a, b) {
-      return (b.popularity || 0) - (a.popularity || 0);
+      var evidenceDiff = (b.evidence_score || 0) - (a.evidence_score || 0);
+      return evidenceDiff || (b.popularity || 0) - (a.popularity || 0);
     });
 
     for (var ci = 0; ci < sorted.length; ci++) {
@@ -172,6 +173,9 @@ function renderMatchPathPreview(data) {
       var votes = c.vote_count ? "(" + c.vote_count + "票" : "";
       var pop = c.popularity ? " · 热度" + Math.round(c.popularity) : "";
       var year = c.year ? "(" + c.year + ")" : "";
+      var evidence = Array.isArray(c.evidence_reasons)
+        ? c.evidence_reasons.join(" · ")
+        : "";
       var origTitle =
         c.original_title && c.original_title !== c.title
           ? " / " + escapeHtml(c.original_title)
@@ -193,6 +197,9 @@ function renderMatchPathPreview(data) {
         votes +
         pop +
         "</span>";
+      if (evidence) {
+        html += `<div style="color:var(--muted);font-size:11px;margin:3px 0 0 20px;">依据：${escapeHtml(evidence)}</div>`;
+      }
       html += "</div>";
     }
     html += "</div>";
@@ -265,6 +272,9 @@ function renderMatchPathPreview(data) {
       ai_suggestion: "历史 AI 建议",
       first_candidate: "Provider 排序第一",
       user_pick: "用户选择",
+      explicit_provider_id: "文件名身份编号精确命中",
+      nfo_provider_id: "相邻 NFO 身份编号精确命中",
+      historical_provider_binding: "历史身份绑定精确命中",
     };
     const whyText = whyMap[selected.why_selected] || selected.why_selected;
     html += `<div class="sim-warning">已加载第一候选（${escapeHtml(whyText)}），请检查后确认。</div>`;

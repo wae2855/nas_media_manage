@@ -63,6 +63,14 @@ class FilenameCleaner:
                     "release_group": identity.release_group,
                     "unknown_tags": list(identity.unknown_tags),
                     "evidence": list(identity.evidence),
+                    "tmdb_id": identity.tmdb_id,
+                    "imdb_id": identity.imdb_id,
+                    "tvdb_id": identity.tvdb_id,
+                    "release_date": identity.release_date,
+                    "part": identity.part,
+                    "disc": identity.disc,
+                    "episode_title": identity.episode_title,
+                    "alternative_title": identity.alternative_title,
                 },
             )
 

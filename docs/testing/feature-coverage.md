@@ -142,6 +142,7 @@
 | 匹配 → 审核 集成 | 引擎内部 | 内部 | `features/scraping` + `features/import_flow/services:review` | `test_match_pipeline_integration.py` | — |
 | 审核决策 v2 | 引擎内部 | 内部 | `features/import_flow/services:review` | `test_review_decision_v2.py`, `test_no_legacy_confidence_behavior.py` | — |
 | 标题匹配器 | 引擎内部 | 内部 | `features/scraping` | `test_title_matcher.py` | — |
+| 确定性媒体身份解析 | 引擎内部 | 内部 | `features/scraping`, `features/providers` | `test_media_identity_resolution_v2.py`（文件名 ID、NFO、目录、Provider、差距保护、真实语料） | — |
 | 刮削预览（启动/状态） | 匹配 & 刮削预览页 | `POST /api/scrape/preview/start`, `GET /api/scrape/preview/status/{job}` | `api/handler.py` | `test_scrape_preview_api.py`, `test_scrape_preview_job.py` | — |
 | 刮削预览 UI | 刮削预览页 | UI | `webui/js/*` | `test_scrape_preview_ui.py`, `test_scrape_ui.py`（gated） | — |
 | Provider 优先 E2E | 引擎内部 | 内部 | `features/scraping` | `test_scrape_provider_first_e2e.py`（gated） | — |

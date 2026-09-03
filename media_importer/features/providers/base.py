@@ -92,6 +92,27 @@ class MetadataProvider(ABC):
         """
         return []
 
+    def get_by_provider_id(
+        self,
+        item_id: str,
+        media_type: Optional[str] = None,
+    ) -> SearchResult:
+        """Resolve this Provider's native ID into standard candidates.
+
+        Providers that do not support deterministic ID lookup remain source
+        compatible and simply return no candidates.
+        """
+        return SearchResult(items=[])
+
+    def lookup_external_id(
+        self,
+        external_id: str,
+        external_source: str,
+        media_type: Optional[str] = None,
+    ) -> SearchResult:
+        """Resolve a foreign Provider ID into standard candidates when supported."""
+        return SearchResult(items=[])
+
     @classmethod
     def get_config_schema(cls) -> dict:
         return {"fields": []}

@@ -28,8 +28,10 @@ from .dimensions_service import (
 )
 from .filename_cleaner import FilenameCleaner
 from .metadata_scraper import MetadataScraper
+from .nfo_identity import NfoIdentity, parse_nfo_identity, read_adjacent_nfo_identities
 from .release_identity import ReleaseIdentity, parse_release_identity
 from .title_matcher import TitleMatcher, _similarity
+from .title_normalizer import TitleNormalizer
 
 __all__ = [
     "CleanResult",
@@ -38,11 +40,15 @@ __all__ = [
     "FilenameCleaner",
     "MatchResult",
     "MetadataScraper",
+    "NfoIdentity",
     "ReleaseIdentity",
     "parse_release_identity",
+    "parse_nfo_identity",
+    "read_adjacent_nfo_identities",
     "TMDbClient",
     "TMDbError",
     "TitleMatcher",
+    "TitleNormalizer",
     "_similarity",
     "check_tier_access",
     "disable_dimension_detail",

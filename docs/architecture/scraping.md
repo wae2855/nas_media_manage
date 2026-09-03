@@ -3,6 +3,7 @@
 ## Responsibilities
 
 - 从文件名和通过门禁的目录名提取独立标题、年份、季集证据
+- 从发布名和相邻 NFO 提取确定性 Provider ID，并在标题检索前解析
 - 调用 Provider（如 TMDB）搜索元数据
 - 两级匹配策略判断：Provider 自动识别或用户确认
 - 映射分类维度
@@ -21,6 +22,9 @@
 | FilenameCleaner | `media_importer/features/scraping/filename_cleaner.py` | 文件名清洗和 CJK 分离（S-Phase 1 已从 `scraper/` 迁入） |
 | ReleaseIdentity | `media_importer/features/scraping/release_identity.py` | 中文薄层、GuessIt 通用发布名解析、保守结果归一化 |
 | IdentityEvidence | `media_importer/features/scraping/identity_evidence.py` | 文件主证据、目录辅助证据门禁、多集范围及任务追踪数据 |
+| NfoIdentity | `media_importer/features/scraping/nfo_identity.py` | 受控本地 NFO I/O，只输出身份 ID 与校验辅助字段 |
+| DeterministicIdentity | `media_importer/features/scraping/deterministic_identity.py` | Provider ID 优先级、类型/年份冲突和异常降级 |
+| TitleNormalizer | `media_importer/features/scraping/title_normalizer.py` | 标题严格/宽松规范化和相似度 |
 | Providers | `media_importer/features/providers/` | 元数据 Provider 注册和工厂 |
 
 ## 刮削模式
@@ -31,20 +35,22 @@
 
 ## 两级匹配策略
 
-发布名解析遵循 ADR-0024：中文薄层先移除有强证据的本地发布说明，固定版本 GuessIt 提取通用 Scene/PT 字段，现有保守解析只补足中文裸集号和 GuessIt 的已知歧义。解析结果不直接代表作品身份；Provider 标题、原始标题或官方别名必须与年份、类型形成闭环。不确定结果在任何大文件复制前进入人工确认。
+发布名解析遵循 ADR-0024；确定性身份遵循 ADR-0025。GuessIt 保留 TMDB/IMDb/TVDB ID，NFO 读取器在受控相邻路径提取 ID，Provider 适配器负责原生/外部 ID 查询。ID 查到后仍须通过明确年份和媒体类型校验；冲突进入人工确认，接口异常留痕后回到标题流程。不确定结果在任何大文件复制前进入人工确认。
 
 > ADR: [0005-three-tier-matching.md](../decisions/0005-three-tier-matching.md)
 
 ### 第一级：Provider 精确匹配
 
 ```text
-文件名结构清洗 → 可选目录结构清洗 → 每条标题证据独立查询 Provider
+文件名结构清洗 → 显式 ID/NFO ID 确定性查询 → 可选目录结构清洗 → 每条标题证据独立查询 Provider
      │
      ├── 文件名精确匹配 + 年份/季集一致 → AUTO_PASS（目录不得否决）
      ├── 文件与目录命中同一 Provider ID + 年份一致 → AUTO_PASS
      ├── 弱文件名 + 可信目录精确匹配 → AUTO_PASS
      └── 无结果、证据不足或冲突 → 用户确认
 ```
+
+文本候选以标题严格/宽松一致、年份、媒体类型、季集和文件/目录收敛形成可解释分数；热度只作同证据分数的平局裁决。第一、第二名过近且没有强 ID 时必须进入人工确认。
 
 **目录门禁**：来源根、通用目录、日期/哈希目录、`BDMV/STREAM/Season xx` 等结构目录及电影型多视频容器本身不作为片名。结构目录仅允许在来源根内有限向上寻找最近的有效标题目录。
 

@@ -21,6 +21,8 @@ Provider 能力负责接入 TMDB 或后续外部元数据源，并为刮削流�
 - Provider 只声明可提供的标准化原始字段与数据形态，不在适配器内写死“原始值 → 产品维度值”。当前 TMDB 声明 `genres/origin_country/original_language/release_dates/adult`，由版本化 Provider 映射合同执行。
 - `restricted_level` 的产品名为“观看分级”；TMDB 优先采用香港本地分级，`HK/I → 0-6`、`HK/IIA/IIB → 13-16`、`HK/III → 17+`，并保留 `US/R → 17+` 等其他地区预置。`17+ / 限制观看` 不等同于成人内容。`content_sensitivity` 的产品名为“成人电影标记”，只显示“否/是”：TMDB `adult=false/true` 分别映射到稳定内部值 `normal/adult`，不表示全年龄或内容警示。
 - 自动刮削和手动应用 Provider 候选都保存精简映射证据（字段、原始值、规则 ID、目标值和 schema 版本），不保存 API Key 或完整 Provider 响应。
+- Provider 的确定性身份扩展点为 `get_by_provider_id(item_id, media_type)` 和 `lookup_external_id(external_id, external_source, media_type)`，统一返回 `SearchResult`。不支持的 Provider 返回空结果，通用 MatchEngine 不得识别具体 Provider 的 URL 或原始响应字段。
+- TMDB 原生 ID 通过电影/剧集详情端点解析；IMDb/TVDB ID 通过 TMDB `/find/{external_id}` 解析。TVDB 外部 ID 只接受 TMDB 官方接口实际返回的剧集结果；查询异常由匹配层留痕并保守降级。
 
 ## TMDB Credential Contract
 
@@ -41,3 +43,4 @@ Provider 能力负责接入 TMDB 或后续外部元数据源，并为刮削流�
 
 - Provider unit tests with mocked HTTP responses.
 - Scraping integration tests with provider calls stubbed.
+- `tests/test_media_identity_resolution_v2.py` 覆盖原生 ID、外部 ID、类型消歧、异常降级和标准结果转换。

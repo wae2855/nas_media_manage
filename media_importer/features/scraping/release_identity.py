@@ -90,6 +90,10 @@ _FULL_WIDTH_AD_BLOCK = re.compile(
     r"^\s*【[^】]*(?:www\.|\.(?:com|net|org|cn|tv|me|cc)|发布|影视之家)[^】]*】\s*",
     re.IGNORECASE,
 )
+_PROVIDER_ID_TAG = re.compile(
+    r"^(?:tmdb(?:id)?|imdb(?:id)?|tvdb(?:id)?)[ .:_-]*(?:tt)?\d+$",
+    re.IGNORECASE,
+)
 _LEADING_AD_PHRASE = re.compile(
     r"^\s*(?:电影天堂|高清影视之家(?:发布)?|阳光电影|飘花电影|人人影视(?:字幕组)?)\s*",
     re.IGNORECASE,
@@ -115,6 +119,14 @@ class ReleaseIdentity:
     unknown_tags: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()
     year_suspect: bool = False
+    tmdb_id: str = ""
+    imdb_id: str = ""
+    tvdb_id: str = ""
+    release_date: str = ""
+    part: int | None = None
+    disc: int | None = None
+    episode_title: str = ""
+    alternative_title: str = ""
 
     @property
     def primary_title(self) -> str:
@@ -142,6 +154,11 @@ def _prepare_for_guessit(filename: str) -> tuple[str, list[str], list[str], list
 
     def replace_bracket(match: re.Match[str]) -> str:
         value = next((group for group in match.groups() if group is not None), "").strip()
+        if _PROVIDER_ID_TAG.fullmatch(value):
+            evidence.append(f"身份编号={value}")
+            # GuessIt must see the tag so it can emit tmdb_id/imdb_id/tvdb_id.
+            # The legacy supplement independently classifies it as technical.
+            return match.group(0)
         if value and _bracket_is_technical(value):
             evidence.append(f"技术括号={value}")
             if "字幕" in value:
@@ -224,6 +241,13 @@ def _first_int(value) -> int | None:
     if isinstance(value, (list, tuple)):
         value = value[0] if value else None
     return _as_int(value)
+
+
+def _provider_id(guessed: dict, key: str) -> str:
+    value = guessed.get(key)
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ""
+    return str(value or "").strip()
 
 
 def _normalize_screen_size(value) -> str:
@@ -346,6 +370,17 @@ def parse_release_identity(filename: str) -> ReleaseIdentity:
         year_suspect=legacy.year_suspect or (
             guessed_year is not None and legacy.year is not None and guessed_year != legacy.year
         ),
+        tmdb_id=_provider_id(guessed, "tmdb_id"),
+        imdb_id=_provider_id(guessed, "imdb_id"),
+        tvdb_id=_provider_id(guessed, "tvdb_id"),
+        release_date=(
+            guessed.get("date").isoformat()
+            if isinstance(guessed.get("date"), datetime.date) else ""
+        ),
+        part=_first_int(guessed.get("part")),
+        disc=_first_int(guessed.get("disc") if guessed.get("disc") is not None else guessed.get("cd")),
+        episode_title=str(guessed.get("episode_title") or ""),
+        alternative_title=str(guessed.get("alternative_title") or ""),
     )
 
 
@@ -616,6 +651,8 @@ def _is_technical_token(token: str) -> bool:
 
 
 def _bracket_is_technical(value: str) -> bool:
+    if _PROVIDER_ID_TAG.fullmatch(str(value or "").strip()):
+        return True
     normalized = re.sub(r"[._+&/|-]+", " ", value).strip()
     tokens = normalized.split()
     if any(_is_technical_token(token) for token in tokens):

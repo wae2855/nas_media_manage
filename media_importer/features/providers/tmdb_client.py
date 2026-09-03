@@ -137,6 +137,12 @@ class TMDbClient:
     def get_tv_details(self, tv_id: int) -> Dict[str, Any]:
         return self._request(f"/tv/{tv_id}", {"language": self.language})
 
+    def find_by_external_id(self, external_id: str, external_source: str) -> Dict[str, Any]:
+        return self._request(
+            f"/find/{urllib.parse.quote(str(external_id), safe='')}",
+            {"external_source": external_source, "language": self.language},
+        )
+
     def get_movie_alternative_titles(self, movie_id: int) -> List[Dict[str, Any]]:
         result = self._request(f"/movie/{movie_id}/alternative_titles", {})
         return result.get("titles", [])

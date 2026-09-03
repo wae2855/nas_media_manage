@@ -23,6 +23,9 @@
 | `media_importer/features/scraping/filename_cleaner.py` | 发布名结构清洗和多语言标题候选。 |
 | `media_importer/features/scraping/release_identity.py` | 中文发布说明薄层、GuessIt 通用语法和结构化字段归一化。 |
 | `media_importer/features/scraping/identity_evidence.py` | 文件名主证据、目录辅助证据门禁和可序列化识别依据。 |
+| `media_importer/features/scraping/nfo_identity.py` | 受来源根约束的相邻 NFO 身份 ID 读取。 |
+| `media_importer/features/scraping/deterministic_identity.py` | 显式 Provider ID/NFO ID 的优先解析、冲突校验和降级轨迹。 |
+| `media_importer/features/scraping/title_normalizer.py` | 标题严格/宽松归一化与相似度事实源。 |
 | `media_importer/features/scraping/errors.py` | LLM exception classes. |
 | `media_importer/features/scraping/metadata_scrape_flow.py` | Metadata scrape flow orchestration. |
 | `media_importer/features/providers/` | External metadata provider registry, interface, and implementations. |
@@ -54,6 +57,7 @@
 
 - `tests/test_match_engine.py`
 - `tests/test_identity_evidence.py`
+- `tests/test_media_identity_resolution_v2.py`
 - `tests/test_review_decision_v2.py`
 - `tests/test_match_result_fields.py`
 - `tests/test_tier2_match_engine.py`

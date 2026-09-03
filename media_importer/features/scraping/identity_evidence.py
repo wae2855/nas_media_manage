@@ -11,6 +11,9 @@ import os
 import re
 from typing import Any
 
+from .nfo_identity import read_adjacent_nfo_identities
+from .title_normalizer import TitleNormalizer
+
 _GENERIC_DIRECTORY_NAMES = {
     "download", "downloads", "completed", "complete", "incoming",
     "movie", "movies", "film", "films", "video", "videos",
@@ -34,7 +37,7 @@ _WEAK_FILE_TITLES = {
 
 
 def _normalized_name(value: str) -> str:
-    return re.sub(r"[\s._-]+", " ", str(value or "").strip()).casefold()
+    return TitleNormalizer.strict(str(value or ""))
 
 
 def _titles_from_clean(clean_result) -> list[str]:
@@ -125,8 +128,53 @@ def build_identity_evidence(
     evidence: dict[str, Any] = {
         "signals": [file_signal],
         "ignored_directories": [],
+        "nfo_identities": [],
+        "ignored_nfo": [],
         "file_clean_result": file_clean,
     }
+
+    release_identity = getattr(file_clean, "release_identity", {}) or {}
+    evidence["provider_ids"] = [
+        {"source": "filename", "id_type": id_type, "value": str(release_identity.get(key) or "")}
+        for id_type, key in (("tmdb", "tmdb_id"), ("imdb", "imdb_id"), ("tvdb", "tvdb_id"))
+        if release_identity.get(key)
+    ]
+
+    nfo_identities, ignored_nfo = read_adjacent_nfo_identities(video_path, source_dir)
+    evidence["ignored_nfo"] = ignored_nfo
+    for identity in nfo_identities:
+        item = {
+            "path": identity.path,
+            "title": identity.title,
+            "year": identity.year,
+            "media_type_hint": identity.media_type_hint,
+            "provider_ids": [
+                {"id_type": id_type, "value": value}
+                for id_type, value in identity.provider_ids
+            ],
+        }
+        evidence["nfo_identities"].append(item)
+        evidence["provider_ids"].extend(
+            {
+                "source": "nfo",
+                "path": identity.path,
+                "id_type": id_type,
+                "value": value,
+                "media_type_hint": identity.media_type_hint,
+                "year": identity.year,
+            }
+            for id_type, value in identity.provider_ids
+        )
+
+    historical = (path_context or {}).get("historical_binding") or {}
+    if historical.get("provider_type") and historical.get("provider_id"):
+        evidence["provider_ids"].append({
+            "source": "history",
+            "id_type": str(historical["provider_type"]),
+            "value": str(historical["provider_id"]),
+            "media_type_hint": str(historical.get("media_type") or ""),
+            "year": historical.get("year"),
+        })
 
     if not video_path or not os.path.dirname(video_path):
         evidence["ignored_directories"].append({"name": "", "reason": "没有可用的父目录"})
@@ -141,7 +189,7 @@ def build_identity_evidence(
 
     chosen_name = ""
     chosen_depth = 0
-    for depth in range(0, 4):
+    for depth in range(0, 6):
         if root and _same_path(current, root):
             break
         name = os.path.basename(current)
@@ -151,16 +199,16 @@ def build_identity_evidence(
             evidence["ignored_directories"].append({"name": name, "reason": "结构目录不作为片名"})
             current = os.path.dirname(current)
             continue
+        if _is_generic_directory(name):
+            evidence["ignored_directories"].append({"name": name, "reason": "通用目录名不作为片名"})
+            current = os.path.dirname(current)
+            continue
         chosen_name = name
         chosen_depth = depth
         break
 
     if not chosen_name:
         return evidence
-    if _is_generic_directory(chosen_name):
-        evidence["ignored_directories"].append({"name": chosen_name, "reason": "通用目录名不作为片名"})
-        return evidence
-
     context = path_context or {}
     siblings = context.get("sibling_files") or []
     is_episode = file_signal.get("season") is not None or file_signal.get("episode") is not None
@@ -193,7 +241,13 @@ def build_identity_evidence(
 
 def evidence_to_dict(evidence: dict[str, Any]) -> dict[str, Any]:
     """Drop internal CleanResult objects before serializing a task trace."""
-    return {
+    result = {
         "signals": [dict(signal) for signal in evidence.get("signals", [])],
         "ignored_directories": [dict(item) for item in evidence.get("ignored_directories", [])],
+        "provider_ids": [dict(item) for item in evidence.get("provider_ids", [])],
+        "nfo_identities": [dict(item) for item in evidence.get("nfo_identities", [])],
+        "ignored_nfo": [dict(item) for item in evidence.get("ignored_nfo", [])],
     }
+    if evidence.get("identity_resolution"):
+        result["identity_resolution"] = dict(evidence["identity_resolution"])
+    return result
