@@ -2,9 +2,10 @@
 title: "互联网媒体命名场景覆盖与真实刮削验收"
 type: proposal
 date: 2026-09-03
-status: approved
+status: complete
 confidence: medium
 requirement: REQ-20260903-234230
+accepted: 2026-09-04
 ---
 
 # 互联网媒体命名场景覆盖与真实刮削验收

@@ -8,7 +8,7 @@
 
 刮削负责根据文件名、受控目录证据和 TMDB/Provider 结果生成可入库的媒体元数据；AI 不参与作品身份匹配。
 
-关联需求：[REQ-20260903-234230](../tracking/requirements-board.md)。
+关联需求：[REQ-20260903-234230（已验收）](../tracking/completed-items.md)。
 
 ## Current Code Entrypoints
 

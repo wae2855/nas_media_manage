@@ -69,7 +69,7 @@
 
 ## 5. Active Plans（活跃计划）
 
-- [互联网媒体命名场景覆盖与真实刮削验收](plans/2026-09-03-test-internet-media-name-coverage-plan.md)
+- [互联网媒体命名场景覆盖与真实刮削验收（已归档）](_archive/2026-09-04-internet-media-name-coverage/2026-09-03-test-internet-media-name-coverage-plan.md)
 - [媒体身份解析 v2 收尾加固（已归档）](_archive/2026-09-03-media-identity-resolution-v2-hardening/2026-09-03-fix-media-identity-v2-hardening-plan.md)
 - [媒体身份解析 v2（已归档）](_archive/2026-09-03-media-identity-resolution-v2/2026-09-03-refactor-media-identity-resolution-v2-plan.md)
 - [rclone 来源永久删除与失败安全续做（已归档）](_archive/2026-09-02-rclone-permanent-delete-resume/2026-09-02-fix-rclone-permanent-delete-resume-plan.md)
