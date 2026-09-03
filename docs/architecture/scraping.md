@@ -53,9 +53,9 @@
 
 文本候选以标题严格/宽松一致、年份、媒体类型、季集和文件/目录收敛形成可解释分数；热度只作同证据分数的平局裁决。第一、第二名过近且没有强 ID 时必须进入人工确认。
 
-**目录门禁**：目录按 structural、generic、technical、supplementary、meaningful 分类。来源根、通用目录、日期/哈希目录、`1080p/2160p/4K/UHD/BluRay/REMUX/WEB-DL/WEBRip/HDTV/Complete` 等技术目录、`BDMV/STREAM/Season xx/Disc` 等结构目录及电影型多视频容器本身不作为片名；清洗后无可信标题也继续向上。`Extras/Trailers/Featurettes/Samples` 等附加内容目录是身份继承边界，不再向作品根借用目录身份或作品级 NFO。
+**目录门禁**：目录按 structural、generic、technical、supplementary、meaningful 分类。来源根、通用目录、日期/哈希目录、`1080p/2160p/4K/UHD/BluRay/REMUX/WEB-DL/WEBRip/HDTV/Complete` 等技术目录、`BDMV/STREAM/Season xx/Specials/Disc` 等结构目录及电影型多视频容器本身不作为片名；其中 TV `Specials` 等价于 Season 00。清洗后无可信标题也继续向上。`Extras/Trailers/Featurettes/Samples/Special Features` 等附加内容目录是身份继承边界，不再向作品根借用目录身份或作品级 NFO。
 
-**NFO inheritance boundary**：正常 `Season/BDMV` 结构允许在来源根内有限上溯 `movie.nfo/tvshow.nfo`；一旦路径经过附加内容目录，只允许读取与当前视频同目录、同 basename 的 NFO。`episodedetails` 中的 Provider ID 作为 episode 证据留痕，当前 Provider 未提供 episode→series 解析时跳过确定性 ID 查询并回退标题流程。
+**NFO inheritance boundary**：正常 `Season/Specials/BDMV` 结构允许在来源根内有限上溯 `movie.nfo/tvshow.nfo`；`Specials` 是 TV 结构目录，`Special Features` 是附加内容边界。一旦路径经过附加内容目录，只允许读取与当前视频同目录、同 basename 的 NFO。`episodedetails` 中的 Provider ID 作为 episode 证据留痕，当前 Provider 未提供 episode→series 解析时跳过确定性 ID 查询并回退标题流程。
 
 ### 第二级：用户确认
 

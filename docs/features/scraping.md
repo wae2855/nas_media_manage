@@ -120,8 +120,8 @@
 ```text
 文件 basename 始终是主证据；必须完成全部中文/英文标题候选的强匹配收集，同一作品才自动通过，指向不同作品则人工确认。目录不得否决唯一强文件身份。
 来源根、通用下载目录、日期/哈希目录、技术规格目录和电影型多视频容器不作为片名；未知目录清洗后无可信标题时继续向上。
-BDMV/STREAM/Season xx/Disc 等结构目录只允许在来源根内有限向上寻找有效标题目录。
-Extras/Trailers/Featurettes/Samples 等附加内容目录是继承边界：不继承作品根 `movie.nfo/tvshow.nfo`，只读取当前视频同 basename 的 NFO。
+BDMV/STREAM/Season xx/Specials/Disc 等结构目录只允许在来源根内有限向上寻找有效标题目录；TV `Specials` 等价于 Season 00。
+Extras/Trailers/Featurettes/Samples/Special Features 等附加内容目录是继承边界：不继承作品根 `movie.nfo/tvshow.nfo`，只读取当前视频同 basename 的 NFO；`Special Features` 不得与 `Specials` 混同。
 NFO 标记 `movie/series/episode/unknown` scope；episode NFO ID 保留为解释证据，但绝不当作 series ID 查询。
 目录与文件分别查询，禁止拼接原始字符串；冲突一律交给用户确认。
 ```

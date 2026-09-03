@@ -59,7 +59,7 @@ _GENERIC_NAMES = {
 }
 
 _STRUCTURAL_DIRECTORY = re.compile(
-    r"^(?:bdmv|stream|video ts|season\s*\d{1,2}|第\s*\d+\s*季|s\d{1,2}|"
+    r"^(?:bdmv|stream|video ts|specials|season\s*\d{1,2}|第\s*\d+\s*季|s\d{1,2}|"
     r"disc(?:\s*\d+)?|disk(?:\s*\d+)?|cd(?:\s*\d+)?)$",
     re.IGNORECASE,
 )

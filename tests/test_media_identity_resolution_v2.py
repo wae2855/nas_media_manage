@@ -10,6 +10,10 @@ from media_importer.features.scraping.filename_cleaner import FilenameCleaner
 from media_importer.features.scraping.identity_evidence import build_identity_evidence
 from media_importer.features.scraping.match_engine import MatchEngine
 from media_importer.features.scraping.nfo_identity import parse_nfo_identity
+from media_importer.features.scraping.path_roles import (
+    is_structural_directory,
+    is_supplementary_directory,
+)
 from media_importer.features.scraping.release_identity import parse_release_identity
 from media_importer.features.scraping.title_normalizer import TitleNormalizer
 
@@ -418,6 +422,66 @@ def test_season_episode_inherits_series_tvshow_nfo(tmp_path):
         "1399": [_item("1399", "Game of Thrones", 2011, media_type="tv")]
     })
     result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "1399"
+    assert result.identity_evidence["nfo_identities"][0]["identity_scope"] == "series"
+
+
+def test_tv_specials_is_structural_and_uses_series_folder_identity(tmp_path):
+    source = tmp_path / "source"
+    specials = source / "Game of Thrones" / "Specials"
+    specials.mkdir(parents=True)
+    video = specials / "S00E01.mkv"
+    video.touch()
+
+    evidence = build_identity_evidence(
+        video.name,
+        video_path=str(video),
+        source_dir=str(source),
+        cleaner=FilenameCleaner(),
+    )
+
+    file_signal = next(signal for signal in evidence["signals"] if signal["source"] == "file")
+    folder_signal = next(signal for signal in evidence["signals"] if signal["source"] == "folder")
+    assert (file_signal["season"], file_signal["episode"]) == (0, 1)
+    assert (folder_signal["season"], folder_signal["episode"]) == (0, 1)
+    assert folder_signal["raw_name"] == "Game of Thrones"
+    assert any(
+        item == {"name": "Specials", "reason": "结构目录不作为片名"}
+        for item in evidence["ignored_directories"]
+    )
+    assert is_structural_directory("Specials")
+    assert not is_supplementary_directory("Specials")
+    assert all(
+        is_supplementary_directory(name)
+        for name in ("Special Features", "Special-Features", "special_features")
+    )
+
+    provider = IdentityProvider()
+    MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+    assert any(call[0] == "search" and call[3] == "tv" for call in provider.calls)
+
+
+def test_tv_specials_inherits_series_tvshow_nfo(tmp_path):
+    source = tmp_path / "source"
+    series = source / "Game of Thrones"
+    specials = series / "Specials"
+    specials.mkdir(parents=True)
+    (series / "tvshow.nfo").write_text(
+        "<tvshow><uniqueid type='tmdb'>1399</uniqueid></tvshow>", encoding="utf-8"
+    )
+    video = specials / "S00E01.mkv"
+    video.touch()
+    provider = IdentityProvider(native={
+        "1399": [_item("1399", "Game of Thrones", 2011, media_type="tv")]
+    })
+
+    result = MatchEngine({"source_dir": str(source)}).match(
+        video.name, [provider], video_path=str(video)
+    )
+
     assert result.match_level == "AUTO_PASS"
     assert result.provider_id == "1399"
     assert result.identity_evidence["nfo_identities"][0]["identity_scope"] == "series"

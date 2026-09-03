@@ -29,7 +29,7 @@ ADR-0024 已把通用发布名解析交给 GuessIt，并规定解析结果不能
 - 匹配轨迹会增加身份来源、Provider、解析后 ID、冲突和候选差距信息。
 - 新 Provider 可以选择不实现 ID 能力；默认实现返回无结果，保持现有第三方适配器兼容。
 - 标题模糊流程仍存在，但不会依靠热度或唯一返回结果越过人工确认边界。
-- Extras/Trailer 等附加视频不会因祖先作品级 NFO 被误识别为正片；Season/BDMV 正常结构仍可继承作品身份。
+- Extras/Trailer/Special Features 等附加视频不会因祖先作品级 NFO 被误识别为正片；Season/BDMV 以及等价于 Season 00 的 TV `Specials` 正常结构仍可继承作品身份。
 - episode NFO 的 Provider ID 会保留在解释证据中，但不会误调用 series 详情接口。
 
 ## Rejected alternatives
