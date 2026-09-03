@@ -234,9 +234,21 @@ def _tier1_exact_match_impl(
             ),
         )
 
-    for provider in providers:
-        for signal in signals:
+    # Query every independent file title across every Provider before any
+    # directory evidence. A strong file identity remains authoritative, while
+    # multiple strong file identities are evaluated together below.
+    work_items = [
+        (provider, signal)
+        for signal in sorted(signals, key=lambda item: item.get("source") != "file")
+        for provider in providers
+    ]
+    for provider, signal in work_items:
             source = signal.get("source", "file")
+            if source == "folder" and any(
+                "file" in entry["strong_exact_sources"]
+                for entry in candidate_hits.values()
+            ):
+                continue
             signal_year = signal.get("year")
             signal_season = signal.get("season")
             seen_titles = set()
@@ -314,6 +326,8 @@ def _tier1_exact_match_impl(
                         "item": item,
                         "sources": set(),
                         "exact_sources": set(),
+                        "strong_exact_sources": set(),
+                        "strong_file_titles": set(),
                         "support_sources": set(),
                         "matches": [],
                         "signal_years": set(),
@@ -324,6 +338,10 @@ def _tier1_exact_match_impl(
                         entry["signal_years"].add(signal_year)
                     if title_match.level in ("L1", "L2", "L3"):
                         entry["exact_sources"].add(source)
+                    if title_match.level in ("L1", "L2"):
+                        entry["strong_exact_sources"].add(source)
+                        if source == "file":
+                            entry["strong_file_titles"].add(normalized_title(search_title))
                     if alias_matched:
                         entry.setdefault("alias_matches", set()).add(alias_matched)
                     if (
@@ -348,20 +366,8 @@ def _tier1_exact_match_impl(
                         match_level=title_match.level,
                         reason=f"唯一精确匹配: {item.title}",
                     ))
-                    # 文件名的标题+年份/季集强匹配保持最高优先级；目录不参与否决。
-                    if source == "file":
-                        if alias_matched:
-                            trace_steps[-1].reason = f"官方别名精确匹配: {alias_matched} → {item.title}"
-                            return make_result(
-                                entry,
-                                TierShortReason.TIER1_PROVIDER_ALIAS,
-                                WhySelected.PROVIDER_ALIAS,
-                            )
-                        return make_result(
-                            entry,
-                            TierShortReason.TIER1_UNIQUE,
-                            WhySelected.UNIQUE_MATCH,
-                        )
+                    if source == "file" and alias_matched:
+                        trace_steps[-1].reason = f"官方别名精确匹配: {alias_matched} → {item.title}"
                 else:
                     trace_steps.append(MatchTraceStep(
                         tier=1,
@@ -379,6 +385,41 @@ def _tier1_exact_match_impl(
         years = entry["signal_years"]
         return not years or item_year is None or years == {item_year}
 
+    strong_file_entries = [
+        entry for entry in candidate_hits.values()
+        if "file" in entry["strong_exact_sources"] and year_compatible(entry)
+    ]
+    file_identity_conflict = len(strong_file_entries) > 1
+    if file_identity_conflict:
+        self._pending_concerns.append(MatchConcern(
+            code="CONFLICTING_INFO",
+            message="文件名中的多个标题指向不同作品",
+            detail="系统已完成全部文件名标题候选查询，没有采用第一个命中结果，请人工确认",
+        ))
+        trace_steps.append(MatchTraceStep(
+            tier=1,
+            name="文件名多标题一致性校验",
+            matched=False,
+            reason=f"{len(strong_file_entries)} 个强匹配指向不同作品，禁止自动入库",
+        ))
+    elif len(strong_file_entries) == 1:
+        entry = strong_file_entries[0]
+        alias_matched = bool(entry.get("alias_matches"))
+        trace_steps.append(MatchTraceStep(
+            tier=1,
+            name="文件名完整证据校验",
+            matched=True,
+            reason=f"全部文件名标题候选查询完成，唯一强匹配为 {entry['item'].title}",
+        ))
+        return make_result(
+            entry,
+            (
+                TierShortReason.TIER1_PROVIDER_ALIAS
+                if alias_matched else TierShortReason.TIER1_UNIQUE
+            ),
+            WhySelected.PROVIDER_ALIAS if alias_matched else WhySelected.UNIQUE_MATCH,
+        )
+
     converged = [
         entry for entry in candidate_hits.values()
         if {"file", "folder"}.issubset(entry["sources"])
@@ -390,7 +431,7 @@ def _tier1_exact_match_impl(
         and year_compatible(entry)
         and (entry["signal_years"] or season is not None or episode is not None)
     ]
-    if len(converged) == 1:
+    if not file_identity_conflict and len(converged) == 1:
         entry = converged[0]
         trace_steps.append(MatchTraceStep(
             tier=1,
@@ -405,7 +446,7 @@ def _tier1_exact_match_impl(
         )
 
     file_signal = next((item for item in signals if item.get("source") == "file"), {})
-    if file_signal.get("weak"):
+    if not file_identity_conflict and file_signal.get("weak"):
         folder_exact = [
             entry for entry in candidate_hits.values()
             if "folder" in entry["exact_sources"]
@@ -433,7 +474,7 @@ def _tier1_exact_match_impl(
         }
         for source in ("file", "folder")
     }
-    if exact_by_source["file"] and exact_by_source["folder"] and not (
+    if not file_identity_conflict and exact_by_source["file"] and exact_by_source["folder"] and not (
         exact_by_source["file"] & exact_by_source["folder"]
     ):
         self._pending_concerns.append(MatchConcern(

@@ -7,6 +7,8 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
+from .path_roles import is_supplementary_directory
+
 MAX_NFO_BYTES = 1024 * 1024
 MAX_ANCESTOR_DEPTH = 6
 _IMDB_ID = re.compile(r"tt\d{5,12}", re.IGNORECASE)
@@ -22,6 +24,7 @@ class NfoIdentity:
     title: str = ""
     year: int | None = None
     media_type_hint: str = ""
+    identity_scope: str = "unknown"
 
     @property
     def provider_ids(self) -> tuple[tuple[str, str], ...]:
@@ -46,17 +49,39 @@ def _within_root(path: str, root: str) -> bool:
         return False
 
 
-def _candidate_paths(video_path: str, source_dir: str) -> list[str]:
+def _candidate_paths(video_path: str, source_dir: str) -> tuple[list[str], list[dict]]:
     video_path = os.path.abspath(video_path)
     directory = os.path.dirname(video_path)
     stem = os.path.splitext(os.path.basename(video_path))[0]
     candidates: list[str] = []
+    ignored: list[dict] = []
 
     def add(path: str) -> None:
         if path not in candidates and _within_root(path, source_dir):
             candidates.append(path)
 
     add(os.path.join(directory, f"{stem}.nfo"))
+
+    current = directory
+    supplementary_boundary = ""
+    for _ in range(MAX_ANCESTOR_DEPTH + 1):
+        if source_dir and os.path.realpath(current) == os.path.realpath(source_dir):
+            break
+        if is_supplementary_directory(os.path.basename(current)):
+            supplementary_boundary = current
+            break
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+
+    if supplementary_boundary:
+        ignored.append({
+            "path": supplementary_boundary,
+            "reason": "附加内容目录边界：不继承祖先 movie.nfo/tvshow.nfo",
+        })
+        return candidates, ignored
+
     add(os.path.join(directory, "movie.nfo"))
     add(os.path.join(directory, "tvshow.nfo"))
 
@@ -73,7 +98,7 @@ def _candidate_paths(video_path: str, source_dir: str) -> list[str]:
         if parent == current:
             break
         current = parent
-    return candidates
+    return candidates, ignored
 
 
 def _text(element: ET.Element | None) -> str:
@@ -125,7 +150,12 @@ def parse_nfo_identity(path: str) -> NfoIdentity | None:
     except (TypeError, ValueError):
         year = None
     root_tag = str(root.tag or "").casefold()
-    media_type = "tv" if root_tag in {"tvshow", "episodedetails"} else "movie" if root_tag == "movie" else ""
+    identity_scope = {
+        "movie": "movie",
+        "tvshow": "series",
+        "episodedetails": "episode",
+    }.get(root_tag, "unknown")
+    media_type = "tv" if identity_scope in {"series", "episode"} else "movie" if identity_scope == "movie" else ""
     return NfoIdentity(
         path=path,
         tmdb_id=ids["tmdb"],
@@ -134,6 +164,7 @@ def parse_nfo_identity(path: str) -> NfoIdentity | None:
         title=title,
         year=year,
         media_type_hint=media_type,
+        identity_scope=identity_scope,
     )
 
 
@@ -142,7 +173,9 @@ def read_adjacent_nfo_identities(video_path: str, source_dir: str = "") -> tuple
     ignored: list[dict] = []
     if not video_path or not os.path.dirname(video_path):
         return identities, ignored
-    for path in _candidate_paths(video_path, source_dir):
+    candidates, boundary_ignored = _candidate_paths(video_path, source_dir)
+    ignored.extend(boundary_ignored)
+    for path in candidates:
         if not os.path.exists(path):
             continue
         identity = parse_nfo_identity(path)

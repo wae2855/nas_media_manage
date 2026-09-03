@@ -23,6 +23,7 @@
 | ReleaseIdentity | `media_importer/features/scraping/release_identity.py` | 中文薄层、GuessIt 通用发布名解析、保守结果归一化 |
 | IdentityEvidence | `media_importer/features/scraping/identity_evidence.py` | 文件主证据、目录辅助证据门禁、多集范围及任务追踪数据 |
 | NfoIdentity | `media_importer/features/scraping/nfo_identity.py` | 受控本地 NFO I/O，只输出身份 ID 与校验辅助字段 |
+| PathRoles | `media_importer/features/scraping/path_roles.py` | 结构、通用、技术、附加内容目录分类与身份继承边界 |
 | DeterministicIdentity | `media_importer/features/scraping/deterministic_identity.py` | Provider ID 优先级、类型/年份冲突和异常降级 |
 | TitleNormalizer | `media_importer/features/scraping/title_normalizer.py` | 标题严格/宽松规范化和相似度 |
 | Providers | `media_importer/features/providers/` | 元数据 Provider 注册和工厂 |
@@ -35,7 +36,7 @@
 
 ## 两级匹配策略
 
-发布名解析遵循 ADR-0024；确定性身份遵循 ADR-0025。GuessIt 保留 TMDB/IMDb/TVDB ID，NFO 读取器在受控相邻路径提取 ID，Provider 适配器负责原生/外部 ID 查询。ID 查到后仍须通过明确年份和媒体类型校验；冲突进入人工确认，接口异常留痕后回到标题流程。不确定结果在任何大文件复制前进入人工确认。
+发布名解析遵循 ADR-0024；确定性身份遵循 ADR-0025。GuessIt 保留 TMDB/IMDb/TVDB ID，NFO 读取器在受控相邻路径提取 ID，Provider 适配器负责原生/外部 ID 查询。NFO 身份显式区分 `movie/series/episode/unknown`；episode ID 不得作为 series ID 查询。ID 查到后仍须通过明确年份和媒体类型校验；冲突进入人工确认，接口异常留痕后回到标题流程。不确定结果在任何大文件复制前进入人工确认。
 
 > ADR: [0005-three-tier-matching.md](../decisions/0005-three-tier-matching.md)
 
@@ -44,7 +45,7 @@
 ```text
 文件名结构清洗 → 显式 ID/NFO ID 确定性查询 → 可选目录结构清洗 → 每条标题证据独立查询 Provider
      │
-     ├── 文件名精确匹配 + 年份/季集一致 → AUTO_PASS（目录不得否决）
+     ├── 全部文件标题候选收集后唯一精确匹配 + 年份/季集一致 → AUTO_PASS（目录不得否决）
      ├── 文件与目录命中同一 Provider ID + 年份一致 → AUTO_PASS
      ├── 弱文件名 + 可信目录精确匹配 → AUTO_PASS
      └── 无结果、证据不足或冲突 → 用户确认
@@ -52,7 +53,9 @@
 
 文本候选以标题严格/宽松一致、年份、媒体类型、季集和文件/目录收敛形成可解释分数；热度只作同证据分数的平局裁决。第一、第二名过近且没有强 ID 时必须进入人工确认。
 
-**目录门禁**：来源根、通用目录、日期/哈希目录、`BDMV/STREAM/Season xx` 等结构目录及电影型多视频容器本身不作为片名。结构目录仅允许在来源根内有限向上寻找最近的有效标题目录。
+**目录门禁**：目录按 structural、generic、technical、supplementary、meaningful 分类。来源根、通用目录、日期/哈希目录、`1080p/2160p/4K/UHD/BluRay/REMUX/WEB-DL/WEBRip/HDTV/Complete` 等技术目录、`BDMV/STREAM/Season xx/Disc` 等结构目录及电影型多视频容器本身不作为片名；清洗后无可信标题也继续向上。`Extras/Trailers/Featurettes/Samples` 等附加内容目录是身份继承边界，不再向作品根借用目录身份或作品级 NFO。
+
+**NFO inheritance boundary**：正常 `Season/BDMV` 结构允许在来源根内有限上溯 `movie.nfo/tvshow.nfo`；一旦路径经过附加内容目录，只允许读取与当前视频同目录、同 basename 的 NFO。`episodedetails` 中的 Provider ID 作为 episode 证据留痕，当前 Provider 未提供 episode→series 解析时跳过确定性 ID 查询并回退标题流程。
 
 ### 第二级：用户确认
 

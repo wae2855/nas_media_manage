@@ -4,6 +4,7 @@ import yaml
 
 from media_importer.features.providers.base import SearchItem, SearchResult
 from media_importer.features.providers.tmdb_provider import TMDbProvider
+from media_importer.features.scraping.confidence_models import CleanResult
 from media_importer.features.scraping.deterministic_identity import resolve_deterministic_identity
 from media_importer.features.scraping.filename_cleaner import FilenameCleaner
 from media_importer.features.scraping.identity_evidence import build_identity_evidence
@@ -31,10 +32,14 @@ class IdentityProvider:
     provider_type = "tmdb"
     display_name = "TMDB"
 
-    def __init__(self, *, native=None, external=None, searches=None, native_error=None):
+    def __init__(
+        self, *, native=None, external=None, searches=None, alternatives=None,
+        native_error=None,
+    ):
         self.native = native or {}
         self.external = external or {}
         self.searches = searches or {}
+        self.alternatives = alternatives or {}
         self.native_error = native_error
         self.calls = []
 
@@ -53,7 +58,7 @@ class IdentityProvider:
         return SearchResult(items=list(self.searches.get(query, [])))
 
     def get_alternative_titles(self, item_id, media_type):
-        return []
+        return list(self.alternatives.get((str(item_id), media_type), []))
 
 
 def test_real_release_fixture_contract():
@@ -122,6 +127,7 @@ def test_nfo_parser_reads_unique_and_legacy_ids(tmp_path):
     assert identity.title == "Inception"
     assert identity.year == 2010
     assert identity.media_type_hint == "movie"
+    assert identity.identity_scope == "movie"
 
 
 def test_nfo_parser_rejects_symlink_and_oversized_file(tmp_path):
@@ -364,3 +370,185 @@ def test_tmdb_native_id_lookup_returns_standard_search_item():
     assert len(result.items) == 1
     assert result.items[0].item_id == "27205"
     assert result.items[0].year == 2010
+
+
+def test_supplementary_video_does_not_inherit_movie_nfo(tmp_path):
+    source = tmp_path / "source"
+    movie = source / "Inception.2010"
+    extras = movie / "Extras"
+    extras.mkdir(parents=True)
+    (movie / "movie.nfo").write_text(
+        "<movie><uniqueid type='tmdb'>27205</uniqueid></movie>", encoding="utf-8"
+    )
+    video = extras / "Making.Of.mkv"
+    video.touch()
+    provider = IdentityProvider(native={"27205": [_item("27205", "Inception", 2010)]})
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.provider_id != "27205"
+    assert not any(call[0] == "native" for call in provider.calls)
+    assert any("附加内容" in item["reason"] for item in result.identity_evidence["ignored_nfo"])
+
+
+def test_supplementary_video_can_use_its_own_nfo(tmp_path):
+    source = tmp_path / "source"
+    extras = source / "Inception.2010" / "Extras"
+    extras.mkdir(parents=True)
+    video = extras / "Making.Of.mkv"
+    video.touch()
+    (extras / "Making.Of.nfo").write_text(
+        "<movie><uniqueid type='tmdb'>999</uniqueid></movie>", encoding="utf-8"
+    )
+    provider = IdentityProvider(native={"999": [_item("999", "Making Of Inception", 2010)]})
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "999"
+
+
+def test_season_episode_inherits_series_tvshow_nfo(tmp_path):
+    source = tmp_path / "source"
+    series = source / "Game of Thrones"
+    season = series / "Season 01"
+    season.mkdir(parents=True)
+    (series / "tvshow.nfo").write_text(
+        "<tvshow><uniqueid type='tmdb'>1399</uniqueid></tvshow>", encoding="utf-8"
+    )
+    video = season / "S01E01.mkv"
+    video.touch()
+    provider = IdentityProvider(native={
+        "1399": [_item("1399", "Game of Thrones", 2011, media_type="tv")]
+    })
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "1399"
+    assert result.identity_evidence["nfo_identities"][0]["identity_scope"] == "series"
+
+
+def test_bdmv_stream_inherits_movie_nfo(tmp_path):
+    source = tmp_path / "source"
+    movie = source / "Inception.2010"
+    stream = movie / "BDMV" / "STREAM"
+    stream.mkdir(parents=True)
+    (movie / "movie.nfo").write_text(
+        "<movie><uniqueid type='tmdb'>27205</uniqueid></movie>", encoding="utf-8"
+    )
+    video = stream / "00001.m2ts"
+    video.touch()
+    provider = IdentityProvider(native={"27205": [_item("27205", "Inception", 2010)]})
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "27205"
+
+
+def test_episode_nfo_id_is_not_queried_as_series_id(tmp_path):
+    source = tmp_path / "source"
+    season = source / "Show" / "Season 01"
+    season.mkdir(parents=True)
+    video = season / "S01E01.mkv"
+    video.touch()
+    (season / "S01E01.nfo").write_text(
+        "<episodedetails><uniqueid type='tmdb'>123456</uniqueid></episodedetails>", encoding="utf-8"
+    )
+    provider = IdentityProvider(native={
+        "123456": [_item("123456", "Wrong Series", 2020, media_type="tv")]
+    })
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.provider_id != "123456"
+    assert not any(call[0] == "native" for call in provider.calls)
+    assert result.identity_evidence["nfo_identities"][0]["identity_scope"] == "episode"
+    assert any("episode" in item["reason"] for item in result.identity_evidence["ignored_nfo"])
+
+
+def test_technical_directory_is_skipped_to_meaningful_movie_folder(tmp_path):
+    source = tmp_path / "source"
+    technical = source / "Inception.2010" / "2160p"
+    technical.mkdir(parents=True)
+    video = technical / "00001.mkv"
+    video.touch()
+    evidence = build_identity_evidence(
+        video.name, video_path=str(video), source_dir=str(source), cleaner=FilenameCleaner()
+    )
+    folder = next(signal for signal in evidence["signals"] if signal["source"] == "folder")
+    assert folder["raw_name"] == "Inception.2010"
+    assert any(item["name"] == "2160p" for item in evidence["ignored_directories"])
+
+
+def test_untrusted_unknown_directory_continues_to_parent(tmp_path):
+    class CleanerWithUntrustedXxx(FilenameCleaner):
+        def clean(self, filename):
+            if filename == "xxx":
+                return CleanResult(clean_title="")
+            return super().clean(filename)
+
+    source = tmp_path / "source"
+    unknown = source / "Inception.2010" / "xxx"
+    unknown.mkdir(parents=True)
+    video = unknown / "00001.mkv"
+    video.touch()
+    evidence = build_identity_evidence(
+        video.name, video_path=str(video), source_dir=str(source), cleaner=CleanerWithUntrustedXxx()
+    )
+    folder = next(signal for signal in evidence["signals"] if signal["source"] == "folder")
+    assert folder["raw_name"] == "Inception.2010"
+    assert any(item["name"] == "xxx" for item in evidence["ignored_directories"])
+
+
+def test_conflicting_exact_file_title_candidates_require_confirmation(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "中文标题A.EnglishTitleB.2020.mkv"
+    video.touch()
+    provider = IdentityProvider(searches={
+        "中文标题": [_item("1", "中文标题", 2020)],
+        "EnglishTitleB": [_item("2", "EnglishTitleB", 2020)],
+    })
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "NEEDS_CONFIRM"
+    assert {candidate["id"] for candidate in result.candidates} == {"1", "2"}
+    assert any(concern.code == "CONFLICTING_INFO" for concern in result.concerns)
+
+
+def test_multiple_exact_file_titles_resolving_to_same_work_auto_pass(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "中文标题A.EnglishTitleB.2020.mkv"
+    video.touch()
+    work = _item("1", "中文标题", 2020)
+    provider = IdentityProvider(searches={"中文标题": [work], "EnglishTitleB": [work]})
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "1"
+
+
+def test_one_exact_file_title_and_one_empty_result_auto_pass(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "中文标题A.EnglishTitleB.2020.mkv"
+    video.touch()
+    provider = IdentityProvider(searches={"中文标题": [_item("1", "中文标题", 2020)]})
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "1"
+
+
+def test_exact_and_provider_alias_file_titles_for_same_work_auto_pass(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    video = source / "中文标题A.EnglishTitleB.2020.mkv"
+    video.touch()
+    work = _item("1", "中文标题", 2020)
+    provider = IdentityProvider(
+        searches={"中文标题": [work], "EnglishTitleB": [work]},
+        alternatives={("1", "movie"): ["EnglishTitleB"]},
+    )
+    result = MatchEngine({"source_dir": str(source)}).match(video.name, [provider], video_path=str(video))
+    assert result.match_level == "AUTO_PASS"
+    assert result.provider_id == "1"
+    assert result.selected_candidate.why_selected == "provider_alias"
+
+
+def test_loose_accent_folding_only_changes_latin_characters():
+    assert TitleNormalizer.loose_key("Léon") == TitleNormalizer.loose_key("Leon")
+    assert TitleNormalizer.loose_key("Amélie") == TitleNormalizer.loose_key("Amelie")
+    assert TitleNormalizer.loose_key("が") != TitleNormalizer.loose_key("か")
+    assert TitleNormalizer.loose_key("ば") != TitleNormalizer.loose_key("は")
+    assert TitleNormalizer.loose_key("ぱ") != TitleNormalizer.loose_key("は")

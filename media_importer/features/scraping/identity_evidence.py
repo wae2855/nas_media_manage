@@ -8,28 +8,17 @@ irrelevant directory must never weaken a strong filename match.
 from __future__ import annotations
 
 import os
-import re
 from typing import Any
 
 from .nfo_identity import read_adjacent_nfo_identities
+from .path_roles import (
+    is_generic_directory,
+    is_structural_directory,
+    is_supplementary_directory,
+    is_technical_directory,
+)
 from .title_normalizer import TitleNormalizer
 
-_GENERIC_DIRECTORY_NAMES = {
-    "download", "downloads", "completed", "complete", "incoming",
-    "movie", "movies", "film", "films", "video", "videos",
-    "tv", "series", "media", "temp", "tmp", "cache",
-    "下载", "下载完成", "已完成", "完成", "电影", "影片", "视频",
-    "电视剧", "剧集", "媒体", "临时", "缓存", "网盘",
-}
-_STRUCTURAL_DIRECTORY = re.compile(
-    r"^(?:bdmv|stream|video[_ .-]?ts|season[ ._-]*\d{1,2}|"
-    r"第\s*\d+\s*季|s\d{1,2}|disc[ ._-]*\d+|disk[ ._-]*\d+|cd[ ._-]*\d+)$",
-    re.IGNORECASE,
-)
-_DATE_OR_NUMBER_DIRECTORY = re.compile(
-    r"^(?:\d{1,4}|\d{4}[-_.]\d{1,2}(?:[-_.]\d{1,2})?|\d{8,14})$"
-)
-_HASH_DIRECTORY = re.compile(r"^[a-f0-9]{12,64}$", re.IGNORECASE)
 _WEAK_FILE_TITLES = {
     "video", "movie", "film", "sample", "trailer", "preview", "feature",
     "main", "index", "playlist", "00000", "00001",
@@ -50,22 +39,6 @@ def _titles_from_clean(clean_result) -> list[str]:
         if title and key and key not in {_normalized_name(item) for item in ordered}:
             ordered.append(title)
     return ordered
-
-
-def _is_generic_directory(name: str) -> bool:
-    normalized = _normalized_name(name)
-    compact = normalized.replace(" ", "")
-    return (
-        not compact
-        or normalized in _GENERIC_DIRECTORY_NAMES
-        or compact in _GENERIC_DIRECTORY_NAMES
-        or bool(_DATE_OR_NUMBER_DIRECTORY.fullmatch(compact))
-        or bool(_HASH_DIRECTORY.fullmatch(compact))
-    )
-
-
-def _is_structural_directory(name: str) -> bool:
-    return bool(_STRUCTURAL_DIRECTORY.fullmatch(str(name or "").strip()))
 
 
 def _is_weak_file_identity(clean_result) -> bool:
@@ -148,12 +121,18 @@ def build_identity_evidence(
             "title": identity.title,
             "year": identity.year,
             "media_type_hint": identity.media_type_hint,
+            "identity_scope": identity.identity_scope,
             "provider_ids": [
                 {"id_type": id_type, "value": value}
                 for id_type, value in identity.provider_ids
             ],
         }
         evidence["nfo_identities"].append(item)
+        if identity.identity_scope == "episode":
+            evidence["ignored_nfo"].append({
+                "path": identity.path,
+                "reason": "episode NFO 身份编号不能作为 series ID，保留证据并回退标题识别",
+            })
         evidence["provider_ids"].extend(
             {
                 "source": "nfo",
@@ -161,6 +140,7 @@ def build_identity_evidence(
                 "id_type": id_type,
                 "value": value,
                 "media_type_hint": identity.media_type_hint,
+                "identity_scope": identity.identity_scope,
                 "year": identity.year,
             }
             for id_type, value in identity.provider_ids
@@ -195,16 +175,33 @@ def build_identity_evidence(
         name = os.path.basename(current)
         if not name:
             break
-        if _is_structural_directory(name):
+        if is_supplementary_directory(name):
+            evidence["ignored_directories"].append({
+                "name": name,
+                "reason": "附加内容目录是作品身份继承边界",
+            })
+            break
+        if is_structural_directory(name):
             evidence["ignored_directories"].append({"name": name, "reason": "结构目录不作为片名"})
             current = os.path.dirname(current)
             continue
-        if _is_generic_directory(name):
+        if is_generic_directory(name):
             evidence["ignored_directories"].append({"name": name, "reason": "通用目录名不作为片名"})
+            current = os.path.dirname(current)
+            continue
+        if is_technical_directory(name):
+            evidence["ignored_directories"].append({"name": name, "reason": "技术规格目录不作为片名"})
+            current = os.path.dirname(current)
+            continue
+        clean_result = cleaner.clean(name)
+        titles = _titles_from_clean(clean_result)
+        if not titles or all(is_generic_directory(title) for title in titles):
+            evidence["ignored_directories"].append({"name": name, "reason": "未提取到可信片名"})
             current = os.path.dirname(current)
             continue
         chosen_name = name
         chosen_depth = depth
+        chosen_clean = clean_result
         break
 
     if not chosen_name:
@@ -219,8 +216,7 @@ def build_identity_evidence(
         })
         return evidence
 
-    folder_clean = cleaner.clean(chosen_name)
-    folder_signal = _signal("folder", chosen_name, folder_clean, depth=chosen_depth)
+    folder_signal = _signal("folder", chosen_name, chosen_clean, depth=chosen_depth)
     if folder_signal["season"] is None:
         folder_signal["season"] = file_signal.get("season")
     folder_episodes = folder_signal.get("episodes") or []
@@ -231,10 +227,6 @@ def build_identity_evidence(
         folder_signal["episode"] = file_episode
     elif folder_signal["episode"] is None:
         folder_signal["episode"] = file_signal.get("episode")
-    if not folder_signal["titles"] or all(_is_generic_directory(title) for title in folder_signal["titles"]):
-        evidence["ignored_directories"].append({"name": chosen_name, "reason": "未提取到可信片名"})
-        return evidence
-
     evidence["signals"].append(folder_signal)
     return evidence
 

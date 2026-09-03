@@ -64,6 +64,22 @@ def resolve_deterministic_identity(
     """Resolve filename IDs first, then NFO IDs; never throw provider errors."""
     trace: list[MatchTraceStep] = []
     references = list(evidence.get("provider_ids") or [])
+    episode_references = [
+        ref for ref in references if ref.get("identity_scope") == "episode"
+    ]
+    if episode_references:
+        trace.append(MatchTraceStep(
+            tier=1,
+            name="NFO 身份范围校验",
+            matched=False,
+            search_query=", ".join(
+                f"{ref.get('id_type')}:{ref.get('value')}" for ref in episode_references
+            ),
+            reason="episode NFO ID 不是 series ID，跳过确定性剧集查询并回退标题识别",
+        ))
+        references = [
+            ref for ref in references if ref.get("identity_scope") != "episode"
+        ]
     for source in ("filename", "nfo", "history"):
         source_refs = [ref for ref in references if ref.get("source") == source]
         if not source_refs:

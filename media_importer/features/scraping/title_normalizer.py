@@ -40,8 +40,16 @@ class TitleNormalizer:
         # Treat ampersand as the word "and" only in the loose comparison path.
         text = re.sub(r"\s*&\s*", " and ", text)
         text = unicodedata.normalize("NFKD", text)
-        text = "".join(char for char in text if not unicodedata.combining(char))
-        return cls.strict(text)
+        folded: list[str] = []
+        latin_base = False
+        for char in text:
+            if unicodedata.combining(char):
+                if not latin_base:
+                    folded.append(char)
+                continue
+            folded.append(char)
+            latin_base = "LATIN" in unicodedata.name(char, "")
+        return cls.strict(unicodedata.normalize("NFC", "".join(folded)))
 
     @classmethod
     def loose_key(cls, value: str) -> str:

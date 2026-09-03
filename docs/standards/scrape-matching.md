@@ -34,8 +34,8 @@ supersedes: 三级匹配（Tier 2 AI 辅助已按 ADR-0010 移除）
 - `.me/.tv` 等字符串只有带协议、`www.` 或明确广告上下文时才作为域名，不能删除正常点分英文片名。
 - 多集目录保留 episode 范围；单文件中的具体 episode 是任务主证据，不得被目录范围首集覆盖。
 - Provider 官方别名只在文件主证据、媒体类型一致、年份精确一致且别名归一化后完全相等时提升为 AUTO_PASS；接口失败按无证据处理。
-- NFO 读取属于独立本地证据模块，只允许读取视频同名、`movie.nfo`、`tvshow.nfo` 及来源根内有限祖先的合理同名 NFO；限制文件大小、拒绝符号链接，核心只采纳 `uniqueid`/legacy ID。NFO 标题和年份只作校验，不追加为模糊搜索噪声。
-- 标题统一使用严格/宽松两级归一化：严格级统一 Unicode、大小写、撇号、破折号、标点和空白；宽松级额外折叠重音及保守的 `&/and`，禁止音译和 NLP 猜测。
+- NFO 读取属于独立本地证据模块，只允许读取视频同名、`movie.nfo`、`tvshow.nfo` 及来源根内有限祖先的合理同名 NFO；限制文件大小、拒绝符号链接，核心只采纳 `uniqueid`/legacy ID。`Extras/Trailers/Featurettes/Samples` 等附加内容目录形成 NFO identity inheritance boundary：只允许当前视频同 basename 的 NFO，不继承作品根 NFO。NFO scope 分为 `movie/series/episode/unknown`，episode ID 只留痕，不得作为 series ID 查询。NFO 标题和年份只作校验，不追加为模糊搜索噪声。
+- 标题统一使用严格/宽松两级归一化：严格级统一 Unicode、大小写、撇号、破折号、标点和空白；宽松级只对 Latin 基字符折叠重音，并做保守的 `&/and` 等价，禁止音译、NLP 猜测或改变日文等非 Latin 字符语义。
 - 候选按 `provider_type + media_type + provider_id` 合并，并按标题、年份、媒体类型、季集和文件/目录收敛等身份证据排序；热度只在证据同分时打破平局。第一、第二候选按证据形态及现有模糊匹配边界判断是否过近，不设脱离上下文的单一阈值；差距不足且无强 ID、官方别名或文件/目录收敛时必须人工确认。
 - Tier 2 AI 上下文匹配（原 tier2_correct）、AI 标题清洗（ai_clean）、纯 AI 刮削 fallback、整剧 AI 维度刮削已移除（ADR-0010）。
 - `CONTEXT_PASS` 匹配等级已退役；现存等级：`AUTO_PASS` / `NEEDS_CONFIRM` / `FAILED`。
@@ -53,9 +53,9 @@ supersedes: 三级匹配（Tier 2 AI 辅助已按 ADR-0010 移除）
 
 ## 硬规则
 
-- 文件 basename 是主证据；其标题与年份/季集唯一精确匹配后立即通过，无关目录不得否决或降级。
-- 目录 basename 只作可选辅助证据。来源根、通用下载目录、日期/哈希目录、技术结构目录和电影型多视频容器必须忽略。
-- 根直属单文件不得使用来源根名称。`BDMV/STREAM/Season xx`、`downloads` 等结构或通用目录要连续跳过，并在来源根内有限向上寻找最近的有效标题目录；不得遇到第一个通用目录就停止。
+- 文件 basename 是主证据；全部独立标题候选必须先完成强匹配查询，同一作品才可自动通过，多个标题指向不同作品必须 `NEEDS_CONFIRM`；无关目录不得否决或降级唯一强文件身份。
+- 目录 basename 只作可选辅助证据。来源根、通用下载目录、日期/哈希目录、`1080p/2160p/4K/UHD/BluRay/REMUX/WEB-DL/WEBRip/HDTV/Complete` 等技术目录和电影型多视频容器必须忽略。
+- 根直属单文件不得使用来源根名称。`BDMV/STREAM/Season xx/Disc`、`downloads` 等结构或通用目录要连续跳过，并在来源根内有限向上寻找最近的有效标题目录；未知目录清洗后无可信标题也必须继续，不得在第一个未知目录停止。
 - 目录证据不得与文件名原串拼成一次搜索；只有与文件候选收敛到同一 Provider 作品，或文件名本身为 `video/00001/SxxExx` 等弱身份时才可提高结论。
 - 文件和目录分别精确指向不同作品、年份冲突或类型冲突时必须 `NEEDS_CONFIRM`。
 - 维度值为 None 且无默认值 → 不阻塞但 completeness 不完整 → 人工确认；路径规则匹配不到走 fallback_dir。
