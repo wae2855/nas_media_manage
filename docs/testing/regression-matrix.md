@@ -26,7 +26,7 @@
 | 任务取消/CANCELLED | `tests/test_feature_task_cancel.py`, `tests/test_api_routes.py`, task workbench 手动验证 |
 | 任务安全退出/来源处置/只删记录 | `tests/test_task_disposition.py`, `tests/test_task_disposition_ui.py`, `tests/test_feature_task_delete.py`, `tests/test_api_routes.py`；必须验证运行中协作停止、精确视频/字幕成员、永久删除门禁、片库哈希不变和移动端弹窗 |
 | rclone/FUSE 来源永久删除 | `tests/test_source_permanent_delete.py`；必须验证 rename 后虚拟 inode 改变、旧账本、部分 unlink 后续做、挂载变化、本地 inode 门禁、未知成员和片库哨兵不变 |
-| 最少大文件传输/直接目标暂存 | `tests/test_import_flow_services.py`, `tests/test_subtitle_bundle_publish.py`, `tests/test_bundle_restart_recovery.py`, `tests/test_verified_transfer.py`, `tests/test_file_flow_matrix.py`, `tests/test_full_frontend_flow_matrix_browser_ui.py`；确认前目标零写入，直接复制只读来源一次并取得摘要，停止/重启只清理任务目标副本；完整前端矩阵还需核对源/片库/回收树和 SHA-256 证据，并包含真实复制中途外部 SIGKILL、同配置重启和前端重试 |
+| 最少大文件传输/直接目标暂存 | `tests/test_import_flow_services.py`, `tests/test_subtitle_bundle_publish.py`, `tests/test_bundle_restart_recovery.py`, `tests/test_verified_transfer.py`, `tests/test_file_flow_matrix.py`, `tests/test_full_frontend_flow_matrix_browser_ui.py`；确认前目标零写入，直接复制只读来源一次并取得摘要，停止/重启只清理任务目标副本；来源哈希期变化必须优先提示来源稳定，稳定来源的目标摘要异常只允许从空临时文件重试一次，持续异常不发布且保留来源；完整前端矩阵还需核对源/片库/回收树和 SHA-256 证据，并包含真实复制中途外部 SIGKILL、同配置重启和前端重试 |
 | 任务工作台交互/详情编辑布局/孤儿任务 FAILED | `tests/test_cleanup_orphaned_state.py`, task workbench 手动验证（卡片点击、详情文件名/维度修改保存） |
 | API 路由/契约 | `tests/test_api_routes.py` |
 | webui | `tests/test_frontend_recycle.py` for recycle UI; external-service Playwright suites only after starting port 9855; in Codex Desktop macOS prefer the in-app Browser tool for quick checks and treat sandbox launch failures as environment blocked |
