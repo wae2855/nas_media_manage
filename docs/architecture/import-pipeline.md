@@ -15,6 +15,7 @@
 ```text
 scan
   -> read-only source identity / release-name parse
+  -> atomic create-or-reuse source task
   -> scrape (or manual candidate apply)
   -> validate -> classify -> rename preview -> dedup preflight
   -> [await manual review/conflict decision when needed]
@@ -46,6 +47,8 @@ Import flow 已引入：
 - `ReorganizationService`: `media_importer/features/import_flow/services/reorganization.py`
 
 当前 `TaskContext` 和 `TaskLifecycle` 已接入 runner、confirm 和 retry 逻辑。分类、去重、导入和审核决策已从 step 内抽成 import-flow service；源文件清理策略已独立到 `features/source_files`；step 主要保留进度、日志和 DB 状态写入。
+
+扫描、watcher 和手动单文件入口共享 `TaskManager.create_or_reuse_source_task()`。真实路径归一化、最新任务判定与创建在同一进程锁内完成，任务处理在锁外执行；因此 fnOS 单实例中的重复点击、重复扫描和入口竞争只会产生一个任务。数据库仍允许来源文件大小明确变化后建立新的审计任务，不使用唯一键抹平历史。不同路径不能仅凭当前弱来源指纹自动合并失败任务。
 
 长文件阶段通过 `TaskProgressReporter` 节流落库：阶段切换和完成立即保存，其余更新满足至少 1 秒、1% 或 64 MB 任一条件才写 SQLite。来源→目标任务暂存和来源→本地回收统一显示传输、源校验、目标校验和发布阶段。SHA-256、no-replace 与删除顺序不因进度展示而改变。
 

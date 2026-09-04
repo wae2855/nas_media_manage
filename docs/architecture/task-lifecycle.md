@@ -54,6 +54,12 @@
 
 当前 import-flow step 继续接收原始 task dict；跨步骤更新通过 `TaskContext` 和 `TaskLifecycle` 集中表达。
 
+## Source Task Creation Idempotency
+
+普通来源任务在进入状态机前先执行原子“创建或复用”：真实路径相同的所有 `PENDING` 阶段与 `FAILED/DONE` 复用现有任务；来源未变化的 `SUCCESS/SKIPPED/CANCELLED` 也不重新进入状态机。文件大小明确变化时允许创建新的 `PENDING/QUEUED` 审计任务，仅修改时间变化只更新来源证据。该门禁不改变任何既有状态，也不自动重试失败任务。
+
+手动单文件请求只有成功创建新任务后才启动 worker；复用时返回既有任务 ID、状态与原因。来源任务创建锁只保证当前 fnOS 单进程实例，未来多实例部署需要数据库租约或等价约束。
+
 ## Transition Table
 
 | 函数 | 目标 status | 目标 stage | 文件位置 | 典型调用方 |

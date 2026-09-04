@@ -12,7 +12,9 @@ from .subtitle_repo import get_subtitles_by_task
 def create_task(conn: sqlite3.Connection, source_path: str, source_filename: str,
                 file_size_mb: float = 0, task_id: Optional[str] = None,
                 source_unit_id: str = "", stage: str = "QUEUED",
-                task_kind: str = "IMPORT", parent_task_id: str = "") -> dict:
+                task_kind: str = "IMPORT", parent_task_id: str = "",
+                source_fingerprint: str = "", source_file_size: int = 0,
+                source_mtime: str = "") -> dict:
     tid = task_id or uuid.uuid4().hex[:12]
     now = datetime.now().isoformat()
     with _sqlite_conn_lock:
@@ -20,11 +22,13 @@ def create_task(conn: sqlite3.Connection, source_path: str, source_filename: str
             """INSERT INTO tasks
                (task_id, source_path, source_filename, file_size_mb, status,
                 stage, created_at, last_seen_at, total_steps, source_unit_id,
-                task_kind, parent_task_id)
-               VALUES (?, ?, ?, ?, 'PENDING', ?, ?, ?, 10, ?, ?, ?)""",
+                task_kind, parent_task_id, source_fingerprint,
+                source_file_size, source_mtime)
+               VALUES (?, ?, ?, ?, 'PENDING', ?, ?, ?, 10, ?, ?, ?, ?, ?, ?)""",
             (
                 tid, source_path, source_filename, file_size_mb, stage,
                 now, now, source_unit_id, task_kind, parent_task_id,
+                source_fingerprint, source_file_size, source_mtime,
             )
         )
         conn.commit()

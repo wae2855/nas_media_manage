@@ -87,7 +87,9 @@ class TaskManager:
                     file_size_mb: float = 0,
                     initial_status: Optional[str] = None,
                     source_unit_id: str = "", stage: str = "QUEUED",
-                    task_kind: str = "IMPORT", parent_task_id: str = "") -> dict:
+                    task_kind: str = "IMPORT", parent_task_id: str = "",
+                    source_fingerprint: str = "", source_file_size: int = 0,
+                    source_mtime: str = "") -> dict:
         task = db_create_task(
             self.conn,
             source_path=video_path,
@@ -97,6 +99,9 @@ class TaskManager:
             stage=stage,
             task_kind=task_kind,
             parent_task_id=parent_task_id,
+            source_fingerprint=source_fingerprint,
+            source_file_size=source_file_size,
+            source_mtime=source_mtime,
         )
         if initial_status and initial_status in VALID_STATUSES:
             db_update_task(self.conn, task["task_id"], status=initial_status)
@@ -109,6 +114,83 @@ class TaskManager:
         task["subtitle_total"] = count_subs
         task["subtitle_success"] = 0
         return task
+
+    def create_or_reuse_source_task(
+        self,
+        video_path: str,
+        video_file: str,
+        subtitle_files: Optional[list] = None,
+        file_size_mb: float = 0,
+        source_unit_id: str = "",
+        source_fingerprint: str = "",
+        source_file_size: int = 0,
+        source_mtime: str = "",
+    ) -> dict:
+        """Atomically create one import task or reuse the latest source task.
+
+        The process lock closes the check-then-create race shared by scanner,
+        watcher and manual single-file requests in the fnOS single-process
+        deployment. Processing itself always happens after this lock is released.
+        """
+        canonical_path = os.path.realpath(video_path)
+        source_filename = video_file or os.path.basename(video_path)
+        with self._lock:
+            decision = self.check_source_duplicate(
+                video_path,
+                source_fingerprint=source_fingerprint,
+            )
+            action = decision.get("action", "CREATE")
+            if action != "CREATE" and action != "REPROCESS":
+                task_id = decision.get("task_id")
+                task = db_get_task(self.conn, task_id) if task_id else None
+                updates = {"last_seen_at": self._now_iso()}
+                refresh_evidence = action in ("RENAME_DETECTED", "UPDATE_MTIME")
+                if source_fingerprint and (
+                    refresh_evidence or not (task or {}).get("source_fingerprint")
+                ):
+                    updates["source_fingerprint"] = source_fingerprint
+                if source_file_size and (
+                    refresh_evidence or not (task or {}).get("source_file_size")
+                ):
+                    updates["source_file_size"] = source_file_size
+                if source_mtime and (
+                    refresh_evidence or not (task or {}).get("source_mtime")
+                ):
+                    updates["source_mtime"] = source_mtime
+                if action == "RENAME_DETECTED":
+                    updates["source_path"] = canonical_path
+                    updates["source_filename"] = source_filename
+                task = db_update_task(self.conn, task_id, **updates) if task_id else task
+                return {
+                    "created": False,
+                    "task": task,
+                    **decision,
+                }
+
+            task = self.create_task(
+                video_path=canonical_path,
+                video_file=source_filename,
+                subtitle_files=subtitle_files,
+                file_size_mb=file_size_mb,
+                source_unit_id=source_unit_id,
+                source_fingerprint=source_fingerprint,
+                source_file_size=source_file_size,
+                source_mtime=source_mtime,
+            )
+            return {
+                "created": True,
+                "task": task,
+                "exists": action == "REPROCESS",
+                "task_id": task["task_id"],
+                "action": action,
+                "reason": decision.get("reason", "已创建新任务"),
+            }
+
+    @staticmethod
+    def _now_iso() -> str:
+        from datetime import datetime
+
+        return datetime.now().isoformat()
 
     def get_task(self, task_id: str) -> Optional[dict]:
         return db_get_task(self.conn, task_id)
@@ -245,7 +327,10 @@ class TaskManager:
 
     def check_source_duplicate(self, source_path: str,
                                 source_fingerprint: str = "") -> dict:
-        history = db_find_by_source_path(self.conn, source_path)
+        canonical_path = os.path.realpath(source_path)
+        history = db_find_by_source_path(self.conn, canonical_path)
+        if history is None and canonical_path != source_path:
+            history = db_find_by_source_path(self.conn, source_path)
         if history is None:
             if source_fingerprint:
                 fp_hit = db_find_by_fingerprint(self.conn, source_fingerprint)
@@ -277,13 +362,13 @@ class TaskManager:
             }
         old_status = history.get("status", "")
         old_stage = history.get("stage", "")
-        if old_status == "PENDING" and old_stage in ("RUNNING", "AWAIT_REVIEW"):
+        if old_status == "PENDING":
             return {
                 "exists": True,
                 "task_id": history["task_id"],
                 "old_status": old_status,
                 "action": "SKIP",
-                "reason": f"任务正在处理/待确认，跳过 ({old_status}/{old_stage})",
+                "reason": f"同一来源已有活动任务，跳过 ({old_status}/{old_stage})",
             }
         if old_status == "FAILED":
             return {
@@ -293,10 +378,24 @@ class TaskManager:
                 "action": "SKIP",
                 "reason": "同一路径已有失败任务，请在原任务上手动重试",
             }
-        if old_status == "SUCCESS" and self._is_file_changed(source_path, history):
-            current_size = os.path.getsize(source_path) if os.path.isfile(source_path) else 0
-            old_size = history.get("source_file_size") or int((history.get("file_size_mb") or 0) * 1024 * 1024)
-            if old_size and abs(current_size - old_size) > 1024:
+        if old_status in ("SUCCESS", "SKIPPED", "CANCELLED") and self._is_file_changed(
+            canonical_path, history
+        ):
+            current_size = (
+                os.path.getsize(canonical_path) if os.path.isfile(canonical_path) else 0
+            )
+            old_size = history.get("source_file_size") or int(
+                (history.get("file_size_mb") or 0) * 1024 * 1024
+            )
+            exact_size_changed = bool(
+                history.get("source_file_size")
+                and current_size != history["source_file_size"]
+            )
+            if exact_size_changed or (
+                not history.get("source_file_size")
+                and old_size
+                and abs(current_size - old_size) > 1024
+            ):
                 return {
                     "exists": True,
                     "task_id": history["task_id"],
@@ -310,6 +409,14 @@ class TaskManager:
                 "old_status": old_status,
                 "action": "UPDATE_MTIME",
                 "reason": "仅修改时间变化，文件大小未变",
+            }
+        if old_status in ("SUCCESS", "SKIPPED", "CANCELLED"):
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "action": "SKIP",
+                "reason": f"同一来源已有未变化的已结束任务 ({old_status})",
             }
         return {
             "exists": True,
@@ -327,6 +434,10 @@ class TaskManager:
             current_mtime = os.path.getmtime(source_path)
         except OSError:
             return False
+        old_size = history.get("source_file_size")
+        if old_size:
+            if current_size != old_size:
+                return True
         old_size = history.get("file_size_bytes") or history.get("file_size_mb")
         if old_size is not None:
             if history.get("file_size_bytes"):

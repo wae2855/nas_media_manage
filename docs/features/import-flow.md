@@ -24,7 +24,7 @@
 ## Related Areas
 
 - API: task and import actions in `media_importer/api/`.
-- Manual batch and single-file processing use `media_importer.features.import_flow.run_file_service`.
+- Manual batch and single-file processing use `media_importer.features.import_flow.run_file_service`. 单文件入口在启动后台 worker 前同步完成来源任务创建或复用；重复请求返回既有任务 ID，不产生第二个处理线程。
 - Database: task rows, status constants, scrape result fields.
 - Config: path rules, duplicate handling, match level review, source cleanup policy.
 - Frontend: task list, task detail, confirm/preview/reclassify/scrape-search actions.
@@ -56,6 +56,7 @@
 - 正常入库不保留来源文件名：刮削后按 `filename_templates` 生成 `final_filename`，电视剧模板保留任务自身的季集号；只有用户在待确认阶段显式保存自定义文件名时才以该人工结果继续。
 - 直接来源复制在同一次校验复制中取得 SHA-256，避免复制前再完整读取一次多 GB 来源。文件包清单记录普通入库 `copy` 或片库重新整理 `move`；启动恢复对普通入库只清理本任务目标临时成员并保留来源，对重新整理才退回原片库位置。
 - 来源在复制或来源哈希期间发生变化时立即停止并提示等待稳定；只有来源快照稳定而目标摘要不一致时，普通入库才清理本任务 `.copying` 并从空临时文件安全重试一次。第二次仍不一致时明确提示检查目标存储/挂载并失败关闭，SHA-256 与来源保留门禁不变。
+- 扫描过滤只是减少无效工作，不能充当最终一致性门禁。runner 和手动单文件入口都必须通过任务管理器的原子创建或复用能力；扫描得到的 `source_fingerprint/source_file_size/source_mtime` 必须随任务创建持久化。
 - 重试清空所有运行结果并从来源重新刮削、决策和传输；不续跑步骤、不复用 `.copying`。完整提交恢复会保留来源，避免重启阶段无感补做来源删除。
 - 兜底目录不是自动成功路径：即使刮削已自动通过，只要分类结果使用兜底，任务必须先停在 `AWAIT_REVIEW`，用户明确接受后才可入库。后续重新整理不重跑来源复制/清理，而以片库内现存影片和随片字幕为来源，复用同一文件包事务移动到正式规则目录；同名目标一律暂停且不覆盖。
 - Behavior changes must update `docs/architecture/import-pipeline.md` and this file together.

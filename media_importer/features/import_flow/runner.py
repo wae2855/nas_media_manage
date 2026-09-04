@@ -308,6 +308,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             )
 
         tasks = []
+        reused_count = 0
         for group in groups:
             source_unit_id = ""
             if source_mode == "recycle_source_unit":
@@ -318,16 +319,25 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                     group["video_path"],
                     config=self.config,
                 ).unit_id
-            task = self.task_manager.create_task(
+            result = self.task_manager.create_or_reuse_source_task(
                 video_path=group["video_path"],
                 video_file=group["video_file"],
                 subtitle_files=group["subtitle_files"],
                 file_size_mb=group["file_size_mb"],
                 source_unit_id=source_unit_id,
+                source_fingerprint=group.get("source_fingerprint", ""),
+                source_file_size=group.get("source_file_size", 0),
+                source_mtime=group.get("source_mtime", ""),
             )
-            tasks.append(task)
+            if result["created"]:
+                tasks.append(result["task"])
+            else:
+                reused_count += 1
 
-        self._log("info", f"扫描完成，创建/重试 {len(tasks)} 个任务")
+        self._log(
+            "info",
+            f"扫描完成，创建/重试 {len(tasks)} 个任务，复用 {reused_count} 个已有任务",
+        )
         return tasks
 
     def retry_pending_source_cleanup(self) -> list:

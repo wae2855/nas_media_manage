@@ -67,7 +67,9 @@
 - `POST /api/tasks/{id}/reorganize` 只对 `SUCCESS/DONE + FALLBACK_PENDING` 创建一条 `task_kind=REORGANIZE` 的关联新任务。新任务允许改维度和手动刮削，但必须匹配正式规则才能确认；完成后原任务与新任务都保持独立审计记录。兜底、重新整理和片库冲突任务全部排除批量确认。
 - 任务页存在运行项时每 2.5 秒静默刷新；页面隐藏、离开任务页、打开弹窗或批量选择时暂停。静默刷新按任务 ID 对账，仅替换数据发生变化的卡片并复用相同封面节点，不重建整个列表；已经“加载更多”的页面继续保留，不能退回单页或清空选择。
 - 重试是整任务重来：清空刮削、维度、规则、冲突、进度和文件包日志，从原始来源重新排队。服务重启只允许“提交前安全回退为失败”“完整提交复核为成功”“歧义现场保留待人工检查”三种结果；完整提交恢复会保留来源，不在重启阶段补做来源清理。
-- 自动扫描发现同一路径的最新任务已经 `FAILED` 时跳过新建并刷新发现时间，避免重复失败记录和重复大文件 I/O；恢复处理必须由用户在原失败任务上显式执行“重新识别/重试”，该入口仍复用原任务记录。
+- 普通来源任务只能经 `TaskManager.create_or_reuse_source_task()` 创建。扫描、watcher 与手动单文件入口在同一进程锁内完成真实路径归一化、判重和创建；并发触发只能得到一个任务 ID。新任务创建时必须同时保存来源指纹、字节大小和修改时间。
+- 同一真实路径已有任意 `PENDING` 或 `FAILED` 任务时只刷新发现时间并复用；失败任务必须由用户在原记录上显式“重新识别/重试”。来源未变化的 `SUCCESS/SKIPPED/CANCELLED` 也复用，避免来源保留后反复入队；大小明确变化才建立新审计任务，仅修改时间变化只刷新证据。
+- 当前来源指纹是发现辅助信息，不是强内容身份。不同路径下的失败任务不得仅凭该指纹自动合并；符号链接等能由 `realpath` 证明的同一对象可以复用，真实改名或挂载点变化继续保守地形成新来源。
 - 任务页“批量重新识别”只对选中的 `FAILED` 与 `PENDING/AWAIT_REVIEW` 生效，逐项复用单任务重试状态机；其他状态不发送。该操作用于让旧待确认任务使用当前版本规则重跑，不代表自动确认或入库。
 - 正常批处理、自动扫描后的处理、单文件处理、单任务/批量重新识别及人工确认共享同一进程内任务槽位。`task_queue.max_concurrent=1|2` 是实际生效上限；队列 worker 取得槽位后才领取任务，避免等待任务提前显示为运行中。同一 Pipeline 同时只允许一个 `run_all` 调度循环，重复触发直接忽略。
 
@@ -85,6 +87,7 @@
 - `tests/test_feature_task_review.py` covers manual review action behavior with fake pipeline/task manager objects.
 - `tests/test_series_batch_scrape_apply.py` 与 `tests/test_manual_provider_binding.py` 覆盖《北海鲸梦》混合状态 5 集分组、危险任务排除、后端任务 ID 复核、绑定重启持久化、运行中不改写、精确 Provider 消费、季集号保留及标准文件名。
 - `tests/test_task_concurrency_limit.py` 覆盖并发 1–2、历史异常值钳制、第三个任务不提前领取、重复批处理抑制和确认入口共享槽位。
+- `tests/test_task_operations.py` 与 `tests/test_feature_import_flow_run_file.py` 覆盖来源任务原子创建、真实路径别名、发现证据、终态复用和重复手动请求不启动第二个 worker。
 - `tests/test_feature_task_file_lifecycle.py` covers task file rename behavior, filename safety checks, ignore cleanup, recycle handoff, and invalid status handling.
 - `tests/test_feature_task_list.py` covers pagination, status validation, and active-count assembly.
 - `tests/test_cleanup_orphaned_state.py` covers startup orphan RUNNING -> FAILED transition and AWAIT_REVIEW protection.

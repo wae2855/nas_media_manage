@@ -13,6 +13,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 from datetime import datetime
 
@@ -183,7 +184,148 @@ class TestTaskOperations(unittest.TestCase):
                           source_filename="done.mkv")
         result = self.tm.check_source_duplicate("/test/done.mkv")
         self.assertTrue(result["exists"])
-        self.assertEqual(result["action"], "CREATE")
+        self.assertEqual(result["action"], "SKIP")
+
+    def test_check_source_duplicate_queued_file(self):
+        self._create_task(
+            status="PENDING",
+            stage="QUEUED",
+            source_path="/test/queued.mkv",
+            source_filename="queued.mkv",
+        )
+        result = self.tm.check_source_duplicate("/test/queued.mkv")
+        self.assertTrue(result["exists"])
+        self.assertEqual(result["action"], "SKIP")
+
+    def test_check_source_duplicate_skipped_and_cancelled_unchanged(self):
+        for status in ("SKIPPED", "CANCELLED"):
+            source_path = f"/test/{status.lower()}.mkv"
+            self._create_task(
+                status=status,
+                source_path=source_path,
+                source_filename=os.path.basename(source_path),
+            )
+            result = self.tm.check_source_duplicate(source_path)
+            self.assertTrue(result["exists"])
+            self.assertEqual(result["action"], "SKIP")
+
+    def test_completed_source_with_changed_size_creates_new_audit_task(self):
+        source_dir = os.path.join(self.tmpdir, self._testMethodName)
+        os.makedirs(source_dir, exist_ok=True)
+        source_path = os.path.join(source_dir, "Movie.mkv")
+        with open(source_path, "wb") as handle:
+            handle.write(b"old")
+        previous = self._create_task(
+            status="SUCCESS",
+            source_path=source_path,
+            source_filename="Movie.mkv",
+            source_file_size=3,
+        )
+        with open(source_path, "ab") as handle:
+            handle.write(b"x" * 2048)
+
+        result = self.tm.create_or_reuse_source_task(
+            video_path=source_path,
+            video_file="Movie.mkv",
+            file_size_mb=os.path.getsize(source_path) / (1024 * 1024),
+            source_file_size=os.path.getsize(source_path),
+        )
+
+        self.assertTrue(result["created"])
+        self.assertEqual(result["action"], "REPROCESS")
+        self.assertNotEqual(result["task_id"], previous["task_id"])
+        _, total, _ = db_module.list_tasks(self.conn, page=1, page_size=20)
+        self.assertEqual(total, 2)
+
+    def test_create_or_reuse_persists_source_evidence(self):
+        source_dir = os.path.join(self.tmpdir, self._testMethodName)
+        os.makedirs(source_dir, exist_ok=True)
+        source_path = os.path.join(source_dir, "Movie.mkv")
+        with open(source_path, "wb") as handle:
+            handle.write(b"source-evidence")
+        stat = os.stat(source_path)
+
+        result = self.tm.create_or_reuse_source_task(
+            video_path=source_path,
+            video_file="Movie.mkv",
+            file_size_mb=stat.st_size / (1024 * 1024),
+            source_fingerprint="fingerprint-1",
+            source_file_size=stat.st_size,
+            source_mtime=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        )
+
+        self.assertTrue(result["created"])
+        task = db_module.get_task(self.conn, result["task_id"])
+        self.assertEqual(task["source_path"], os.path.realpath(source_path))
+        self.assertEqual(task["source_fingerprint"], "fingerprint-1")
+        self.assertEqual(task["source_file_size"], stat.st_size)
+        self.assertTrue(task["source_mtime"])
+
+    def test_create_or_reuse_is_atomic_for_concurrent_calls(self):
+        source_dir = os.path.join(self.tmpdir, self._testMethodName)
+        os.makedirs(source_dir, exist_ok=True)
+        source_path = os.path.join(source_dir, "Episode.S01E05.mkv")
+        with open(source_path, "wb") as handle:
+            handle.write(b"same-source")
+        stat = os.stat(source_path)
+        barrier = threading.Barrier(8)
+        results = []
+        results_lock = threading.Lock()
+
+        def create_once():
+            barrier.wait()
+            result = self.tm.create_or_reuse_source_task(
+                video_path=source_path,
+                video_file=os.path.basename(source_path),
+                file_size_mb=stat.st_size / (1024 * 1024),
+                source_fingerprint="same-fingerprint",
+                source_file_size=stat.st_size,
+                source_mtime=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            )
+            with results_lock:
+                results.append(result)
+
+        threads = [threading.Thread(target=create_once) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(len(results), 8)
+        self.assertEqual(sum(1 for result in results if result["created"]), 1)
+        self.assertEqual(len({result["task_id"] for result in results}), 1)
+        _, total, _ = db_module.list_tasks(self.conn, page=1, page_size=20)
+        self.assertEqual(total, 1)
+
+    def test_create_or_reuse_resolves_real_path_alias(self):
+        source_dir = os.path.join(self.tmpdir, self._testMethodName)
+        os.makedirs(source_dir, exist_ok=True)
+        source_path = os.path.join(source_dir, "Movie.mkv")
+        alias_path = os.path.join(source_dir, "Movie.alias.mkv")
+        with open(source_path, "wb") as handle:
+            handle.write(b"same-file")
+        os.symlink(source_path, alias_path)
+        stat = os.stat(source_path)
+
+        first = self.tm.create_or_reuse_source_task(
+            video_path=alias_path,
+            video_file="Movie.alias.mkv",
+            file_size_mb=stat.st_size / (1024 * 1024),
+            source_fingerprint="alias-fingerprint",
+            source_file_size=stat.st_size,
+        )
+        second = self.tm.create_or_reuse_source_task(
+            video_path=source_path,
+            video_file="Movie.mkv",
+            file_size_mb=stat.st_size / (1024 * 1024),
+            source_fingerprint="alias-fingerprint",
+            source_file_size=stat.st_size,
+        )
+
+        self.assertTrue(first["created"])
+        self.assertFalse(second["created"])
+        self.assertEqual(first["task_id"], second["task_id"])
+        self.assertEqual(first["task"]["source_filename"], "Movie.alias.mkv")
 
     def test_check_source_duplicate_failed_is_skipped(self):
         self._create_task(status="FAILED", source_path="/test/failed.mkv",
