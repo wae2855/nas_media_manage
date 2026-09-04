@@ -167,3 +167,9 @@ requirement: REQ-20260904-115624
 - `media_importer/webui/js/cinema-task-batch.js`
 - `tests/test_identity_evidence.py`
 - `docs/standards/scrape-matching.md`
+
+## Validation Results
+
+- 开发环境完整测试：`1127 passed`，包含真实 Chromium 与完整文件安全矩阵。
+- `LOCAL_BUILD PASS`：fnOS FPK `0.3.28`，SHA-256 `6b50560e3f923f5563c13e4447f326a78045db28e1696253ed713b0b579d1c47`；真实包内已确认包含 `series_batch_service.py`。
+- fnOS 真机验收：`NOT_RUN`；等待《北海鲸梦》现有任务验证一次选择、多集同步与逐集季集号保持。

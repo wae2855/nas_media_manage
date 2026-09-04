@@ -129,4 +129,5 @@ requirement: REQ-20260904-122646
 - 并发/配置/任务专项：`114 passed`；架构、API、后台确认及相邻配置回归：`82 passed`。
 - Ruff、compileall、两份变更 JS 的 `node --check`、文档断链/front-matter 检查和 `git diff --check` 全部通过。
 - 390×844 真实 Chromium：输入控件 `min=1/max=2/step=1`，手工输入 `99` 后界面与提交值均收敛为 `2`，小数收敛为 `1`，无页面脚本错误。
-- fnOS 真机验收：`NOT_RUN`；本次未提交、未推送、未生成安装包。
+- `LOCAL_BUILD PASS`：fnOS FPK `0.3.28`，SHA-256 `6b50560e3f923f5563c13e4447f326a78045db28e1696253ed713b0b579d1c47`；包内版本、离线 wheelhouse、本轮并发门禁和前端 `max=2` 已复核。
+- fnOS 真机验收：`NOT_RUN`；等待用户安装候选包验证资源占用与实际任务并发。
