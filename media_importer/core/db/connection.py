@@ -92,6 +92,7 @@ def _migrate_schema(conn: sqlite3.Connection):
         "ALTER TABLE tasks ADD COLUMN outcome_code TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN source_disposition TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN source_disposition_message TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN manual_provider_binding TEXT DEFAULT '{}'",
         "ALTER TABLE task_subtitles ADD COLUMN member_id TEXT DEFAULT ''",
         "ALTER TABLE task_subtitles ADD COLUMN source_size INTEGER DEFAULT 0",
         "ALTER TABLE task_subtitles ADD COLUMN source_mtime_ns INTEGER DEFAULT 0",

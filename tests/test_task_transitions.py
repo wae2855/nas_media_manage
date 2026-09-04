@@ -127,6 +127,38 @@ class TestKeySemantics(unittest.TestCase):
         task = _task("PENDING", STAGE_QUEUED)
         self.assertFalse(can_apply(task, "confirm_mark"))
 
+    def test_manual_binding_requeues_review_without_counting_as_retry(self):
+        task = _task(
+            "PENDING",
+            STAGE_AWAIT_REVIEW,
+            retry_count=2,
+            source_path="/source/Show.S01E05.mkv",
+            scrape_result={"title_cn": "错误作品"},
+            scrape_title_cn="错误作品",
+            provider_id="wrong-id",
+            thumbnail_path="/old/poster.jpg",
+            percentage=80,
+        )
+        binding = {
+            "provider_type": "tmdb",
+            "item_id": "86941",
+            "media_type": "tv",
+            "season": 1,
+            "episode": 5,
+        }
+
+        fields = apply(task, "manual_bind_queue", manual_provider_binding=binding)
+
+        self.assertEqual(fields["stage"], STAGE_QUEUED)
+        self.assertNotIn("retry_count", fields)
+        self.assertEqual(task["retry_count"], 2)
+        self.assertEqual(fields["scrape_result"], {})
+        self.assertEqual(fields["scrape_title_cn"], "")
+        self.assertEqual(fields["provider_id"], "")
+        self.assertEqual(fields["thumbnail_path"], "")
+        self.assertEqual(fields["manual_provider_binding"], binding)
+        self.assertEqual(fields["percentage"], 0)
+
     def test_success_is_frozen(self):
         for action in ("fail", "skip", "cancel", "retry", "ignore"):
             task = _task("SUCCESS", "DONE")

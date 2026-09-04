@@ -8,7 +8,15 @@ from media_importer.features.tasks import (
 
 class FakeTaskManager:
     def __init__(self):
-        self.task = {"task_id": "task-1", "error_message": "bad metadata"}
+        self.task = {
+            "task_id": "task-1",
+            "status": "PENDING",
+            "stage": "AWAIT_REVIEW",
+            "error_message": "bad metadata",
+            "scrape_result": {},
+            "scrape_dimensions": {},
+        }
+        self.conn = object()
         self.list_args = None
         self.confirming_tasks = [
             {"task_id": "task-1"},
@@ -28,12 +36,14 @@ class FakeTaskManager:
 
 class FakePipeline:
     def __init__(self):
+        self.config = {}
         self.confirm_results = {}
         self.confirmed = []
         self.reclassified = []
         self.confirm_exceptions = {}
         self.confirm_calls = []
         self.applied_candidates = []
+        self.processed = []
 
     def apply_scrape_candidate(self, task_id, **selection):
         self.applied_candidates.append({"task_id": task_id, **selection})
@@ -43,6 +53,13 @@ class FakePipeline:
             "stage": "AWAIT_REVIEW",
             "provider_id": selection["item_id"],
         }
+
+    def process_one(self, task):
+        self.processed.append(task["task_id"])
+        return True
+
+    def is_paused(self):
+        return False
 
     def confirm_task(self, task_id, confirmed_title=None, override_source=None,
                      conflict_action=None):
@@ -110,8 +127,33 @@ def test_confirm_task_requires_pipeline():
     assert result.message == "Pipeline not initialized"
 
 
-def test_apply_scrape_candidate_returns_preview_without_confirming_task():
+def test_apply_scrape_candidate_queues_manual_identity_and_starts_processing(monkeypatch):
     pipeline = FakePipeline()
+    manager = FakeTaskManager()
+    monkeypatch.setattr(
+        "media_importer.features.tasks.search_service.load_provider_candidate",
+        lambda *args, **kwargs: {"scrape_result": {"title_cn": "沙丘"}},
+    )
+
+    class ImmediateThread:
+        def __init__(self, *, target, daemon):
+            assert daemon is True
+            self.target = target
+
+        def start(self):
+            manager.task = {
+                "task_id": "task-1",
+                "status": "PENDING",
+                "stage": "QUEUED",
+            }
+            self.target()
+    monkeypatch.setattr(
+        "media_importer.features.tasks.review_service.queue_manual_provider_binding",
+        lambda *args, **kwargs: (
+            {"task_id": "task-1", "status": "PENDING", "stage": "QUEUED"},
+            "queued_with_binding",
+        ),
+    )
 
     result = apply_scrape_candidate_for_api(
         pipeline,
@@ -122,18 +164,16 @@ def test_apply_scrape_candidate_returns_preview_without_confirming_task():
             "media_type": "movie",
             "language": "zh-CN",
         },
+        task_manager=manager,
+        thread_factory=ImmediateThread,
     )
 
     assert result.code == 200
-    assert result.data["task"]["stage"] == "AWAIT_REVIEW"
+    assert result.data["task"]["stage"] == "QUEUED"
+    assert result.data["queued"] == [{"task_id": "task-1"}]
     assert pipeline.confirmed == []
-    assert pipeline.applied_candidates == [{
-        "task_id": "task-1",
-        "provider_type": "tmdb",
-        "item_id": "290098",
-        "media_type": "movie",
-        "language": "zh-CN",
-    }]
+    assert pipeline.applied_candidates == []
+    assert pipeline.processed == ["task-1"]
 
 
 def test_apply_scrape_candidate_requires_provider_identity():
@@ -145,6 +185,37 @@ def test_apply_scrape_candidate_requires_provider_identity():
 
     assert result.code == 400
     assert "item_id" in result.message
+
+
+def test_reorganization_manual_scrape_keeps_explicit_confirm_flow():
+    pipeline = FakePipeline()
+    manager = FakeTaskManager()
+    manager.task["task_kind"] = "REORGANIZE"
+
+    result = apply_scrape_candidate_for_api(
+        pipeline,
+        "task-1",
+        {
+            "provider_type": "tmdb",
+            "item_id": "290098",
+            "media_type": "movie",
+            "language": "zh-CN",
+        },
+        task_manager=manager,
+    )
+
+    assert result.code == 200
+    assert result.message == "作品资料已更新，请确认重新整理"
+    assert result.data["task"]["stage"] == "AWAIT_REVIEW"
+    assert result.data["queued"] == []
+    assert pipeline.applied_candidates == [{
+        "task_id": "task-1",
+        "provider_type": "tmdb",
+        "item_id": "290098",
+        "media_type": "movie",
+        "language": "zh-CN",
+    }]
+    assert pipeline.processed == []
 
 
 def test_reclassify_task_returns_updated_task_payload():

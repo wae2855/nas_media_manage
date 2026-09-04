@@ -464,7 +464,7 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             manual_review = self.config.get("manual_review", {})
             review_enabled = manual_review.get("enabled", False)
 
-            if review_enabled:
+            if review_enabled and not task.get("_manual_binding_consumed"):
                 db_update_task(self.task_manager.conn, tid,
                                **mark_confirming(ctx))
                 self._log("info", f"任务等待人工确认: {task.get('source_filename', '')}", task)

@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     dim_sources TEXT DEFAULT NULL,
     provider_type TEXT DEFAULT '',
     provider_id TEXT DEFAULT '',
+    manual_provider_binding TEXT DEFAULT '{}',
     source_fingerprint TEXT DEFAULT '',
     source_file_size INTEGER DEFAULT 0,
     source_mtime TEXT DEFAULT '',

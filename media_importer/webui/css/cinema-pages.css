@@ -1606,7 +1606,10 @@
 .series-batch-item span { min-width: 0; display: grid; gap: 3px; }
 .series-batch-item b { overflow-wrap: anywhere; }
 .series-batch-item small { color: var(--muted); }
+.series-batch-item.is-processing { opacity: 0.7; cursor: default; }
+.series-batch-preview[aria-busy="true"] .series-batch-list { opacity: 0.62; }
 .series-batch-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.series-batch-actions .spinner { display: inline-block; width: 14px; height: 14px; margin-right: 7px; vertical-align: -2px; }
 
 html.has-cinema-modal,
 body.has-cinema-modal {

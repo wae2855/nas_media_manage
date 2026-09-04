@@ -6,7 +6,11 @@ from media_importer.features.tasks import (
     apply_scrape_candidate_for_api,
     preview_series_batch_for_api,
 )
-from media_importer.features.tasks.series_batch_service import discover_series_batch
+from media_importer.features.tasks.series_batch_service import (
+    build_manual_provider_binding,
+    discover_series_batch,
+    queue_manual_provider_binding,
+)
 
 
 def _episode_task(index: int, **overrides) -> dict:
@@ -51,6 +55,21 @@ def _selection():
     return {"provider_type": "tmdb", "item_id": "86941", "media_type": "tv"}
 
 
+def test_manual_binding_preserves_validated_media_type():
+    binding = build_manual_provider_binding(
+        {
+            "provider_type": "tmdb",
+            "item_id": "438631",
+            "media_type": "movie",
+            "language": "zh-CN",
+        },
+        season=None,
+        episode=None,
+    )
+
+    assert binding["media_type"] == "movie"
+
+
 def test_north_water_five_episode_batch_is_previewed_in_episode_order():
     manager = FakeManager([_episode_task(index) for index in range(1, 6)])
 
@@ -58,7 +77,32 @@ def test_north_water_five_episode_batch_is_previewed_in_episode_order():
 
     assert [item["episode"] for item in result["tasks"]] == [1, 2, 3, 4, 5]
     assert sum(item["is_anchor"] for item in result["tasks"]) == 1
+    assert {item["handling"] for item in result["tasks"]} == {"queue_with_binding"}
     assert result["excluded"] == []
+
+
+def test_series_batch_surfaces_queued_and_running_episodes_without_rewriting_running():
+    tasks = [_episode_task(index) for index in range(1, 4)]
+    tasks.extend([
+        _episode_task(4, stage="RUNNING"),
+        _episode_task(
+            5,
+            stage="QUEUED",
+            scrape_media_type="",
+            scrape_result={},
+            scrape_dimensions={},
+        ),
+    ])
+    manager = FakeManager(tasks)
+
+    result = discover_series_batch(manager, "north-water-1", _selection())
+
+    assert [item["episode"] for item in result["tasks"]] == [1, 2, 3, 4, 5]
+    by_episode = {item["episode"]: item for item in result["tasks"]}
+    assert by_episode[4]["handling"] == "processing_unchanged"
+    assert by_episode[4]["selectable"] is False
+    assert by_episode[5]["handling"] == "bind_queued"
+    assert by_episode[5]["selectable"] is True
 
 
 def test_series_batch_api_preview_returns_safe_tasks():
@@ -142,6 +186,32 @@ class FakeBatchPipeline:
         return task
 
 
+def _install_fake_queue(monkeypatch, pipeline):
+    def fake_queue(manager, task_id, selection, *, season, episode):
+        if task_id == getattr(pipeline, "fail_task_id", None):
+            return None, "state_changed"
+        task = manager.tasks[task_id]
+        old_stage = task["stage"]
+        if old_stage == "RUNNING":
+            return None, "processing_unchanged"
+        task["manual_provider_binding"] = {
+            "provider_type": selection["provider_type"],
+            "item_id": selection["item_id"],
+            "media_type": selection["media_type"],
+            "season": season,
+            "episode": episode,
+        }
+        task["stage"] = "QUEUED"
+        return deepcopy(task), (
+            "bound_queued" if old_stage == "QUEUED" else "queued_with_binding"
+        )
+
+    monkeypatch.setattr(
+        "media_importer.features.tasks.review_service.queue_manual_provider_binding",
+        fake_queue,
+    )
+
+
 def test_batch_apply_revalidates_ids_loads_provider_once_and_keeps_episodes(monkeypatch):
     manager = FakeManager([_episode_task(index) for index in range(1, 6)])
     pipeline = FakeBatchPipeline(manager)
@@ -155,6 +225,7 @@ def test_batch_apply_revalidates_ids_loads_provider_once_and_keeps_episodes(monk
         "media_importer.features.tasks.search_service.load_provider_candidate",
         fake_load,
     )
+    _install_fake_queue(monkeypatch, pipeline)
 
     result = apply_scrape_candidate_for_api(
         pipeline,
@@ -172,7 +243,14 @@ def test_batch_apply_revalidates_ids_loads_provider_once_and_keeps_episodes(monk
 
     assert result.code == 200
     assert len(loaded) == 1
-    assert [task["scrape_result"]["episode"] for task in pipeline.calls] == [1, 2, 3, 4, 5]
+    assert result.data["queued"] == [
+        {"task_id": f"north-water-{index}"} for index in range(1, 6)
+    ]
+    assert result.data["bound_queued"] == []
+    assert [
+        manager.tasks[f"north-water-{index}"]["manual_provider_binding"]["episode"]
+        for index in range(1, 6)
+    ] == [1, 2, 3, 4, 5]
     assert result.data["skipped"] == [
         {"task_id": "arbitrary-task", "reason": "not_in_safe_series_batch"}
     ]
@@ -187,6 +265,7 @@ def test_batch_apply_reports_partial_failure_without_hiding_success(monkeypatch)
         "media_importer.features.tasks.search_service.load_provider_candidate",
         lambda *args, **kwargs: {"scrape_result": {"title_cn": "北海鲸梦"}},
     )
+    _install_fake_queue(monkeypatch, pipeline)
 
     result = apply_scrape_candidate_for_api(
         pipeline,
@@ -197,14 +276,74 @@ def test_batch_apply_reports_partial_failure_without_hiding_success(monkeypatch)
     )
 
     assert result.code == 200
-    assert result.data["updated"] == [
+    assert result.data["queued"] == [
         {"task_id": "north-water-1"},
         {"task_id": "north-water-2"},
     ]
     assert result.data["failed"] == [
-        {"task_id": "north-water-3", "error": "state changed"}
+        {"task_id": "north-water-3", "error": "state_changed"}
     ]
     assert "失败 1 项" in result.message
+
+
+def test_batch_apply_binds_queued_and_reports_running_episode(monkeypatch):
+    manager = FakeManager([
+        _episode_task(1),
+        _episode_task(4, stage="RUNNING"),
+        _episode_task(
+            5,
+            stage="QUEUED",
+            scrape_media_type="",
+            scrape_result={},
+            scrape_dimensions={},
+        ),
+    ])
+    pipeline = FakeBatchPipeline(manager)
+    monkeypatch.setattr(
+        "media_importer.features.tasks.search_service.load_provider_candidate",
+        lambda *args, **kwargs: {"scrape_result": {"title_cn": "北海鲸梦"}},
+    )
+    _install_fake_queue(monkeypatch, pipeline)
+
+    result = apply_scrape_candidate_for_api(
+        pipeline,
+        "north-water-1",
+        _selection(),
+        task_manager=manager,
+        related_task_ids=["north-water-5"],
+    )
+
+    assert result.code == 200
+    assert result.data["queued"] == [{"task_id": "north-water-1"}]
+    assert result.data["bound_queued"] == [{"task_id": "north-water-5"}]
+    assert result.data["processing_unchanged"] == [
+        {"task_id": "north-water-4", "reason": "processing_unchanged"}
+    ]
+
+
+def test_real_queue_binding_is_persisted_and_awaiting_task_becomes_queued(tmp_path):
+    from media_importer.core.task_manager import TaskManager
+
+    manager = TaskManager(str(tmp_path))
+    task = manager.create_task(
+        "/downloads/北海鲸梦/北海鲸梦.S01E05.mkv",
+        "北海鲸梦.S01E05.mkv",
+        stage="AWAIT_REVIEW",
+    )
+
+    updated, outcome = queue_manual_provider_binding(
+        manager,
+        task["task_id"],
+        _selection(),
+        season=1,
+        episode=5,
+    )
+
+    assert outcome == "queued_with_binding"
+    assert updated["stage"] == "QUEUED"
+    assert updated["manual_provider_binding"]["item_id"] == "86941"
+    reopened = TaskManager(str(tmp_path)).get_task(task["task_id"])
+    assert reopened["manual_provider_binding"]["episode"] == 5
 
 
 def test_batch_apply_rejects_non_array_related_task_ids():

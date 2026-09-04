@@ -53,6 +53,7 @@
 - Import/source-cleanup progress must use the structured filesystem phase callback and `TaskProgressReporter`; do not write SQLite once per 1 MB chunk or label SHA-256 verification as copying.
 - Terminal success is persisted after source-unit coordination. `import_success=1` is useful audit evidence, but restart recovery may only declare success when every persisted bundle member at the final path matches its SHA-256.
 - 新作品先完成刮削、校验、规则分类、命名、目标片库重名检查和全部人工决定；此前不得传输大视频。决定完成后从来源直接写入目标侧本任务暂存，字幕先发布、视频最后发布。中心中转和旧任务断点均不支持。
+- 正常入库不保留来源文件名：刮削后按 `filename_templates` 生成 `final_filename`，电视剧模板保留任务自身的季集号；只有用户在待确认阶段显式保存自定义文件名时才以该人工结果继续。
 - 直接来源复制在同一次校验复制中取得 SHA-256，避免复制前再完整读取一次多 GB 来源。文件包清单记录普通入库 `copy` 或片库重新整理 `move`；启动恢复对普通入库只清理本任务目标临时成员并保留来源，对重新整理才退回原片库位置。
 - 重试清空所有运行结果并从来源重新刮削、决策和传输；不续跑步骤、不复用 `.copying`。完整提交恢复会保留来源，避免重启阶段无感补做来源删除。
 - 兜底目录不是自动成功路径：即使刮削已自动通过，只要分类结果使用兜底，任务必须先停在 `AWAIT_REVIEW`，用户明确接受后才可入库。后续重新整理不重跑来源复制/清理，而以片库内现存影片和随片字幕为来源，复用同一文件包事务移动到正式规则目录；同名目标一律暂停且不覆盖。

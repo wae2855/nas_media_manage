@@ -18,14 +18,14 @@ def test_manual_scrape_offers_type_language_year_and_twenty_results():
     assert "limit: 20" in script
 
 
-def test_candidate_application_refreshes_details_without_auto_import():
+def test_candidate_application_queues_processing_and_refreshes_details():
     script = DETAIL_JS.read_text(encoding="utf-8")
     candidate_block = script.split("function renderScrapeCandidateDetail", 1)[1]
 
     assert "/scrape-apply`" in candidate_block
     assert "使用这份资料" in candidate_block
-    assert "作品资料已更新，请确认入库预览" in candidate_block
-    assert "/confirm`" not in candidate_block
+    assert "已按人工选择加入处理队列" in candidate_block
+    assert "正在提交处理" in candidate_block
     assert "await openTaskDetailImpl(taskId, true)" in candidate_block
 
 
@@ -56,7 +56,19 @@ def test_tv_candidate_previews_deselectable_same_series_batch_before_apply():
     assert 'data-series-batch-task="' in script
     assert "仅应用当前集" in script
     assert "related_task_ids: relatedTaskIds" in script
-    assert "不会自动入库或移动文件" in script
+    assert "进入处理队列" in script
+    assert "处理中 · 本次不改写" in script
+
+
+def test_series_batch_apply_has_visible_busy_state_and_interaction_lock():
+    script = DETAIL_JS.read_text(encoding="utf-8")
+    css = PAGES_CSS.read_text(encoding="utf-8")
+
+    assert 'setAttribute("aria-busy", "true")' in script
+    assert 'querySelectorAll("button, input")' in script
+    assert "正在应用并提交 " in script
+    assert '<span class="spinner"' in script
+    assert '.series-batch-preview[aria-busy="true"]' in css
 
 
 def test_batch_reidentify_includes_failed_and_await_review_only():

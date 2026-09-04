@@ -82,6 +82,11 @@ TRANSITIONS: dict = {
     "confirm_mark": (frozenset({(STATUS_PENDING, STAGE_AWAIT_REVIEW)}), (STATUS_PENDING, STAGE_AWAIT_REVIEW)),
     # 确认占用（S3 CAS claim：AWAIT_REVIEW → RUNNING 导入中，防并发双确认）
     "confirm_start": (frozenset({(STATUS_PENDING, STAGE_AWAIT_REVIEW)}), (STATUS_PENDING, STAGE_RUNNING)),
+    # 人工选定作品后重新进入持久队列；runner 将按绑定 ID 继续，不再搜索候选。
+    "manual_bind_queue": (
+        frozenset({(STATUS_PENDING, STAGE_AWAIT_REVIEW)}),
+        (STATUS_PENDING, STAGE_QUEUED),
+    ),
     # 入库成功（主流程 RUNNING 结束 / 确认流 AWAIT_REVIEW 结束）
     "import_ok": (frozenset({(STATUS_PENDING, STAGE_RUNNING)}), (STATUS_SUCCESS, STAGE_DONE)),
     "import_ok_confirmed": (frozenset({(STATUS_PENDING, STAGE_AWAIT_REVIEW)}), (STATUS_SUCCESS, STAGE_DONE)),
@@ -181,6 +186,36 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
                 "confirmed_at": ctx.get("confirmed_at") or _now(),
                 "stage": STAGE_RUNNING}
 
+    if action == "manual_bind_queue":
+        return {
+            "status": STATUS_PENDING, "stage": STAGE_QUEUED,
+            "error_code": 0, "error_message": "",
+            "current_step": 0, "step_name": "", "percentage": 0,
+            "video_path": data.get("source_path", ""),
+            "import_video_path": "", "import_path": "",
+            "final_filename": "", "classify_result": "",
+            "file_location": FILE_LOCATION_SOURCE,
+            "scrape_result": {}, "scrape_dimensions": {},
+            "scrape_title_cn": "", "scrape_title_en": "",
+            "scrape_year": "", "scrape_media_type": "",
+            "scrape_season": None, "scrape_episode": None,
+            "scrape_trace": {}, "match_trace": {}, "dim_sources": {},
+            "match_level": "", "provider_type": "", "provider_id": "",
+            "thumbnail_path": "",
+            "dedup_result": {}, "dedup_existing_file": "",
+            "match_concerns": [], "used_fallback": 0,
+            "confirm_status": CONFIRM_NONE, "confirmed_at": "",
+            "bytes_copied": 0, "total_bytes": 0,
+            "progress_item_name": "", "progress_item_kind": "",
+            "progress_item_index": 0, "progress_item_total": 0,
+            "bundle_state": "", "bundle_manifest": [], "bundle_committed": 0,
+            "confirmed_override": 0, "confirmed_title": "", "override_source": "",
+            "cancel_requested": 0, "stop_requested_at": "",
+            "requested_source_disposition": "", "outcome_code": "",
+            "source_disposition": "", "source_disposition_message": "",
+            "manual_provider_binding": ctx.get("manual_provider_binding") or {},
+        }
+
     if action in ("import_ok", "import_ok_confirmed"):
         return {
             "status": STATUS_SUCCESS, "stage": STAGE_DONE,
@@ -263,6 +298,7 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
             "cancel_requested": 0, "stop_requested_at": "",
             "requested_source_disposition": "", "outcome_code": "",
             "source_disposition": "", "source_disposition_message": "",
+            "manual_provider_binding": {},
         }
 
     raise TransitionError(f"动作 {action} 未实现")  # pragma: no cover

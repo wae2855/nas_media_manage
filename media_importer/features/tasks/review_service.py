@@ -4,7 +4,10 @@ from typing import Optional
 
 from media_importer.infrastructure.db import get_enabled_dimensions
 
-from .series_batch_service import discover_series_batch
+from .series_batch_service import (
+    discover_series_batch,
+    queue_manual_provider_binding,
+)
 
 
 @dataclass
@@ -25,6 +28,7 @@ def apply_scrape_candidate_for_api(
     *,
     task_manager=None,
     related_task_ids: Optional[list[str]] = None,
+    thread_factory=threading.Thread,
 ) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
@@ -43,30 +47,56 @@ def apply_scrape_candidate_for_api(
     if len(requested) > 50:
         return TaskReviewActionResult(code=400, message="单次最多套用 50 个任务")
     try:
-        if not requested:
-            task = pipeline.apply_scrape_candidate(
-                task_id,
-                provider_type=str(selection["provider_type"]),
-                item_id=str(selection["item_id"]),
-                media_type=str(selection["media_type"]),
-                language=str(selection.get("language", "") or ""),
-            )
-            return TaskReviewActionResult(
-                code=200,
-                data={"task": task},
-                message="作品资料已更新，请核对入库预览后再确认",
-            )
-
         if task_manager is None:
             return TaskReviewActionResult(code=500, message="TaskManager not initialized")
-        preview = discover_series_batch(task_manager, task_id, selection)
-        allowed = {str(item["task_id"]) for item in preview["tasks"]}
+        anchor = task_manager.get_task(task_id)
+        if (
+            not anchor
+            or anchor.get("status") != "PENDING"
+            or anchor.get("stage") != "AWAIT_REVIEW"
+        ):
+            return TaskReviewActionResult(
+                code=400,
+                message="只有等待人工确认的任务可以重新选择作品资料",
+            )
+        if anchor.get("task_kind") == "REORGANIZE":
+            updated = pipeline.apply_scrape_candidate(task_id, **selection)
+            return TaskReviewActionResult(
+                code=200,
+                data={
+                    "task": updated,
+                    "queued": [],
+                    "bound_queued": [],
+                    "processing_unchanged": [],
+                    "skipped": [],
+                    "failed": [],
+                },
+                message="作品资料已更新，请确认重新整理",
+            )
+
+        preview = (
+            discover_series_batch(task_manager, task_id, selection)
+            if str(selection.get("media_type")) == "tv"
+            else {"tasks": [], "excluded": []}
+        )
+        preview_by_id = {
+            str(item["task_id"]): item
+            for item in preview["tasks"]
+        }
+        allowed = {
+            item_id
+            for item_id, item in preview_by_id.items()
+            if item.get("selectable")
+        }
         requested_set = set(requested)
-        target_ids = [task_id] + [
+        target_ids = [task_id]
+        target_ids.extend(
             item["task_id"]
             for item in preview["tasks"]
-            if item["task_id"] != task_id and item["task_id"] in requested_set
-        ]
+            if item["task_id"] != task_id
+            and item["task_id"] in requested_set
+            and item.get("selectable")
+        )
         skipped = [
             {"task_id": item, "reason": "not_in_safe_series_batch"}
             for item in requested
@@ -75,7 +105,7 @@ def apply_scrape_candidate_for_api(
 
         from media_importer.features.tasks.search_service import load_provider_candidate
 
-        selected = load_provider_candidate(
+        load_provider_candidate(
             pipeline.config,
             task_manager.conn,
             provider_type=str(selection["provider_type"]),
@@ -83,19 +113,46 @@ def apply_scrape_candidate_for_api(
             media_type=str(selection["media_type"]),
             language=str(selection.get("language", "") or "") or None,
         )
-        updated = []
+        queued = []
+        bound_queued = []
+        processing_unchanged = [
+            {"task_id": item["task_id"], "reason": "processing_unchanged"}
+            for item in preview["tasks"]
+            if item.get("handling") == "processing_unchanged"
+        ]
         failed = []
         anchor_task = None
         for target_id in target_ids:
             try:
-                task = pipeline.apply_loaded_scrape_candidate(
+                item = preview_by_id.get(target_id)
+                if item:
+                    season = item.get("season")
+                    episode = item.get("episode")
+                else:
+                    result = anchor.get("scrape_result") or {}
+                    dimensions = anchor.get("scrape_dimensions") or {}
+                    season = result.get("season", dimensions.get("season"))
+                    episode = result.get("episode", dimensions.get("episode"))
+                task, outcome = queue_manual_provider_binding(
+                    task_manager,
                     target_id,
-                    selected=selected,
-                    provider_type=str(selection["provider_type"]),
-                    item_id=str(selection["item_id"]),
-                    media_type=str(selection["media_type"]),
+                    selection,
+                    season=season,
+                    episode=episode,
                 )
-                updated.append({"task_id": target_id})
+                if task is None:
+                    if outcome == "processing_unchanged":
+                        processing_unchanged.append(
+                            {"task_id": target_id, "reason": outcome}
+                        )
+                    else:
+                        failed.append({"task_id": target_id, "error": outcome})
+                    continue
+                target = {"task_id": target_id}
+                if outcome == "bound_queued":
+                    bound_queued.append(target)
+                else:
+                    queued.append(target)
                 if target_id == task_id:
                     anchor_task = task
             except Exception as exc:
@@ -103,24 +160,70 @@ def apply_scrape_candidate_for_api(
         if anchor_task is None:
             return TaskReviewActionResult(
                 code=400,
-                data={"updated": updated, "skipped": skipped, "failed": failed},
-                message="当前任务资料未能应用，请刷新后重试",
+                data={
+                    "queued": queued,
+                    "bound_queued": bound_queued,
+                    "processing_unchanged": processing_unchanged,
+                    "skipped": skipped,
+                    "failed": failed,
+                },
+                message="当前任务未能加入处理队列，请刷新后重试",
             )
+        _start_manual_binding_processing(
+            pipeline,
+            task_manager,
+            [item["task_id"] for item in queued + bound_queued],
+            thread_factory=thread_factory,
+        )
         return TaskReviewActionResult(
             code=200,
             data={
                 "task": anchor_task,
-                "updated": updated,
+                "queued": queued,
+                "bound_queued": bound_queued,
+                "processing_unchanged": processing_unchanged,
                 "skipped": skipped,
                 "failed": failed,
             },
             message=(
-                f"作品资料已更新：成功 {len(updated)} 项，"
-                f"跳过 {len(skipped)} 项，失败 {len(failed)} 项"
+                f"已按人工选择继续处理：排队 {len(queued)} 项，"
+                f"排队继承 {len(bound_queued)} 项，处理中未改写 "
+                f"{len(processing_unchanged)} 项，跳过 {len(skipped)} 项，"
+                f"失败 {len(failed)} 项"
             ),
         )
     except Exception as exc:
         return TaskReviewActionResult(code=400, message=str(exc))
+
+
+def _start_manual_binding_processing(
+    pipeline,
+    task_manager,
+    task_ids: list[str],
+    *,
+    thread_factory=threading.Thread,
+) -> None:
+    """Start selected queued tasks without bypassing the shared task slot or CAS."""
+
+    process_one = getattr(pipeline, "process_one", None)
+    if not callable(process_one) or not task_ids:
+        return
+    is_paused = getattr(pipeline, "is_paused", None)
+    if callable(is_paused) and is_paused():
+        return
+
+    def run_selected() -> None:
+        for queued_task_id in task_ids:
+            task = task_manager.get_task(queued_task_id)
+            if (
+                not task
+                or task.get("status") != "PENDING"
+                or task.get("stage") != "QUEUED"
+            ):
+                continue
+            process_one(task)
+
+    thread_factory(target=run_selected, daemon=True).start()
 
 
 def preview_series_batch_for_api(

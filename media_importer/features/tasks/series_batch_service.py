@@ -6,6 +6,7 @@ import os
 import re
 import unicodedata
 from collections import Counter
+from datetime import datetime
 
 from media_importer.features.scraping import FilenameCleaner
 
@@ -86,6 +87,15 @@ def _task_media_type(task: dict) -> str:
 
 
 def _manual_provider_conflicts(task: dict, selection: dict) -> bool:
+    binding = task.get("manual_provider_binding") or {}
+    if isinstance(binding, dict) and binding.get("provider_type") and binding.get("item_id"):
+        return (
+            str(binding.get("provider_type")),
+            str(binding.get("item_id")),
+        ) != (
+            str(selection.get("provider_type") or ""),
+            str(selection.get("item_id") or ""),
+        )
     trace = task.get("scrape_trace") or {}
     if not isinstance(trace, dict) or not trace.get("manual_selected"):
         return False
@@ -128,11 +138,7 @@ def discover_series_batch(task_manager, task_id: str, selection: dict) -> dict:
     if not anchor_titles or not anchor_parent or anchor_episode is None:
         return {"anchor_task_id": task_id, "tasks": [], "excluded": []}
 
-    rows = task_manager.list_tasks(
-        status="PENDING",
-        stage="AWAIT_REVIEW",
-        limit=1000,
-    )
+    rows = task_manager.list_tasks(status="PENDING", limit=1000)
     candidates: list[tuple[dict, tuple[int, int]]] = []
     excluded: list[dict] = []
     for summary in rows:
@@ -143,9 +149,14 @@ def discover_series_batch(task_manager, task_id: str, selection: dict) -> dict:
         reason = ""
         media_type = _task_media_type(task)
         episode = None
-        if (task.get("status"), task.get("stage")) != _PENDING_REVIEW:
+        state = (task.get("status"), task.get("stage"))
+        if task.get("status") != "PENDING" or task.get("stage") not in {
+            "AWAIT_REVIEW", "QUEUED", "RUNNING",
+        }:
             reason = "state_changed"
-        elif media_type != "tv":
+        elif task.get("task_kind") == "REORGANIZE":
+            reason = "reorganization"
+        elif media_type and media_type != "tv":
             reason = "not_tv"
         elif _source_parent(task) != anchor_parent:
             reason = "different_directory"
@@ -155,7 +166,11 @@ def discover_series_batch(task_manager, task_id: str, selection: dict) -> dict:
             episode = _task_episode(task)
             if episode is None:
                 reason = "missing_episode"
-            elif candidate_id != task_id and _has_unresolved_conflict(task):
+            elif (
+                state == _PENDING_REVIEW
+                and candidate_id != task_id
+                and _has_unresolved_conflict(task)
+            ):
                 reason = "library_conflict"
             elif candidate_id != task_id and _manual_provider_conflicts(task, selection):
                 reason = "different_manual_provider"
@@ -181,7 +196,79 @@ def discover_series_batch(task_manager, task_id: str, selection: dict) -> dict:
                 "season": episode[0],
                 "episode": episode[1],
                 "is_anchor": candidate_id == task_id,
+                "stage": task.get("stage"),
+                "handling": {
+                    "AWAIT_REVIEW": "queue_with_binding",
+                    "QUEUED": "bind_queued",
+                    "RUNNING": "processing_unchanged",
+                }.get(str(task.get("stage")), "excluded"),
+                "selectable": task.get("stage") in {"AWAIT_REVIEW", "QUEUED"},
             }
         )
     tasks.sort(key=lambda item: (item["season"], item["episode"], item["task_id"]))
     return {"anchor_task_id": task_id, "tasks": tasks, "excluded": excluded}
+
+
+def build_manual_provider_binding(
+    selection: dict,
+    *,
+    season: int | None,
+    episode: int | None,
+) -> dict:
+    """Build the minimum durable intent needed to reuse a manual TV identity."""
+
+    return {
+        "provider_type": str(selection.get("provider_type") or ""),
+        "item_id": str(selection.get("item_id") or ""),
+        "media_type": str(selection.get("media_type") or ""),
+        "language": str(selection.get("language") or ""),
+        "season": int(season) if season is not None else None,
+        "episode": int(episode) if episode is not None else None,
+        "requested_at": datetime.now().isoformat(),
+    }
+
+
+def queue_manual_provider_binding(
+    task_manager,
+    task_id: str,
+    selection: dict,
+    *,
+    season: int | None,
+    episode: int | None,
+) -> tuple[dict | None, str]:
+    """Persist a manual identity and make an awaiting task honestly queued."""
+
+    from media_importer.features.tasks.transitions import apply
+    from media_importer.infrastructure.db import compare_and_update_task
+
+    task = task_manager.get_task(task_id)
+    if not task or task.get("status") != "PENDING":
+        return None, "state_changed"
+    binding = build_manual_provider_binding(
+        selection,
+        season=season,
+        episode=episode,
+    )
+    stage = str(task.get("stage") or "")
+    if stage == "AWAIT_REVIEW":
+        fields = apply(task, "manual_bind_queue", manual_provider_binding=binding)
+        updated = compare_and_update_task(
+            task_manager.conn,
+            task_id,
+            expect_status="PENDING",
+            expect_stage="AWAIT_REVIEW",
+            **fields,
+        )
+        return updated, "queued_with_binding" if updated else "state_changed"
+    if stage == "QUEUED":
+        updated = compare_and_update_task(
+            task_manager.conn,
+            task_id,
+            expect_status="PENDING",
+            expect_stage="QUEUED",
+            manual_provider_binding=binding,
+        )
+        return updated, "bound_queued" if updated else "state_changed"
+    if stage == "RUNNING":
+        return None, "processing_unchanged"
+    return None, "state_changed"

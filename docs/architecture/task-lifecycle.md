@@ -63,6 +63,7 @@
 | `mark_confirming()` | `PENDING` | `AWAIT_REVIEW` | 通常 `source` | 刮削核对或目标片库冲突进入用户确认；此时尚未传输大文件 |
 | `mark_confirmed()` | 保持原值 | 保持原值 | 保持原值 | 用户确认任务 |
 | `mark_needs_review()` | `PENDING` | `AWAIT_REVIEW` | `source` | 匹配疑虑需要人工确认；此时尚未传输大文件 |
+| `manual_bind_queue` | `PENDING` | `QUEUED` | `source` | 人工选定 Provider 后持久化作品绑定并重新排队；不增加重试次数 |
 | `mark_failed()` | `FAILED` | `DONE` | 默认 `source` | import-flow/API 失败分支 |
 | `mark_skipped()` | `SKIPPED` | `DONE` | 默认 `source` | 用户保留片库现有文件或忽略任务 |
 | `mark_cancelled()` | `CANCELLED` | `DONE` | 默认 `source` | 用户取消排队任务 |
@@ -72,6 +73,8 @@
 协作式停止不新增 status：运行中先写 `cancel_requested=1` 与 `requested_source_disposition`，worker 在提交点之前的安全检查点回退任务暂存，然后以 `CANCELLED/DONE + outcome_code=USER_STOPPED` 结束。视频文件包已经提交后不再接受停止，继续完成来源收尾和成功落库。
 
 `source_disposition` 独立记录 `kept/recycled/deleted/missing/failed`。删除任务记录不修改该事实，也不产生文件操作。
+
+人工 Provider 绑定在任务取得并发槽后消费。电视剧只继承作品身份，每个任务的季集号仍来自自身文件；成功加载详情后清空绑定。运行中任务禁止中途改写，冲突或兜底仍返回 `AWAIT_REVIEW`。
 
 `mark_imported()` 只能在片库新文件安全发布、来源策略已完成或已明确记录为 `WAITING/BLOCKED/FAILED/SKIPPED` 后调用。来源处理期间任务保持 `PENDING/RUNNING`，同时保留 `import_success=1` 与 `import_video_path`；来源处理异常不得把已发布片库文件回滚、删除或重复入库。
 

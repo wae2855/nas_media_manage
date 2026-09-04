@@ -59,8 +59,9 @@
 - 首页摘要每 15 秒仍读取 SQLite 业务快照，但最近影片仅在快照键变化时重新验证海报文件；海报缓存裁剪最多每 24 小时一次。配置中的片库根已在保存时规范化，摘要刷新不得为边界判断再次 `realpath` 或遍历目标片库。
 - `/api/tasks` 列表直接返回 `current_step/total_steps/step_name/percentage/bytes_copied/total_bytes/source_cleanup_status`。任务卡只对 `PENDING/RUNNING` 显示当前中文阶段；只有真实字节阶段显示阶段百分比，固定流程权重不能当作耗时比例。
 - 文件阶段同时返回当前成员名称、类型、序号和总数；详情字幕表显示来源文件、语言、计划文件名、当前状态和最终路径。`und` 必须显示“未识别”，不能伪装成中文或空值。
-- 等待确认任务可用类型、语言、年份搜索最多 20 个 Provider 候选；选择候选按 Provider ID 获取完整详情并刷新维度、片库、路径、命名和冲突预览，但任务仍停留在 `AWAIT_REVIEW`，必须由用户另行确认入库。
-- 电视剧候选应用前先调用同剧批次预览。只纳入同一实际父目录、标准化剧名一致、季集号有效且唯一的 `PENDING/AWAIT_REVIEW` 任务；电影、跨目录、未决片库冲突和已人工选择其他 Provider 的任务排除。用户可逐项取消，提交时服务端再次校验任务 ID。批量套用只共享 Provider 作品身份，每集独立保留季集号并重算分类、命名、字幕和冲突预览，不执行文件操作。
+- 等待确认任务可用类型、语言、年份搜索最多 20 个 Provider 候选；选择候选后先按 Provider ID 验证，再把最小人工作品绑定持久化并重新排队。任务取得共享并发槽后才获取详情、重算维度/分类/标准文件名/冲突并继续；冲突或兜底会再次停在 `AWAIT_REVIEW`。
+- 重新整理任务的来源已在目标片库内，是上述自动排队的安全例外：手动刮削只刷新预览，必须由用户确认后走专用片库内移动，禁止进入普通来源复制流程。
+- 电视剧候选应用前先调用同剧批次预览。同一实际父目录、标准化剧名一致、季集号有效且唯一的 `PENDING/AWAIT_REVIEW` 和 `PENDING/QUEUED` 任务可继承；运行中任务只显示、不改写。电影、跨目录、未决片库冲突和已人工选择其他 Provider 的任务排除。用户可逐项取消，提交时服务端再次校验任务 ID。批量套用只共享 Provider 作品身份，每集独立保留季集号并在真正运行时生成自己的标准文件名。
 - 确认接口快速返回并由服务进程内后台 worker 继续；关闭浏览器或前端弹窗不取消任务。同一任务有进程内重复 worker 门禁；文件包提交窗口另由持久化清单在服务重启后恢复。
 - 正常任务未匹配正式规则时必须进入 `PENDING/AWAIT_REVIEW`，只有用户明确接受待整理区后才能继续。成功入库后仍是 `SUCCESS/DONE`，用 `organization_status=FALLBACK_PENDING` 表达后续可整理，不能再显示成“需确认”或重新打开原任务。
 - `POST /api/tasks/{id}/reorganize` 只对 `SUCCESS/DONE + FALLBACK_PENDING` 创建一条 `task_kind=REORGANIZE` 的关联新任务。新任务允许改维度和手动刮削，但必须匹配正式规则才能确认；完成后原任务与新任务都保持独立审计记录。兜底、重新整理和片库冲突任务全部排除批量确认。
@@ -81,7 +82,7 @@
 - `tests/test_feature_task_queue.py` covers queue service behavior without starting real background workers.
 - `tests/test_feature_task_cancel.py` covers cancel lifecycle, TaskManager cancel rules, API service responses, retry from CANCELLED, and CANCELLED list filtering.
 - `tests/test_feature_task_review.py` covers manual review action behavior with fake pipeline/task manager objects.
-- `tests/test_series_batch_scrape_apply.py` 覆盖《北海鲸梦》5 集分组、危险任务排除、后端任务 ID 复核、Provider 单次加载和季集号保留。
+- `tests/test_series_batch_scrape_apply.py` 与 `tests/test_manual_provider_binding.py` 覆盖《北海鲸梦》混合状态 5 集分组、危险任务排除、后端任务 ID 复核、绑定重启持久化、运行中不改写、精确 Provider 消费、季集号保留及标准文件名。
 - `tests/test_task_concurrency_limit.py` 覆盖并发 1–2、历史异常值钳制、第三个任务不提前领取、重复批处理抑制和确认入口共享槽位。
 - `tests/test_feature_task_file_lifecycle.py` covers task file rename behavior, filename safety checks, ignore cleanup, recycle handoff, and invalid status handling.
 - `tests/test_feature_task_list.py` covers pagination, status validation, and active-count assembly.

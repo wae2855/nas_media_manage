@@ -14,6 +14,71 @@ from media_importer.infrastructure.db import (
 
 
 class ScrapeStepsMixin:
+    def _load_manual_provider_binding(self, task: dict) -> dict | None:
+        binding = task.get("manual_provider_binding") or {}
+        if not isinstance(binding, dict) or not binding.get("item_id"):
+            return None
+        from media_importer.features.tasks.search_service import load_provider_candidate
+
+        selected = load_provider_candidate(
+            self.config,
+            self.task_manager.conn,
+            provider_type=str(binding.get("provider_type") or ""),
+            item_id=str(binding.get("item_id") or ""),
+            media_type=str(binding.get("media_type") or ""),
+            language=str(binding.get("language") or "") or None,
+        )
+        result = dict(selected["scrape_result"])
+        dimensions = dict(selected.get("dimensions") or {})
+        dim_sources = dict(selected.get("dim_sources") or {})
+        if str(binding.get("media_type")) == "tv":
+            for name in ("season", "episode"):
+                value = binding.get(name)
+                if value is not None:
+                    result[name] = value
+                    dimensions[name] = value
+                    dim_sources[name] = "file:filename"
+        result.update({
+            "provider_type": str(binding.get("provider_type") or ""),
+            "provider_id": str(binding.get("item_id") or ""),
+            "media_type": str(binding.get("media_type") or ""),
+            "match_level": "AUTO_PASS",
+            "match_concerns": [],
+            "tier_short_reason": "已使用人工确认的作品",
+            "selected_candidate": {
+                "provider_type": str(binding.get("provider_type") or ""),
+                "provider_id": str(binding.get("item_id") or ""),
+                "title": result.get("title_cn") or result.get("title_en", ""),
+                "year": result.get("year"),
+                "media_type": str(binding.get("media_type") or ""),
+            },
+            "dimensions": dimensions,
+            "scrape_trace": {
+                "manual_selected": True,
+                "manual_binding_consumed": True,
+                "provider_type": str(binding.get("provider_type") or ""),
+                "provider_id": str(binding.get("item_id") or ""),
+                "language": selected.get("language", ""),
+                "provider_dimensions": selected.get("dimensions", {}),
+                "dimension_mapping_evidence": (
+                    result.get("scrape_trace", {}).get(
+                        "dimension_mapping_evidence", {}
+                    )
+                    if isinstance(result.get("scrape_trace"), dict)
+                    else {}
+                ),
+                "dim_sources": dim_sources,
+            },
+        })
+        task["_manual_binding_consumed"] = True
+        self._log(
+            "info",
+            f"使用人工确认作品继续处理: {result.get('title_cn') or result.get('title_en')}",
+            task,
+            "scrape",
+        )
+        return result
+
     def _step_scrape(self, task: dict):
         self._update_progress(task, 3, "scrape", 35)
         self._log("info", f"刮削元数据: {task.get('source_filename', '')}", task, "scrape")
@@ -34,27 +99,41 @@ class ScrapeStepsMixin:
             self._log("warning", f"文件维度分析失败（不影响刮削）: {e}", task, "scrape")
 
         try:
-            # 先由统一匹配器决定作品身份，再按同一候选抓取完整元数据，
-            # 避免刮削器与匹配器各搜一次后给出不同结论。
-            match_engine = MatchEngine(self.scraper.config if hasattr(self.scraper, 'config') else {})
-            video_path = task.get("video_path") or task.get("source_path", "")
-            providers = self.scraper.providers if hasattr(self.scraper, 'providers') else []
-            match_result = match_engine.match(
-                filename=task.get("source_filename", ""),
-                providers=providers,
-                conn=self.task_manager.conn,
-                video_path=video_path,
-            )
-            result = self.scraper.scrape(
-                task.get("source_filename", ""),
-                task.get("subtitle_files", []),
-                conn=self.task_manager.conn,
-                video_path=video_path,
-                match_result=match_result,
-            )
+            result = self._load_manual_provider_binding(task)
+            if result is None:
+                # 先由统一匹配器决定作品身份，再按同一候选抓取完整元数据，
+                # 避免刮削器与匹配器各搜一次后给出不同结论。
+                match_engine = MatchEngine(
+                    self.scraper.config if hasattr(self.scraper, 'config') else {}
+                )
+                video_path = task.get("video_path") or task.get("source_path", "")
+                providers = self.scraper.providers if hasattr(self.scraper, 'providers') else []
+                match_result = match_engine.match(
+                    filename=task.get("source_filename", ""),
+                    providers=providers,
+                    conn=self.task_manager.conn,
+                    video_path=video_path,
+                )
+                result = self.scraper.scrape(
+                    task.get("source_filename", ""),
+                    task.get("subtitle_files", []),
+                    conn=self.task_manager.conn,
+                    video_path=video_path,
+                    match_result=match_result,
+                )
+                match_dict = match_result.to_dict()
+            else:
+                match_dict = {
+                    "match_level": "AUTO_PASS",
+                    "concerns": [],
+                    "match_tier": 0,
+                    "tier_short_reason": "已使用人工确认的作品",
+                    "ai_reason": "",
+                    "selected_candidate": result.get("selected_candidate"),
+                    "manual_selected": True,
+                }
             task["scrape_result"] = result
 
-            match_dict = match_result.to_dict()
             result['match_level'] = match_dict['match_level']
             result['match_concerns'] = match_dict['concerns']
             result['match_trace'] = match_dict
@@ -77,7 +156,11 @@ class ScrapeStepsMixin:
                     result['year'] = selected.get('year')
 
             media_type = result.get('media_type', '')
-            if media_type and media_type.lower() in ('tv', 'series'):
+            if (
+                media_type
+                and media_type.lower() in ('tv', 'series')
+                and not task.get("_manual_binding_consumed")
+            ):
                 series_dims = self._get_series_dimensions(task, result)
                 if series_dims:
                     original_dims = dict(result.get('dimensions', {}))
@@ -176,6 +259,7 @@ class ScrapeStepsMixin:
                 provider_id=result.get('provider_id', ''),
                 thumbnail_path=thumbnail_path,
                 dim_sources=dim_sources,
+                manual_provider_binding={},
             )
 
             detail_parts = []
@@ -285,5 +369,9 @@ class ScrapeStepsMixin:
             t_title = t_result.get('title_cn', '') or t_result.get('title_en', '')
             if t_title and t_title == title:
                 self._log("info", f"复用同剧缓存维度: {title}", task, "scrape")
-                return t_dims
+                return {
+                    name: value
+                    for name, value in t_dims.items()
+                    if name not in {"season", "episode"}
+                }
         return None

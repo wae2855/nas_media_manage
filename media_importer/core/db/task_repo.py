@@ -75,6 +75,11 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> Optional[dict]:
             row['bundle_manifest'] = json.loads(row['bundle_manifest'])
         except (json.JSONDecodeError, TypeError):
             pass
+    if row and row.get('manual_provider_binding'):
+        try:
+            row['manual_provider_binding'] = json.loads(row['manual_provider_binding'])
+        except (json.JSONDecodeError, TypeError):
+            pass
     if row:
         subs = get_subtitles_by_task(conn, task_id)
         row['subtitle_files'] = [s.get('target_path', '') or s.get('source_path', '')
@@ -230,7 +235,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "dedup_result", "dedup_existing_file", "import_video_path",
         "video_path", "file_location", "import_success", "confirm_status", "confirmed_at",
         "skip_reason", "error_code", "error_message",
-        "provider_type", "provider_id",
+        "provider_type", "provider_id", "manual_provider_binding",
         "source_fingerprint", "source_file_size", "source_mtime",
         "thumbnail_path",
         "confirmed_override", "confirmed_title", "override_source",
@@ -244,7 +249,7 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest", "manual_provider_binding"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:
@@ -304,7 +309,7 @@ def _coerce_fields(fields: dict) -> dict:
         "dedup_result", "dedup_existing_file", "import_video_path",
         "video_path", "file_location", "import_success", "confirm_status", "confirmed_at",
         "skip_reason", "error_code", "error_message",
-        "provider_type", "provider_id",
+        "provider_type", "provider_id", "manual_provider_binding",
         "source_fingerprint", "source_file_size", "source_mtime",
         "thumbnail_path",
         "confirmed_override", "confirmed_title", "override_source",
@@ -318,7 +323,7 @@ def _coerce_fields(fields: dict) -> dict:
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest", "manual_provider_binding"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:

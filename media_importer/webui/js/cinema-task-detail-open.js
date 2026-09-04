@@ -779,6 +779,7 @@ function renderScrapeCandidateDetail(candidate, taskId) {
         if (relatedTaskIds === null) {
           return;
         }
+        confirmBtn.textContent = "正在提交处理...";
         var result = await requestApi(
           "POST",
           `/tasks/${encodeURIComponent(taskId)}/scrape-apply`,
@@ -795,18 +796,16 @@ function renderScrapeCandidateDetail(candidate, taskId) {
         if (result.code === 200) {
           var overlay = document.getElementById("scrape-search-overlay");
           if (overlay) overlay.remove();
-          showToast(result.message || "作品资料已更新，请确认入库预览");
+          showToast(result.message || "已按人工选择加入处理队列");
           await openTaskDetailImpl(taskId, true);
           await Promise.all([loadTaskList(), loadDashboardOverview()]);
         } else {
           showToast("应用失败: " + (result.message || "未知错误"), "error");
-          confirmBtn.disabled = false;
-          confirmBtn.textContent = "确定选择此条目";
+          renderScrapeCandidateDetail(candidate, taskId);
         }
       } catch (e) {
         showToast("网络错误", "error");
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = "确定选择此条目";
+        renderScrapeCandidateDetail(candidate, taskId);
       }
     });
   }
@@ -835,8 +834,8 @@ async function chooseSeriesBatchTaskIds(candidate, taskId) {
     '<div class="series-batch-preview">' +
     "<h3>发现同剧另外 " +
     relatedCount +
-    " 个待确认任务</h3>" +
-    "<p>可把这次选择一起应用。每集仍保留自己的季集号，且不会自动入库或移动文件。</p>" +
+    " 个同剧任务</h3>" +
+    "<p>待确认和排队分集会继承这次人工选择并进入处理队列；正在处理的分集仅展示，不会中途改写。每集始终保留自己的季集号。</p>" +
     '<div class="series-batch-list">' +
     tasks
       .map(function (item) {
@@ -845,18 +844,27 @@ async function chooseSeriesBatchTaskIds(candidate, taskId) {
           String(item.season).padStart(2, "0") +
           "E" +
           String(item.episode).padStart(2, "0");
+        var handlingText = {
+          queue_with_binding: "待确认 · 将重新排队",
+          bind_queued: "排队中 · 将继承作品",
+          processing_unchanged: "处理中 · 本次不改写",
+        }[item.handling] || "本次不处理";
+        var selectable = item.selectable !== false;
+        var checked = selectable ? " checked" : "";
+        var disabled = item.is_anchor || !selectable ? " disabled" : "";
         return (
-          '<label class="series-batch-item">' +
+          '<label class="series-batch-item' +
+          (!selectable ? " is-processing" : "") +
+          '">' +
           '<input type="checkbox" data-series-batch-task="' +
           escapeHtml(item.task_id) +
-          '" checked ' +
-          (item.is_anchor ? "disabled" : "") +
-          ">" +
+          '"' + checked + disabled + ">" +
           "<span><b>" +
           escapeHtml(item.source_filename) +
           "</b><small>" +
           episode +
           (item.is_anchor ? " · 当前集" : "") +
+          " · " + handlingText +
           "</small></span></label>"
         );
       })
@@ -866,7 +874,7 @@ async function chooseSeriesBatchTaskIds(candidate, taskId) {
     '<button class="btn btn-secondary" id="btn-series-batch-back" type="button">返回候选</button>' +
     '<button class="btn btn-secondary" id="btn-series-current-only" type="button">仅应用当前集</button>' +
     '<button class="btn btn-primary" id="btn-series-batch-apply" type="button">应用所选 ' +
-    tasks.length +
+    tasks.filter(function (item) { return item.selectable !== false; }).length +
     " 集</button></div></div>";
 
   var applyBtn = document.getElementById("btn-series-batch-apply");
@@ -880,6 +888,20 @@ async function chooseSeriesBatchTaskIds(candidate, taskId) {
     input.addEventListener("change", updateCount);
   });
 
+  function setBusy(count) {
+    var panel = detailEl.querySelector(".series-batch-preview");
+    if (panel) panel.setAttribute("aria-busy", "true");
+    detailEl.querySelectorAll("button, input").forEach(function (control) {
+      control.disabled = true;
+    });
+    if (applyBtn) {
+      applyBtn.innerHTML =
+        '<span class="spinner" aria-hidden="true"></span>正在应用并提交 ' +
+        count +
+        " 集...";
+    }
+  }
+
   return new Promise(function (resolve) {
     document
       .getElementById("btn-series-batch-back")
@@ -890,6 +912,7 @@ async function chooseSeriesBatchTaskIds(candidate, taskId) {
     document
       .getElementById("btn-series-current-only")
       ?.addEventListener("click", function () {
+        setBusy(1);
         resolve([]);
       });
     applyBtn?.addEventListener("click", function () {
@@ -898,6 +921,7 @@ async function chooseSeriesBatchTaskIds(candidate, taskId) {
       ).map(function (input) {
         return input.dataset.seriesBatchTask;
       });
+      setBusy(selected.length + 1);
       resolve(selected);
     });
   });

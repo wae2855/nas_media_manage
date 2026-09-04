@@ -281,9 +281,11 @@ PENDING/QUEUED
 
 ### POST /api/tasks/{task_id}/scrape-apply
 
-把用户选中的 Provider ID 应用到等待确认任务。服务端按 ID 获取完整详情、重新映射维度、分类、命名和冲突预览，任务继续保持 `PENDING/AWAIT_REVIEW`；本端点不复制、不入库，也不自动调用 `confirm`。
+把用户选中的 Provider ID 绑定到等待确认任务并重新投入处理队列。服务端先按 ID 验证 Provider 作品，再持久化最小人工绑定；任务变为 `PENDING/QUEUED`，取得统一并发槽后重新获取完整详情、映射维度、分类、标准命名和冲突预览。无冲突且不落兜底的任务继续入库；冲突或兜底任务重新停在 `PENDING/AWAIT_REVIEW`。长文件处理不阻塞本请求。
 
-电视剧请求可附带 `related_task_ids`。服务端以当前任务重新计算安全同批次集合，只处理仍处于待确认、同一实际父目录、同标准化剧名且季集号唯一的任务。Provider 详情每次请求只加载一次，每个任务分别保留自己的季集号并重算派生结果。响应增加 `updated`、`skipped`、`failed`；部分失败必须如实返回。
+`task_kind=REORGANIZE` 是安全例外：本端点只刷新作品资料和正式规则预览，继续停留在 `AWAIT_REVIEW`；用户确认后由重新整理专用路径完成片库内移动，不得把片库现存文件投入普通来源复制流程。
+
+电视剧请求可附带 `related_task_ids`。服务端以当前任务重新计算安全同批次集合：同一实际父目录、同标准化剧名且季集号唯一的待确认任务可重新排队，尚未刮削的排队任务可继承绑定，正在处理的任务只报告而不做竞态改写。每个任务始终保留自己的季集号。响应区分 `queued`、`bound_queued`、`processing_unchanged`、`skipped`、`failed`；部分失败必须如实返回。
 
 请求体：
 
@@ -297,11 +299,11 @@ PENDING/QUEUED
 }
 ```
 
-响应返回更新后的完整 `task`。任务状态在 Provider 网络请求期间发生变化时，CAS 会拒绝应用并要求刷新。
+响应返回已排队的锚点 `task` 和分类汇总。任务状态在 Provider 验证期间发生变化时，CAS 会拒绝绑定并要求刷新。
 
 ### POST /api/tasks/{task_id}/scrape-series-preview
 
-在应用电视剧候选前返回可勾选的同剧同批次任务。请求包含 `provider_type`、`item_id`、`media_type=tv`。响应 `tasks` 含锚点任务以及安全关联任务的 `task_id/source_filename/season/episode/is_anchor`，`excluded` 仅用于诊断规则排除。电影候选返回空集合。本接口只读，不加载 Provider 详情，不更新任务。
+在应用电视剧候选前返回可勾选的同剧同批次任务。请求包含 `provider_type`、`item_id`、`media_type=tv`。响应 `tasks` 含锚点任务以及安全关联任务的 `task_id/source_filename/season/episode/is_anchor/stage/handling/selectable`；正在处理项不可选择且标记为不改写，`excluded` 仅用于诊断规则排除。电影候选返回空集合。本接口只读，不加载 Provider 详情，不更新任务。
 
 ### POST /api/tasks/{task_id}/confirm
 
