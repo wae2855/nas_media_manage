@@ -285,6 +285,14 @@ class TaskManager:
                 "action": "SKIP",
                 "reason": f"任务正在处理/待确认，跳过 ({old_status}/{old_stage})",
             }
+        if old_status == "FAILED":
+            return {
+                "exists": True,
+                "task_id": history["task_id"],
+                "old_status": old_status,
+                "action": "SKIP",
+                "reason": "同一路径已有失败任务，请在原任务上手动重试",
+            }
         if old_status == "SUCCESS" and self._is_file_changed(source_path, history):
             current_size = os.path.getsize(source_path) if os.path.isfile(source_path) else 0
             old_size = history.get("source_file_size") or int((history.get("file_size_mb") or 0) * 1024 * 1024)

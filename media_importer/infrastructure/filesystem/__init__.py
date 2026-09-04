@@ -1,9 +1,11 @@
 from .safety import (
+    TARGET_CHECKSUM_MISMATCH,
     check_read_permission,
     check_write_permission,
     hash_file,
     make_fingerprint,
     safe_delete,
+    safe_delete_bundle_temporary,
     safe_move,
     validate_file_ext,
     validate_path_safety,
@@ -11,11 +13,13 @@ from .safety import (
 )
 
 __all__ = [
+    "TARGET_CHECKSUM_MISMATCH",
     "check_read_permission",
     "check_write_permission",
     "hash_file",
     "make_fingerprint",
     "safe_delete",
+    "safe_delete_bundle_temporary",
     "safe_move",
     "validate_file_ext",
     "validate_path_safety",

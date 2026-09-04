@@ -9,6 +9,10 @@ from typing import Callable, Optional
 
 _COPY_CHUNK_SIZE = 1024 * 1024
 TransferPhaseCallback = Callable[[str, int, int], None]
+TARGET_CHECKSUM_MISMATCH = (
+    "目标临时文件 SHA-256 校验失败；来源文件快照稳定，"
+    "可能是目标存储或挂载读取异常"
+)
 
 
 def validate_path_safety(path: str, allowed_base_dirs: Optional[list] = None) -> tuple:
@@ -263,12 +267,12 @@ def verified_copy(
             return False, "复制期间源文件发生变化，保留源文件并等待稳定后重试"
         if partial_snapshot[0] != source_snapshot[0]:
             return False, "目标临时文件大小校验失败"
-        if source_digest != partial_digest:
-            return False, "目标临时文件 SHA-256 校验失败"
-        if expected_sha256 and source_digest != expected_sha256:
-            return False, "源文件内容与任务发现时不一致，已停止复制并等待人工确认"
         if source_after_hash != source_snapshot:
             return False, "完整性校验期间源文件发生变化，保留源文件并等待重试"
+        if source_digest != partial_digest:
+            return False, TARGET_CHECKSUM_MISMATCH
+        if expected_sha256 and source_digest != expected_sha256:
+            return False, "源文件内容与任务发现时不一致，已停止复制并等待人工确认"
         if digest_callback:
             digest_callback(source_digest)
 
@@ -345,6 +349,49 @@ def safe_delete(path: str, allowed_base_dirs: Optional[list] = None) -> tuple:
         return False, f"权限不足，无法删除: {path}"
     except OSError as exc:
         return False, f"删除失败: {exc}"
+
+
+def safe_delete_bundle_temporary(
+    path: str,
+    allowed_base_dirs: Optional[list] = None,
+) -> tuple:
+    """Delete only an owned bundle staging file, including files over 50 GiB."""
+    if not path.endswith((".bundle.tmp", ".bundle.tmp.copying")):
+        return False, f"不是允许清理的文件包临时路径: {path}"
+    if not os.path.lexists(path):
+        return True, ""
+    ok, message = validate_path_safety(path, allowed_base_dirs)
+    if not ok:
+        return False, message
+    try:
+        before = os.lstat(path)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_uid != os.geteuid()
+        ):
+            return False, f"文件包临时路径不是本应用持有的独立普通文件: {path}"
+        descriptor = _open_regular_nofollow(path, os.O_RDONLY)
+        try:
+            opened = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            return False, f"文件包临时路径在打开时发生变化: {path}"
+        current = os.lstat(path)
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or current.st_nlink != 1
+            or current.st_uid != os.geteuid()
+            or (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino)
+        ):
+            return False, f"文件包临时路径在删除前发生变化: {path}"
+        os.unlink(path)
+        return True, f"已清理任务文件包临时文件: {os.path.basename(path)}"
+    except PermissionError:
+        return False, f"权限不足，无法清理文件包临时文件: {path}"
+    except OSError as exc:
+        return False, f"文件包临时文件清理失败: {exc}"
 
 
 def safe_move(

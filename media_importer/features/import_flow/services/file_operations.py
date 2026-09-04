@@ -7,9 +7,11 @@ from media_importer.features.import_flow.utils import (
 )
 from media_importer.features.recycle import move_to_recycle
 from media_importer.infrastructure.filesystem import (
+    TARGET_CHECKSUM_MISMATCH,
     check_write_permission,
     hash_file,
     safe_delete,
+    safe_delete_bundle_temporary,
     safe_move,
     validate_path_safety,
     verified_copy,
@@ -19,6 +21,48 @@ from .naming import (
     apply_filename_template,
     plan_subtitle_filenames,
 )
+
+
+def _verified_copy_with_single_clean_retry(
+    source_path: str,
+    stage_path: str,
+    *,
+    allowed_base_dirs: Optional[list],
+    phase_callback=None,
+    digest_callback=None,
+) -> tuple[bool, str]:
+    """Retry one stable-source target checksum mismatch from an empty partial."""
+    copied, message = verified_copy(
+        source_path,
+        stage_path,
+        phase_callback=phase_callback,
+        digest_callback=digest_callback,
+    )
+    if copied or message != TARGET_CHECKSUM_MISMATCH:
+        return copied, message
+
+    partial = stage_path + ".copying"
+    removed, cleanup_message = safe_delete_bundle_temporary(
+        partial, allowed_base_dirs
+    )
+    if not removed:
+        return False, (
+            f"{message}；首次异常后的本任务临时文件无法安全清理，"
+            f"未执行重试: {cleanup_message}"
+        )
+
+    copied, retry_message = verified_copy(
+        source_path,
+        stage_path,
+        phase_callback=phase_callback,
+        digest_callback=digest_callback,
+    )
+    if not copied and retry_message == TARGET_CHECKSUM_MISMATCH:
+        return False, (
+            f"{retry_message}；已从空临时文件安全重试一次仍不一致，"
+            "请检查目标存储、挂载连接或磁盘读取状态"
+        )
+    return copied, retry_message
 
 
 def move_to_import(video_path: str, subtitle_paths: list[str], import_dir: str,
@@ -403,9 +447,10 @@ def _publish_new_bundle(
 
             if copy_source_members:
                 digest: list[str] = []
-                moved, message = verified_copy(
+                moved, message = _verified_copy_with_single_clean_retry(
                     member["source_path"],
                     member["stage_path"],
+                    allowed_base_dirs=allowed_base_dirs,
                     phase_callback=member_phase if phase_callback else None,
                     digest_callback=digest.append,
                 )
@@ -464,7 +509,9 @@ def _publish_new_bundle(
                         f"任务复制残留类型异常，已保留现场: {partial}"
                     )
                     continue
-                removed, message = safe_delete(partial, allowed_base_dirs)
+                removed, message = safe_delete_bundle_temporary(
+                    partial, allowed_base_dirs
+                )
                 if not removed:
                     rollback_errors.append(message)
         for member in reversed(published):
@@ -485,7 +532,9 @@ def _publish_new_bundle(
                 if not restored:
                     rollback_errors.append(message)
                     continue
-                removed, message = safe_delete(member["stage_path"], allowed_base_dirs)
+                removed, message = safe_delete_bundle_temporary(
+                    member["stage_path"], allowed_base_dirs
+                )
                 if not removed:
                     rollback_errors.append(message)
             else:
@@ -508,7 +557,9 @@ def _publish_new_bundle(
                         f"任务暂存文件发生变化，已保留现场: {member['stage_path']}"
                     )
                     continue
-                removed, message = safe_delete(member["stage_path"], allowed_base_dirs)
+                removed, message = safe_delete_bundle_temporary(
+                    member["stage_path"], allowed_base_dirs
+                )
                 if not removed:
                     rollback_errors.append(message)
             else:

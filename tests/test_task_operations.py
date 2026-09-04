@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from media_importer.core import db as db_module
 from media_importer.core.task_manager import TaskManager
+from media_importer.features.import_flow.scan_service import FileScanner
 
 
 class TestTaskOperations(unittest.TestCase):
@@ -184,19 +185,47 @@ class TestTaskOperations(unittest.TestCase):
         self.assertTrue(result["exists"])
         self.assertEqual(result["action"], "CREATE")
 
-    def test_check_source_duplicate_failed_under_limit(self):
+    def test_check_source_duplicate_failed_is_skipped(self):
         self._create_task(status="FAILED", source_path="/test/failed.mkv",
                           source_filename="failed.mkv", retry_count=1)
         result = self.tm.check_source_duplicate("/test/failed.mkv")
         self.assertTrue(result["exists"])
-        self.assertEqual(result["action"], "CREATE")
+        self.assertEqual(result["action"], "SKIP")
+        self.assertIn("原任务", result["reason"])
 
-    def test_check_source_duplicate_failed_over_limit(self):
+    def test_check_source_duplicate_failed_is_skipped_regardless_of_retry_count(self):
         self._create_task(status="FAILED", source_path="/test/failed3.mkv",
                           source_filename="failed3.mkv", retry_count=3)
         result = self.tm.check_source_duplicate("/test/failed3.mkv")
         self.assertTrue(result["exists"])
-        self.assertEqual(result["action"], "CREATE")
+        self.assertEqual(result["action"], "SKIP")
+
+    def test_scan_does_not_create_another_record_for_failed_source(self):
+        source_dir = os.path.join(self.tmpdir, self._testMethodName)
+        os.makedirs(source_dir, exist_ok=True)
+        source_path = os.path.join(source_dir, "Episode.S01E04.mkv")
+        with open(source_path, "wb") as handle:
+            handle.write(b"stable-video")
+        failed = self._create_task(
+            status="FAILED",
+            source_path=source_path,
+            source_filename=os.path.basename(source_path),
+        )
+        before, before_total, _ = db_module.list_tasks(
+            self.conn, page=1, page_size=20
+        )
+
+        scanner = FileScanner(self.config, task_manager=self.tm)
+        self.assertEqual(scanner.scan_and_filter(source_dir), [])
+        self.assertEqual(scanner.scan_and_filter(source_dir), [])
+
+        after, after_total, _ = db_module.list_tasks(
+            self.conn, page=1, page_size=20
+        )
+        self.assertEqual(before_total, 1)
+        self.assertEqual(after_total, 1)
+        self.assertEqual(before[0]["task_id"], failed["task_id"])
+        self.assertEqual(after[0]["task_id"], failed["task_id"])
 
     def test_check_source_duplicate_processing_file(self):
         self._create_task(status="PENDING", stage="RUNNING", source_path="/test/processing.mkv",
