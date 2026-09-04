@@ -93,13 +93,15 @@
     {
       "version": "0.3.31",
       "source_sha256": "9e467353de8a3c8005a79f0193c30684de7a22558847b837de57799cd32bf7f1",
-      "status": "candidate",
+      "status": "verified",
       "builds": [
         {
           "artifact_sha256": "bb9a9a71d4d9d955a973af76931afbea4e4282ebfdc32f096c62f4d4f70c3c3d",
           "built_at": "2026-09-04T19:12:37+08:00"
         }
-      ]
+      ],
+      "verified_at": "2026-09-05T00:49:28+08:00",
+      "verification_note": "用户于 2026-09-05 确认 fnOS 安装与验证通过"
     }
   ]
 }

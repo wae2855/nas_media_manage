@@ -8,7 +8,7 @@ confidence: high
 
 # 发布 fnOS 0.3.31 GitHub Release
 
-- **Requirement**: [REQ-20260904-234308](../tracking/requirements-board.md)
+- **Requirement**: [REQ-20260904-234308](../../tracking/completed-items.md)
 
 将已经通过本地构建门禁的 `0.3.31` 候选 FPK 发布到公开 GitHub Releases，使 README 中的安装入口真实可用。
 
@@ -82,3 +82,9 @@ confidence: high
 - 匿名回下载包重新通过 `validate_fpk.py --version 0.3.31`，包含 21 个外层条目和 275 个应用条目。
 - `v0.3.31` 标签与发布时 `main` 同指向提交 `82012d4`；Release 为非草稿 prerelease，两个资产均处于 uploaded 状态。
 - Release 页面：[fnOS 0.3.31 候选版](https://github.com/wae2855/nas_media_manage/releases/tag/v0.3.31)。
+
+## Post-release Acceptance
+
+- 用户于 2026-09-05 确认 fnOS 安装与验证通过。
+- `release_ledger.py mark-verified` 已将 `0.3.31` 登记为最近 fnOS 验收正常版本。
+- GitHub Release 已从 prerelease 转为正式 Latest Release，发布说明同步更新为 `FNOS_UAT PASS`。
