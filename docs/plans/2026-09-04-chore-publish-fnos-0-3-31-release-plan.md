@@ -2,7 +2,7 @@
 title: "chore: 发布 fnOS 0.3.31 GitHub Release"
 type: plan
 date: 2026-09-04
-status: in-progress
+status: complete
 confidence: high
 ---
 
@@ -38,9 +38,9 @@ confidence: high
 
 - [x] 注册发布需求，并确认工作树、版本、候选账本和远端 Release 状态。
 - [x] 运行发布专项测试、文档检查、包内容校验、源码指纹和 SHA-256 门禁。
-- [ ] 编写准确的候选版发布说明，创建 `v0.3.31` prerelease 并上传两个资产。
-- [ ] 匿名下载远端资产，复核 HTTP、文件大小和 SHA-256 与本地候选一致。
-- [ ] 更新需求与计划证据，提交、推送并复核公开 Release 页面。
+- [x] 编写准确的候选版发布说明，创建 `v0.3.31` prerelease 并上传两个资产。
+- [x] 匿名下载远端资产，复核 HTTP、文件大小和 SHA-256 与本地候选一致。
+- [x] 更新需求与计划证据，提交、推送并复核公开 Release 页面。
 
 ## Acceptance Criteria
 
@@ -74,3 +74,11 @@ confidence: high
 - 上传错误或损坏包：上传前校验，发布后匿名重新下载并比对哈希。
 - 标签与最终文档提交错位：先完成发布准备提交，再以该 `main` 创建标签；收尾证据可后续普通提交。
 - 用户误认为已真机验证：使用 prerelease，并在标题和说明显式标注候选版及 `FNOS_UAT NOT_RUN`。
+
+## Validation Evidence
+
+- 发布专项测试：47 项通过；文档检查：143 个活跃 Markdown 通过。
+- 本地与匿名回下载 FPK 均为 11,818,856 字节，SHA-256 均为 `bb9a9a71d4d9d955a973af76931afbea4e4282ebfdc32f096c62f4d4f70c3c3d`，逐字节比较一致。
+- 匿名回下载包重新通过 `validate_fpk.py --version 0.3.31`，包含 21 个外层条目和 275 个应用条目。
+- `v0.3.31` 标签与发布时 `main` 同指向提交 `82012d4`；Release 为非草稿 prerelease，两个资产均处于 uploaded 状态。
+- Release 页面：[fnOS 0.3.31 候选版](https://github.com/wae2855/nas_media_manage/releases/tag/v0.3.31)。
