@@ -78,6 +78,17 @@
           "built_at": "2026-09-04T15:54:10+08:00"
         }
       ]
+    },
+    {
+      "version": "0.3.30",
+      "source_sha256": "2c86104f6ce5f2e5b40f17a568b8d88f4e405b95af60149722198aae8dccc790",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "ebb2c52b12000c77ee9961e359bdb7dd6825e86ae62c9cedd8e6f3d49d58ab18",
+          "built_at": "2026-09-04T17:14:14+08:00"
+        }
+      ]
     }
   ]
 }
