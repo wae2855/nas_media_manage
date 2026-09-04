@@ -4,6 +4,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DETAIL_JS = ROOT / "media_importer/webui/js/cinema-task-detail-open.js"
 TASK_DETAIL_JS = ROOT / "media_importer/webui/js/cinema-task-detail.js"
 PAGES_CSS = ROOT / "media_importer/webui/css/cinema-pages.css"
+BATCH_JS = ROOT / "media_importer/webui/js/cinema-task-batch.js"
+INDEX_HTML = ROOT / "media_importer/webui/index.html"
 
 
 def test_manual_scrape_offers_type_language_year_and_twenty_results():
@@ -44,3 +46,26 @@ def test_task_detail_shows_planned_subtitle_name_and_unknown_language():
     assert "planned_filename" in script
     assert "计划文件名" in script
     assert 'und: "未识别"' in script
+
+
+def test_tv_candidate_previews_deselectable_same_series_batch_before_apply():
+    script = DETAIL_JS.read_text(encoding="utf-8")
+
+    assert "/scrape-series-preview`" in script
+    assert "发现同剧另外 " in script
+    assert 'data-series-batch-task="' in script
+    assert "仅应用当前集" in script
+    assert "related_task_ids: relatedTaskIds" in script
+    assert "不会自动入库或移动文件" in script
+
+
+def test_batch_reidentify_includes_failed_and_await_review_only():
+    script = BATCH_JS.read_text(encoding="utf-8")
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    retry_block = script.split('if (action === "batch-retry")', 1)[1]
+
+    assert "批量重新识别" in html
+    assert 'taskStatusOf(t) === "FAILED"' in retry_block
+    assert 'taskStageOf(t) === "AWAIT_REVIEW"' in retry_block
+    assert "使用当前版本规则重新刮削" in retry_block
+    assert "/retry`" in retry_block

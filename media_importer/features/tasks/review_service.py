@@ -4,6 +4,8 @@ from typing import Optional
 
 from media_importer.infrastructure.db import get_enabled_dimensions
 
+from .series_batch_service import discover_series_batch
+
 
 @dataclass
 class TaskReviewActionResult:
@@ -20,6 +22,9 @@ def apply_scrape_candidate_for_api(
     pipeline,
     task_id: str,
     selection: dict,
+    *,
+    task_manager=None,
+    related_task_ids: Optional[list[str]] = None,
 ) -> TaskReviewActionResult:
     if pipeline is None:
         return TaskReviewActionResult(code=500, message="Pipeline not initialized")
@@ -30,19 +35,109 @@ def apply_scrape_candidate_for_api(
             code=400,
             message="缺少候选参数: " + ", ".join(missing),
         )
+    if related_task_ids is not None and not isinstance(related_task_ids, list):
+        return TaskReviewActionResult(code=400, message="related_task_ids 必须是数组")
+    requested = list(
+        dict.fromkeys(str(item) for item in (related_task_ids or []) if item)
+    )
+    if len(requested) > 50:
+        return TaskReviewActionResult(code=400, message="单次最多套用 50 个任务")
     try:
-        task = pipeline.apply_scrape_candidate(
-            task_id,
+        if not requested:
+            task = pipeline.apply_scrape_candidate(
+                task_id,
+                provider_type=str(selection["provider_type"]),
+                item_id=str(selection["item_id"]),
+                media_type=str(selection["media_type"]),
+                language=str(selection.get("language", "") or ""),
+            )
+            return TaskReviewActionResult(
+                code=200,
+                data={"task": task},
+                message="作品资料已更新，请核对入库预览后再确认",
+            )
+
+        if task_manager is None:
+            return TaskReviewActionResult(code=500, message="TaskManager not initialized")
+        preview = discover_series_batch(task_manager, task_id, selection)
+        allowed = {str(item["task_id"]) for item in preview["tasks"]}
+        requested_set = set(requested)
+        target_ids = [task_id] + [
+            item["task_id"]
+            for item in preview["tasks"]
+            if item["task_id"] != task_id and item["task_id"] in requested_set
+        ]
+        skipped = [
+            {"task_id": item, "reason": "not_in_safe_series_batch"}
+            for item in requested
+            if item not in allowed
+        ]
+
+        from media_importer.features.tasks.search_service import load_provider_candidate
+
+        selected = load_provider_candidate(
+            pipeline.config,
+            task_manager.conn,
             provider_type=str(selection["provider_type"]),
             item_id=str(selection["item_id"]),
             media_type=str(selection["media_type"]),
-            language=str(selection.get("language", "") or ""),
+            language=str(selection.get("language", "") or "") or None,
         )
+        updated = []
+        failed = []
+        anchor_task = None
+        for target_id in target_ids:
+            try:
+                task = pipeline.apply_loaded_scrape_candidate(
+                    target_id,
+                    selected=selected,
+                    provider_type=str(selection["provider_type"]),
+                    item_id=str(selection["item_id"]),
+                    media_type=str(selection["media_type"]),
+                )
+                updated.append({"task_id": target_id})
+                if target_id == task_id:
+                    anchor_task = task
+            except Exception as exc:
+                failed.append({"task_id": target_id, "error": str(exc)})
+        if anchor_task is None:
+            return TaskReviewActionResult(
+                code=400,
+                data={"updated": updated, "skipped": skipped, "failed": failed},
+                message="当前任务资料未能应用，请刷新后重试",
+            )
         return TaskReviewActionResult(
             code=200,
-            data={"task": task},
-            message="作品资料已更新，请核对入库预览后再确认",
+            data={
+                "task": anchor_task,
+                "updated": updated,
+                "skipped": skipped,
+                "failed": failed,
+            },
+            message=(
+                f"作品资料已更新：成功 {len(updated)} 项，"
+                f"跳过 {len(skipped)} 项，失败 {len(failed)} 项"
+            ),
         )
+    except Exception as exc:
+        return TaskReviewActionResult(code=400, message=str(exc))
+
+
+def preview_series_batch_for_api(
+    task_manager,
+    task_id: str,
+    selection: dict,
+) -> TaskReviewActionResult:
+    required = ("provider_type", "item_id", "media_type")
+    missing = [name for name in required if not str(selection.get(name, "")).strip()]
+    if missing:
+        return TaskReviewActionResult(
+            code=400,
+            message="缺少候选参数: " + ", ".join(missing),
+        )
+    try:
+        preview = discover_series_batch(task_manager, task_id, selection)
+        return TaskReviewActionResult(code=200, data=preview)
     except Exception as exc:
         return TaskReviewActionResult(code=400, message=str(exc))
 

@@ -80,6 +80,7 @@ API_ROUTES = [
     _route("POST", "/api/tasks/{task_id}/reorganize", "_task_reorganize"),
     _route("POST", "/api/tasks/{task_id}/preview", "_task_preview"),
     _route("POST", "/api/tasks/{task_id}/scrape-search", "_task_scrape_search"),
+    _route("POST", "/api/tasks/{task_id}/scrape-series-preview", "_task_scrape_series_preview"),
     _route("POST", "/api/tasks/{task_id}/scrape-apply", "_task_scrape_apply"),
     _route("POST", "/api/tasks/{task_id}/reclassify", "_task_reclassify"),
     _route("POST", "/api/tasks/{task_id}/classify-preview", "_task_classify_preview"),

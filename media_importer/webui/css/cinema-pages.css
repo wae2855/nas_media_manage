@@ -1588,6 +1588,26 @@
     backdrop-filter: blur(14px);
 }
 
+.series-batch-preview { display: grid; gap: 14px; }
+.series-batch-preview h3,
+.series-batch-preview p { margin: 0; }
+.series-batch-preview p { color: var(--muted); line-height: 1.65; }
+.series-batch-list { display: grid; gap: 8px; max-height: 360px; overflow: auto; }
+.series-batch-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 11px 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+}
+.series-batch-item span { min-width: 0; display: grid; gap: 3px; }
+.series-batch-item b { overflow-wrap: anywhere; }
+.series-batch-item small { color: var(--muted); }
+.series-batch-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
 html.has-cinema-modal,
 body.has-cinema-modal {
     overflow-x: hidden;

@@ -24,7 +24,7 @@
 | API area | Handler | Feature owner |
 |----------|---------|---------------|
 | Dashboard business summary | `task_handlers.py` | `features/tasks`, `features/scraping` |
-| Tasks, retry, queue, confirm, reclassify, preview, scrape-search | `task_handlers.py` | `features/tasks`, `features/import_flow` |
+| Tasks, retry, queue, confirm, reclassify, preview, scrape-search, series batch apply | `task_handlers.py` | `features/tasks`, `features/import_flow` |
 | Config load/save/validate/check | `config_handlers.py`, `connectivity_handlers.py` | `features/configuration` |
 | Provider list/test/search/details/prompts | `provider_handlers.py`, `tmdb_handlers.py` | `features/providers`, `features/scraping`, `features/prompts` |
 | Prompt defaults and reset | `prompt_handlers.py` | `features/prompts` |
@@ -283,6 +283,8 @@ PENDING/QUEUED
 
 把用户选中的 Provider ID 应用到等待确认任务。服务端按 ID 获取完整详情、重新映射维度、分类、命名和冲突预览，任务继续保持 `PENDING/AWAIT_REVIEW`；本端点不复制、不入库，也不自动调用 `confirm`。
 
+电视剧请求可附带 `related_task_ids`。服务端以当前任务重新计算安全同批次集合，只处理仍处于待确认、同一实际父目录、同标准化剧名且季集号唯一的任务。Provider 详情每次请求只加载一次，每个任务分别保留自己的季集号并重算派生结果。响应增加 `updated`、`skipped`、`failed`；部分失败必须如实返回。
+
 请求体：
 
 ```json
@@ -290,11 +292,16 @@ PENDING/QUEUED
   "provider_type": "tmdb",
   "item_id": "19995",
   "media_type": "movie",
-  "language": "zh-CN"
+  "language": "zh-CN",
+  "related_task_ids": []
 }
 ```
 
 响应返回更新后的完整 `task`。任务状态在 Provider 网络请求期间发生变化时，CAS 会拒绝应用并要求刷新。
+
+### POST /api/tasks/{task_id}/scrape-series-preview
+
+在应用电视剧候选前返回可勾选的同剧同批次任务。请求包含 `provider_type`、`item_id`、`media_type=tv`。响应 `tasks` 含锚点任务以及安全关联任务的 `task_id/source_filename/season/episode/is_anchor`，`excluded` 仅用于诊断规则排除。电影候选返回空集合。本接口只读，不加载 Provider 详情，不更新任务。
 
 ### POST /api/tasks/{task_id}/confirm
 
@@ -363,6 +370,8 @@ PENDING/QUEUED
 ## Standards
 
 见 [../standards/api.md](../standards/api.md)。
+
+批处理、单文件、重试和确认 API 虽由后台线程快速接收，但最终都进入同一 Pipeline 任务槽位；实际并发只读取 `task_queue.max_concurrent=1|2`。重复批处理请求不会创建第二个调度池，等待槽位的任务在真正取得槽位前不得提前领取为 `RUNNING`。
 
 ## Config API: AI 配置字段
 

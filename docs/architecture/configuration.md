@@ -66,4 +66,6 @@ config.yaml.example
 
 重复处理配置固定归一化为 `duplicate_handling.enabled=true / strategy=confirm`。旧 `skip/rename/replace/quality` 值可以读入，但运行时不会产生自动片库写操作；配置界面只展示“冲突时等待确认”的安全说明。
 
+任务并发配置 `task_queue.max_concurrent` 的产品边界固定为 `1..2`，缺失默认 `1`。分区保存和全量配置校验都拒绝非整数及超限值；import-flow 运行时再次钳制历史或手工异常值，保证配置文件绕过界面时也不会产生超过 2 个并发文件任务。
+
 当前 `config_handlers.py` 中的 UI 配置投影、分区保存拆分、权限检查请求组装、路径测试结果组装和 watcher 状态投影已下沉到 configuration feature application service；配置重载后的 pipeline/notifier/watcher 刷新已下沉到 runtime service。API handler 仍保留全局对象引用赋值，后续如新增 application state 容器再继续收口。

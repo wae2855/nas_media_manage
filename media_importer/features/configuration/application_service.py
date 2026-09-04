@@ -91,6 +91,19 @@ def build_section_config_update(section: str, data: dict, current_config: dict) 
             "enabled": True,
             "strategy": "confirm",
         }
+    if section == "advanced" and "task_queue" in section_body:
+        task_queue = section_body["task_queue"]
+        max_concurrent = (
+            task_queue.get("max_concurrent")
+            if isinstance(task_queue, dict)
+            else None
+        )
+        if (
+            isinstance(max_concurrent, bool)
+            or not isinstance(max_concurrent, int)
+            or not 1 <= max_concurrent <= 2
+        ):
+            raise ValueError("最大并发任务数必须是 1 或 2")
     return section_body
 
 

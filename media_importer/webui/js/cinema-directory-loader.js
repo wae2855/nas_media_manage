@@ -293,7 +293,10 @@ async function loadDirectoryConfig(options = {}) {
   );
   setFieldValue(
     "cfg-task_queue-max_concurrent-inline",
-    (rawConfig.task_queue || {}).max_concurrent || 1,
+    Math.min(
+      2,
+      Math.max(1, Number((rawConfig.task_queue || {}).max_concurrent) || 1),
+    ),
   );
   const watcherCfg = rawConfig.file_watcher || {};
   const automationToggle = document.getElementById("cfg-auto-watcher-enabled");

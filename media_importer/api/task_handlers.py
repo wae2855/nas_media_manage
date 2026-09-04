@@ -18,6 +18,7 @@ from media_importer.features.tasks import (
     get_task_subtitles_for_api,
     ignore_task_for_api,
     pause_queue_for_api,
+    preview_series_batch_for_api,
     preview_task_for_api,
     queue_confirm_task_for_api,
     reclassify_task_for_api,
@@ -218,6 +219,22 @@ class TaskHandlersMixin:
         }
         result = apply_scrape_candidate_for_api(
             globals._global_pipeline,
+            task_id,
+            selection,
+            task_manager=globals._global_task_manager,
+            related_task_ids=(body or {}).get("related_task_ids") or [],
+        )
+        json_response(self, result.code, data=result.data, message=result.message)
+
+    def _task_scrape_series_preview(self, *, body: dict, params: dict, query: dict):
+        task_id = params.get("task_id", "")
+        selection = {
+            "provider_type": str((body or {}).get("provider_type", "") or ""),
+            "item_id": str((body or {}).get("item_id", "") or ""),
+            "media_type": str((body or {}).get("media_type", "") or ""),
+        }
+        result = preview_series_batch_for_api(
+            globals._global_task_manager,
             task_id,
             selection,
         )

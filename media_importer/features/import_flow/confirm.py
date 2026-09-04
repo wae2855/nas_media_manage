@@ -1,4 +1,5 @@
 import os
+from contextlib import nullcontext
 from typing import Optional
 
 from media_importer.features.import_flow.context import TaskContext
@@ -40,14 +41,6 @@ class ConfirmMixin:  # type: ignore[misc]
     ) -> dict:
         """应用完整 Provider 候选并刷新入库预览，但不启动文件处理。"""
 
-        task = self.task_manager.get_task(task_id)
-        if (
-            not task
-            or task.get("status") != "PENDING"
-            or task.get("stage") != "AWAIT_REVIEW"
-        ):
-            raise PipelineError("只有等待人工确认的任务可以重新选择作品资料")
-
         from media_importer.features.tasks.search_service import load_provider_candidate
 
         selected = load_provider_candidate(
@@ -58,6 +51,33 @@ class ConfirmMixin:  # type: ignore[misc]
             media_type=media_type,
             language=language or None,
         )
+        return ConfirmMixin.apply_loaded_scrape_candidate(
+            self,
+            task_id,
+            selected=selected,
+            provider_type=provider_type,
+            item_id=item_id,
+            media_type=media_type,
+        )
+
+    def apply_loaded_scrape_candidate(
+        self,
+        task_id: str,
+        *,
+        selected: dict,
+        provider_type: str,
+        item_id: str,
+        media_type: str,
+    ) -> dict:
+        """Apply already-loaded Provider data to one task without file import."""
+
+        task = self.task_manager.get_task(task_id)
+        if (
+            not task
+            or task.get("status") != "PENDING"
+            or task.get("stage") != "AWAIT_REVIEW"
+        ):
+            raise PipelineError("只有等待人工确认的任务可以重新选择作品资料")
         old_result = task.get("scrape_result") or {}
         old_dimensions = task.get("scrape_dimensions") or {}
         old_sources = task.get("dim_sources") or {}
@@ -232,6 +252,23 @@ class ConfirmMixin:  # type: ignore[misc]
                      conflict_action: Optional[str] = None,
                      source_disposition: Optional[str] = None,
                      fallback_acknowledged: bool = False) -> bool:
+        slot_factory = getattr(self, "task_slot", None)
+        slot = slot_factory() if callable(slot_factory) else nullcontext()
+        with slot:
+            return self._confirm_task_impl(
+                task_id,
+                confirmed_title=confirmed_title,
+                override_source=override_source,
+                conflict_action=conflict_action,
+                source_disposition=source_disposition,
+                fallback_acknowledged=fallback_acknowledged,
+            )
+
+    def _confirm_task_impl(self, task_id: str, confirmed_title: Optional[str] = None,
+                           override_source: Optional[str] = None,
+                           conflict_action: Optional[str] = None,
+                           source_disposition: Optional[str] = None,
+                           fallback_acknowledged: bool = False) -> bool:
         task = self.task_manager.get_task(task_id)
         if not task or task.get("stage") != "AWAIT_REVIEW":
             raise PipelineError(f"任务不可确认: 状态={task.get('status', 'UNKNOWN') if task else 'NOT_FOUND'}/{task.get('stage', '') if task else ''}")

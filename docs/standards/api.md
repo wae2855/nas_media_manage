@@ -53,6 +53,7 @@ API 路由集中在 `media_importer/api/routes.py`。
 - 首页摘要不得返回服务器绝对路径；最近活动最多 5 条，最近影片最多 12 部。
 - 目标片库冲突必须以结构化 `dedup_result` 返回；`POST /tasks/{id}/confirm` 只接受受限 `conflict_action`，未决冲突不得由普通确认或 `confirm-all` 绕过。
 - 手动刮削搜索最多返回 20 条，类型和语言必须显式校验；候选必须用 Provider ID 通过 `scrape-apply` 应用完整详情。应用候选只刷新资料/维度/入库预览，禁止在同一请求内自动确认或启动文件处理。
+- 电视剧关联套用必须先提供可取消选择的预览，并在 `scrape-apply` 时服务端重新验证 `related_task_ids`；前端传入 ID 不能绕过同目录、同剧名、唯一季集号、状态和冲突门禁。逐任务失败必须结构化返回，不能伪装为全部成功。
 - 通用任务删除和重命名不得操作 `file_location=import`；客户端即使提交文件动作也必须由服务端返回 400，不能只依赖前端隐藏按钮。
 - `POST /api/tasks/{id}/dispose` 的 `source_disposition` 仅允许 `keep|local_recycle|permanent_delete`。运行中返回 202 表示等待安全停止；视频文件包提交后返回 409 并继续安全收尾。
 - `POST /api/tasks/{id}/delete` 只删除已结束任务的记录且不得产生文件副作用。活动任务返回 400 并引导先调用 dispose。

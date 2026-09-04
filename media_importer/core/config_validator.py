@@ -156,6 +156,29 @@ def validate_config(config: Dict[str, Any], test_llm: bool = False) -> Dict[str,
         else:
             add_check("source_policy.recycle_retention_days", "ok", "回收站保留天数: " + str(retention_days))
 
+    task_queue = config.get("task_queue", {})
+    max_concurrent = (
+        task_queue.get("max_concurrent", 1)
+        if isinstance(task_queue, dict)
+        else None
+    )
+    if (
+        isinstance(max_concurrent, bool)
+        or not isinstance(max_concurrent, int)
+        or not 1 <= max_concurrent <= 2
+    ):
+        add_check(
+            "task_queue.max_concurrent",
+            "error",
+            "最大并发任务数必须是 1 或 2，当前: " + str(max_concurrent),
+        )
+    else:
+        add_check(
+            "task_queue.max_concurrent",
+            "ok",
+            "最大并发任务数: " + str(max_concurrent),
+        )
+
     source_cleaner = config.get("source_cleaner", {})
     if source_cleaner:
         sc_enabled = source_cleaner.get("enabled")

@@ -71,6 +71,35 @@ def test_build_section_config_update_rejects_unknown_section():
         raise AssertionError("expected KeyError")
 
 
+# Requirement: REQ-20260904-122646
+def test_build_section_config_update_accepts_safe_task_concurrency():
+    assert build_section_config_update(
+        "advanced",
+        {"task_queue": {"max_concurrent": 1}},
+        {},
+    )["task_queue"]["max_concurrent"] == 1
+    assert build_section_config_update(
+        "advanced",
+        {"task_queue": {"max_concurrent": 2}},
+        {},
+    )["task_queue"]["max_concurrent"] == 2
+
+
+# Requirement: REQ-20260904-122646
+def test_build_section_config_update_rejects_unsafe_task_concurrency():
+    for value in (True, "2", 0, -1, 3, None):
+        try:
+            build_section_config_update(
+                "advanced",
+                {"task_queue": {"max_concurrent": value}},
+                {},
+            )
+        except ValueError as exc:
+            assert "必须是 1 或 2" in str(exc)
+        else:
+            raise AssertionError(f"expected ValueError for {value!r}")
+
+
 def test_build_config_permission_payload_uses_body_when_provided():
     captured = {}
 

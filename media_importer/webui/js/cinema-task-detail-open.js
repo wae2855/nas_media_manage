@@ -773,8 +773,12 @@ function renderScrapeCandidateDetail(candidate, taskId) {
   if (confirmBtn) {
     confirmBtn.addEventListener("click", async function () {
       confirmBtn.disabled = true;
-      confirmBtn.textContent = "应用中...";
+      confirmBtn.textContent = "检查同剧分集...";
       try {
+        var relatedTaskIds = await chooseSeriesBatchTaskIds(candidate, taskId);
+        if (relatedTaskIds === null) {
+          return;
+        }
         var result = await requestApi(
           "POST",
           `/tasks/${encodeURIComponent(taskId)}/scrape-apply`,
@@ -785,6 +789,7 @@ function renderScrapeCandidateDetail(candidate, taskId) {
             language:
               document.getElementById("scrape-search-language")?.value ||
               "zh-CN",
+            related_task_ids: relatedTaskIds,
           },
         );
         if (result.code === 200) {
@@ -805,4 +810,95 @@ function renderScrapeCandidateDetail(candidate, taskId) {
       }
     });
   }
+}
+
+async function chooseSeriesBatchTaskIds(candidate, taskId) {
+  if (candidate.media_type !== "tv") return [];
+  var preview = await requestApi(
+    "POST",
+    `/tasks/${encodeURIComponent(taskId)}/scrape-series-preview`,
+    {
+      provider_type: candidate.provider_type,
+      item_id: candidate.id,
+      media_type: candidate.media_type,
+    },
+  );
+  var tasks = preview.code === 200 ? preview.data?.tasks || [] : [];
+  if (tasks.length <= 1) return [];
+
+  var detailEl = document.getElementById("scrape-search-detail");
+  if (!detailEl) return [];
+  var relatedCount = tasks.filter(function (item) {
+    return !item.is_anchor;
+  }).length;
+  detailEl.innerHTML =
+    '<div class="series-batch-preview">' +
+    "<h3>发现同剧另外 " +
+    relatedCount +
+    " 个待确认任务</h3>" +
+    "<p>可把这次选择一起应用。每集仍保留自己的季集号，且不会自动入库或移动文件。</p>" +
+    '<div class="series-batch-list">' +
+    tasks
+      .map(function (item) {
+        var episode =
+          "S" +
+          String(item.season).padStart(2, "0") +
+          "E" +
+          String(item.episode).padStart(2, "0");
+        return (
+          '<label class="series-batch-item">' +
+          '<input type="checkbox" data-series-batch-task="' +
+          escapeHtml(item.task_id) +
+          '" checked ' +
+          (item.is_anchor ? "disabled" : "") +
+          ">" +
+          "<span><b>" +
+          escapeHtml(item.source_filename) +
+          "</b><small>" +
+          episode +
+          (item.is_anchor ? " · 当前集" : "") +
+          "</small></span></label>"
+        );
+      })
+      .join("") +
+    "</div>" +
+    '<div class="series-batch-actions">' +
+    '<button class="btn btn-secondary" id="btn-series-batch-back" type="button">返回候选</button>' +
+    '<button class="btn btn-secondary" id="btn-series-current-only" type="button">仅应用当前集</button>' +
+    '<button class="btn btn-primary" id="btn-series-batch-apply" type="button">应用所选 ' +
+    tasks.length +
+    " 集</button></div></div>";
+
+  var applyBtn = document.getElementById("btn-series-batch-apply");
+  function updateCount() {
+    var count = detailEl.querySelectorAll(
+      "[data-series-batch-task]:checked",
+    ).length;
+    if (applyBtn) applyBtn.textContent = `应用所选 ${count} 集`;
+  }
+  detailEl.querySelectorAll("[data-series-batch-task]").forEach(function (input) {
+    input.addEventListener("change", updateCount);
+  });
+
+  return new Promise(function (resolve) {
+    document
+      .getElementById("btn-series-batch-back")
+      ?.addEventListener("click", function () {
+        renderScrapeCandidateDetail(candidate, taskId);
+        resolve(null);
+      });
+    document
+      .getElementById("btn-series-current-only")
+      ?.addEventListener("click", function () {
+        resolve([]);
+      });
+    applyBtn?.addEventListener("click", function () {
+      var selected = Array.from(
+        detailEl.querySelectorAll("[data-series-batch-task]:checked:not(:disabled)"),
+      ).map(function (input) {
+        return input.dataset.seriesBatchTask;
+      });
+      resolve(selected);
+    });
+  });
 }

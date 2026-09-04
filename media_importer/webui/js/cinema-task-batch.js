@@ -331,7 +331,11 @@ function updateBatchToolbar() {
   const confirmBtn = document.getElementById("task-batch-confirm");
   const endBtn = document.getElementById("task-batch-end");
   const deleteRecordBtn = document.getElementById("task-batch-delete-record");
-  const hasFailed = selectedRecords.some((t) => taskStatusOf(t) === "FAILED");
+  const hasReidentifiable = selectedRecords.some(
+    (t) =>
+      taskStatusOf(t) === "FAILED" ||
+      (taskStatusOf(t) === "PENDING" && taskStageOf(t) === "AWAIT_REVIEW"),
+  );
   const hasAwaitReview = selectedRecords.some(
     (t) =>
       taskStatusOf(t) === "PENDING" &&
@@ -342,7 +346,7 @@ function updateBatchToolbar() {
   );
   const hasEndable = selectedRecords.some(taskCanHandleSource);
   const hasTerminal = selectedRecords.some(isTerminalTask);
-  if (retryBtn) retryBtn.hidden = !(count > 0 && hasFailed);
+  if (retryBtn) retryBtn.hidden = !(count > 0 && hasReidentifiable);
   if (confirmBtn) confirmBtn.hidden = !(count > 0 && hasAwaitReview);
   if (endBtn) endBtn.hidden = !(count > 0 && hasEndable);
   if (deleteRecordBtn)
@@ -455,14 +459,18 @@ async function performBatchTaskAction(action) {
     return;
   }
   if (action === "batch-retry") {
-    const eligible = records.filter((t) => taskStatusOf(t) === "FAILED");
+    const eligible = records.filter(
+      (t) =>
+        taskStatusOf(t) === "FAILED" ||
+        (taskStatusOf(t) === "PENDING" && taskStageOf(t) === "AWAIT_REVIEW"),
+    );
     if (eligible.length === 0) {
-      showToast("当前选中项中没有可重试的任务");
+      showToast("当前选中项中没有可重新识别的任务");
       return;
     }
     showConfirm(
-      "批量重试",
-      `确定对「${eligible.length}」项失败任务发起重试吗？这些任务都会从来源重新识别，确认无误后才写入片库。`,
+      "批量重新识别",
+      `确定对「${eligible.length}」项失败或待确认任务重新识别吗？将使用当前版本规则重新刮削，确认无误后才写入片库。`,
       async () => {
         const settled = await Promise.allSettled(
           eligible.map((t) =>
@@ -473,7 +481,7 @@ async function performBatchTaskAction(action) {
           (r) => r.status === "fulfilled" && r.value && r.value.code === 200,
         ).length;
         const fail = settled.length - ok;
-        showToast(`批量重试完成：成功 ${ok} 项，失败 ${fail} 项`);
+        showToast(`批量重新识别完成：成功 ${ok} 项，失败 ${fail} 项`);
         clearTaskSelection();
         await Promise.all([loadTaskList(), loadDashboardOverview()]);
       },

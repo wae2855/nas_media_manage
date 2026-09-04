@@ -74,6 +74,36 @@ def _status(results, item_name):
     return item["status"] if item else "error"
 
 
+class TestValidateTaskConcurrency(unittest.TestCase):
+    # Requirement: REQ-20260904-122646
+    def test_safe_values_are_valid_and_oversized_value_is_rejected(self):
+        import tempfile
+
+        for value in (1, 2):
+            cfg = _make_config(Path(tempfile.mkdtemp()), task_queue={"max_concurrent": value})
+            self.assertEqual(
+                _status(validate_config(cfg), "task_queue.max_concurrent"),
+                "ok",
+            )
+
+        invalid_cfg = _make_config(
+            Path(tempfile.mkdtemp()),
+            task_queue={"max_concurrent": 3},
+        )
+        self.assertEqual(
+            _status(validate_config(invalid_cfg), "task_queue.max_concurrent"),
+            "error",
+        )
+        malformed_cfg = _make_config(
+            Path(tempfile.mkdtemp()),
+            task_queue="invalid",
+        )
+        self.assertEqual(
+            _status(validate_config(malformed_cfg), "task_queue.max_concurrent"),
+            "error",
+        )
+
+
 class TestValidateConfigDirectories(unittest.TestCase):
     def test_empty_source_dir_is_error(self):
         results = validate_config({"source_dir": "", "source_policy": {"recycle_dir": "/tmp"}})

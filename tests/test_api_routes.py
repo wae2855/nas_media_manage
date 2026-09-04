@@ -79,6 +79,12 @@ class TestAPIRoutes(unittest.TestCase):
             {"task_id": "abc123"},
         )
         self.assert_route(
+            "POST",
+            "/api/tasks/abc123/scrape-series-preview",
+            "_task_scrape_series_preview",
+            {"task_id": "abc123"},
+        )
+        self.assert_route(
             "POST", "/api/tasks/abc123/reorganize", "_task_reorganize",
             {"task_id": "abc123"},
         )

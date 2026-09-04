@@ -275,13 +275,17 @@ function buildLlmPayload() {
 }
 
 function buildAdvancedSystemPayload() {
+  const taskConcurrencyInput = document.getElementById(
+    "cfg-task_queue-max_concurrent-inline",
+  );
+  const rawTaskConcurrency = Number(taskConcurrencyInput?.value || 1);
+  const maxConcurrent = Number.isInteger(rawTaskConcurrency)
+    ? Math.min(2, Math.max(1, rawTaskConcurrency))
+    : 1;
+  if (taskConcurrencyInput) taskConcurrencyInput.value = String(maxConcurrent);
   return {
     task_queue: {
-      max_concurrent:
-        Number(
-          document.getElementById("cfg-task_queue-max_concurrent-inline")
-            ?.value || 1,
-        ) || 1,
+      max_concurrent: maxConcurrent,
     },
     video_extensions: parseMultilineValue("cfg-video_extensions-inline").map(
       (item) => (item.startsWith(".") ? item : `.${item}`),

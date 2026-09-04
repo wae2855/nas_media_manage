@@ -1,8 +1,13 @@
 import os
 import threading
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Optional
 
+from media_importer.features.import_flow.concurrency import (
+    TaskConcurrencyGate,
+    effective_max_concurrent,
+)
 from media_importer.features.import_flow.confirm import ConfirmMixin
 from media_importer.features.import_flow.context import TaskContext
 from media_importer.features.import_flow.progress import TaskProgressReporter
@@ -51,6 +56,8 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         self.notifier = notifier
         self.hooks = HookRunner(config, logger)
         self._paused = threading.Event()
+        self._run_all_lock = threading.Lock()
+        self._task_concurrency = TaskConcurrencyGate(lambda: self.config)
         self.progress_reporter = TaskProgressReporter(task_manager)
 
         self.scraper = MetadataScraper(config)
@@ -66,6 +73,13 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
 
     def is_paused(self) -> bool:
         return self._paused.is_set()
+
+    def task_slot(self):
+        gate = getattr(self, "_task_concurrency", None)
+        if gate is None:
+            gate = TaskConcurrencyGate(lambda: self.config)
+            self._task_concurrency = gate
+        return gate.slot()
 
     def _log(self, level: str, message: str, task: Optional[dict] = None, step: str = ""):
         if self.logger:
@@ -331,6 +345,10 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
         return results
 
     def process_one(self, task: dict, *, claimed: bool = False) -> bool:
+        with self.task_slot():
+            return self._process_one_impl(task, claimed=claimed)
+
+    def _process_one_impl(self, task: dict, *, claimed: bool = False) -> bool:
         if not claimed:
             # 对直接处理单个任务的入口也执行 CAS，避免与批处理线程重复消费。
             start_fields = start_processing(dict(task))
@@ -523,7 +541,28 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
                 )
             return False
 
-    def run_all(self):
+    def run_all(self) -> bool:
+        if not self._run_all_lock.acquire(blocking=False):
+            self._log("info", "批量处理已在运行，本次重复触发已忽略")
+            return False
+        try:
+            self._run_all_once()
+            return True
+        finally:
+            self._run_all_lock.release()
+
+    def _process_next_pending(self) -> Optional[dict]:
+        # 先取得槽位再领取任务，避免等待中的任务被提前标记为 RUNNING。
+        with self.task_slot():
+            if self._paused.is_set():
+                return None
+            task = self.task_manager.claim_next_pending()
+            if task is None:
+                return None
+            self._process_one_impl(task, claimed=True)
+            return task
+
+    def _run_all_once(self):
         from media_importer.features.configuration import (
             inspect_processing_support_readiness,
         )
@@ -563,17 +602,32 @@ class PipelineRunner(StepsMixin, ConfirmMixin):
             "total": 0, "subtitle_count": 0, "video_count": 0,
         }
 
-        while not self._paused.is_set():
-            task = self.task_manager.claim_next_pending()
-            if task is None:
-                break
-            batch_stats["total"] += 1
-            total, _ = db_count_subs(self.task_manager.conn, task.get("task_id", ""))
-            batch_stats["subtitle_count"] += total
-            batch_stats["video_count"] += 1
-            self.process_one(task, claimed=True)
-            final_status = task.get("status", "UNKNOWN")
-            batch_stats[final_status] = batch_stats.get(final_status, 0) + 1
+        worker_count = effective_max_concurrent(self.config)
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="media-task",
+        ) as executor:
+            futures = {
+                executor.submit(self._process_next_pending)
+                for _ in range(worker_count)
+            }
+            while futures:
+                completed, futures = wait(futures, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    task = future.result()
+                    if task is None:
+                        continue
+                    batch_stats["total"] += 1
+                    total, _ = db_count_subs(
+                        self.task_manager.conn,
+                        task.get("task_id", ""),
+                    )
+                    batch_stats["subtitle_count"] += total
+                    batch_stats["video_count"] += 1
+                    final_status = task.get("status", "UNKNOWN")
+                    batch_stats[final_status] = batch_stats.get(final_status, 0) + 1
+                    if not self._paused.is_set():
+                        futures.add(executor.submit(self._process_next_pending))
 
         batch_stats["total_files"] = batch_stats["video_count"] + batch_stats["subtitle_count"]
 
