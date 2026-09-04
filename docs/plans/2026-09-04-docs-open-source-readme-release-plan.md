@@ -2,7 +2,7 @@
 title: "docs: 开源项目 README 与公开发布"
 type: plan
 date: 2026-09-04
-status: in-progress
+status: complete
 confidence: medium
 ---
 
@@ -49,8 +49,8 @@ confidence: medium
 - [x] 重写根 README，修正功能/流程/安装说明并嵌入两个现有二维码。
 - [x] 增加许可证与必要的贡献/安全说明，确保不暴露私有配置。
 - [x] 做 README 读者测试：回答定位、安装、刮削边界、文件安全、如何赞助五类问题，并检查图片链接。
-- [ ] 运行文档、链接、打包/版本和敏感信息门禁，提交并推送。
-- [ ] 更新 GitHub 简介与主题，切换为公开，再验证远端可见性、许可证和 README 渲染资源。
+- [x] 运行文档、链接、打包/版本和敏感信息门禁，提交并推送。
+- [x] 更新 GitHub 简介与主题，切换为公开，再验证远端可见性、许可证和 README 渲染资源。
 
 ## Acceptance Criteria
 
@@ -88,7 +88,9 @@ confidence: medium
 - 相关回归：`46 passed`。
 - Ruff、`scripts/check_docs.py`（142 个活跃 Markdown）和 `git diff --check` 通过。
 - 当前工作树的运行配置、数据库、构建包和 `.env` 均受忽略规则保护；没有超过 5 MiB 的已跟踪文件。
+- 已重写 `main`、旧远端分支和两个本地标签；独立远端镜像复扫为零高置信凭据命中、零目标历史路径、零不可达对象。
+- GitHub 已返回 `visibility=PUBLIC` 并识别 MIT License；匿名仓库页、README 和两个二维码均返回 HTTP 200，匿名 Git 可读取清洁 `main`。
 
-## Publication Blocker
+## Publication Resolution
 
-完整历史审计发现多类疑似真实凭据。用户已选择保留现有仓库地址并授权历史重写；公开仍以所有分支复扫零敏感命中为前置条件。历史删除不能替代服务端吊销，仍可能有效的旧凭据必须由对应 Provider 失效处理。
+完整历史审计发现的旧凭据已从所有公开分支历史中清除，并通过独立远端镜像复扫。历史删除不能替代服务端吊销，仍可能有效的旧凭据必须由对应 Provider 失效处理。

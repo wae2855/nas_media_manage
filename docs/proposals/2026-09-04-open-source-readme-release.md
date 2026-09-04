@@ -2,7 +2,7 @@
 title: "开源项目 README 与公开发布方案"
 type: proposal
 date: 2026-09-04
-status: approved
+status: implemented
 confidence: medium
 requirement: REQ-20260904-225339
 ---
