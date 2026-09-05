@@ -2,7 +2,7 @@
 title: "chore: 发布 fnOS 0.3.32 GitHub Release"
 type: plan
 date: 2026-09-05
-status: in_progress
+status: complete
 confidence: high
 requirement: REQ-20260905-200250
 ---
@@ -24,10 +24,20 @@ requirement: REQ-20260905-200250
 - [x] 完成本轮业务代码、文档、自我评审和开发环境非沙盒 1176 项全量回归。
 - [x] 提升唯一版本事实源至 0.3.32，并提交、推送发布源码。
 - [x] 从精确源码生成 FPK，验证结构、版本、依赖、指纹和 SHA-256。
-- [ ] 提交并推送生成包工作区及候选台账，确保远端 `main` 与本地一致。
-- [ ] 创建 `v0.3.32` prerelease，上传 FPK 与 SHA-256。
-- [ ] 匿名回下载并复核大小、哈希、包内容和标签提交。
-- [ ] 记录最终发布证据并归档计划。
+- [x] 提交并推送候选台账，确保发布源码和台账已同步到远端 `main`。
+- [x] 创建 `v0.3.32` prerelease，上传 FPK 与 SHA-256。
+- [x] 匿名回下载并复核大小、哈希、包内容和标签提交。
+- [x] 记录最终发布证据并归档计划。
+
+## Validation Evidence
+
+- 发布源码提交 `baaf9e8`；候选台账与标签目标提交 `a8e56c3`。
+- 开发环境非沙盒完整回归 1176/1176 通过；发布专项 61 项与构建后专项 29 项通过。
+- 本地构建、包内容校验和匿名回下载均为 11,822,992 字节，SHA-256 均为 `4430921bdfe0b8ebb67172960d042842d9ac1f59a544b4f71cb5c7d2b85c4b99`，逐字节比较一致。
+- FPK 包含 21 个外层条目和 275 个应用条目；11 个 wheel 均为 `none-any`。
+- GitHub Release 非草稿、为 prerelease，两个资产均为 `uploaded`；`v0.3.32` 标签与发布提交同为 `a8e56c3`。
+- Release 页面：<https://github.com/wae2855/nas_media_manage/releases/tag/v0.3.32>。
+- `FNOS_UAT NOT_RUN`：0.3.32 尚未安装到用户真实 fnOS，0.3.31 继续作为最近验收正常版本。
 
 ## Acceptance Criteria
 
