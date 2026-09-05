@@ -112,6 +112,11 @@ TRANSITIONS: dict = {
         }),
         (STATUS_PENDING, STAGE_QUEUED),
     ),
+    # 片库内重新整理失败后回到人工确认，不得投入普通来源处理流水线。
+    "retry_reorganization": (
+        frozenset({(STATUS_FAILED, STAGE_DONE)}),
+        (STATUS_PENDING, STAGE_AWAIT_REVIEW),
+    ),
 }
 
 # 允许终态→终态的例外（ignore: FAILED→SKIPPED 已在表内）
@@ -273,6 +278,24 @@ def _dispatch(task, data, action: str, ctx: dict) -> dict:
             "completed_at": _now(),
             "file_location": FILE_LOCATION_SOURCE,
             "video_path": "",
+        }
+
+    if action == "retry_reorganization":
+        return {
+            "status": STATUS_PENDING, "stage": STAGE_AWAIT_REVIEW,
+            "retry_count": data.get("retry_count", 0) + 1,
+            "error_code": 0, "error_message": "",
+            "current_step": 0, "step_name": "", "percentage": 0,
+            "video_path": data.get("video_path") or data.get("source_path", ""),
+            "import_video_path": "",
+            "file_location": FILE_LOCATION_IMPORT,
+            "dedup_result": {}, "dedup_existing_file": "",
+            "confirm_status": CONFIRM_PENDING, "confirmed_at": "",
+            "bytes_copied": 0, "total_bytes": 0,
+            "progress_item_name": "", "progress_item_kind": "",
+            "progress_item_index": 0, "progress_item_total": 0,
+            "bundle_state": "", "bundle_manifest": [], "bundle_committed": 0,
+            "cancel_requested": 0, "stop_requested_at": "",
         }
 
     if action == "retry":

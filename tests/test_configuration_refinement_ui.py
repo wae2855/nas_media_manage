@@ -316,6 +316,15 @@ def test_startup_readiness_request_failure_is_rendered_inside_final_stage():
     assert "data-startup-readiness>重新检查" in DIRECTORY_LOADER
 
 
+def test_storage_refresh_has_progress_timeout_and_terminal_feedback():
+    assert "async function refreshStorageReadiness" in DIRECTORY_LOADER
+    assert 'button.textContent = "检查中…"' in DIRECTORY_LOADER
+    assert "timeoutMs: 20000" in DIRECTORY_LOADER
+    assert "目录与空间检查完成" in DIRECTORY_LOADER
+    assert "检查未完成，请确认服务状态后重试" in DIRECTORY_LOADER
+    assert "refreshStorageReadiness(storageRefresh)" in APP_EVENTS
+
+
 # Requirement: REQ-20260831-214244
 def test_final_stage_uses_plain_configuration_check_language_and_rule_navigation():
     assert INDEX.count("data-startup-readiness>配置检查</button>") == 2

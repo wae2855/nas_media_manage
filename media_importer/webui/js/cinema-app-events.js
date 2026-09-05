@@ -154,9 +154,9 @@ function bindEvents() {
       if (handler) handler();
       return;
     }
-    if (event.target.closest("[data-storage-refresh]")) {
-      loadDirectoryConfig();
-      showToast("正在重新检查目录与空间...");
+    const storageRefresh = event.target.closest("[data-storage-refresh]");
+    if (storageRefresh) {
+      refreshStorageReadiness(storageRefresh);
       return;
     }
     if (event.target.closest("[data-startup-readiness]")) {

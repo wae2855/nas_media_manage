@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     ,used_fallback INTEGER DEFAULT 0
     ,organization_status TEXT DEFAULT ''
     ,reorganized_by_task_id TEXT DEFAULT ''
+    ,reorganization_intent TEXT DEFAULT '{}'
     ,cancel_requested INTEGER DEFAULT 0
     ,stop_requested_at TEXT DEFAULT ''
     ,requested_source_disposition TEXT DEFAULT ''

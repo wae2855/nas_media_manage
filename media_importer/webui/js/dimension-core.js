@@ -16,6 +16,8 @@ var DIM_LABEL_FALLBACK = {
   region: "地区",
   origin_lang: "原始语言",
   broad_genre: "题材类型",
+  season: "季数",
+  episode: "集数",
 };
 
 // 统一的维度业务名解析：接口定义优先，内置兜底次之，最后返回原名

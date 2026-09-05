@@ -51,7 +51,8 @@ def retry_task_for_api(
     if task is None:
         return TaskQueueActionResult(code=400, message=f"任务不存在或当前状态不可重试: {task_id}")
 
-    if pipeline and not pipeline.is_paused():
+    should_process = task.get("stage", "QUEUED") == "QUEUED"
+    if should_process and pipeline and not pipeline.is_paused():
 
         def run_retry():
             try:
@@ -66,7 +67,11 @@ def retry_task_for_api(
     return TaskQueueActionResult(
         code=200,
         data={"task": task},
-        message="任务已重试并开始执行",
+        message=(
+            "任务已重试并开始执行"
+            if should_process
+            else "调整任务已恢复到待确认，请核对位置后再次确认"
+        ),
     )
 
 
@@ -81,7 +86,8 @@ def retry_all_failed_for_api(
 
     retried = task_manager.retry_all_failed()
 
-    if retried and pipeline and not pipeline.is_paused():
+    queued = [task for task in retried if task.get("stage", "QUEUED") == "QUEUED"]
+    if queued and pipeline and not pipeline.is_paused():
 
         def run_retry_all():
             try:
@@ -99,7 +105,11 @@ def retry_all_failed_for_api(
             "retried_count": len(retried),
             "task_ids": [task.get("task_id", "") for task in retried],
         },
-        message=f"已重试 {len(retried)} 个失败任务并开始执行",
+        message=(
+            f"已重试 {len(retried)} 个失败任务并开始执行"
+            if len(queued) == len(retried)
+            else f"已重试 {len(retried)} 个失败任务；其中 {len(retried) - len(queued)} 个调整任务等待再次确认"
+        ),
     )
 
 

@@ -165,7 +165,7 @@ PENDING/QUEUED
 | PENDING | AWAIT_REVIEW | 去确认 | — | 详情 | 是 | 是 |
 | PENDING | QUEUED | 取消 | — | 详情 | 否 | 否 |
 | PENDING | RUNNING | — | — | 详情 | 否 | 否 |
-| SUCCESS | DONE | 待整理结果显示“重新整理”；其他无 | — | 详情 | 否 | 否 |
+| SUCCESS | DONE | 待整理结果显示“重新整理”；其他已入库结果显示“调整位置” | — | 详情 | 否 | 否 |
 | FAILED | DONE | 去重试 | 移入回收 | 详情 | 否 | 否 |
 | SKIPPED | DONE | 去重试 | — | 详情 | 否 | 否 |
 | CANCELLED | DONE | 重新投入 | — | 详情 | 否 | 否 |
@@ -175,7 +175,7 @@ PENDING/QUEUED
 - “详情”幽灵按钮是唯一打开详情弹窗的入口。
 - 弹窗内文件名 / 分类维度是否可编辑由 `isAwaitReview` 决定，仅 `PENDING/AWAIT_REVIEW` 允许编辑。
 - 待确认详情底部提供“保存”；只有当前预览满足确认门禁时才显示“确认入库”或“确认重新整理”。
-- `SUCCESS/DONE + FALLBACK_PENDING` 详情保持只读，只提供“创建重新整理任务”；新任务独立记录，不重新打开原任务。
+- `SUCCESS/DONE` 详情保持只读：待整理结果提供“创建重新整理任务”，普通结果提供“调整存放位置”；新任务独立记录，不重新打开原任务。
 - 重新整理仍命中兜底时只能继续改维度或手动刮削；命中正式规则后才允许确认，视频和随片字幕按 no-replace 文件包移动。
 
 ### POST /api/tasks/{task_id}/classify-preview
@@ -327,9 +327,9 @@ PENDING/QUEUED
 
 ### POST /api/tasks/{task_id}/reorganize
 
-对已成功进入待整理区的任务创建关联重新整理任务。父任务必须为 `SUCCESS/DONE` 且 `organization_status=FALLBACK_PENDING`；已有活动子任务时返回同一任务，避免重复创建。接口不移动文件，返回的新任务为 `PENDING/AWAIT_REVIEW + task_kind=REORGANIZE`，用户仍通过维度编辑或手动刮削匹配正式规则，再调用 confirm。父任务始终只读且不重新打开。
+对已成功入库且文件仍位于启用片库根内的任务创建关联重新整理任务。请求体可用 `mode=rules` 按规则整理，或用 `mode=custom` 并提交 `library_root_id`、`relative_dir` 指定片库内子目录；服务端拒绝绝对路径、目录穿越、停用/未知片库和同一位置。已有活动子任务时返回同一任务，避免重复创建。接口不移动文件，返回的新任务为 `PENDING/AWAIT_REVIEW + task_kind=REORGANIZE`；人工型详情展示原/目标路径并隐藏刮削编辑，确认后才移动。父任务始终只读且不重新打开。
 
-重新整理确认只允许 no-replace 整组移动影片与随片字幕；目标同名时进入逐项冲突处理，替换按钮关闭。完成后父任务记录 `reorganized_by_task_id`，父子 `organization_status` 均为 `ORGANIZED`。
+重新整理确认只允许 no-replace 整组移动影片与随片字幕；目标同名时进入逐项冲突处理，替换按钮关闭。完成或提交后恢复时，父任务记录 `reorganized_by_task_id` 并同步当前影片/字幕路径，父子 `organization_status` 均为 `ORGANIZED`；`reorganization_intent` 保留原因、原位置、预期目标与实际完成目标。
 
 响应体：
 

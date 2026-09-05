@@ -84,6 +84,11 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> Optional[dict]:
             row['manual_provider_binding'] = json.loads(row['manual_provider_binding'])
         except (json.JSONDecodeError, TypeError):
             pass
+    if row and row.get('reorganization_intent'):
+        try:
+            row['reorganization_intent'] = json.loads(row['reorganization_intent'])
+        except (json.JSONDecodeError, TypeError):
+            pass
     if row:
         subs = get_subtitles_by_task(conn, task_id)
         row['subtitle_files'] = [s.get('target_path', '') or s.get('source_path', '')
@@ -177,6 +182,7 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 "t.bundle_state, t.bundle_manifest, t.bundle_committed, "
                 "t.task_kind, t.parent_task_id, t.used_fallback, "
                 "t.organization_status, t.reorganized_by_task_id, "
+                "t.reorganization_intent, "
                 "t.cancel_requested, t.stop_requested_at, "
                 "t.requested_source_disposition, t.outcome_code, "
                 "t.source_disposition, t.source_disposition_message, "
@@ -218,6 +224,11 @@ def list_tasks(conn: sqlite3.Connection, page: int = 1, page_size: int = 20,
                 row['bundle_manifest'] = json.loads(row['bundle_manifest'])
             except (json.JSONDecodeError, TypeError):
                 pass
+        if row.get('reorganization_intent'):
+            try:
+                row['reorganization_intent'] = json.loads(row['reorganization_intent'])
+            except (json.JSONDecodeError, TypeError):
+                pass
     total_pages = max(1, (total + page_size - 1) // page_size)
     return rows, total, total_pages
 
@@ -247,13 +258,14 @@ def update_task(conn: sqlite3.Connection, task_id: str, **fields) -> dict:
         "bundle_state", "bundle_manifest", "bundle_committed",
         "task_kind", "parent_task_id", "used_fallback",
         "organization_status", "reorganized_by_task_id",
+        "reorganization_intent",
         "cancel_requested", "stop_requested_at", "requested_source_disposition",
         "outcome_code", "source_disposition", "source_disposition_message",
     }
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest", "manual_provider_binding"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest", "manual_provider_binding", "reorganization_intent"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:
@@ -321,13 +333,14 @@ def _coerce_fields(fields: dict) -> dict:
         "bundle_state", "bundle_manifest", "bundle_committed",
         "task_kind", "parent_task_id", "used_fallback",
         "organization_status", "reorganized_by_task_id",
+        "reorganization_intent",
         "cancel_requested", "stop_requested_at", "requested_source_disposition",
         "outcome_code", "source_disposition", "source_disposition_message",
     }
     update_fields = {}
     for k, v in fields.items():
         if k in valid_columns:
-            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest", "manual_provider_binding"):
+            if k in ("scrape_result", "scrape_dimensions", "dedup_result", "scrape_trace", "match_concerns", "match_trace", "dim_sources", "bundle_manifest", "manual_provider_binding", "reorganization_intent"):
                 if isinstance(v, (dict, list)):
                     update_fields[k] = json.dumps(v, ensure_ascii=False)
                 else:

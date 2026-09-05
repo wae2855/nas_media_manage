@@ -69,18 +69,20 @@ display_name          = 影音库智能整理
 desc                  = 自动识别影视文件、获取元数据并按规则整理入库
 platform              = all
 source                = thirdparty
-maintainer            = wae2855
-distributor           = wae2855
+maintainer            = oneway
+maintainer_url        = https://github.com/wae2855/nas_media_manage
+distributor           = oneway
+distributor_url       = https://github.com/wae2855/nas_media_manage
 desktop_uidir         = ui
 desktop_applaunchname = nas-media-importer.main
 service_port          = 14591
 os_min_version        = 1.2.0401
 micro_app             = true
 disable_authorization_path = false
-checkport             = false
+checkport             = true
 ctl_stop              = true
 install_dep_apps      = python312
-changelog             = ${VERSION} 初始版本发布
+changelog             = ${VERSION} 功能改进与问题修复，详见 GitHub Releases
 EOF
 }
 

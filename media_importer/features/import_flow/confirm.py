@@ -291,15 +291,24 @@ class ConfirmMixin:  # type: ignore[misc]
         enabled_dim_names = {
             item["name"] for item in get_enabled_dimensions(self.task_manager.conn)
         }
-        gate_classification = ClassificationService(self.config).classify_task(
-            task,
-            enabled_dim_names,
+        intent = task.get("reorganization_intent") or {}
+        is_custom_reorganization = bool(
+            task.get("task_kind") == "REORGANIZE"
+            and intent.get("reason") == "user_requested"
+            and intent.get("mode") == "custom"
         )
-        task["used_fallback"] = 1 if gate_classification.used_fallback else 0
-        if task.get("task_kind") == "REORGANIZE" and gate_classification.used_fallback:
-            raise PipelineError("重新整理任务仍未匹配正式入库规则，请调整维度或重新刮削")
-        if gate_classification.used_fallback and not fallback_acknowledged:
-            raise PipelineError("该影片将进入待整理区，请先明确确认后再继续")
+        if is_custom_reorganization:
+            task["used_fallback"] = 0
+        else:
+            gate_classification = ClassificationService(self.config).classify_task(
+                task,
+                enabled_dim_names,
+            )
+            task["used_fallback"] = 1 if gate_classification.used_fallback else 0
+            if task.get("task_kind") == "REORGANIZE" and gate_classification.used_fallback:
+                raise PipelineError("重新整理任务仍未匹配正式入库规则，请调整维度或重新刮削")
+            if gate_classification.used_fallback and not fallback_acknowledged:
+                raise PipelineError("该影片将进入待整理区，请先明确确认后再继续")
 
         if has_conflict:
             existing_path = os.path.realpath(str(conflict.get("existing_path", "")))
@@ -370,13 +379,27 @@ class ConfirmMixin:  # type: ignore[misc]
                        confirm_status="CONFIRMED")
 
         try:
-            classify_result = ClassificationService(self.config).classify_task(task, enabled_dim_names)
-            task["import_path"] = classify_result.import_path
-            task["classify_result"] = classify_result.classify_result
-            db_update_task(self.task_manager.conn, tid,
-                           import_path=classify_result.import_path,
-                           classify_result=classify_result.classify_result)
-            self._log("info", f"确认分类: {classify_result.import_path}", task, "classify")
+            classify_result = None
+            if is_custom_reorganization:
+                self._log(
+                    "info",
+                    f"确认人工指定位置: {task.get('import_path', '')}",
+                    task,
+                    "classify",
+                )
+            else:
+                classify_result = ClassificationService(self.config).classify_task(
+                    task, enabled_dim_names
+                )
+                task["import_path"] = classify_result.import_path
+                task["classify_result"] = classify_result.classify_result
+                db_update_task(
+                    self.task_manager.conn,
+                    tid,
+                    import_path=classify_result.import_path,
+                    classify_result=classify_result.classify_result,
+                )
+                self._log("info", f"确认分类: {classify_result.import_path}", task, "classify")
 
             if task.get("task_kind") == "REORGANIZE":
                 self._step_reorganize_from_confirm(task)
@@ -411,9 +434,11 @@ class ConfirmMixin:  # type: ignore[misc]
 
             completion_fields = mark_imported(ctx)
             completion_fields.update({
-                "used_fallback": 1 if classify_result.used_fallback else 0,
+                "used_fallback": 1 if classify_result and classify_result.used_fallback else 0,
                 "organization_status": (
-                    "FALLBACK_PENDING" if classify_result.used_fallback else ""
+                    "FALLBACK_PENDING"
+                    if classify_result and classify_result.used_fallback
+                    else ""
                 ),
             })
             db_update_task(self.task_manager.conn, tid, **completion_fields)
@@ -457,10 +482,13 @@ class ConfirmMixin:  # type: ignore[misc]
             return True
         except Exception as e:
             error_msg = str(e)
+            failed_location = (
+                "import" if task.get("task_kind") == "REORGANIZE" else FILE_LOCATION_SOURCE
+            )
             db_update_task(self.task_manager.conn, tid,
                            **mark_failed(
                                 ctx, error_msg,
-                                file_location=FILE_LOCATION_SOURCE,
+                                file_location=failed_location,
                                 video_path=original_source_video,
                             ))
             self._log("error", f"确认入库失败: {task.get('source_filename', '')} - {e}", task)
@@ -515,11 +543,22 @@ class ConfirmMixin:  # type: ignore[misc]
             classify_result="",
         )
 
-        enabled_dim_names = {d["name"] for d in get_enabled_dimensions(self.task_manager.conn)}
-        result = ClassificationService(self.config).classify_task(task, enabled_dim_names)
-        task["import_path"] = result.import_path
-        task["classify_result"] = result.classify_result
-        task["used_fallback"] = 1 if result.used_fallback else 0
+        intent = task.get("reorganization_intent") or {}
+        is_custom_reorganization = bool(
+            task.get("task_kind") == "REORGANIZE"
+            and intent.get("reason") == "user_requested"
+            and intent.get("mode") == "custom"
+        )
+        if is_custom_reorganization:
+            task["import_path"] = str(intent.get("target_dir") or task.get("import_path") or "")
+            task["classify_result"] = f"人工指定目录: {task['import_path']}"
+            task["used_fallback"] = 0
+        else:
+            enabled_dim_names = {d["name"] for d in get_enabled_dimensions(self.task_manager.conn)}
+            result = ClassificationService(self.config).classify_task(task, enabled_dim_names)
+            task["import_path"] = result.import_path
+            task["classify_result"] = result.classify_result
+            task["used_fallback"] = 1 if result.used_fallback else 0
 
         if "filename" in updates:
             task["final_filename"] = updates["filename"]
@@ -536,8 +575,8 @@ class ConfirmMixin:  # type: ignore[misc]
             self.task_manager.conn, tid,
             scrape_result=scrape_result,
             scrape_dimensions=current_dims,
-            classify_result=result.classify_result,
-            import_path=result.import_path,
+            classify_result=task["classify_result"],
+            import_path=task["import_path"],
             final_filename=task["final_filename"],
             used_fallback=task["used_fallback"],
         )

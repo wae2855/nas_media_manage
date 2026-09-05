@@ -633,6 +633,35 @@ metadata:
             finally:
                 browser.close()
 
+    def test_storage_refresh_shows_progress_then_terminal_result(self):
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1440, "height": 1000})
+            try:
+                page.goto(self.base_url)
+                page.wait_for_load_state("networkidle")
+                page.locator(".bottom-nav [data-nav='config']").click()
+                page.evaluate("setConfigStage('storage')")
+                page.evaluate(
+                    """() => {
+                      window.loadDirectoryConfig = async () => {
+                        await new Promise((resolve) => setTimeout(resolve, 150));
+                        return { ok: true, readiness: { state: "READY" } };
+                      };
+                    }"""
+                )
+                button = page.locator("[data-storage-refresh]").first
+                button.click()
+                self.assertTrue(button.is_disabled())
+                self.assertEqual(button.inner_text(), "检查中…")
+                page.wait_for_function(
+                    "document.querySelector('#toast').textContent === '目录与空间检查完成'"
+                )
+                self.assertFalse(button.is_disabled())
+                self.assertEqual(button.inner_text(), "重新检查")
+            finally:
+                browser.close()
+
     # Requirement: REQ-20260831-214244
     def test_library_setup_modal_saves_directories_without_rule_content_or_navigation(self):
         addition = {

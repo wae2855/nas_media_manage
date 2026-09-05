@@ -88,13 +88,113 @@ function buildOrganizationState(task) {
     task.task_kind === "REORGANIZE" &&
     String(task.status || "").toUpperCase() === "PENDING"
   ) {
+    const intent = task.reorganization_intent || {};
+    const userRequested = intent.reason === "user_requested";
     return `<section class="cinema-modal-block task-organization-panel task-organization-panel--active">
       <div class="task-organization-panel-mark" aria-hidden="true">↗</div>
-      <div><h4>正在准备重新整理</h4>
-      <p>${escapeHtml(task.used_fallback ? "当前资料仍未匹配正式规则。请先修改维度或手动刮削；不会再次放回待整理区。" : "已经匹配到正式规则。确认后会整组移动影片和字幕，不会覆盖同名片库文件。")}</p></div>
+      <div><h4>${escapeHtml(userRequested ? "正在准备人工调整位置" : "正在准备重新整理")}</h4>
+      <p>${escapeHtml(task.used_fallback ? "当前资料仍未匹配正式规则。请先修改维度或手动刮削；不会再次放回待整理区。" : "请核对原位置和目标位置。确认后会整组移动影片和字幕，不会覆盖同名片库文件。")}</p>
+      ${intent.source_path ? `<small>原位置：${escapeHtml(intent.source_path)}</small>` : ""}
+      ${intent.target_path ? `<small>目标位置：${escapeHtml(intent.target_path)}</small>` : ""}</div>
     </section>`;
   }
   return "";
+}
+
+async function openManualRelocationDialog(task) {
+  const configResult = await requestApi("GET", "/config");
+  if (configResult.code !== 200 || !configResult.data) {
+    showToast(configResult.message || "无法读取目标片库配置");
+    return;
+  }
+  const config = configResult.data.config || configResult.data;
+  const roots = (Array.isArray(config.library_roots) ? config.library_roots : [])
+    .filter((root) => root && root.enabled !== false && root.id && root.path);
+  if (!roots.length) {
+    showToast("请先在存储配置中添加并启用目标片库");
+    return;
+  }
+  const rootOptions = roots
+    .map((root) => `<option value="${escapeHtml(root.id)}">${escapeHtml(root.name || root.id)}</option>`)
+    .join("");
+  const currentPath = task.import_video_path || task.video_path || "";
+  let overlay;
+  const submit = async () => {
+    const mode = String(overlay.querySelector('[name="relocation-mode"]:checked')?.value || "rules");
+    const rootId = String(overlay.querySelector("#relocation-root")?.value || "");
+    const relativeDir = String(overlay.querySelector("#relocation-relative-dir")?.value || "").trim();
+    if (mode === "custom" && !relativeDir) {
+      showToast("请输入目标片库内的子目录");
+      return;
+    }
+    const submitButton = overlay.querySelector(".btn-submit-relocation");
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "正在创建...";
+    }
+    const result = await requestApi(
+      "POST",
+      `/tasks/${encodeURIComponent(task.task_id)}/reorganize`,
+      {
+        mode,
+        ...(mode === "custom"
+          ? { library_root_id: rootId, relative_dir: relativeDir }
+          : {}),
+      },
+    );
+    if ([200, 201].includes(result.code) && result.data?.task?.task_id) {
+      showToast(result.message || "已创建人工调整任务");
+      const childId = result.data.task.task_id;
+      removeAppModal();
+      await Promise.all([loadTaskList(), loadDashboardOverview()]);
+      await openTaskDetailImpl(childId, true);
+      return;
+    }
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "创建人工调整任务";
+    }
+    showToast(result.message || "创建人工调整任务失败");
+  };
+  overlay = showAppModal({
+    title: "调整存放位置",
+    dismissOnBackdrop: false,
+    body: `<div class="cinema-modal-stack">
+      <div class="cinema-modal-block">
+        <h4>当前文件</h4>
+        <div class="cinema-import-preview">
+          <div class="sim-kv"><span class="sim-k">当前位置</span><span class="sim-v sim-v-highlight">${escapeHtml(currentPath)}</span></div>
+          <div class="sim-kv"><span class="sim-k">文件包</span><span class="sim-v">影片 1 个，字幕 ${Number(task.subtitle_total || 0)} 个</span></div>
+        </div>
+      </div>
+      <div class="cinema-modal-block">
+        <h4>调整方式</h4>
+        <label class="rule-condition-checkbox-label"><input type="radio" name="relocation-mode" value="rules" checked><span><b>按整理规则</b><small>推荐；创建后可修改分类维度，系统重新计算位置</small></span></label>
+        <label class="rule-condition-checkbox-label"><input type="radio" name="relocation-mode" value="custom"><span><b>指定片库子目录</b><small>保留当前文件名，只调整到授权片库内的指定位置</small></span></label>
+      </div>
+      <div id="relocation-custom-fields" class="cinema-modal-block" hidden>
+        <label class="cinema-modal-field"><span>目标片库</span><select id="relocation-root">${rootOptions}</select></label>
+        <label class="cinema-modal-field"><span>目标子目录</span><input id="relocation-relative-dir" type="text" placeholder="例如：电影/经典收藏"></label>
+        <small class="cinema-modal-hint">只能填写片库内相对目录，不能使用绝对路径或 ..</small>
+      </div>
+    </div>`,
+    actions: [
+      { label: "取消", className: "btn btn-secondary" },
+      {
+        label: "创建人工调整任务",
+        className: "btn btn-primary btn-submit-relocation",
+        onClick: submit,
+        closeOnClick: false,
+      },
+    ],
+  });
+  const syncMode = () => {
+    const custom = overlay.querySelector('[name="relocation-mode"]:checked')?.value === "custom";
+    overlay.querySelector("#relocation-custom-fields").hidden = !custom;
+  };
+  overlay.querySelectorAll('[name="relocation-mode"]').forEach((radio) => {
+    radio.addEventListener("change", syncMode);
+  });
 }
 
 function buildSourceDispositionState(task) {
@@ -139,8 +239,17 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const isAwaitReview = status === "PENDING" && stage === "AWAIT_REVIEW";
   const targetConflict = targetLibraryConflictOf(task);
   const isReorganization = task.task_kind === "REORGANIZE";
+  const isUserRelocation =
+    isReorganization && task.reorganization_intent?.reason === "user_requested";
+  const isCustomRelocation =
+    isUserRelocation && task.reorganization_intent?.mode === "custom";
   const isFallbackPending =
     status === "SUCCESS" && task.organization_status === "FALLBACK_PENDING";
+  const canRelocateCompleted =
+    status === "SUCCESS" &&
+    task.import_success &&
+    task.file_location === "import" &&
+    task.task_kind !== "REORGANIZE";
 
   const perm = getTaskEditPermission(task);
   const taskIdForClosure = taskId;
@@ -149,7 +258,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     : taskDescription(task);
 
   // 分类维度（可编辑，去除预览按钮）
-  const dimSectionHtml = perm.canEditDimensions && !targetConflict
+  const dimSectionHtml = perm.canEditDimensions && !targetConflict && !isCustomRelocation
     ? `<div class="cinema-modal-block">
                 <h4>分类维度</h4>
                 <div class="cinema-modal-grid">${buildTaskDimensionsForm(task, true, true)}</div>
@@ -172,7 +281,7 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     : "";
 
   // 操作按钮区（待确认时显示）
-  const actionHtml = isAwaitReview && !targetConflict
+  const actionHtml = isAwaitReview && !targetConflict && !isCustomRelocation
     ? `<div class="cinema-modal-block">
                 <div class="cinema-modal-save-row" style="flex-wrap:wrap;gap:8px">
                     <button id="btn-scrape-manual" type="button" class="btn" style="background:linear-gradient(135deg,#eabf63,#c4903a);color:#16100a;border-color:transparent;box-shadow:0 4px 16px rgba(234,191,99,0.2)">手动刮削</button>
@@ -224,7 +333,9 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
     if (!(isReorganization && task.used_fallback)) {
       actions.push({
         label: isReorganization
-          ? "确认重新整理"
+          ? isUserRelocation
+            ? "确认调整位置"
+            : "确认重新整理"
           : task.used_fallback
             ? "确认放入待整理区"
             : "确认入库，开始移动文件",
@@ -235,9 +346,9 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
       });
     }
   }
-  if (isFallbackPending) {
+  if (canRelocateCompleted) {
     actions.push({
-      label: "创建重新整理任务",
+      label: isFallbackPending ? "创建重新整理任务" : "调整存放位置",
       className: "btn btn-primary btn-reorganize-task",
       onClick: null,
       closeOnClick: false,
@@ -278,6 +389,10 @@ async function openTaskDetailImpl(taskId, refreshListAfter) {
   const reorganizeBtn = modal.querySelector(".btn-reorganize-task");
   if (reorganizeBtn) {
     reorganizeBtn.addEventListener("click", async function () {
+      if (!isFallbackPending) {
+        await openManualRelocationDialog(task);
+        return;
+      }
       reorganizeBtn.disabled = true;
       reorganizeBtn.textContent = "正在创建...";
       const result = await requestApi(

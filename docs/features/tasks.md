@@ -23,7 +23,7 @@
 | `media_importer/features/tasks/dashboard_service.py` | Read-only dashboard business summary, recent activities/movies, and thumbnail-cache maintenance orchestration. |
 | `media_importer/features/tasks/file_lifecycle_service.py` | API-facing file lifecycle actions; currently owns same-directory task file rename and ignore flow cleanup/recycle decisions. |
 | `media_importer/features/tasks/list_service.py` | API-facing task list pagination, status validation, and status-count payload assembly. |
-| `media_importer/features/tasks/organization_service.py` | 已完成兜底结果识别，以及关联“重新整理”任务的创建门禁。 |
+| `media_importer/features/tasks/organization_service.py` | 已完成结果识别，以及关联“重新整理/人工调整位置”任务的创建门禁。 |
 | `media_importer/features/tasks/disposition_service.py` | 状态感知的“结束处理”：协作停止、来源保留/回收/受控永久删除及目标片库保护。 |
 | `media_importer/features/tasks/delete_service.py` | 只删除已结束任务的数据库记录；文件处置必须走 disposition service。 |
 | `media_importer/features/tasks/queue_service.py` | API-facing queue clear/retry/retry-all/pause/resume/status orchestration. |
@@ -61,10 +61,11 @@
 - 文件阶段同时返回当前成员名称、类型、序号和总数；详情字幕表显示来源文件、语言、计划文件名、当前状态和最终路径。`und` 必须显示“未识别”，不能伪装成中文或空值。
 - 等待确认任务可用类型、语言、年份搜索最多 20 个 Provider 候选；选择候选后先按 Provider ID 验证，再把最小人工作品绑定持久化并重新排队。任务取得共享并发槽后才获取详情、重算维度/分类/标准文件名/冲突并继续；冲突或兜底会再次停在 `AWAIT_REVIEW`。
 - 重新整理任务的来源已在目标片库内，是上述自动排队的安全例外：手动刮削只刷新预览，必须由用户确认后走专用片库内移动，禁止进入普通来源复制流程。
+- 重新整理或人工调整因瞬时错误失败后，“重试”只恢复到 `PENDING/AWAIT_REVIEW` 并保留原/目标位置和命名计划，等待用户再次确认；不得进入普通任务的来源刮削、复制队列。
 - 电视剧候选应用前先调用同剧批次预览。同一实际父目录、标准化剧名一致、季集号有效且唯一的 `PENDING/AWAIT_REVIEW` 和 `PENDING/QUEUED` 任务可继承；运行中任务只显示、不改写。电影、跨目录、未决片库冲突和已人工选择其他 Provider 的任务排除。用户可逐项取消，提交时服务端再次校验任务 ID。批量套用只共享 Provider 作品身份，每集独立保留季集号并在真正运行时生成自己的标准文件名。
 - 确认接口快速返回并由服务进程内后台 worker 继续；关闭浏览器或前端弹窗不取消任务。同一任务有进程内重复 worker 门禁；文件包提交窗口另由持久化清单在服务重启后恢复。
 - 正常任务未匹配正式规则时必须进入 `PENDING/AWAIT_REVIEW`，只有用户明确接受待整理区后才能继续。成功入库后仍是 `SUCCESS/DONE`，用 `organization_status=FALLBACK_PENDING` 表达后续可整理，不能再显示成“需确认”或重新打开原任务。
-- `POST /api/tasks/{id}/reorganize` 只对 `SUCCESS/DONE + FALLBACK_PENDING` 创建一条 `task_kind=REORGANIZE` 的关联新任务。新任务允许改维度和手动刮削，但必须匹配正式规则才能确认；完成后原任务与新任务都保持独立审计记录。兜底、重新整理和片库冲突任务全部排除批量确认。
+- `POST /api/tasks/{id}/reorganize` 对仍有现存片库文件的 `SUCCESS/DONE` 任务创建一条 `task_kind=REORGANIZE` 关联新任务。`mode=rules` 按规则重新计算目标；`mode=custom` 只接受启用片库 root ID 与安全相对子目录，保持现有文件名并记录 `reorganization_intent`。确认后影片与字幕整包移动，原任务继续保持成功并同步当前路径，子任务永久记录人工干预。兜底、重新整理和片库冲突任务全部排除批量确认。
 - 任务页存在运行项时每 2.5 秒静默刷新；页面隐藏、离开任务页、打开弹窗或批量选择时暂停。静默刷新按任务 ID 对账，仅替换数据发生变化的卡片并复用相同封面节点，不重建整个列表；已经“加载更多”的页面继续保留，不能退回单页或清空选择。
 - 重试是整任务重来：清空刮削、维度、规则、冲突、进度和文件包日志，从原始来源重新排队。服务重启只允许“提交前安全回退为失败”“完整提交复核为成功”“歧义现场保留待人工检查”三种结果；完整提交恢复会保留来源，不在重启阶段补做来源清理。
 - 普通来源任务只能经 `TaskManager.create_or_reuse_source_task()` 创建。扫描、watcher 与手动单文件入口在同一进程锁内完成真实路径归一化、判重和创建；并发触发只能得到一个任务 ID。新任务创建时必须同时保存来源指纹、字节大小和修改时间。
@@ -95,7 +96,7 @@
 - `tests/test_target_library_conflict_safety.py` / `tests/test_target_library_conflict_ui.py` 覆盖冲突零写入、三种决策、安全替换、配置收敛和桌面/手机合同。
 - `tests/test_task_organization.py` / `tests/test_task_organization_ui.py` 覆盖历史兜底补标、关联任务幂等创建、影片字幕整包移动、冲突零覆盖、重启恢复和前端状态边界。
 - `tests/test_task_disposition.py` / `tests/test_task_disposition_ui.py` 覆盖各状态退出、精确来源成员、协作停止、提交点保护、只删记录和普通人可理解的前端动作。
-- `tests/test_task_organization_browser_ui.py` 使用真实本地 HTTP 服务与 Chromium，从用户界面完成“历史兜底 → 创建重新整理 → 手动刮削 → 正式规则入库”、移动端详情、影片字幕整包移动、同名冲突保留、明确确认兜底及提交后重启恢复的端到端验收；同时拦截页面脚本错误和服务端 5xx。
+- `tests/test_task_organization_browser_ui.py` 使用真实本地 HTTP 服务与 Chromium，覆盖“历史兜底 → 按规则重新整理”以及“已完成影片 → 指定片库子目录 → 人工调整位置”两条客户旅程，并验证原/目标位置、影片字幕整包移动、审计子任务、同名冲突、移动端详情和重启恢复；同时拦截页面脚本错误和服务端 5xx。
 
 ## Migration Notes
 

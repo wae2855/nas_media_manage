@@ -59,7 +59,9 @@ function taskDescription(task) {
     return "影片已经安全入库到待整理区；可保留现状，也可以创建一条独立任务重新匹配正式入库规则。";
   }
   if (status === "SUCCESS" && task.task_kind === "REORGANIZE") {
-    return "影片和随片字幕已经按正式规则重新整理完成。";
+    return task.reorganization_intent?.reason === "user_requested"
+      ? "影片和随片字幕已经按用户选择完成位置调整，原入库记录保持不变。"
+      : "影片和随片字幕已经按正式规则重新整理完成。";
   }
   if (status === "SUCCESS") {
     const title =
@@ -94,7 +96,9 @@ function taskDescription(task) {
         .join(" · ");
     }
     if (task.task_kind === "REORGANIZE" && !task.used_fallback) {
-      return "已经匹配正式入库规则，请核对入库预览后确认重新整理。";
+      return task.reorganization_intent?.reason === "user_requested"
+        ? "人工调整任务已准备好，请核对原位置和目标位置后确认。"
+        : "已经匹配正式入库规则，请核对入库预览后确认重新整理。";
     }
     return prefix || "需要你确认最终匹配结果。";
   }
@@ -127,12 +131,17 @@ function taskMetaTags(task) {
   if (mediaType === "tv") {
     tags.push({ tone: "type", text: "剧集" });
     if (season !== null && season !== undefined && season !== "")
-      tags.push({ tone: "se", text: "S" + String(season).padStart(2, "0") });
+      tags.push({ tone: "se", text: "第 " + String(season) + " 季" });
     if (episode !== null && episode !== undefined && episode !== "")
-      tags.push({ tone: "se", text: "E" + String(episode).padStart(2, "0") });
+      tags.push({ tone: "se", text: "第 " + String(episode) + " 集" });
   }
-  if (task.task_kind === "REORGANIZE")
-    tags.push({ tone: "type", text: "重新整理" });
+  if (task.task_kind === "REORGANIZE") {
+    const intent = task.reorganization_intent || {};
+    tags.push({
+      tone: "type",
+      text: intent.reason === "user_requested" ? "人工调整" : "重新整理",
+    });
+  }
   if (status === "SUCCESS" && task.organization_status === "FALLBACK_PENDING")
     tags.push({ tone: "warn", text: "待整理" });
   if (
@@ -177,8 +186,19 @@ function taskPrimaryAction(task) {
   const stage = String(task.stage || "").toUpperCase();
   if (targetLibraryConflictOf(task))
     return { key: "view-task", label: "处理片库冲突" };
-  if (status === "SUCCESS" && task.organization_status === "FALLBACK_PENDING")
-    return { key: "reorganize", label: "重新整理" };
+  if (
+    status === "SUCCESS" &&
+    task.import_success &&
+    task.file_location === "import" &&
+    task.task_kind !== "REORGANIZE"
+  )
+    return {
+      key: "reorganize",
+      label:
+        task.organization_status === "FALLBACK_PENDING"
+          ? "重新整理"
+          : "调整位置",
+    };
   if (
     status === "PENDING" &&
     stage === "AWAIT_REVIEW" &&

@@ -141,6 +141,10 @@ async function performTaskAction(action, taskId) {
     return;
   }
   if (action === "reorganize") {
+    if (task.organization_status !== "FALLBACK_PENDING") {
+      await openManualRelocationDialog(task);
+      return;
+    }
     const result = await requestApi(
       "POST",
       `/tasks/${encodeURIComponent(taskId)}/reorganize`,

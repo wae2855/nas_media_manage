@@ -214,13 +214,18 @@ function guideRequiredDirectorySetup(config) {
 }
 
 async function loadDirectoryConfig(options = {}) {
-  const result = await requestApi("GET", "/config");
+  const result = await requestApi(
+    "GET",
+    "/config",
+    null,
+    options.timeoutMs ? { timeoutMs: options.timeoutMs } : {},
+  );
   if (result.code !== 200 || !result.data) {
     const providerHost = document.getElementById("provider-inline-stack");
     if (providerHost) {
       providerHost.innerHTML = `<article class="provider-inline-empty">${result.code === 401 ? "请先完成 API Key 认证后加载 Provider 配置" : "配置加载失败，请稍后重试"}</article>`;
     }
-    return;
+    return { ok: false, message: result.message || "配置加载失败，请稍后重试" };
   }
   const rawConfig = result.data.config || result.data;
   const readiness = result.data.readiness || null;
@@ -431,5 +436,33 @@ async function loadDirectoryConfig(options = {}) {
     renderRuleList(rawConfig.path_rules || []);
   } catch (err) {
     console.warn("renderRuleList 失败,继续后续同步", err);
+  }
+  return { ok: true, readiness };
+}
+
+async function refreshStorageReadiness(button) {
+  const originalLabel = button?.textContent || "重新检查";
+  if (button) {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = "检查中…";
+  }
+  showToast("正在重新检查目录与空间...");
+  try {
+    const outcome = await loadDirectoryConfig({ timeoutMs: 20000 });
+    if (!outcome?.ok) {
+      showToast(outcome?.message || "检查未完成，请确认服务状态后重试");
+      return;
+    }
+    const state = outcome.readiness?.state;
+    showToast(state === "READY" ? "目录与空间检查完成" : "检查完成，请处理标记的项目");
+  } catch (error) {
+    showToast(error?.message || "检查未完成，请确认服务状态后重试");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.textContent = originalLabel;
+    }
   }
 }

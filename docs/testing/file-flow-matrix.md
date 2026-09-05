@@ -172,6 +172,7 @@ status: accepted
 | M09 | AWAIT_REVIEW → 用户重新刮削(B27)→ 选候选 → confirm | 任意 AWAIT_REVIEW | `SUCCESS/DONE` | 详情"手动刮削"按钮,选 candidate 后入库 |
 | M10 | AWAIT_REVIEW → 用户改名(B28)→ confirm | `* (junk).mkv` | `SUCCESS/DONE` | 详情文件名可编辑 |
 | M10a | SUCCESS/FALLBACK_PENDING → 创建关联重新整理 → 改维度/重刮 → confirm | 已在待整理区的影片 + 字幕 | 父任务保持 SUCCESS；新任务 SUCCESS/DONE，父子 ORGANIZED | 原任务显示“已安全入库，等待整理”，新任务显示正式规则预览和整组移动进度 |
+| M10b | SUCCESS/DONE → 调整存放位置 → 选择片库与相对子目录 → confirm | 已正常入库的影片 + 字幕 | 父任务保持 SUCCESS 并同步当前路径；人工调整子任务 SUCCESS/DONE | 卡片显示“人工调整”，详情显示原位置/目标位置；绝对路径、`..`、根外路径、同名目标均在写入前拒绝 |
 
 ### 2.3 失败/取消/跳过
 
@@ -182,6 +183,7 @@ status: accepted
 | M13 | 用户不再处理 | AWAIT_REVIEW/FAILED 时 dispose | `SKIPPED/DONE` | 明确选择保留、回收或已启用的永久删除新资源 |
 | M14 | 用户删除记录 | 任一已结束任务 delete | 记录消失，来源与片库文件不变 | 二次确认明确“只删除记录” |
 | M15 | 重试失败 | FAILED 任务 retry | `PENDING/QUEUED` → 重新走流程 | 任务卡回到"排队中" |
+| M15a | 重试失败的人工调整 | REORGANIZE FAILED/DONE retry | `PENDING/AWAIT_REVIEW`，目标和审计意图保留 | 显示“等待再次确认”，不会进入普通来源处理队列 |
 | M16 | 重试全部失败 | 仪表盘 retry-all | 全部 FAILED/SKIPPED/CANCELLED → QUEUED | dashboard 按钮 |
 
 ### 2.4 批量操作

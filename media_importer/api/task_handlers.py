@@ -135,6 +135,9 @@ class TaskHandlersMixin:
             globals._global_task_manager,
             globals._config or {},
             task_id,
+            mode=body.get("mode", "rules"),
+            library_root_id=body.get("library_root_id", ""),
+            relative_dir=body.get("relative_dir", ""),
         )
         json_response(self, result.code, data=result.data, message=result.message)
 

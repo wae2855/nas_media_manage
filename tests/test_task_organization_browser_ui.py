@@ -626,9 +626,38 @@ metadata:
                 self.assertIn("已完成", finished_history.inner_text())
                 self.assertNotIn("待整理", finished_history.inner_text())
                 self.assertEqual(finished_history.get_by_role("button", name="重新整理").count(), 0)
+                self.assertEqual(finished_history.get_by_role("button", name="调整位置").count(), 1)
                 page.screenshot(
                     path=str(SCREENSHOT_DIR / "organization-customer-04-completed.png"),
                     full_page=True,
+                )
+
+                # A normally completed item can create a separate audited manual move.
+                finished_history.get_by_role("button", name="调整位置").click()
+                page.wait_for_selector("text=指定片库子目录")
+                relocation_modal = page.locator(".cinema-modal").last
+                self.assertIn(str(destination / "小姐.2016.mkv"), relocation_modal.inner_text())
+                relocation_modal.get_by_text("指定片库子目录").click()
+                relocation_modal.locator("#relocation-root").select_option("main")
+                relocation_modal.locator("#relocation-relative-dir").fill("人工收藏/获奖电影")
+                relocation_modal.get_by_role("button", name="创建人工调整任务").click()
+                page.wait_for_selector("text=正在准备人工调整位置")
+                manual_modal = page.locator(".cinema-modal").last
+                self.assertIn("原位置：", manual_modal.inner_text())
+                self.assertIn("目标位置：", manual_modal.inner_text())
+                self.assertEqual(page.get_by_role("button", name="手动刮削").count(), 0)
+                self.assertEqual(page.get_by_role("button", name="确认调整位置").count(), 1)
+                page.get_by_role("button", name="确认调整位置").click()
+                manual_target = self.paths["library"] / "人工收藏" / "获奖电影"
+                _refresh_until(
+                    page,
+                    lambda: (manual_target / "小姐.2016.mkv").is_file(),
+                )
+                self.assertTrue((manual_target / "小姐.2016.zh.srt").is_file())
+                self.assertFalse((destination / "小姐.2016.mkv").exists())
+                self.assertGreaterEqual(
+                    page.locator("article.task-card").filter(has_text="人工调整").count(),
+                    1,
                 )
 
                 # A target conflict is explained in the UI; replace is forbidden for reorganization.

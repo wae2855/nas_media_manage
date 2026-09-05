@@ -46,7 +46,7 @@ class TestTransitionTableCompleteness(unittest.TestCase):
             self.assertTrue(sources, f"{action} 未定义任何源状态")
 
     def test_terminal_states_have_no_outgoing_except_defined(self):
-        """终态仅允许 retry（FAILED/SKIPPED/CANCELLED）与 ignore（FAILED）。"""
+        """终态仅允许注册的 retry 类动作与 ignore；SUCCESS 始终无出边。"""
         for action, (sources, _) in TRANSITIONS.items():
             for src in sources:
                 if src in {"SUCCESS-DONE", (x for x in ())}:
@@ -122,6 +122,28 @@ class TestKeySemantics(unittest.TestCase):
         """AWAIT_REVIEW 不可被 runner start（防双处理）。"""
         task = _task("PENDING", STAGE_AWAIT_REVIEW)
         self.assertFalse(can_apply(task, "start"))
+
+    def test_failed_reorganization_returns_to_review_without_losing_target(self):
+        task = _task(
+            "FAILED",
+            "DONE",
+            task_kind="REORGANIZE",
+            source_path="/library/old/Movie.mkv",
+            video_path="/library/old/Movie.mkv",
+            import_path="/library/custom",
+            final_filename="Movie.mkv",
+            reorganization_intent={"reason": "user_requested", "mode": "custom"},
+            retry_count=0,
+        )
+
+        fields = apply(task, "retry_reorganization")
+
+        self.assertEqual(fields["stage"], STAGE_AWAIT_REVIEW)
+        self.assertEqual(fields["file_location"], FILE_LOCATION_IMPORT)
+        self.assertNotIn("import_path", fields)
+        self.assertNotIn("final_filename", fields)
+        self.assertNotIn("reorganization_intent", fields)
+        self.assertEqual(fields["retry_count"], 1)
 
     def test_queued_cannot_confirm(self):
         task = _task("PENDING", STAGE_QUEUED)

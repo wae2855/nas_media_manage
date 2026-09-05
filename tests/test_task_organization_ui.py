@@ -38,3 +38,29 @@ def test_organization_panels_share_existing_responsive_modal_boundary():
     assert ".task-organization-panel" in styles
     assert "minmax(0, 1fr)" in styles
     assert "@media (max-width: 600px)" in styles
+
+
+def test_task_cards_use_business_season_episode_labels_without_raw_dimension_keys():
+    utils = _read("media_importer/webui/js/cinema-task-utils.js")
+    listing = _read("media_importer/webui/js/cinema-task-list.js")
+    dimensions = _read("media_importer/webui/js/dimension-core.js")
+
+    assert 'text: "第 " + String(season) + " 季"' in utils
+    assert 'text: "第 " + String(episode) + " 集"' in utils
+    assert '["season", "episode"].includes(name)' in listing
+    assert 'season: "季数"' in dimensions
+    assert 'episode: "集数"' in dimensions
+
+
+def test_completed_library_task_exposes_audited_manual_relocation_dialog():
+    detail = _read("media_importer/webui/js/cinema-task-detail-open.js")
+    utils = _read("media_importer/webui/js/cinema-task-utils.js")
+
+    assert "调整存放位置" in detail
+    assert "按整理规则" in detail
+    assert "指定片库子目录" in detail
+    assert "library_root_id: rootId" in detail
+    assert "relative_dir: relativeDir" in detail
+    assert "原位置：" in detail
+    assert "目标位置：" in detail
+    assert 'intent.reason === "user_requested" ? "人工调整"' in utils

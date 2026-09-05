@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from media_importer.features.configuration import configured_library_roots, path_within
 from media_importer.features.configuration.library_paths import (
     canonicalize_library_config,
+    library_root_by_id,
+    resolve_library_template,
     resolve_rule_template,
 )
 from media_importer.features.organization_state import (
@@ -17,9 +20,11 @@ from media_importer.features.organization_state import (
 )
 from media_importer.infrastructure.db import (
     find_active_reorganization,
+    get_enabled_dimensions,
     get_subtitles_by_task,
     get_task,
     list_all_tasks,
+    update_subtitle,
     update_task,
 )
 
@@ -98,6 +103,10 @@ def create_reorganization_task_for_api(
     task_manager,
     config: dict,
     parent_task_id: str,
+    *,
+    mode: str = "rules",
+    library_root_id: str = "",
+    relative_dir: str = "",
 ) -> OrganizationActionResult:
     if task_manager is None:
         return OrganizationActionResult(code=500, message="TaskManager not initialized")
@@ -106,9 +115,10 @@ def create_reorganization_task_for_api(
         return OrganizationActionResult(code=404, message="原入库任务不存在")
     if parent.get("status") != "SUCCESS" or not parent.get("import_success"):
         return OrganizationActionResult(code=400, message="只有已经成功入库的任务可以重新整理")
+    mode = str(mode or "rules").strip().lower()
+    if mode not in {"rules", "custom"}:
+        return OrganizationActionResult(code=400, message="调整方式无效")
     organization_status = str(parent.get("organization_status") or "")
-    if organization_status == ORGANIZATION_ORGANIZED:
-        return OrganizationActionResult(code=400, message="该影片已经按正式规则整理完成")
     if organization_status != ORGANIZATION_FALLBACK_PENDING and task_used_fallback(config, parent):
         parent = update_task(
             task_manager.conn,
@@ -117,8 +127,7 @@ def create_reorganization_task_for_api(
             organization_status=ORGANIZATION_FALLBACK_PENDING,
         ) or parent
         organization_status = ORGANIZATION_FALLBACK_PENDING
-    if organization_status != ORGANIZATION_FALLBACK_PENDING:
-        return OrganizationActionResult(code=400, message="该影片不在待整理区，无需创建重新整理任务")
+    is_fallback = organization_status == ORGANIZATION_FALLBACK_PENDING
 
     active = find_active_reorganization(task_manager.conn, parent_task_id)
     if active:
@@ -140,6 +149,51 @@ def create_reorganization_task_for_api(
             code=409,
             message="待整理区中的影片不存在或不在已授权片库内，请先运行配置检查",
         )
+
+    target_dir = str(parent.get("import_path") or os.path.dirname(video_path))
+    classify_result_text = str(
+        parent.get("classify_result") or os.path.dirname(video_path)
+    )
+    target_used_fallback = is_fallback
+    target_root_id = ""
+    target_relative_dir = ""
+    if mode == "custom":
+        try:
+            root = library_root_by_id(config or {}, str(library_root_id or "").strip())
+            target_root_id = str(root["id"])
+            target_relative_dir = str(relative_dir or "").strip()
+            if not target_relative_dir or target_relative_dir in {".", os.curdir}:
+                raise ValueError("请选择目标片库内的具体子目录")
+            target_dir = resolve_library_template(
+                str(root["path"]),
+                target_relative_dir,
+                {},
+            )
+        except (KeyError, ValueError) as exc:
+            return OrganizationActionResult(code=400, message=str(exc))
+        final_path = os.path.join(target_dir, os.path.basename(video_path))
+        if os.path.realpath(final_path) == os.path.realpath(video_path):
+            return OrganizationActionResult(code=400, message="目标位置与当前位置相同，无需调整")
+        classify_result_text = f"人工指定目录: {target_dir}"
+        target_used_fallback = False
+    elif not is_fallback:
+        try:
+            from media_importer.features.import_flow.services import ClassificationService
+
+            enabled_names = {
+                item["name"] for item in get_enabled_dimensions(task_manager.conn)
+            }
+            classified = ClassificationService(config or {}).classify_task(
+                dict(parent),
+                enabled_names,
+            )
+            if classified.import_path:
+                target_dir = classified.import_path
+                classify_result_text = classified.classify_result
+                target_used_fallback = bool(classified.used_fallback)
+        except (KeyError, ValueError):
+            # 仍创建显式待确认任务，让用户在详情中修正维度或改用指定目录。
+            target_used_fallback = True
 
     parent_subtitles = get_subtitles_by_task(task_manager.conn, parent_task_id)
     subtitle_paths = []
@@ -173,22 +227,67 @@ def create_reorganization_task_for_api(
         "confirm_status": "PENDING",
         "match_level": "NEEDS_CONFIRM",
         "match_concerns": [{
-            "code": "FALLBACK_REORGANIZATION",
-            "message": "影片已在待整理区，请重新刮削或调整维度以匹配正式入库规则",
+            "code": (
+                "FALLBACK_REORGANIZATION"
+                if is_fallback and mode == "rules"
+                else "USER_REQUESTED_REORGANIZATION"
+            ),
+            "message": (
+                "影片已在待整理区，请重新刮削或调整维度以匹配正式入库规则"
+                if is_fallback and mode == "rules"
+                else "用户主动调整已入库影片位置，请核对原位置和目标位置后确认"
+            ),
         }],
         "match_trace": {},
-        "import_path": str(parent.get("import_path") or os.path.dirname(video_path)),
-        "classify_result": str(parent.get("classify_result") or os.path.dirname(video_path)),
+        "import_path": target_dir,
+        "classify_result": classify_result_text,
         "final_filename": os.path.basename(video_path),
-        "used_fallback": 1,
+        "used_fallback": 1 if target_used_fallback else 0,
         "organization_status": "",
+        "reorganization_intent": {
+            "reason": "user_requested" if not (is_fallback and mode == "rules") else "fallback",
+            "mode": mode,
+            "source_path": os.path.realpath(video_path),
+            "target_library_root_id": target_root_id,
+            "target_relative_dir": target_relative_dir,
+            "target_dir": os.path.realpath(target_dir),
+            "target_path": os.path.realpath(
+                os.path.join(target_dir, os.path.basename(video_path))
+            ),
+            "requested_at": datetime.now().isoformat(),
+        },
         "source_cleanup_status": "SKIPPED",
         "error_message": "",
         "skip_reason": "",
     })
     child = update_task(task_manager.conn, task_id, **copied_fields)
+    if mode == "custom":
+        from media_importer.features.import_flow.services.naming import (
+            plan_subtitle_filenames,
+        )
+
+        child_subtitles = get_subtitles_by_task(task_manager.conn, task_id)
+        subtitle_plan = plan_subtitle_filenames(
+            [str(item.get("source_path") or "") for item in child_subtitles],
+            os.path.basename(video_path),
+            (config.get("filename_templates", {}) or {}).get(
+                "subtitle", "{video_filename}.{lang}.{ext}"
+            ),
+        )
+        for subtitle, planned in zip(child_subtitles, subtitle_plan, strict=True):
+            update_subtitle(
+                task_manager.conn,
+                subtitle["id"],
+                planned_filename=planned["filename"],
+                lang=planned["lang"],
+            )
+        child = get_task(task_manager.conn, task_id)
     return OrganizationActionResult(
         code=201,
         data={"task": child, "created": True},
-        message="已创建重新整理任务，原入库任务保持已完成",
+        message=(
+            "已创建人工调整任务，原入库任务保持已完成"
+            if not (is_fallback and mode == "rules")
+            else "已创建重新整理任务，原入库任务保持已完成"
+        ),
     )

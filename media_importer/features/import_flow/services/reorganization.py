@@ -38,13 +38,16 @@ class ReorganizationService:
             raise IOError("当前任务不是重新整理任务")
         parent_id = str(task.get("parent_task_id") or "")
         parent = get_task(self.conn, parent_id) if parent_id else None
-        if (
-            not parent
-            or parent.get("status") != "SUCCESS"
-            or not parent.get("import_success")
-            or parent.get("organization_status") != ORGANIZATION_FALLBACK_PENDING
-        ):
+        intent = task.get("reorganization_intent") or {}
+        user_requested = intent.get("reason") == "user_requested"
+        if not parent or parent.get("status") != "SUCCESS" or not parent.get("import_success"):
             raise IOError("原入库任务已变化，无法继续重新整理，请刷新后重试")
+        if not user_requested and parent.get("organization_status") != ORGANIZATION_FALLBACK_PENDING:
+            raise IOError("原入库任务已变化，无法继续重新整理，请刷新后重试")
+        parent_video = str(parent.get("import_video_path") or parent.get("video_path") or "")
+        task_video = str(task.get("video_path") or task.get("source_path") or "")
+        if not parent_video or os.path.realpath(parent_video) != os.path.realpath(task_video):
+            raise IOError("影片位置已被其他操作改变，请重新创建调整任务")
 
         subtitle_rows = get_subtitles_by_task(self.conn, task["task_id"])
         subtitle_paths = [
@@ -65,12 +68,14 @@ class ReorganizationService:
         )
 
         imported_subtitles = move_result.get("subtitles", [])
-        by_name = {os.path.basename(path): path for path in imported_subtitles}
+        if len(imported_subtitles) != len(subtitle_rows):
+            raise IOError("重新整理结果中的字幕数量不一致，已保留文件包现场")
+        imported_by_source = {
+            os.path.realpath(str(row.get("source_path") or "")): import_path
+            for row, import_path in zip(subtitle_rows, imported_subtitles, strict=True)
+        }
         now = datetime.now().isoformat()
-        for row in subtitle_rows:
-            import_path = by_name.get(str(row.get("planned_filename") or ""), "")
-            if not import_path:
-                raise IOError("重新整理结果中缺少计划字幕，已保留文件包现场")
+        for row, import_path in zip(subtitle_rows, imported_subtitles, strict=True):
             update_subtitle(
                 self.conn,
                 row["id"],
@@ -88,11 +93,45 @@ class ReorganizationService:
             "subtitle_files": imported_subtitles,
             "file_location": "import",
         })
+        parent_subtitles = get_subtitles_by_task(self.conn, parent_id)
+        for parent_row in parent_subtitles:
+            previous_path = str(
+                parent_row.get("import_path")
+                or parent_row.get("target_path")
+                or parent_row.get("source_path")
+                or ""
+            )
+            import_path = imported_by_source.get(os.path.realpath(previous_path), "")
+            if not import_path:
+                continue
+            update_subtitle(
+                self.conn,
+                parent_row["id"],
+                status="SUCCESS",
+                import_path=import_path,
+                target_path=import_path,
+                planned_filename=os.path.basename(import_path),
+                confirm_status="CONFIRMED",
+                completed_at=now,
+            )
         update_task(
             self.conn,
             parent_id,
             organization_status=ORGANIZATION_ORGANIZED,
             reorganized_by_task_id=task["task_id"],
+            video_path=video_path,
+            import_video_path=video_path,
+            import_path=os.path.dirname(video_path),
+            final_filename=os.path.basename(video_path),
+        )
+        intent.update({
+            "completed_target_path": video_path,
+            "completed_at": now,
+        })
+        update_task(
+            self.conn,
+            task["task_id"],
+            reorganization_intent=intent,
         )
         return ReorganizationResult(video_path, imported_subtitles)
 

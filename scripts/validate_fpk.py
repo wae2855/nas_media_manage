@@ -204,6 +204,15 @@ def validate(path: Path, expected_version: str | None = None) -> dict[str, objec
                 errors.append("manifest 必须保留 fnOS 目录授权入口")
             if manifest_data.get("service_port") != "14591":
                 errors.append("manifest service_port 必须固定为 14591")
+            if manifest_data.get("checkport") != "true":
+                errors.append("manifest 固定服务端口必须声明 checkport=true")
+            if manifest_data.get("maintainer") != "oneway":
+                errors.append("manifest maintainer 必须为 oneway")
+            repository_url = "https://github.com/wae2855/nas_media_manage"
+            if manifest_data.get("maintainer_url") != repository_url:
+                errors.append("manifest maintainer_url 必须指向公开 GitHub 仓库")
+            if manifest_data.get("distributor_url") != repository_url:
+                errors.append("manifest distributor_url 必须指向公开 GitHub 仓库")
 
         inner_names: set[str] = set()
         inner_members: dict[str, tarfile.TarInfo] = {}

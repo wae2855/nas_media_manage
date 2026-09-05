@@ -385,7 +385,18 @@ def _make_fpk(
         if forbidden_inner:
             _add_bytes(inner, forbidden_inner, b"bad")
 
-    manifest = b"appname = nas-media-importer\nversion = 0.3.0\nservice_port = 14591\ninstall_dep_apps = python312\nmicro_app = true\ndisable_authorization_path = false\n"
+    manifest = (
+        b"appname = nas-media-importer\n"
+        b"version = 0.3.0\n"
+        b"service_port = 14591\n"
+        b"checkport = true\n"
+        b"maintainer = oneway\n"
+        b"maintainer_url = https://github.com/wae2855/nas_media_manage\n"
+        b"distributor_url = https://github.com/wae2855/nas_media_manage\n"
+        b"install_dep_apps = python312\n"
+        b"micro_app = true\n"
+        b"disable_authorization_path = false\n"
+    )
     with tarfile.open(path, mode="w:gz") as outer:
         for name in validate_fpk.OUTER_REQUIRED:
             if name == "manifest":
@@ -506,6 +517,10 @@ def test_build_script_declares_fnos_runtime_and_visible_failures():
     assert "wizard_api_key" not in script
     assert "wizard_port" not in script
     assert 'service_port          = 14591' in script
+    assert "checkport             = true" in script
+    assert "maintainer            = oneway" in script
+    assert "maintainer_url        = https://github.com/wae2855/nas_media_manage" in script
+    assert "distributor_url       = https://github.com/wae2855/nas_media_manage" in script
     command_main = script.split("create_cmd_main()", 1)[1].split("create_install_callback()", 1)[0]
     assert "serve --host 127.0.0.1" in command_main
     assert "serve --host 0.0.0.0" not in command_main

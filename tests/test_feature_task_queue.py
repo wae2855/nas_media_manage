@@ -135,6 +135,30 @@ def test_retry_task_does_not_start_paused_pipeline():
     assert FakeThread.started_targets == []
 
 
+def test_retry_reorganization_waits_for_user_confirmation_instead_of_pipeline():
+    FakeThread.started_targets = []
+    task_manager = FakeTaskManager()
+    task_manager.retry_result = {
+        "task_id": "reorg-1",
+        "status": "PENDING",
+        "stage": "AWAIT_REVIEW",
+        "task_kind": "REORGANIZE",
+    }
+    pipeline = FakePipeline(paused=False)
+
+    result = retry_task_for_api(
+        task_manager,
+        pipeline,
+        "reorg-1",
+        thread_factory=FakeThread,
+    )
+
+    assert result.code == 200
+    assert "再次确认" in result.message
+    assert pipeline.processed == []
+    assert FakeThread.started_targets == []
+
+
 def test_retry_task_returns_bad_request_for_missing_task():
     result = retry_task_for_api(FakeTaskManager(), FakePipeline(), "missing")
 

@@ -86,6 +86,7 @@ def _migrate_schema(conn: sqlite3.Connection):
         "ALTER TABLE tasks ADD COLUMN used_fallback INTEGER DEFAULT 0",
         "ALTER TABLE tasks ADD COLUMN organization_status TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN reorganized_by_task_id TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN reorganization_intent TEXT DEFAULT '{}'",
         "ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER DEFAULT 0",
         "ALTER TABLE tasks ADD COLUMN stop_requested_at TEXT DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN requested_source_disposition TEXT DEFAULT ''",

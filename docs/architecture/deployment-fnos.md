@@ -19,6 +19,8 @@ manifest 设置 `micro_app=true`、最低系统 `1.2.0401`，`config/resource` �
 
 fnOS 桌面入口使用同源 CGI iframe。CGI 固定反向代理 `127.0.0.1:14591`，后端启动也只监听该回环地址；空服务认证不会暴露为 NAS 局域网直连端口。CGI 不得依赖 fnOS 环境未承诺提供的 `TRIM_PKGVAR` 或从旧配置猜测端口，应用启动与 CGI 上游共享同一托管端口契约。
 
+因为应用固定监听 `14591`，manifest 必须声明 `checkport=true`，由 fnOS 在启动前识别端口冲突。维护者和发布者显示名统一为 `oneway`，联系地址统一指向公开 GitHub 仓库；对外邮箱写在 README，不增加未在官方 manifest 契约中的自定义字段。更新说明必须面向用户描述当前版本，禁止长期沿用“初始版本发布”。
+
 桌面入口与后台服务生命周期相互独立：`cmd/main start` 将 Python 服务作为带 PID 文件的包服务启动，CGI 只转发 HTTP 请求。关闭 fnOS 桌面窗口或移动端页面不会调用 `cmd/main stop`，因此已启用的后台自动整理继续运行；只有用户停止/卸载应用或系统停止包服务时才终止进程。
 
 ## Important Rule

@@ -256,6 +256,11 @@ def _recover_committed(task: dict, members: list[dict], conn) -> BundleRecoveryR
         for member in members
         if member["kind"] == "subtitle"
     }
+    subtitles_by_source = {
+        os.path.realpath(str(member.get("source_path") or "")): member["dest_path"]
+        for member in members
+        if member["kind"] == "subtitle" and member.get("source_path")
+    }
     now = datetime.now().isoformat()
     for row in get_subtitles_by_task(conn, task["task_id"]):
         import_path = subtitles.get(str(row.get("planned_filename") or ""), "")
@@ -285,6 +290,12 @@ def _recover_committed(task: dict, members: list[dict], conn) -> BundleRecoveryR
         "source_disposition_message": "服务在完整入库后中断，为安全起见已保留来源内容",
     })
     if task.get("task_kind") == TASK_KIND_REORGANIZE:
+        intent = dict(task.get("reorganization_intent") or {})
+        intent.update({
+            "completed_target_path": video["dest_path"],
+            "completed_at": now,
+            "recovered_after_restart": True,
+        })
         fields.update({
             "used_fallback": 0,
             "organization_status": ORGANIZATION_ORGANIZED,
@@ -293,14 +304,40 @@ def _recover_committed(task: dict, members: list[dict], conn) -> BundleRecoveryR
             # 来源保留结果；重整任务只表达已完成归位。
             "source_disposition": "",
             "source_disposition_message": "",
+            "reorganization_intent": intent,
         })
         parent_id = str(task.get("parent_task_id") or "")
         if parent_id:
+            parent_subtitles = get_subtitles_by_task(conn, parent_id)
+            for parent_row in parent_subtitles:
+                previous_path = str(
+                    parent_row.get("import_path")
+                    or parent_row.get("target_path")
+                    or parent_row.get("source_path")
+                    or ""
+                )
+                import_path = subtitles_by_source.get(os.path.realpath(previous_path), "")
+                if not import_path:
+                    continue
+                update_subtitle(
+                    conn,
+                    parent_row["id"],
+                    status="SUCCESS",
+                    import_path=import_path,
+                    target_path=import_path,
+                    planned_filename=os.path.basename(import_path),
+                    confirm_status="CONFIRMED",
+                    completed_at=now,
+                )
             update_task(
                 conn,
                 parent_id,
                 organization_status=ORGANIZATION_ORGANIZED,
                 reorganized_by_task_id=task["task_id"],
+                video_path=video["dest_path"],
+                import_video_path=video["dest_path"],
+                import_path=os.path.dirname(video["dest_path"]),
+                final_filename=os.path.basename(video["dest_path"]),
             )
     update_task(conn, task["task_id"], **fields)
     return BundleRecoveryResult(

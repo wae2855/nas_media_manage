@@ -268,7 +268,12 @@ class TaskManager:
         # 先取期望态（reset_for_retry 会就地修改 task dict）
         expect_status = task.get("status", "")
         expect_stage = task.get("stage", "")
-        fields = reset_for_retry(task)
+        if task.get("task_kind") == "REORGANIZE":
+            from media_importer.features.tasks.transitions import apply
+
+            fields = apply(task, "retry_reorganization")
+        else:
+            fields = reset_for_retry(task)
         from media_importer.infrastructure.db import compare_and_update_task
         return compare_and_update_task(
             self.conn, task_id,
@@ -308,9 +313,14 @@ class TaskManager:
         retried = []
         for task in rows:
             if task["status"] in resurrectable:
-                fields = reset_for_retry(task)
-                db_update_task(self.conn, task["task_id"], **fields)
-                retried.append(task)
+                if task.get("task_kind") == "REORGANIZE":
+                    from media_importer.features.tasks.transitions import apply
+
+                    fields = apply(task, "retry_reorganization")
+                else:
+                    fields = reset_for_retry(task)
+                updated = db_update_task(self.conn, task["task_id"], **fields)
+                retried.append(updated or task)
         return retried
 
     def clear_tasks(self, status: Optional[str] = None, stage: Optional[str] = None):

@@ -137,13 +137,17 @@ function renderDimSourcesWithValues(task) {
     {};
   ensureDimDefsLoaded();
 
-  if (Object.keys(dims).length === 0) {
+  // 季集信息已在卡片主标签中用业务语言展示，维度区不再重复泄漏
+  // season/episode 技术键名。
+  const entries = Object.entries(dims).filter(
+    ([name]) => !["season", "episode"].includes(name),
+  );
+  if (entries.length === 0) {
     return '<div style="font-size:11px;color:var(--muted);">暂无维度记录</div>';
   }
 
   let html =
     '<div class="task-dim-grid" style="display:flex;flex-wrap:wrap;gap:6px;">';
-  const entries = Object.entries(dims);
   for (const [index, [name, value]] of entries.entries()) {
     const label = dimLabelOf(name);
     // null/undefined 显示为空（代表未取到值），不再显示 "null" 字样
