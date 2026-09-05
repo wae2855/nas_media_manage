@@ -16,6 +16,7 @@
 | `media_importer/features/source_files/operations.py` | Companion discovery, source file deletion within allowed dirs, non-media cleanup, and empty parent dir cleanup. |
 | `media_importer/features/source_files/config_paths.py` | Source-file allowed directory and import root calculation from configuration. |
 | `media_importer/features/source_files/__init__.py` | Public source-files feature API. |
+| `media_importer/features/source_files/coverage.py` | 同一快照历史重复记录的完整文件包覆盖证明与保留门禁。 |
 | `media_importer/features/import_flow/services/source_cleanup.py` | Compatibility wrapper only. |
 
 ## Related Areas
@@ -24,13 +25,16 @@
 - Recycle: destructive source/library file handling goes through `features/recycle`.
 - Filesystem infrastructure: direct path validation, permission checks, safe move/delete, and fingerprint helpers live in `infrastructure/filesystem`.
 - Config: `paths.source_dir`, `paths.library_roots`, `paths.path_rules`, `source_policy.recycle_dir`, `source_policy.mode`, `source_policy.disposal_mode`.
-- `source_units.py` 以源根第一层文件夹或“根直属文件集合”建立快照；聚合门禁只在所有媒体任务成功后回收，失败/跳过/变化均等待。
+- `source_units.py` 以源根第一层文件夹或“根直属文件集合”建立快照；聚合门禁要求媒体均已成功入库。仅同一单元同一来源路径的终态失败/跳过历史允许由成功 `COMMITTED` 文件包覆盖；须复核影片及已登记字幕的来源和目标 SHA-256、边界与快照。缺证明、活动任务、取消、人工处置和重启保护保留均阻挡，不跨来源代际合并，不改写历史任务终态。
 - watcher 启动及每轮来源扫描后先查 SQLite 待处理来源单元；只有存在待处理记录才访问对应来源并重试，不扫描目标片库。物理快照逐项未变化的旧记录可以补齐一次冻结媒体候选证据，任何差异都阻断并保留来源。
+- 历史重复记录待清理是有明确对象的维护操作，只读取该成功清单内的片库成员验证；无待处理记录或无需重复覆盖证明时不读取片库内容。长校验沿用来源/目标校验进度事件。清理前重读关联任务，状态变化则等待；同进程清理与用户保留/重试共享串行门禁，来源单元进入处理或终态后用户动作拒绝并要求刷新。已完成单元幂等调用仍补齐旧任务的来源结果。
+- 直接收尾与后台重试共用整组来源结果同步，前面已完成的剧集不会遗留“来源等待处理”；明确人工/重启保留的任务说明不会被后台覆盖。单元读取异常记录具体原因并隔离，不中断后续单元维护。
 - 最后一条任务已经安全入库但尚未落终态时，可用 `completing_task_id` 参与聚合门禁；该任务必须仍为 `PENDING/RUNNING` 且 `import_success=1`，其他同组任务仍必须是 `SUCCESS/DONE`。整组处理完成或明确失败后，最后任务才进入终态。
 
 ## Tests
 
 - `tests/test_import_flow_services.py`
+- `tests/test_source_cleanup_coverage.py` — 五集+历史重复、来源代际、字幕证明、保留、状态竞争、异常隔离和整组反馈。
 - `tests/test_recycle_safety.py`
 - `tests/test_feature_entrypoints.py`
 - `tests/test_architecture_guards.py`

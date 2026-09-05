@@ -4,6 +4,8 @@ import shutil
 import threading
 from typing import Optional
 
+from media_importer.features.operation_locks import serialize_source_disposition
+from media_importer.features.organization_state import serialize_reorganization
 from media_importer.features.tasks.task_lifecycle_compat import mark_cancelled, reset_for_retry
 
 from .db import (
@@ -257,11 +259,26 @@ class TaskManager:
         rows = db_list_all_tasks(self.conn, limit=limit + offset)
         return rows[offset:offset + limit]
 
-    def retry_task(self, task_id: str) -> Optional[dict]:
+    @serialize_reorganization
+    @serialize_source_disposition(
+        lambda self, task_id, **_kwargs: (
+            (db_get_task(self.conn, task_id) or {}).get("source_unit_id") or f"task:{task_id}"
+        )
+    )
+    def retry_task(self, task_id: str, *, expected_status: str = "") -> Optional[dict]:
         """整任务重试；CAS 保证并发双 retry 只成功一次。"""
         task = db_get_task(self.conn, task_id)
         if not task:
             return None
+        if expected_status and task.get("status") != expected_status:
+            return None
+        source_unit_id = str(task.get("source_unit_id") or "")
+        if source_unit_id:
+            from media_importer.infrastructure.db import get_source_unit
+
+            unit = get_source_unit(self.conn, source_unit_id)
+            if unit and unit.get("state") in {"RECYCLING", "DELETING", "RECYCLED", "DELETED"}:
+                return None
         from media_importer.features.tasks.transitions import can_apply
         if not can_apply(task, "retry"):
             return None
@@ -270,7 +287,11 @@ class TaskManager:
         expect_stage = task.get("stage", "")
         if task.get("task_kind") == "REORGANIZE":
             from media_importer.features.tasks.transitions import apply
+            from media_importer.infrastructure.db import find_active_reorganization
 
+            active = find_active_reorganization(self.conn, str(task.get("parent_task_id") or ""))
+            if active and active["task_id"] != task_id:
+                return None
             fields = apply(task, "retry_reorganization")
         else:
             fields = reset_for_retry(task)
@@ -313,14 +334,9 @@ class TaskManager:
         retried = []
         for task in rows:
             if task["status"] in resurrectable:
-                if task.get("task_kind") == "REORGANIZE":
-                    from media_importer.features.tasks.transitions import apply
-
-                    fields = apply(task, "retry_reorganization")
-                else:
-                    fields = reset_for_retry(task)
-                updated = db_update_task(self.conn, task["task_id"], **fields)
-                retried.append(updated or task)
+                updated = self.retry_task(task["task_id"], expected_status=task["status"])
+                if updated:
+                    retried.append(updated)
         return retried
 
     def clear_tasks(self, status: Optional[str] = None, stage: Optional[str] = None):

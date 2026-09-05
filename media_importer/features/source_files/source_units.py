@@ -17,7 +17,9 @@ from media_importer.features.configuration.storage_topology import (
     path_in_library,
     path_within,
 )
+from media_importer.features.operation_locks import serialize_source_disposition
 from media_importer.features.recycle import move_dir_to_recycle, move_to_recycle
+from media_importer.features.source_files.coverage import coverage_blocker, retain_source
 from media_importer.features.source_files.media_candidates import (
     ACCEPT,
     MediaCandidatePolicy,
@@ -212,7 +214,35 @@ class SourceUnitCoordinator:
         self.conn = conn
         self.config = config or {}
 
+    @serialize_source_disposition(lambda _self, unit_id, **_kwargs: unit_id)
     def try_recycle(
+        self, unit_id: str, *, completing_task_id: str = "", phase_callback=None,
+    ) -> SourceUnitRecycleResult:
+        # Workers and background retries must not dispose the same snapshot twice.
+        unit = get_source_unit(self.conn, unit_id)
+        if unit and unit["state"] in {"RECYCLED", "DELETED"}:
+            result = SourceUnitRecycleResult(unit["state"], "该来源单元已处理完成")
+        else:
+            try:
+                result = self._try_recycle(
+                    unit_id, completing_task_id=completing_task_id, phase_callback=phase_callback,
+                )
+            except (OSError, ValueError) as error:
+                result = SourceUnitRecycleResult("BLOCKED", f"来源复核异常，已停止处理：{error}")
+        disposition = {"DELETED": "deleted", "RECYCLED": "recycled", "SKIPPED": "kept",
+                       "WAITING": "pending", "BLOCKED": "failed"}.get(result.state, "pending")
+        if unit and result.state != "SKIPPED":
+            update_source_unit(self.conn, unit_id, state=result.state,
+                               cleanup_status="DONE" if result.state in {"RECYCLED", "DELETED"} else result.state,
+                               last_error=result.message if result.state in {"WAITING", "BLOCKED"} else "")
+        for task in list_tasks_for_source_unit(self.conn, unit_id):
+            if retain_source(task):
+                continue
+            update_task(self.conn, task["task_id"], source_cleanup_status=result.state,
+                        source_disposition=disposition, source_disposition_message=result.message)
+        return result
+
+    def _try_recycle(
         self,
         unit_id: str,
         *,
@@ -342,23 +372,12 @@ class SourceUnitCoordinator:
         if not expected_media.issubset(covered_media):
             update_source_unit(self.conn, unit_id, state="WAITING", cleanup_status="WAITING")
             return SourceUnitRecycleResult("WAITING", "源单元仍有媒体文件尚未创建任务")
-        def task_ready(candidate: dict) -> bool:
-            imported = candidate.get("import_success") == 1
-            if candidate.get("task_id") == completing_task_id:
-                return (
-                    imported
-                    and candidate.get("status") == "PENDING"
-                    and candidate.get("stage") == "RUNNING"
-                )
-            return (
-                imported
-                and candidate.get("status") == "SUCCESS"
-                and candidate.get("stage") == "DONE"
-            )
-
-        if not tasks or not all(task_ready(task) for task in tasks):
+        blocker, duplicate_count = coverage_blocker(
+            self.conn, self.config, unit, tasks, completing_task_id, phase_callback,
+        )
+        if blocker:
             update_source_unit(self.conn, unit_id, state="WAITING", cleanup_status="WAITING")
-            return SourceUnitRecycleResult("WAITING", "源单元仍有任务未全部成功")
+            return SourceUnitRecycleResult("WAITING", blocker)
         if not os.path.isdir(unit["unit_path"]):
             return SourceUnitRecycleResult("BLOCKED", "源单元目录不存在或挂载已失效")
         current = _snapshot(unit["unit_path"], unit["kind"])
@@ -397,6 +416,13 @@ class SourceUnitCoordinator:
             return SourceUnitRecycleResult("BLOCKED", message)
 
         recycle_dir = policy.get("recycle_dir", "")
+        if list_tasks_for_source_unit(self.conn, unit_id) != tasks:
+            return SourceUnitRecycleResult("WAITING", "来源复核期间任务状态发生变化，已保留来源等待下次复核")
+        final_snapshot = _snapshot(unit["unit_path"], unit["kind"])
+        if final_snapshot != _physical_snapshot(unit["snapshot"]):
+            return SourceUnitRecycleResult(
+                "BLOCKED", "来源复核完成后内容再次发生变化，已保留来源等待稳定",
+            )
         update_source_unit(
             self.conn,
             unit_id,
@@ -442,6 +468,8 @@ class SourceUnitCoordinator:
             return SourceUnitRecycleResult("BLOCKED", message)
         completed_state = "DELETED" if disposal_mode == "permanent_delete" else "RECYCLED"
         update_source_unit(self.conn, unit_id, state=completed_state, cleanup_status="DONE")
+        if duplicate_count:
+            message += f"；已核验同一来源文件的完整入库证明，{duplicate_count} 条历史重复记录保留供审计"
         return SourceUnitRecycleResult(completed_state, message)
 
     def retry_pending(self) -> list[SourceUnitRecycleResult]:
@@ -449,21 +477,6 @@ class SourceUnitCoordinator:
         for unit_id in list_pending_source_unit_ids(self.conn):
             result = self.try_recycle(unit_id)
             results.append(result)
-            disposition = {
-                "DELETED": "deleted",
-                "RECYCLED": "recycled",
-                "SKIPPED": "kept",
-                "WAITING": "pending",
-                "BLOCKED": "failed",
-            }.get(result.state, "pending")
-            for task in list_tasks_for_source_unit(self.conn, unit_id):
-                update_task(
-                    self.conn,
-                    task["task_id"],
-                    source_cleanup_status=result.state,
-                    source_disposition=disposition,
-                    source_disposition_message=result.message,
-                )
         return results
 
     def _move_loose_files(

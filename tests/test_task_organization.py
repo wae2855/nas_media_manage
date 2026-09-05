@@ -1,4 +1,6 @@
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -175,6 +177,59 @@ def test_create_reorganization_keeps_parent_completed_and_is_idempotent(tmp_path
     assert child["video_path"] == video
     assert [row["source_path"] for row in get_subtitles_by_task(manager.conn, child["task_id"])] == subtitles
     assert manager.get_task(parent["task_id"])["status"] == "SUCCESS"
+
+
+# Requirement: REQ-20260905-231945
+def test_concurrent_reorganization_requests_share_one_child(tmp_path, monkeypatch):
+    from media_importer.features.tasks import organization_service as module
+
+    config = _config(tmp_path)
+    manager = TaskManager(str(tmp_path / "data"), config={})
+    other = TaskManager(str(tmp_path / "data"), config={})
+    parent, _, _ = _completed_fallback_task(manager, config)
+    original = module.find_active_reorganization
+    barrier = threading.Barrier(2, timeout=0.3)
+
+    def racing_find(*args):
+        result = original(*args)
+        if not result:
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+        return result
+
+    monkeypatch.setattr(module, "find_active_reorganization", racing_find)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(create_reorganization_task_for_api, tm, config, parent["task_id"])
+                   for tm in (manager, other)]
+        results = [future.result(timeout=5) for future in futures]
+    assert sorted(result.code for result in results) == [200, 201]
+    assert len({result.data["task"]["task_id"] for result in results}) == 1
+
+
+def test_reorganization_does_not_silently_drop_missing_subtitle(tmp_path):
+    config = _config(tmp_path)
+    manager = TaskManager(str(tmp_path / "data"), config={})
+    parent, video, subtitles = _completed_fallback_task(manager, config)
+    os.unlink(subtitles[0])
+    result = create_reorganization_task_for_api(manager, config, parent["task_id"])
+    assert result.code == 409
+    assert "字幕" in result.message
+    assert os.path.exists(video)
+
+
+def test_retry_old_reorganization_cannot_compete_with_new_active_child(tmp_path):
+    config = _config(tmp_path)
+    manager = TaskManager(str(tmp_path / "data"), config={})
+    parent, _, _ = _completed_fallback_task(manager, config)
+    old = create_reorganization_task_for_api(manager, config, parent["task_id"]).data["task"]
+    update_task(manager.conn, old["task_id"], status="FAILED", stage="DONE")
+    new = create_reorganization_task_for_api(manager, config, parent["task_id"]).data["task"]
+    assert manager.retry_task(old["task_id"]) is None
+    assert manager.retry_all_failed() == []
+    assert manager.get_task(old["task_id"])["status"] == "FAILED"
+    assert manager.get_task(new["task_id"])["status"] == "PENDING"
 
 
 def test_completed_organized_task_can_create_custom_manual_relocation(tmp_path):

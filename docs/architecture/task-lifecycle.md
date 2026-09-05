@@ -1,5 +1,7 @@
 # Task Lifecycle
 
+批量重试必须复用 `TaskManager.retry_task` 的状态复核和 CAS；批量快照中的终态若已变化则跳过。重新整理任务创建与重试在当前单进程服务内串行检查活动子任务，禁止复活旧失败子任务与新活动子任务竞争。该进程锁不代表数据库多进程唯一性保证。
+
 ## Status + Stage Dual Model
 
 任务状态采用双层模型：**status（终态）** + **stage（处理环节）**。

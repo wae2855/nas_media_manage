@@ -76,6 +76,10 @@
 
 ## Tests
 
+批量重试复用单任务 CAS，并检查批量选择时的期望状态，不能用过时失败快照重置已运行任务。当前单进程 HTTP 服务中，关联重新整理的创建与复活共享进程锁（跨数据库连接）；同一父任务已有活动子任务时复用或拒绝复活旧失败记录。此锁不是多进程唯一约束，未来多进程服务必须补数据库级门禁。已成功入库的字幕若缺失/越界，阻止创建移动任务；历史未成功字幕仍保留记录，不虚构成功。
+
+同剧批量套用的部分失败、排除项及处理中未改写项在弹窗逐项显示分集名/任务 ID 和原因；成功项不要求重交，列表刷新失败不能伪装成提交失败。
+
 - `tests/test_task_context_lifecycle.py` — legacy lifecycle transition contract tests.
 - `tests/test_stage_lifecycle.py` — stage transition unit tests for status+stage dual model.
 - `tests/test_migration_confirm_reason_drop.py` — DB migration tests.

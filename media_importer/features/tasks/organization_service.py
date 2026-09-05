@@ -17,6 +17,7 @@ from media_importer.features.organization_state import (
     ORGANIZATION_FALLBACK_PENDING,
     ORGANIZATION_ORGANIZED,
     TASK_KIND_REORGANIZE,
+    serialize_reorganization,
 )
 from media_importer.infrastructure.db import (
     find_active_reorganization,
@@ -99,6 +100,7 @@ def backfill_fallback_outcomes(conn, config: dict) -> int:
     return changed
 
 
+@serialize_reorganization
 def create_reorganization_task_for_api(
     task_manager,
     config: dict,
@@ -199,8 +201,15 @@ def create_reorganization_task_for_api(
     subtitle_paths = []
     for subtitle in parent_subtitles:
         path = str(subtitle.get("import_path") or subtitle.get("target_path") or "")
-        if path and os.path.isfile(path) and not os.path.islink(path):
-            subtitle_paths.append(path)
+        # A historical failed subtitle never joined the committed bundle.
+        if subtitle.get("status") in {"FAILED", "SKIPPED"} and not os.path.exists(path):
+            continue
+        if (not path or not os.path.isfile(path) or os.path.islink(path)
+                or not any(path_within(path, root, allow_root=False) for root in roots)):
+            return OrganizationActionResult(
+                code=409, message="已登记字幕缺失、类型异常或不在片库内；已停止重新整理，请先检查影片和字幕",
+            )
+        subtitle_paths.append(path)
 
     created = task_manager.create_task(
         video_path=video_path,

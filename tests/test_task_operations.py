@@ -76,6 +76,27 @@ class TestTaskOperations(unittest.TestCase):
         self.assertEqual(result["retry_count"], 1)
         self.assertEqual(result["error_message"], "")
 
+    # Requirement: REQ-20260905-231945
+    def test_bulk_retry_does_not_overwrite_concurrently_running_task(self):
+        from unittest.mock import patch
+
+        from media_importer.core import task_manager as module
+
+        task = self._create_task(status="FAILED")
+        original = module.db_list_all_tasks
+
+        def race(conn, **kwargs):
+            rows = original(conn, **kwargs)
+            self.tm.retry_task(task["task_id"])
+            db_module.update_task(conn, task["task_id"], stage="RUNNING", percentage=42)
+            return rows
+
+        with patch.object(module, "db_list_all_tasks", side_effect=race):
+            self.assertEqual(self.tm.retry_all_failed(), [])
+        current = self.tm.get_task(task["task_id"])
+        self.assertEqual(current["stage"], "RUNNING")
+        self.assertEqual(current["percentage"], 42)
+
     def test_retry_pending_task_should_fail(self):
         task = self._create_task(status="PENDING")
         result = self.tm.retry_task(task["task_id"])

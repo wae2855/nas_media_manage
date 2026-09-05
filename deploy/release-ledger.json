@@ -113,6 +113,28 @@
           "built_at": "2026-09-05T20:08:06+08:00"
         }
       ]
+    },
+    {
+      "version": "0.3.33",
+      "source_sha256": "2c6d64c1d69a8ca11e67e14853f6b1aa634fa221f56decb946c9a0518eea569f",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "f25ac5c2035470d66cd99759c8ecd2fa6beaa8a0e4c6c0b30fdb62136ff8fc7e",
+          "built_at": "2026-09-05T23:48:15+08:00"
+        }
+      ]
+    },
+    {
+      "version": "0.3.34",
+      "source_sha256": "0c9b441cde8289a4bfb863caf80ca0e0b120793b486e2a39a9801ac06f805b37",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "67b6eebb6464653c371cd24418ccfb70cd971cecb010d6a057125ffbfad3ee2b",
+          "built_at": "2026-09-05T23:55:06+08:00"
+        }
+      ]
     }
   ]
 }

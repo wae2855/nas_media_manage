@@ -9,6 +9,8 @@
 
 | 修改范围 | 推荐测试 |
 |----------|----------|
+| 来源清理与重复历史交叉链路 | `tests/test_source_cleanup_coverage.py`：5 集成功 + 2 条历史、两种处置模式、同代际/跨代际、独立失败集、字幕完整性、目标丢失/同大小变更、人工与重启保留、状态竞争、结果同步、重复执行及异常隔离；无重复证明需求不哈希片库 |
+| 实操遗漏场景加固 | `tests/test_task_operations.py` 批量重试与运行竞争；`tests/test_task_organization.py` 双连接并发创建、旧失败子任务复活冲突及成功字幕丢失；`tests/test_manual_scrape_selection_browser_ui.py` 桌面/手机部分失败逐项反馈 |
 | DB/repo | `tests/test_task_operations.py`, `tests/test_feature_entrypoints.py` |
 | 回收站/安全 | `tests/test_feature_recycle.py`, `tests/test_recycle_safety.py`, `tests/test_recycle_api_boundary.py`, `tests/test_integration_recycle.py` (gated) |
 | import flow | `tests/test_feature_import_flow.py`, `tests/test_feature_import_flow_run_file.py`, `tests/test_import_flow_services.py`, `tests/test_task_operations.py`, `tests/test_filename_cleaner.py`, `tests/test_task_concurrency_limit.py`；并发测试必须证明上限 2 时第三个任务未提前领取、重复 `run_all` 不叠加、重试与确认共享槽位；来源创建测试还必须证明扫描/手动竞争只生成一个任务、重复手动请求不启动 worker、证据持久化且真实路径别名复用 |

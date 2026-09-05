@@ -52,7 +52,9 @@ def update_source_unit(conn: sqlite3.Connection, unit_id: str, **fields) -> dict
 def list_tasks_for_source_unit(conn: sqlite3.Connection, unit_id: str) -> list[dict]:
     with _sqlite_conn_lock:
         rows = conn.execute(
-            "SELECT task_id, source_path, status, stage, import_success FROM tasks WHERE source_unit_id=?",
+            "SELECT task_id, source_path, status, stage, import_success, bundle_state, "
+            "outcome_code, source_disposition, requested_source_disposition, skip_reason "
+            "FROM tasks WHERE source_unit_id=?",
             (unit_id,),
         ).fetchall()
     return [dict(row) for row in rows]

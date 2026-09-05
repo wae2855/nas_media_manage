@@ -11,6 +11,7 @@ from media_importer.features.configuration.storage_topology import (
     path_in_library,
     path_within,
 )
+from media_importer.features.operation_locks import serialize_source_disposition
 from media_importer.features.recycle import move_to_recycle
 from media_importer.features.source_files.permanent_delete import (
     permanently_delete_source_members,
@@ -35,6 +36,12 @@ class TaskDispositionResult:
     data: dict = field(default_factory=dict)
 
 
+@serialize_source_disposition(
+    lambda task_manager, _config, task_id, **_kwargs: (
+        ((task_manager.get_task(task_id) if task_manager else None) or {}).get("source_unit_id")
+        or f"task:{task_id}"
+    )
+)
 def request_task_disposition(
     task_manager,
     config: dict,
@@ -53,6 +60,17 @@ def request_task_disposition(
     task = task_manager.get_task(task_id)
     if task is None:
         return TaskDispositionResult(404, f"任务不存在: {task_id}")
+
+    source_unit_id = str(task.get("source_unit_id") or "")
+    if source_unit_id:
+        from media_importer.infrastructure.db import get_source_unit
+
+        unit = get_source_unit(task_manager.conn, source_unit_id)
+        if unit and unit.get("state") in {"RECYCLING", "DELETING", "RECYCLED", "DELETED"}:
+            return TaskDispositionResult(
+                409,
+                "该来源单元正在统一处理或已处理完成，不能再改为保留/重试；请刷新任务查看最终结果",
+            )
 
     protected = _protected_task_reason(task, config, disposition)
     if protected:

@@ -909,11 +909,18 @@ function renderScrapeCandidateDetail(candidate, taskId) {
           },
         );
         if (result.code === 200) {
-          var overlay = document.getElementById("scrape-search-overlay");
-          if (overlay) overlay.remove();
-          showToast(result.message || "已按人工选择加入处理队列");
-          await openTaskDetailImpl(taskId, true);
-          await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          var hasDetails = renderSeriesApplyResult(result, taskId);
+          if (!hasDetails) {
+            var overlay = document.getElementById("scrape-search-overlay");
+            if (overlay) overlay.remove();
+            showToast(result.message || "已按人工选择加入处理队列");
+          }
+          try {
+            if (!hasDetails) await openTaskDetailImpl(taskId, true);
+            await Promise.all([loadTaskList(), loadDashboardOverview()]);
+          } catch (_refreshError) {
+            showToast("处理已提交，但列表刷新失败，请刷新页面查看结果", "error");
+          }
         } else {
           showToast("应用失败: " + (result.message || "未知错误"), "error");
           renderScrapeCandidateDetail(candidate, taskId);
@@ -924,6 +931,51 @@ function renderScrapeCandidateDetail(candidate, taskId) {
       }
     });
   }
+}
+
+function renderSeriesApplyResult(result, taskId) {
+  var data = result.data || {};
+  var groups = [
+    ["failed", "未应用"], ["skipped", "未应用"],
+    ["processing_unchanged", "处理中，本次未改写"],
+  ];
+  if (!groups.some(function (group) { return (data[group[0]] || []).length; })) return false;
+  var detail = document.getElementById("scrape-search-detail");
+  if (!detail) return false;
+  var names = {};
+  detail.querySelectorAll("[data-series-batch-task]").forEach(function (input) {
+    names[input.dataset.seriesBatchTask] = input.closest("label")?.querySelector("b")?.textContent;
+  });
+  var reasons = {
+    state_changed: "任务状态已变化，请刷新后检查该集",
+    not_in_safe_series_batch: "已不属于可安全批量处理的分集，请单独查看",
+    processing_unchanged: "处理中，本次未改写",
+  };
+  var rows = [];
+  groups.forEach(function (group) {
+    (data[group[0]] || []).forEach(function (item) {
+      var reason = item.error || item.reason || "";
+      rows.push('<div class="series-batch-item"><span><b>' +
+        escapeHtml(item.source_filename || names[item.task_id] || item.task_id) +
+        '</b><small>' + escapeHtml(group[1]) + " · " +
+        escapeHtml(reasons[reason] || reason || "请查看任务详情") + '</small></span></div>');
+    });
+  });
+  detail.innerHTML = '<div class="series-batch-result" role="status">' +
+    '<h3>批量处理结果</h3><p>' + escapeHtml(result.message || "处理已提交") +
+    '</p><p>已应用的分集无需重复提交。以下分集请查看具体原因，刷新后单独处理。</p>' +
+    '<div class="series-batch-list">' + rows.join("") + '</div>' +
+    '<button class="btn btn-primary" id="btn-series-result-close" type="button">关闭并刷新任务</button></div>';
+  document.getElementById("btn-series-result-close").addEventListener("click", async function () {
+    document.getElementById("scrape-search-overlay")?.remove();
+    try {
+      await openTaskDetailImpl(taskId, true);
+      await Promise.all([loadTaskList(), loadDashboardOverview()]);
+    } catch (_error) {
+      showToast("列表刷新失败，请刷新页面查看已提交的结果", "error");
+    }
+  });
+  return true;
 }
 
 async function chooseSeriesBatchTaskIds(candidate, taskId) {
