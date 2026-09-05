@@ -102,6 +102,17 @@
       ],
       "verified_at": "2026-09-05T00:49:28+08:00",
       "verification_note": "用户于 2026-09-05 确认 fnOS 安装与验证通过"
+    },
+    {
+      "version": "0.3.32",
+      "source_sha256": "4cc2f8d6b4d1a4ba3ea0fda6a6004b0085341aada9d99eca57ac5ba0188926f6",
+      "status": "candidate",
+      "builds": [
+        {
+          "artifact_sha256": "4430921bdfe0b8ebb67172960d042842d9ac1f59a544b4f71cb5c7d2b85c4b99",
+          "built_at": "2026-09-05T20:08:06+08:00"
+        }
+      ]
     }
   ]
 }
