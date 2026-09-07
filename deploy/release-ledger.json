@@ -128,13 +128,15 @@
     {
       "version": "0.3.34",
       "source_sha256": "0c9b441cde8289a4bfb863caf80ca0e0b120793b486e2a39a9801ac06f805b37",
-      "status": "candidate",
+      "status": "verified",
       "builds": [
         {
           "artifact_sha256": "67b6eebb6464653c371cd24418ccfb70cd971cecb010d6a057125ffbfad3ee2b",
           "built_at": "2026-09-05T23:55:06+08:00"
         }
-      ]
+      ],
+      "verified_at": "2026-09-07T10:37:10+08:00",
+      "verification_note": "用户于 2026-09-07 确认 fnOS 真机验收通过；来源清理、任务状态与安装包运行符合验收预期"
     }
   ]
 }
