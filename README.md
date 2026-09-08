@@ -1,6 +1,7 @@
 # 影音库 AI 智能整理
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/wae2855/nas_media_manage?display_name=tag&sort=semver)](https://github.com/wae2855/nas_media_manage/releases/latest)
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)
 ![fnOS](https://img.shields.io/badge/fnOS-FPK-202020.svg)
 
@@ -9,6 +10,29 @@
 项目优先解决三个实际问题：下载文件名不统一、电影电视剧目录难以长期维护，以及自动整理出错时缺少人工纠正和文件安全保障。
 
 > 当前作品身份识别由确定性规则与 TMDB Provider 完成，不使用 AI 猜测影片身份。LLM 仅作为可选的源目录清理建议能力；没有 LLM 也能使用主要功能。
+
+## 界面预览
+
+以下截图来自 fnOS 真机验收通过的 `v0.3.34`。桌面端与移动端使用同一套响应式 Web 界面，可完成扫描、任务处理、人工确认、回收与配置。
+
+### 桌面端
+
+<p align="center">
+  <a href="screenshots/pc-002.png"><img src="screenshots/pc-002.png" alt="桌面端片库总览，可立即扫描并查看排队、待确认和今日入库状态" width="100%"></a>
+</p>
+
+| 任务工作台 | 片库搭建向导 |
+|:----------:|:------------:|
+| <a href="screenshots/pc-001.png"><img src="screenshots/pc-001.png" alt="桌面端任务工作台，展示任务筛选、影片元数据、处理状态和人工操作入口"></a> | <a href="screenshots/pc-003.png"><img src="screenshots/pc-003.png" alt="桌面端片库搭建向导，展示存储检查、作品识别、片库整理和自动运行流程"></a> |
+| 查看队列、刮削结果与真实处理状态 | 按步骤完成存储、识别、规则与自动运行配置 |
+
+### 移动端
+
+| 片库总览 | 任务工作台 | 片库搭建 |
+|:--------:|:----------:|:--------:|
+| <a href="screenshots/IMG_1836.PNG"><img src="screenshots/IMG_1836.PNG" alt="移动端片库总览与立即扫描入口" width="260"></a> | <a href="screenshots/IMG_1837.PNG"><img src="screenshots/IMG_1837.PNG" alt="移动端任务工作台与任务状态筛选" width="260"></a> | <a href="screenshots/IMG_1838.PNG"><img src="screenshots/IMG_1838.PNG" alt="移动端片库搭建向导与配置步骤" width="260"></a> |
+
+点击任意截图可查看原图。
 
 ## 主要功能
 
@@ -31,7 +55,7 @@
 - TMDB 是当前主要元数据 Provider，需要自行申请并配置 TMDB API Key。
 - 自动识别不承诺覆盖所有命名；信息冲突、低置信或目标文件冲突会停下等待人工确认。
 - 不建议把唯一一份影片直接交给自动化流程。首次使用前请准备备份，并先用少量测试文件验证规则。
-- 当前 `0.3.31` 已完成 `FNOS_UAT PASS`；这不代表所有 fnOS 机型和存储组合均已覆盖。后续候选包仍须区分 `LOCAL_BUILD PASS` 与真机验收。
+- 当前正式版 `0.3.34` 已完成 `FNOS_UAT PASS`；这不代表所有 fnOS 机型和存储组合均已覆盖。后续候选包仍须区分 `LOCAL_BUILD PASS` 与真机验收。
 
 ## 处理流程
 
