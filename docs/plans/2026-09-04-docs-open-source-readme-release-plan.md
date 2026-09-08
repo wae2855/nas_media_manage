@@ -94,3 +94,13 @@ confidence: medium
 ## Publication Resolution
 
 完整历史审计发现的旧凭据已从所有公开分支历史中清除，并通过独立远端镜像复扫。历史删除不能替代服务端吊销，仍可能有效的旧凭据必须由对应 Provider 失效处理。
+
+## 2026-09-08 Screenshot Enhancement
+
+- [x] 检查用户准备的 3 张桌面端和 3 张移动端截图，确认不包含凭据、真实目录、IP 或运行日志。
+- [x] 在 README 增加界面预览、可点击原图、准确替代文本和正式版徽章，并将真机版本事实更新为 0.3.34。
+- [x] 仅对白名单 `screenshots/` 放开图片跟踪，不改变其他 PNG/JPG 忽略边界。
+- [x] 通过 README 静态合同、文档、敏感信息、GitHub Markdown 渲染和差异检查。
+- [x] 提交并推送，匿名验证 GitHub README 的 6 张截图均可访问。
+
+验证结果：README/架构护栏 22 项、Ruff、文档检查和 `git diff --check` 通过；GitHub Markdown API 保留全部图片与原图链接；公开仓库首页出现“界面预览”，README 和 6 张图片匿名请求均返回 HTTP 200，远端大小与本地一致。实现提交为 `46e9c1b`。
